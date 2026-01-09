@@ -1,0 +1,258 @@
+
+<!DOCTYPE html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#09090B">
+    <title>CarTié Operations</title>
+    
+    <!-- Telegram Web App SDK -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class', 
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Inter', 'sans-serif'],
+              mono: ['JetBrains Mono', 'monospace'],
+            },
+            colors: {
+              gold: {
+                400: '#E7C866',
+                500: '#D4AF37', // Brand Primary
+                600: '#B5952F',
+                900: '#4A3B0F',
+              },
+              charcoal: {
+                800: '#1F2937',
+                900: '#111827',
+                950: '#0B0D10',
+              }
+            },
+            animation: {
+              'slide-up': 'slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+              'fade-in': 'fadeIn 0.3s ease-out forwards',
+            },
+            keyframes: {
+              slideUp: {
+                '0%': { transform: 'translateY(12px)', opacity: 0 },
+                '100%': { transform: 'translateY(0)', opacity: 1 },
+              },
+              fadeIn: {
+                '0%': { opacity: 0 },
+                '100%': { opacity: 1 },
+              }
+            }
+          }
+        }
+      }
+    </script>
+    <style>
+      :root {
+        /* Forced Dark Theme (Deep Graphite / Midnight) */
+        --bg-app: #09090B;
+        --bg-panel: #18181B;
+        --bg-input: #27272A; 
+        --border-color: #3F3F46;
+        --text-primary: #FAFAFA;
+        --text-secondary: #A1A1AA;
+        --input-placeholder: #71717A;
+        --glass-blur: 0px;
+      }
+
+      body {
+        font-family: 'Inter', sans-serif;
+        background-color: var(--bg-app);
+        color: var(--text-primary);
+        -webkit-font-smoothing: antialiased;
+        font-size: 16px; 
+        font-weight: 500;
+      }
+
+      .tabular-nums { font-variant-numeric: tabular-nums; }
+
+      /* Noise Texture - reduced opacity */
+      .noise-overlay {
+        position: fixed;
+        top: 0; left: 0; width: 100%; height: 100%;
+        pointer-events: none; z-index: 9999; opacity: 0.02;
+        background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+      }
+
+      /* --- COMPONENTS --- */
+
+      /* 1. PANELS - Solid & Clean */
+      .panel {
+        background-color: var(--bg-panel);
+        border: 1px solid var(--border-color);
+        border-radius: 1.25rem; 
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2), 0 2px 4px -1px rgba(0, 0, 0, 0.1);
+      }
+
+      /* 2. INPUTS - High Contrast */
+      .input, .textarea, .select {
+        width: 100%;
+        background-color: var(--bg-input);
+        border: 1px solid transparent;
+        border-radius: 0.75rem;
+        padding: 0.875rem 1rem;
+        font-size: 0.9375rem;
+        line-height: 1.5;
+        font-weight: 500;
+        color: var(--text-primary);
+        outline: none;
+        transition: all 0.2s ease;
+      }
+      
+      .input::placeholder, .textarea::placeholder { 
+        color: var(--input-placeholder); 
+      }
+      
+      .input:hover, .textarea:hover, .select:hover {
+        background-color: #3F3F46; /* Slightly lighter on hover */
+      }
+      
+      .input:focus, .textarea:focus, .select:focus {
+        border-color: #D4AF37; 
+        background-color: var(--bg-panel);
+        box-shadow: 0 0 0 4px rgba(212, 175, 55, 0.1);
+      }
+
+      /* 3. BUTTONS - Punchy */
+      .btn-primary {
+        background-color: #D4AF37;
+        color: #000000;
+        font-weight: 700;
+        font-size: 0.9375rem;
+        padding: 0.75rem 1.5rem;
+        border-radius: 0.75rem;
+        transition: all 0.2s;
+        box-shadow: 0 4px 12px rgba(212, 175, 55, 0.3);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        border: none;
+        cursor: pointer;
+      }
+      .btn-primary:hover {
+        background-color: #EBC550;
+        transform: translateY(-1px);
+        box-shadow: 0 6px 16px rgba(212, 175, 55, 0.4);
+      }
+      .btn-primary:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+        transform: none;
+      }
+
+      .btn-secondary {
+        background-color: var(--bg-panel);
+        border: 1px solid var(--border-color);
+        color: var(--text-primary);
+        font-weight: 600;
+        font-size: 0.9375rem;
+        padding: 0.75rem 1.5rem;
+        border-radius: 0.75rem;
+        transition: all 0.2s;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        cursor: pointer;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+      }
+      .btn-secondary:hover {
+        background-color: var(--bg-input);
+        border-color: var(--text-secondary);
+      }
+
+      .btn-ghost {
+        background: transparent;
+        color: var(--text-secondary);
+        padding: 0.5rem;
+        border-radius: 0.5rem;
+        transition: color 0.2s;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        border: none;
+        cursor: pointer;
+        font-weight: 600;
+      }
+      .btn-ghost:hover {
+        color: var(--text-primary);
+        background-color: var(--bg-input);
+      }
+      
+      .btn-icon {
+        padding: 0.6rem;
+        aspect-ratio: 1;
+        justify-content: center;
+      }
+
+      /* 4. TABLES - Bolder */
+      .table-container {
+        width: 100%;
+        overflow-x: auto;
+      }
+      .table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.9375rem;
+      }
+      .table th {
+        text-align: left;
+        padding: 1.25rem 1.5rem;
+        color: var(--text-secondary);
+        font-weight: 700;
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        border-bottom: 2px solid var(--border-color);
+      }
+      .table td {
+        padding: 1.25rem 1.5rem;
+        border-bottom: 1px solid var(--border-color);
+        color: var(--text-primary);
+        font-weight: 500;
+      }
+      .table tr:last-child td { border-bottom: none; }
+      .table tr:hover td { background-color: var(--bg-input); }
+
+      /* Scrollbar */
+      ::-webkit-scrollbar { width: 6px; height: 6px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 3px; }
+      ::-webkit-scrollbar-thumb:hover { background: var(--text-secondary); }
+    </style>
+<script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@^19.2.3",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react-router-dom": "https://esm.sh/react-router-dom@^7.11.0",
+    "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
+    "recharts": "https://esm.sh/recharts@^3.6.0"
+  }
+}
+</script>
+</head>
+  <body class="antialiased h-screen overflow-hidden selection:bg-gold-500 selection:text-white">
+    <div class="noise-overlay"></div>
+    <div id="root" class="h-full relative z-10"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>
