@@ -1,0 +1,168 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum BotTemplate {
+  CLIENT_LEAD
+  CATALOG
+  B2B
+}
+
+enum LeadStatus {
+  NEW
+  IN_PROGRESS
+  DONE
+}
+
+enum DraftSource {
+  EXTENSION
+  MANUAL
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  password  String
+  name      String?
+  role      String   @default("ADMIN")
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model BotConfig {
+  id          Int         @id @default(autoincrement())
+  name        String?
+  template    BotTemplate
+  token       String      @unique
+  channelId   String?
+  adminChatId String?
+  isEnabled   Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
+model Lead {
+  source     String?
+  userTgId   String?
+  request    String?
+  leadCode   String?
+  id         Int        @id @default(autoincrement())
+  clientName String
+  phone      String?
+  status     LeadStatus @default(NEW)
+  payload    Json?
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+}
+
+model B2bRequest {
+  chatId     String?
+  content    String?
+  id        Int      @id @default(autoincrement())
+  publicId  String?  @unique
+  payload   Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Draft {
+  id          Int         @id @default(autoincrement())
+  source      DraftSource
+  title       String
+  price       String?
+  url         String?
+  description String?
+  status      String      @default("PENDING")
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
+model SystemSettings {
+  id           Int      @id @default(autoincrement())
+  autoriaApiKey String?
+  metaPixelId   String?
+  metaToken     String?
+  metaTestCode  String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model SystemLog {
+  id        Int      @id @default(autoincrement())
+  module    String
+  action    String
+  status    String
+  message   String
+  payload   Json?
+  createdAt DateTime @default(now())
+}
+
+//
+// --- Dynamic Entities (Variant B) ---
+//
+
+enum FieldType {
+  text
+  number
+  boolean
+  date
+  datetime
+  select
+  multiselect
+  json
+}
+
+model EntityDefinition {
+  id          String       @id @default(cuid())
+  slug        String       @unique
+  name        String
+  description String?
+  status      String       @default("ACTIVE") // ACTIVE | ARCHIVED
+
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  fields      EntityField[]
+  records     EntityRecord[]
+}
+
+model EntityField {
+  id          String           @id @default(cuid())
+  entityId    String
+  entity      EntityDefinition @relation(fields: [entityId], references: [id], onDelete: Cascade)
+
+  key         String
+  label       String
+  type        FieldType
+  required    Boolean          @default(false)
+  order       Int              @default(0)
+
+  // optional config (select options, UI hints, validation rules)
+  config      Json?            @db.JsonB
+
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@unique([entityId, key])
+  @@index([entityId, order])
+}
+
+model EntityRecord {
+  id          String           @id @default(cuid())
+  entityId    String
+  entity      EntityDefinition @relation(fields: [entityId], references: [id], onDelete: Cascade)
+
+  // main payload
+  data        Json             @db.JsonB
+
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@index([entityId, createdAt])
+}

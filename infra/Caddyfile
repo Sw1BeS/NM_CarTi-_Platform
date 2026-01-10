@@ -1,0 +1,26 @@
+{
+  auto_https off
+}
+
+:8080 {
+  encode zstd gzip
+
+  @health path /health /api/health
+  handle @health {
+    header Cache-Control "no-store"
+    rewrite * /health
+    reverse_proxy api:3001
+  }
+
+  @api path /api/*
+  handle @api {
+    header Cache-Control "no-store"
+    reverse_proxy api:3001
+  }
+
+  handle {
+    root * /srv/www
+    try_files {path} /index.html
+    file_server
+  }
+}
