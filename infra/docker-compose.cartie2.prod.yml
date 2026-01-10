@@ -1,4 +1,4 @@
-name: infra
+name: infra2
 services:
   db:
     image: postgres:15-alpine
