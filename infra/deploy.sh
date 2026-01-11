@@ -1,5 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
+
+# --- SAFETY GUARD (infra2 is production). This script is LEGACY. ---
+# To run it intentionally, export ALLOW_LEGACY_DEPLOY=1
+if [ "${ALLOW_LEGACY_DEPLOY:-0}" != "1" ]; then
+  echo "[LEGACY] REFUSED: infra/deploy.sh is legacy (wrong paths/ports/containers)."
+  echo "[LEGACY] Use: infra/deploy_infra2.sh"
+  exit 2
+fi
+# --- /SAFETY GUARD ---
+
 git config --global --add safe.directory /srv/cartie/repo >/dev/null 2>&1 || true
 
 REPO_DIR="${REPO_DIR:-/srv/cartie/repo}"
