@@ -23,3 +23,10 @@ dist-ssr
 *.sln
 *.sw?
 infra/*.bak.*
+
+# Local/ops backups (never commit)
+.gitignore.bak.*
+*.bak.*
+**/*.bak.*
+infra.bak.*
+**/infra.bak.*
