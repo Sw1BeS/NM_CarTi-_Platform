@@ -9,7 +9,7 @@ RUN npm install
 COPY server ./
 
 # IMPORTANT: prisma generate is safe ONLY after schema has models
-RUN npx prisma generate --schema ./prisma/schema.prisma || true
+RUN npx prisma generate --schema ./prisma/schema.prisma
 RUN npm run build
 
 ENV NODE_ENV=production
