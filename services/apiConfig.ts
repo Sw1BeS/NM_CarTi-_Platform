@@ -1,16 +1,29 @@
 
 export const DEFAULT_LOCAL_FALLBACK = 'http://localhost:3001';
 
+function normalizeApiBase(value: string): string {
+    const trimmed = value.trim().replace(/\/$/, '');
+    if (!trimmed) return '';
+    if (trimmed.endsWith('/api')) return trimmed;
+    return `${trimmed}/api`;
+}
+
 export function getApiBase(): string {
     // 1. LocalStorage override
     const stored = localStorage.getItem('cartie_api_base');
-    if (stored) return stored.replace(/\/$/, '');
+    if (stored) {
+        const normalized = normalizeApiBase(stored);
+        if (normalized && normalized !== stored) {
+            localStorage.setItem('cartie_api_base', normalized);
+        }
+        return normalized;
+    }
 
     // 2. Environment variable (Vite)
     // Cast import.meta to any to avoid TS errors in some environments
     const meta = import.meta as any;
     if (meta.env?.VITE_API_BASE_URL) {
-        return meta.env.VITE_API_BASE_URL.replace(/\/$/, '');
+        return normalizeApiBase(meta.env.VITE_API_BASE_URL);
     }
 
     // 3. Local Development Fallback
@@ -27,5 +40,10 @@ export function getApiBase(): string {
 }
 
 export function setApiBase(url: string) {
-    localStorage.setItem('cartie_api_base', url);
+    const normalized = normalizeApiBase(url);
+    if (normalized) {
+        localStorage.setItem('cartie_api_base', normalized);
+    } else {
+        localStorage.removeItem('cartie_api_base');
+    }
 }

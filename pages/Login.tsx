@@ -24,17 +24,7 @@ export const Login = () => {
     const [checking, setChecking] = useState(false);
 
     useEffect(() => {
-        // Force clear legacy manual overrides to ensure Server Mode defaults apply
-        const stored = localStorage.getItem('cartie_api_base');
-        if (stored && !stored.includes('/api')) {
-            console.log("Clearing legacy API base", stored);
-            localStorage.removeItem('cartie_api_base');
-            setApiBaseUrl(getApiBase()); // Reset state to new default
-        }
-
-        if (!getApiBase()) {
-            setShowConnection(true);
-        }
+        setApiBaseUrl(getApiBase());
     }, []);
 
     const handleTestConnection = async () => {
@@ -107,11 +97,11 @@ export const Login = () => {
                                 <label className="text-[10px] font-bold text-[var(--text-secondary)] uppercase block mb-1">API Base URL</label>
                                 <input
                                     className="input text-xs font-mono"
-                                    placeholder="http://127.0.0.1:3001"
+                                    placeholder="http://127.0.0.1:3001/api"
                                     value={apiBaseUrl}
                                     onChange={e => setApiBaseUrl(e.target.value)}
                                 />
-                                <p className="text-[10px] text-[var(--text-secondary)] mt-1 opacity-60">Empty = Same Origin (Prod)</p>
+                                <p className="text-[10px] text-[var(--text-secondary)] mt-1 opacity-60">Empty = Same Origin (/api)</p>
                             </div>
 
                             {testStatus && (
