@@ -70,7 +70,9 @@ export class ServerAdapter implements DataAdapter {
             console.warn(`[ServerAdapter] Failed to list ${slug}:`, res.message);
             return [];
         }
-        return res.data?.map(this.unwrap) || [];
+        const payload: any = res.data;
+        const items = Array.isArray(payload) ? payload : (payload?.items || []);
+        return items.map(this.unwrap);
     }
 
     async saveEntity<T extends { id: string }>(slug: string, data: T): Promise<T> {

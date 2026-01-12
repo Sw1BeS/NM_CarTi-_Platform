@@ -4,8 +4,10 @@ import { Data } from '../services/data';
 import { TelegramAPI } from '../services/telegram';
 import { BotEngine } from '../services/botEngine';
 import { Bot } from '../types';
+import { useAuth } from './AuthContext';
 
 export const WorkerProvider = ({ children }: React.PropsWithChildren) => {
+    const { user } = useAuth();
     const isMounted = useRef(true);
     const pollingRef = useRef<any>(null);
     const campaignRef = useRef<any>(null);
@@ -35,12 +37,23 @@ export const WorkerProvider = ({ children }: React.PropsWithChildren) => {
 
     useEffect(() => {
         isMounted.current = true;
+
+        const token = localStorage.getItem('cartie_token');
+        if (!user || !token) {
+            if (campaignRef.current) clearInterval(campaignRef.current);
+            if (pollingRef.current) clearTimeout(pollingRef.current);
+            return () => {
+                if (campaignRef.current) clearInterval(campaignRef.current);
+                if (pollingRef.current) clearTimeout(pollingRef.current);
+            };
+        }
         
         // --- WORKER 1: CAMPAIGN PROCESSOR ---
         const startCampaignWorker = () => {
             if (campaignRef.current) clearInterval(campaignRef.current);
             campaignRef.current = setInterval(async () => {
                 if (!isMounted.current || !checkIsLeader()) return; // ONLY LEADER RUNS
+                if (!localStorage.getItem('cartie_token')) return;
                 
                 try {
                     const campaigns = await Data.getCampaigns();
@@ -125,6 +138,10 @@ export const WorkerProvider = ({ children }: React.PropsWithChildren) => {
         const startPollingWorker = async () => {
             const runPoll = async () => {
                 if (!isMounted.current) return;
+                if (!localStorage.getItem('cartie_token')) {
+                    pollingRef.current = setTimeout(runPoll, 5000);
+                    return;
+                }
                 
                 let pollInterval = 4000; 
 
@@ -209,7 +226,7 @@ export const WorkerProvider = ({ children }: React.PropsWithChildren) => {
             if (campaignRef.current) clearInterval(campaignRef.current);
             if (pollingRef.current) clearTimeout(pollingRef.current);
         };
-    }, []);
+    }, [user]);
 
     return <>{children}</>;
 };
