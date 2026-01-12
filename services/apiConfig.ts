@@ -17,12 +17,13 @@ export function getApiBase(): string {
     // If we are on localhost and NOT on port 3000 (e.g. 5173), assume API is on 3000
     if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
         if (window.location.port !== '3000') {
-            return DEFAULT_LOCAL_FALLBACK;
+            return `${DEFAULT_LOCAL_FALLBACK}/api`;
         }
     }
 
     // 4. Default to current origin (for production bundles served by backend)
-    return window.location.origin.replace(/\/$/, '');
+    // APPEND /api because the backend routes are mounted at /api and Caddy proxies /api
+    return `${window.location.origin.replace(/\/$/, '')}/api`;
 }
 
 export function setApiBase(url: string) {
