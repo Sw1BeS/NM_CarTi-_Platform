@@ -179,6 +179,48 @@ router.post('/settings', requireRole(['ADMIN']), async (req, res) => { // Update
     res.json({ success: true });
 });
 
+// --- Users (Relational) ---
+router.get('/users', requireRole(['ADMIN']), async (req, res) => {
+    const users = await prisma.user.findMany({ orderBy: { createdAt: 'desc' } });
+    res.json(users);
+});
+
+router.post('/users', requireRole(['ADMIN']), async (req, res) => {
+    try {
+        const { id, password, ...data } = req.body;
+        const hashedPassword = await bcrypt.hash(password || '123456', 10);
+        const user = await prisma.user.create({ data: { ...data, password: hashedPassword } });
+        res.json(user);
+    } catch (e) {
+        console.error(e);
+        res.status(500).json({ error: 'Failed to create user' });
+    }
+});
+
+router.put('/users/:id', requireRole(['ADMIN']), async (req, res) => {
+    try {
+        const { id: _, password, ...data } = req.body;
+        const id = parseInt(req.params.id);
+        const updateData: any = { ...data };
+        if (password) {
+            updateData.password = await bcrypt.hash(password, 10);
+        }
+        const user = await prisma.user.update({ where: { id }, data: updateData });
+        res.json(user);
+    } catch (e) {
+        console.error(e);
+        res.status(500).json({ error: 'Failed to update user' });
+    }
+});
+
+router.delete('/users/:id', requireRole(['ADMIN']), async (req, res) => {
+    try {
+        const id = parseInt(req.params.id);
+        await prisma.user.delete({ where: { id } });
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ error: 'Failed to delete user' }); }
+});
+
 router.get('/logs', requireRole(['ADMIN']), async (req, res) => {
     const logs = await prisma.systemLog.findMany({ orderBy: { createdAt: 'desc' }, take: 50 });
     res.json(logs);
