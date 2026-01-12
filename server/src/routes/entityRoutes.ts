@@ -270,7 +270,13 @@ const updateRecord = async (req: any, res: any) => {
   if (!existing) return bad(res, 404, 'Record not found');
 
   const patch = (req.body && typeof req.body === 'object') ? req.body : {};
-  const nextData = { ...(existing.data || {}), ...(patch.data || {}) };
+  const existingData = (existing.data && typeof existing.data === 'object' && !Array.isArray(existing.data))
+    ? (existing.data as Record<string, any>)
+    : {};
+  const patchData = (patch.data && typeof patch.data === 'object' && !Array.isArray(patch.data))
+    ? (patch.data as Record<string, any>)
+    : {};
+  const nextData = { ...existingData, ...patchData };
 
   const { data, errors } = validateAndNormalizeData(def.fields, nextData);
   if (errors.length) return bad(res, 400, 'Validation error', errors);
