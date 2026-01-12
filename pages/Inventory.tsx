@@ -1,39 +1,69 @@
 
 import React, { useState, useEffect } from 'react';
-import { Data } from '../services/data';
+import { InventoryService } from '../services/inventoryService';
 import { CarListing, B2BRequest, VariantStatus } from '../types';
-import { Plus, X, Search, Edit2, Trash2, MapPin, Calendar, Gauge, Link, UserPlus, CheckSquare, Square, DollarSign, CheckCircle } from 'lucide-react';
+import { Plus, X, Search, Edit2, Trash2, MapPin, Calendar, Gauge, Link, UserPlus, CheckSquare, Square, DollarSign, CheckCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useToast } from '../contexts/ToastContext';
 import { useNavigate } from 'react-router-dom';
-import { MockDb } from '../services/mockDb';
 import { MatchingService } from '../services/matchingService';
+import { RequestsService } from '../services/requestsService';
 
 export const InventoryPage = () => {
+    // Data State
     const [cars, setCars] = useState<CarListing[]>([]);
     const [requests, setRequests] = useState<B2BRequest[]>([]);
+
+    // Filter State
+    const [page, setPage] = useState(1);
+    const [limit] = useState(24); // 4x6 grid
+    const [totalItems, setTotalItems] = useState(0);
+    const [totalPages, setTotalPages] = useState(1);
     const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState<'ALL' | 'AVAILABLE' | 'RESERVED' | 'SOLD'>('AVAILABLE');
+
+    const [loading, setLoading] = useState(false);
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-    
+
+    // Modals
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingCar, setEditingCar] = useState<CarListing | null>(null);
     const [attachModal, setAttachModal] = useState<CarListing | null>(null);
     const [quickLeadModal, setQuickLeadModal] = useState<CarListing | null>(null);
-    
+
     const { showToast } = useToast();
     const navigate = useNavigate();
 
     useEffect(() => {
         loadData();
-        const sub1 = Data.subscribe('UPDATE_INVENTORY', loadData);
-        const sub2 = Data.subscribe('UPDATE_REQUESTS', loadData);
-        return () => { sub1(); sub2(); };
-    }, []);
+    }, [page, search, statusFilter]);
 
     const loadData = async () => {
-        setCars(await Data.getInventory());
-        const reqs = await Data.getRequests();
-        setRequests(reqs.filter(r => r.status !== 'CLOSED'));
+        setLoading(true);
+        try {
+            const data = await InventoryService.getInventory({
+                page,
+                limit,
+                search: search || undefined,
+                status: statusFilter
+            });
+            // Map Prisma 'id' to 'canonicalId' if needed for old types compatibility
+            const mapped = data.items.map(c => ({
+                ...c,
+                canonicalId: (c as any).id || c.canonicalId // Handle prisma 'id'
+            }));
+            setCars(mapped);
+            setTotalItems(data.total);
+            setTotalPages(data.totalPages);
+
+            // Fetch Requests for the "Attach" modal
+            const reqData = await RequestsService.getRequests({ limit: 100, status: 'ALL' });
+            setRequests(reqData.items.filter(r => r.status !== 'CLOSED'));
+        } catch (e) {
+            console.error(e);
+            showToast('Failed to load inventory', 'error');
+        } finally {
+            setLoading(false);
+        }
     };
 
     const toggleSelection = (id: string) => {
@@ -44,28 +74,34 @@ export const InventoryPage = () => {
     };
 
     const toggleSelectAll = () => {
-        if (selectedIds.size === filtered.length) {
+        if (selectedIds.size === cars.length) {
             setSelectedIds(new Set());
         } else {
-            setSelectedIds(new Set(filtered.map(c => c.canonicalId)));
+            setSelectedIds(new Set(cars.map(c => c.canonicalId)));
         }
     };
 
     const handleBulkAction = (action: 'DELETE' | 'SOLD' | 'AVAILABLE') => {
         if (!confirm(`Apply ${action} to ${selectedIds.size} items?`)) return;
-        selectedIds.forEach(async id => {
-            const car = cars.find(c => c.canonicalId === id);
-            if (car) {
-                if (action === 'DELETE') await Data.deleteInventoryItem(id);
-                else await Data.saveInventoryItem({ ...car, status: action });
+
+        // This should theoretically be a bulk API call. 
+        // For now, loop calls (inefficient but works for small batches).
+        Array.from(selectedIds).forEach(async id => {
+            if (action === 'DELETE') {
+                await InventoryService.deleteCar(id);
+            } else {
+                const car = cars.find(c => c.canonicalId === id);
+                if (car) await InventoryService.saveCar({ ...car, status: action });
             }
         });
+
+        setTimeout(loadData, 1000); // Lazy refresh
         setSelectedIds(new Set());
         showToast(`Bulk Action Completed: ${action}`);
     };
 
     const handleSave = async (car: CarListing) => {
-        await Data.saveInventoryItem(car);
+        await InventoryService.saveCar(car);
         if (car.status === 'AVAILABLE') {
             const found = MatchingService.notifyIfMatch(car);
             if (found) showToast("System found matching B2B Requests!");
@@ -73,6 +109,7 @@ export const InventoryPage = () => {
         setIsModalOpen(false);
         setEditingCar(null);
         showToast("Car saved to inventory");
+        loadData();
     };
 
     const openEdit = (car: CarListing) => {
@@ -81,9 +118,9 @@ export const InventoryPage = () => {
     };
 
     const handleAttachToRequest = async (car: CarListing, reqId: string) => {
-        await MockDb.addVariant(reqId, {
+        await RequestsService.addVariant(reqId, {
             title: car.title,
-            price: car.price, 
+            price: car.price,
             year: car.year,
             location: car.location,
             thumbnail: car.thumbnail,
@@ -95,44 +132,39 @@ export const InventoryPage = () => {
         setAttachModal(null);
     };
 
-    const filtered = cars.filter(c => {
-        const matchesSearch = c.title.toLowerCase().includes(search.toLowerCase()) || c.location.toLowerCase().includes(search.toLowerCase());
-        const matchesStatus = statusFilter === 'ALL' || c.status === statusFilter;
-        return matchesSearch && matchesStatus;
-    });
-
     return (
         <div className="space-y-8 h-full flex flex-col relative">
             <div className="flex justify-between items-center shrink-0">
                 <div>
                     <h1 className="text-2xl font-medium text-[var(--text-primary)]">Inventory</h1>
-                    <p className="text-sm text-[var(--text-secondary)]">Internal stock management</p>
+                    <p className="text-sm text-[var(--text-secondary)]">
+                        {totalItems} vehicles • Page {page} of {totalPages}
+                    </p>
                 </div>
                 <button onClick={() => { setEditingCar(null); setIsModalOpen(true); }} className="btn-primary">
-                    <Plus size={20}/> Add Car
+                    <Plus size={20} /> Add Car
                 </button>
             </div>
 
             <div className="flex gap-4 shrink-0 items-center">
                 <div className="flex-1 relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)]" size={20}/>
-                    <input 
-                        className="input pl-10" 
-                        placeholder="Search by model, year, VIN..." 
-                        value={search} 
-                        onChange={e => setSearch(e.target.value)} 
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)]" size={20} />
+                    <input
+                        className="input pl-10"
+                        placeholder="Search by model, year, VIN..."
+                        value={search}
+                        onChange={e => { setSearch(e.target.value); setPage(1); }}
                     />
                 </div>
                 <div className="bg-[var(--bg-input)] p-1.5 rounded-xl flex shrink-0 border border-[var(--border-color)]">
                     {['AVAILABLE', 'RESERVED', 'SOLD', 'ALL'].map(s => (
-                        <button 
-                            key={s} 
-                            onClick={() => setStatusFilter(s as any)}
-                            className={`px-5 py-2 rounded-lg text-sm font-bold transition-all ${
-                                statusFilter === s 
-                                    ? 'bg-[var(--bg-panel)] shadow-sm text-gold-500' 
-                                    : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-                            }`}
+                        <button
+                            key={s}
+                            onClick={() => { setStatusFilter(s as any); setPage(1); }}
+                            className={`px-5 py-2 rounded-lg text-sm font-bold transition-all ${statusFilter === s
+                                ? 'bg-[var(--bg-panel)] shadow-sm text-gold-500'
+                                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                                }`}
                         >
                             {s}
                         </button>
@@ -142,91 +174,137 @@ export const InventoryPage = () => {
 
             <div className="flex items-center gap-3 text-sm text-[var(--text-secondary)] px-1">
                 <button onClick={toggleSelectAll} className="flex items-center gap-2 hover:text-gold-500 transition-colors">
-                    {selectedIds.size > 0 && selectedIds.size === filtered.length ? <CheckSquare size={20} className="text-gold-500"/> : <Square size={20}/>}
-                    Select All ({filtered.length})
+                    {selectedIds.size > 0 && selectedIds.size === cars.length ? <CheckSquare size={20} className="text-gold-500" /> : <Square size={20} />}
+                    Select All ({cars.length})
                 </button>
                 {selectedIds.size > 0 && <span className="font-bold text-gold-500">• {selectedIds.size} Selected</span>}
             </div>
 
-            <div className="flex-1 overflow-y-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8 content-start pb-24">
-                {filtered.map(car => (
-                    <div key={car.canonicalId} className={`panel p-0 overflow-hidden group hover:border-gold-500/30 transition-all flex flex-col relative ${selectedIds.has(car.canonicalId) ? 'ring-1 ring-gold-500 border-gold-500' : ''}`}>
-                        
-                        <div onClick={() => toggleSelection(car.canonicalId)} className="absolute top-4 left-4 z-10 cursor-pointer p-2 rounded-lg bg-black/20 backdrop-blur-md hover:bg-black/40 transition-colors">
-                            {selectedIds.has(car.canonicalId) ? <CheckSquare size={20} className="text-gold-500"/> : <Square size={20} className="text-white/70"/>}
-                        </div>
+            <div className="flex-1 overflow-y-auto min-h-0 relative">
+                {loading && <div className="absolute inset-0 z-10 bg-[var(--bg-surface)]/50 backdrop-blur-[1px] flex items-center justify-center text-[var(--text-secondary)]">Loading...</div>}
 
-                        <div className="relative h-56 bg-[var(--bg-input)]">
-                            <img src={car.thumbnail} className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity" alt={car.title}/>
-                            <div className="absolute top-4 right-4 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button onClick={() => openEdit(car)} className="p-2 bg-white/90 backdrop-blur rounded-lg text-black hover:text-gold-500 shadow-sm"><Edit2 size={16}/></button>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8 content-start pb-8">
+                    {cars.map(car => (
+                        <div key={car.canonicalId} className={`panel p-0 overflow-hidden group hover:border-gold-500/30 transition-all flex flex-col relative ${selectedIds.has(car.canonicalId) ? 'ring-1 ring-gold-500 border-gold-500' : ''}`}>
+
+                            <div onClick={() => toggleSelection(car.canonicalId)} className="absolute top-4 left-4 z-10 cursor-pointer p-2 rounded-lg bg-black/20 backdrop-blur-md hover:bg-black/40 transition-colors">
+                                {selectedIds.has(car.canonicalId) ? <CheckSquare size={20} className="text-gold-500" /> : <Square size={20} className="text-white/70" />}
                             </div>
-                            <div className="absolute bottom-4 left-4 bg-black/60 text-white text-sm px-3 py-1.5 rounded-lg font-bold backdrop-blur-md border border-white/10 tabular-nums">
-                                {car.price.amount.toLocaleString()} {car.price.currency}
-                            </div>
-                            {car.status !== 'AVAILABLE' && (
-                                <div className={`absolute top-4 left-14 px-2 py-1 rounded-md font-bold text-xs uppercase shadow-sm border border-white/10 backdrop-blur-md ${car.status === 'SOLD' ? 'bg-red-500/80 text-white' : 'bg-amber-500/80 text-white'}`}>
-                                    {car.status}
+
+                            <div className="relative h-56 bg-[var(--bg-input)]">
+                                <img src={car.thumbnail} className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity" alt={car.title} />
+                                <div className="absolute top-4 right-4 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button onClick={() => openEdit(car)} className="p-2 bg-white/90 backdrop-blur rounded-lg text-black hover:text-gold-500 shadow-sm"><Edit2 size={16} /></button>
                                 </div>
-                            )}
+                                <div className="absolute bottom-4 left-4 bg-black/60 text-white text-sm px-3 py-1.5 rounded-lg font-bold backdrop-blur-md border border-white/10 tabular-nums">
+                                    {car.price.amount.toLocaleString()} {car.price.currency}
+                                </div>
+                                {car.status !== 'AVAILABLE' && (
+                                    <div className={`absolute top-4 left-14 px-2 py-1 rounded-md font-bold text-xs uppercase shadow-sm border border-white/10 backdrop-blur-md ${car.status === 'SOLD' ? 'bg-red-500/80 text-white' : 'bg-amber-500/80 text-white'}`}>
+                                        {car.status}
+                                    </div>
+                                )}
+                            </div>
+                            <div className="p-6 flex-1">
+                                <h3 className="font-bold text-[var(--text-primary)] mb-2 line-clamp-1 text-base">{car.title}</h3>
+                                <div className="text-sm text-[var(--text-secondary)] mb-4 line-clamp-2 min-h-[3em] leading-relaxed">
+                                    {car.specs?.engine || 'N/A'} • {car.specs?.transmission || 'N/A'} • {car.specs?.fuel || 'N/A'}
+                                </div>
+
+                                <div className="flex flex-col gap-2 mt-auto">
+                                    <div className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
+                                        <Calendar size={14} className="text-gold-500/70" /> <span className="tabular-nums">{car.year}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
+                                        <Gauge size={14} className="text-gold-500/70" /> <span className="tabular-nums">{car.mileage.toLocaleString()} km</span>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
+                                        <MapPin size={14} className="text-gold-500/70" /> {car.location}
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="bg-[var(--bg-input)] p-4 flex justify-between items-center border-t border-[var(--border-color)] gap-3">
+                                <button onClick={() => setAttachModal(car)} className="flex-1 text-sm text-[var(--text-secondary)] hover:text-gold-500 font-medium flex items-center justify-center gap-2 border-r border-[var(--border-color)] pr-2 transition-colors">
+                                    <Link size={14} /> Attach
+                                </button>
+                                <button onClick={() => setQuickLeadModal(car)} className="flex-1 text-sm text-[var(--text-secondary)] hover:text-gold-500 font-medium flex items-center justify-center gap-2 transition-colors">
+                                    <UserPlus size={14} /> Interest
+                                </button>
+                            </div>
                         </div>
-                        <div className="p-6 flex-1">
-                            <h3 className="font-bold text-[var(--text-primary)] mb-2 line-clamp-1 text-base">{car.title}</h3>
-                            <div className="text-sm text-[var(--text-secondary)] mb-4 line-clamp-2 min-h-[3em] leading-relaxed">
-                                {car.specs?.engine || 'N/A'} • {car.specs?.transmission || 'N/A'} • {car.specs?.fuel || 'N/A'}
-                            </div>
-                            
-                            <div className="flex flex-col gap-2 mt-auto">
-                                <div className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
-                                    <Calendar size={14} className="text-gold-500/70"/> <span className="tabular-nums">{car.year}</span>
-                                </div>
-                                <div className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
-                                    <Gauge size={14} className="text-gold-500/70"/> <span className="tabular-nums">{car.mileage.toLocaleString()} km</span>
-                                </div>
-                                <div className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
-                                    <MapPin size={14} className="text-gold-500/70"/> {car.location}
-                                </div>
-                            </div>
+                    ))}
+
+                    {cars.length === 0 && !loading && (
+                        <div className="col-span-4 text-center py-12 text-[var(--text-secondary)]">
+                            No vehicles found matching criteria.
                         </div>
-                        <div className="bg-[var(--bg-input)] p-4 flex justify-between items-center border-t border-[var(--border-color)] gap-3">
-                            <button onClick={() => setAttachModal(car)} className="flex-1 text-sm text-[var(--text-secondary)] hover:text-gold-500 font-medium flex items-center justify-center gap-2 border-r border-[var(--border-color)] pr-2 transition-colors">
-                                <Link size={14}/> Attach
-                            </button>
-                            <button onClick={() => setQuickLeadModal(car)} className="flex-1 text-sm text-[var(--text-secondary)] hover:text-gold-500 font-medium flex items-center justify-center gap-2 transition-colors">
-                                <UserPlus size={14}/> Interest
-                            </button>
-                        </div>
-                    </div>
-                ))}
+                    )}
+                </div>
             </div>
 
+            {/* Pagination Controls */}
+            <div className="flex justify-between items-center pt-4 border-t border-[var(--border-color)]">
+                <button
+                    disabled={page === 1}
+                    onClick={() => setPage(p => p - 1)}
+                    className="btn-secondary flex items-center gap-2 disabled:opacity-50"
+                >
+                    <ChevronLeft size={16} /> Previous
+                </button>
+                <div className="flex gap-1.5">
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                        // Simple pagination logic for demonstration
+                        let p = i + 1;
+                        if (page > 3 && totalPages > 5) p = page - 2 + i;
+                        if (p > totalPages) return null;
+                        return (
+                            <button
+                                key={p}
+                                onClick={() => setPage(p)}
+                                className={`w-8 h-8 rounded-lg text-sm font-bold transition-all ${page === p ? 'bg-[var(--bg-panel)] text-gold-500 border border-gold-500/30' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-input)]'
+                                    }`}
+                            >
+                                {p}
+                            </button>
+                        );
+                    })}
+                </div>
+                <button
+                    disabled={page >= totalPages}
+                    onClick={() => setPage(p => p + 1)}
+                    className="btn-secondary flex items-center gap-2 disabled:opacity-50"
+                >
+                    Next <ChevronRight size={16} />
+                </button>
+            </div>
+
+
             {selectedIds.size > 0 && (
-                <div className="absolute bottom-8 left-1/2 -translate-x-1/2 bg-[var(--bg-surface)] text-[var(--text-primary)] px-8 py-4 rounded-2xl shadow-2xl flex items-center gap-6 animate-slide-up z-20 border border-[var(--border-color)] backdrop-blur-md">
+                <div className="absolute bottom-20 left-1/2 -translate-x-1/2 bg-[var(--bg-surface)] text-[var(--text-primary)] px-8 py-4 rounded-2xl shadow-2xl flex items-center gap-6 animate-slide-up z-20 border border-[var(--border-color)] backdrop-blur-md">
                     <span className="font-bold text-base">{selectedIds.size} Selected</span>
                     <div className="h-8 w-px bg-[var(--border-color)]"></div>
                     <div className="flex gap-3">
                         <button onClick={() => handleBulkAction('SOLD')} className="flex items-center gap-2 px-4 py-2 hover:bg-[var(--bg-input)] rounded-lg text-sm font-bold uppercase tracking-wider transition-colors text-green-500">
-                            <DollarSign size={16}/> Sold
+                            <DollarSign size={16} /> Sold
                         </button>
                         <button onClick={() => handleBulkAction('AVAILABLE')} className="flex items-center gap-2 px-4 py-2 hover:bg-[var(--bg-input)] rounded-lg text-sm font-bold uppercase tracking-wider transition-colors text-blue-500">
-                            <CheckCircle size={16}/> Available
+                            <CheckCircle size={16} /> Available
                         </button>
                         <button onClick={() => handleBulkAction('DELETE')} className="flex items-center gap-2 px-4 py-2 hover:bg-red-500/20 text-red-500 rounded-lg text-sm font-bold uppercase tracking-wider transition-colors">
-                            <Trash2 size={16}/> Delete
+                            <Trash2 size={16} /> Delete
                         </button>
                     </div>
-                    <button onClick={() => setSelectedIds(new Set())} className="ml-4 p-2 hover:bg-[var(--bg-input)] rounded-full"><X size={20}/></button>
+                    <button onClick={() => setSelectedIds(new Set())} className="ml-4 p-2 hover:bg-[var(--bg-input)] rounded-full"><X size={20} /></button>
                 </div>
             )}
 
             {isModalOpen && <CarEditor initialData={editingCar} onSave={handleSave} onClose={() => setIsModalOpen(false)} />}
-            
             {attachModal && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                     <div className="panel max-w-md w-full p-8 animate-slide-up shadow-2xl">
                         <div className="flex justify-between items-center mb-6">
                             <h3 className="font-medium text-xl text-[var(--text-primary)]">Attach Car to Request</h3>
-                            <button onClick={() => setAttachModal(null)}><X size={24} className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]"/></button>
+                            <button onClick={() => setAttachModal(null)}><X size={24} className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]" /></button>
                         </div>
                         <div className="max-h-72 overflow-y-auto space-y-3 pr-1">
                             {requests.map(r => (
@@ -244,9 +322,11 @@ export const InventoryPage = () => {
 };
 
 const CarEditor = ({ initialData, onSave, onClose }: any) => {
+    // If opening Existing car, ensure ID is passed
     const [form, setForm] = useState<Partial<CarListing>>(initialData || {
-        canonicalId: `inv_${Date.now()}`, source: 'INTERNAL', title: '', price: { amount: 0, currency: 'USD' },
-        year: new Date().getFullYear(), mileage: 0, location: 'Kyiv', thumbnail: '', specs: {}, status: 'AVAILABLE', postedAt: new Date().toISOString()
+        // No canonicalId init here, backend handles it or it's empty
+        source: 'INTERNAL', title: '', price: { amount: 0, currency: 'USD' },
+        year: new Date().getFullYear(), mileage: 0, location: 'Kyiv', thumbnail: '', specs: {}, status: 'AVAILABLE'
     });
 
     const handleChange = (field: string, value: any) => setForm(prev => ({ ...prev, [field]: value }));
@@ -256,9 +336,9 @@ const CarEditor = ({ initialData, onSave, onClose }: any) => {
             <div className="panel w-full max-w-xl p-10 animate-slide-up max-h-[90vh] overflow-y-auto">
                 <div className="flex justify-between items-center mb-8">
                     <h3 className="font-bold text-2xl text-[var(--text-primary)]">{initialData ? 'Edit Vehicle' : 'New Vehicle'}</h3>
-                    <button onClick={onClose}><X size={24} className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"/></button>
+                    <button onClick={onClose}><X size={24} className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors" /></button>
                 </div>
-                
+
                 <div className="space-y-6">
                     <div>
                         <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest mb-2">Title</label>
@@ -268,11 +348,22 @@ const CarEditor = ({ initialData, onSave, onClose }: any) => {
                     <div className="grid grid-cols-2 gap-6">
                         <div>
                             <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest mb-2">Price (USD)</label>
-                            <input type="number" className="input tabular-nums" value={form.price?.amount} onChange={e => setForm({...form, price: { ...form.price!, amount: +e.target.value }})} />
+                            <input type="number" className="input tabular-nums" value={form.price?.amount} onChange={e => setForm({ ...form, price: { ...form.price!, amount: +e.target.value } })} />
                         </div>
                         <div>
                             <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest mb-2">Year</label>
                             <input type="number" className="input tabular-nums" value={form.year} onChange={e => handleChange('year', +e.target.value)} />
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-6">
+                        <div>
+                            <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest mb-2">Mileage (km)</label>
+                            <input type="number" className="input tabular-nums" value={form.mileage} onChange={e => handleChange('mileage', +e.target.value)} />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest mb-2">Location</label>
+                            <input className="input" value={form.location} onChange={e => handleChange('location', e.target.value)} />
                         </div>
                     </div>
 

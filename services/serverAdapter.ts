@@ -99,16 +99,27 @@ export class ServerAdapter implements DataAdapter {
     // --- DOMAIN METHODS ---
 
     async getUsers() {
-        // Users are special - likely managed via Auth, but for listing we can try generic or specific if added.
-        // Assuming generic 'sys_user' for now as no /users endpoint was visible in apiRoutes (except implicit auth)
-        return this.listEntities<User>(SLUGS.USER);
+        const res = await ApiClient.get<User[]>('users');
+        return res.ok ? res.data : [];
     }
-    async saveUser(u: User) { return this.saveEntity(SLUGS.USER, u); }
+
+    async saveUser(u: User) {
+        if (u.id && !`${u.id}`.startsWith('u_')) { // Check if server ID (Int)
+            const res = await ApiClient.put(`users/${u.id}`, u);
+            if (res.ok) return res.data;
+        }
+        const { id, ...data } = u;
+        const res = await ApiClient.post('users', data);
+        if (!res.ok) throw new Error(res.message);
+        return res.data;
+    }
 
     // --- REQUESTS (Relational) ---
     async getRequests() {
-        const res = await ApiClient.get<B2BRequest[]>('requests');
-        return res.ok ? res.data : [];
+        const res = await ApiClient.get<any>('requests');
+        if (!res.ok) return [];
+        if (Array.isArray(res.data)) return res.data;
+        return (res.data as any)?.items || [];
     }
     async saveRequest(r: B2BRequest) {
         // Check if ID exists and is not temp ID (usually real IDs are ints or uuids, temp are 'req_'...)
@@ -131,8 +142,10 @@ export class ServerAdapter implements DataAdapter {
 
     // --- LEADS (Relational) ---
     async getLeads() {
-        const res = await ApiClient.get<Lead[]>('leads');
-        return res.ok ? res.data : [];
+        const res = await ApiClient.get<any>('leads');
+        if (!res.ok) return [];
+        if (Array.isArray(res.data)) return res.data;
+        return res.data?.items || [];
     }
     async saveLead(l: Lead) {
         if (l.id && !l.id.startsWith('lead_')) {
@@ -151,11 +164,8 @@ export class ServerAdapter implements DataAdapter {
         return res.ok ? res.data : [];
     }
     async saveBot(b: Bot) {
-        // Bots use numeric IDs usually in postgres, but string in Types?
-        // Prisma schema says Int id.
-        const numericId = parseInt(b.id);
-        if (!isNaN(numericId)) {
-            const res = await ApiClient.put(`bots/${numericId}`, b);
+        if (b.id) {
+            const res = await ApiClient.put(`bots/${b.id}`, b);
             if (res.ok) return res.data;
         }
         const res = await ApiClient.post('bots', b);
@@ -179,9 +189,20 @@ export class ServerAdapter implements DataAdapter {
         return this.deleteEntity(SLUGS.SESSION, `sess_${chatId}`);
     }
 
-    async getScenarios() { return this.listEntities<Scenario>(SLUGS.SCENARIO); }
-    async saveScenario(s: Scenario) { return this.saveEntity(SLUGS.SCENARIO, s); }
-    async deleteScenario(id: string) { return this.deleteEntity(SLUGS.SCENARIO, id); }
+    async getScenarios() {
+        const res = await ApiClient.get<Scenario[]>('scenarios');
+        return res.ok ? res.data : [];
+    }
+    async saveScenario(s: Scenario) {
+        const payload = { ...s, keywords: s.keywords || [] };
+        const res = await ApiClient.post<Scenario>('scenarios', payload);
+        if (!res.ok) throw new Error(res.message);
+        return res.data as Scenario;
+    }
+    async deleteScenario(id: string) {
+        const res = await ApiClient.delete(`scenarios/${id}`);
+        if (!res.ok) throw new Error(res.message);
+    }
 
     async getContent() { return this.listEntities<TelegramContent>(SLUGS.CONTENT); }
     async saveContent(c: TelegramContent) { return this.saveEntity(SLUGS.CONTENT, c); }
@@ -195,12 +216,27 @@ export class ServerAdapter implements DataAdapter {
     async getDestinations() { return this.listEntities<TelegramDestination>(SLUGS.DESTINATION); }
     async saveDestination(d: TelegramDestination) { return this.saveEntity(SLUGS.DESTINATION, d); }
 
-    async getInventory() { return this.listEntities<CarListing>(SLUGS.INVENTORY); }
-    async saveInventoryItem(i: CarListing) {
-        const mapped = { ...i, id: i.canonicalId };
-        return this.saveEntity(SLUGS.INVENTORY, mapped);
+    async getInventory() {
+        const res = await ApiClient.get<any>('inventory?limit=1000&status=ALL');
+        if (!res.ok) return [];
+        if (Array.isArray(res.data)) return res.data;
+        return res.data?.items || [];
     }
-    async deleteInventoryItem(id: string) { return this.deleteEntity(SLUGS.INVENTORY, id); }
+    async saveInventoryItem(i: CarListing) {
+        const id = i.canonicalId || i.id;
+        const payload = { ...i, id };
+        if (id) {
+            const res = await ApiClient.put<CarListing>(`inventory/${id}`, payload);
+            if (!res.ok) throw new Error(res.message);
+            return res.data as CarListing;
+        }
+        const res = await ApiClient.post<CarListing>('inventory', payload);
+        if (!res.ok) throw new Error(res.message);
+        return res.data as CarListing;
+    }
+    async deleteInventoryItem(id: string) {
+        await ApiClient.delete(`inventory/${id}`);
+    }
 
     async getCompanies() { return this.listEntities<Company>(SLUGS.COMPANY); }
     async saveCompany(c: Company) { return this.saveEntity(SLUGS.COMPANY, c); }

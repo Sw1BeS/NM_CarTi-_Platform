@@ -1,5 +1,5 @@
 
-export const DEFAULT_LOCAL_FALLBACK = 'http://localhost:3000';
+export const DEFAULT_LOCAL_FALLBACK = 'http://localhost:3001';
 
 export function getApiBase(): string {
     // 1. LocalStorage override

@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Data } from '../services/data';
 import { Bot, MiniAppConfig, CarListing, RequestStatus, LeadStatus } from '../types';
+import { getPublicBots } from '../services/publicApi';
 import { 
     Search, LayoutGrid, User, Plus, Filter, ArrowRight, DollarSign, 
     MessageSquare, Zap, List as ListIcon, Star, Phone, Home, 
@@ -41,7 +42,7 @@ export const MiniApp = () => {
             }
 
             // 2. Load Bot Configuration (Simulating connection to specific bot)
-            const bots = await Data.getBots();
+            const bots = await getPublicBots();
             const bot = bots.find(b => b.active) || bots[0];
             if (bot) {
                 setActiveBot(bot);

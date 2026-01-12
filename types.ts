@@ -17,7 +17,7 @@ export interface TelegramMessage {
 }
 
 // Updated to match backend
-export type UserRole = 'ADMIN' | 'MANAGER' | 'VIEWER' | 'SUPER_ADMIN' | 'OPERATOR' | 'DEALER'; 
+export type UserRole = 'ADMIN' | 'MANAGER' | 'VIEWER' | 'SUPER_ADMIN' | 'OPERATOR' | 'DEALER';
 
 // Updated User Interface
 export interface User {
@@ -26,7 +26,7 @@ export interface User {
     email: string;
     role: UserRole;
     // Optional legacy fields to prevent instant crashes in other components
-    username?: string; 
+    username?: string;
     avatar?: string;
     companyId?: string;
     telegramUserId?: string;
@@ -70,6 +70,7 @@ export enum VariantStatus {
 
 // UNIFIED CAR CARD DTO
 export interface CarCard {
+    id?: string; // DB ID (usually maps to canonicalId, but Prisma always returns 'id')
     canonicalId: string; // Unique Fingerprint
     source: 'INTERNAL' | 'AUTORIA' | 'OLX' | 'REONO' | 'EXTERNAL' | 'MANUAL';
     sourceUrl: string;
@@ -80,10 +81,10 @@ export interface CarCard {
     location: string;
     thumbnail: string;
     mediaUrls?: string[]; // Multiple photos
-    specs: { 
-        engine?: string; 
-        transmission?: string; 
-        fuel?: string; 
+    specs: {
+        engine?: string;
+        transmission?: string;
+        fuel?: string;
         vin?: string;
         color?: string;
     };
@@ -99,7 +100,7 @@ export interface Variant extends Omit<CarCard, 'status'> {
     fitScore?: number; // 0-5
     managerNotes?: string;
     contentStatus?: 'NONE' | 'DRAFT' | 'PUBLISHED';
-    url?: string; 
+    url?: string;
 }
 
 export type CarListing = CarCard;
@@ -123,8 +124,8 @@ export interface B2BRequest {
     createdAt: string;
     updatedAt?: string;
     variants: Variant[];
-    language?: Language; 
-    clientChatId?: string; 
+    language?: Language;
+    clientChatId?: string;
 }
 
 export enum LeadStatus {
@@ -220,8 +221,8 @@ export interface BotMenuButtonConfig {
     label: string;
     label_uk?: string; // Localization support
     label_ru?: string; // Localization support
-    type: 'SCENARIO' | 'LINK' | 'TEXT'; 
-    value: string; 
+    type: 'SCENARIO' | 'LINK' | 'TEXT';
+    value: string;
     row: number;
     col: number;
 }
@@ -252,13 +253,13 @@ export interface Bot {
     publicBaseUrl?: string; // Overrides window.location.origin for WebApp button
     autoSync?: boolean;
     lastUpdateId?: number;
-    defaultScenarioId?: string; 
+    defaultScenarioId?: string;
     menuConfig?: {
         buttons: BotMenuButtonConfig[];
         welcomeMessage?: string;
     };
     miniAppConfig?: MiniAppConfig;
-    adminChannelId?: string; 
+    adminChannelId?: string;
     processedUpdateIds?: number[]; // IDs of processed updates to avoid duplicates
     stats?: {
         processed: number;
@@ -297,35 +298,35 @@ export interface BotSession {
     };
 }
 
-export type NodeType = 
-    'MESSAGE' | 
-    'QUESTION_TEXT' | 
-    'QUESTION_CHOICE' | 
+export type NodeType =
+    'MESSAGE' |
+    'QUESTION_TEXT' |
+    'QUESTION_CHOICE' |
     'MENU_REPLY' | // New: Persistent Keyboard
-    'SEARCH_CARS' | 
-    'HANDOFF' | 
-    'REQUEST_CONTACT' | 
-    'ACTION' | 
+    'SEARCH_CARS' |
+    'HANDOFF' |
+    'REQUEST_CONTACT' |
+    'ACTION' |
     'CONDITION' | // New: Branching
     'DELAY' |     // New: UX
     'GALLERY' |   // Added missing type
-    'START' | 
+    'START' |
     'JUMP';
 
 export interface ScenarioNode {
     id: string;
     type: NodeType;
     content: {
-        text?: string; 
-        text_uk?: string; 
+        text?: string;
+        text_uk?: string;
         text_ru?: string;
         variableName?: string;
-        choices?: { 
-            label: string; 
-            label_uk?: string; 
-            label_ru?: string; 
-            value: string; 
-            nextNodeId?: string 
+        choices?: {
+            label: string;
+            label_uk?: string;
+            label_ru?: string;
+            value: string;
+            nextNodeId?: string
         }[];
         // Condition Logic
         conditionVariable?: string;
@@ -408,7 +409,7 @@ export interface CarSearchFilter {
 
 export interface DictionaryEntry {
     key: string;
-    values: string[]; 
+    values: string[];
     metadata?: any;
 }
 
@@ -419,7 +420,7 @@ export interface DictionaryCollection {
 
 export interface ChatMacro {
     id: string;
-    shortcut: string; 
+    shortcut: string;
     text: string;
     category?: string;
 }

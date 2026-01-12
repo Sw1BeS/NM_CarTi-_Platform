@@ -191,7 +191,7 @@ export class BotEngine {
             return; // Skip this cycle
         }
         
-        // 2. Load Token State (Not available in Data Service yet, handled internally in Storage for now, or assume stateless polling for server mode)
+        // 2. Load Token State (Not available in Data Service yet; assume stateless polling for server mode)
         // For server mode, polling should ideally be done by backend. 
         // But since we are simulating "Server Mode" where frontend still polls using API:
         // We need a place to store token state. 

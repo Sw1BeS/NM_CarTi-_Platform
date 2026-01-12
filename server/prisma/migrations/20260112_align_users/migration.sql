@@ -1,0 +1,4 @@
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "username" TEXT;
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "companyId" TEXT;
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "telegramUserId" TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS "User_telegramUserId_key" ON "User"("telegramUserId");

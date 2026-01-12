@@ -8,7 +8,6 @@ export interface ConfigSnapshot {
         apiBase: string | null;
         theme: string | null;
         lang: string | null;
-        dataMode: string | null;
     };
 }
 
@@ -35,8 +34,7 @@ export const VersionSnapshots = {
             payload: {
                 apiBase: localStorage.getItem('cartie_api_base'),
                 theme: localStorage.getItem('cartie_theme'),
-                lang: localStorage.getItem('cartie_lang'),
-                dataMode: localStorage.getItem('cartie_data_mode')
+                lang: localStorage.getItem('cartie_lang')
             }
         };
 
@@ -57,8 +55,6 @@ export const VersionSnapshots = {
 
         if (p.theme !== null) localStorage.setItem('cartie_theme', p.theme);
         if (p.lang !== null) localStorage.setItem('cartie_lang', p.lang);
-        if (p.dataMode !== null) localStorage.setItem('cartie_data_mode', p.dataMode);
-
         return true;
     },
 

@@ -1,10 +1,10 @@
 
 import React, { useState, useEffect } from 'react';
-import { Data } from '../services/data';
 import { RequestStatus, LeadStatus, Language } from '../types';
 import { TRANSLATIONS } from '../translations';
 import { CheckCircle, ArrowRight, Car, DollarSign, User, Phone, MapPin, Loader, ShieldCheck, ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { createPublicLead, createPublicRequest } from '../services/publicApi';
 
 export const PublicRequest = () => {
     const navigate = useNavigate();
@@ -114,39 +114,42 @@ export const PublicRequest = () => {
         const userTgId = tg?.initDataUnsafe?.user?.id ? String(tg.initDataUnsafe.user.id) : undefined;
         const username = tg?.initDataUnsafe?.user?.username;
 
-        // 1. Create Lead
-        const lead = await Data.createLead({
-            name: data.name,
-            phone: data.phone,
-            source: userTgId ? 'TELEGRAM' : 'WEB',
-            telegramChatId: userTgId,
-            telegramUsername: username,
-            goal: `${data.brand} ${data.model} (${data.yearMin}+)`,
-            status: LeadStatus.NEW,
-            language: lang,
-            notes: `Budget: ${data.budgetMax || 'N/A'}\nCity: ${data.city}\nVia Mini App`
-        });
-
-        // 2. Create Request (if car details present)
-        if (data.brand) {
-            const req = await Data.createRequest({
-                title: `${data.brand} ${data.model}`,
-                budgetMax: Number(data.budgetMax) || 0,
-                yearMin: Number(data.yearMin),
-                city: data.city,
-                description: 'Generated from Telegram Mini App',
-                status: RequestStatus.NEW,
-                priority: 'HIGH',
-                clientChatId: userTgId,
-                language: lang
+        try {
+            // 1. Create Lead
+            const lead = await createPublicLead({
+                name: data.name,
+                phone: data.phone,
+                source: userTgId ? 'TELEGRAM' : 'WEB',
+                telegramChatId: userTgId,
+                telegramUsername: username,
+                goal: `${data.brand} ${data.model} (${data.yearMin}+)`,
+                status: LeadStatus.NEW,
+                language: lang,
+                notes: `Budget: ${data.budgetMax || 'N/A'}\nCity: ${data.city}\nVia Mini App`
             } as any);
-            // Link them
-            await Data.saveRequest({ ...req, description: req.description + `\nLead ID: ${lead.id}` });
-        }
 
-        if (tg) tg.MainButton.hideProgress();
-        setLoading(false);
-        setSuccess(true);
+            // 2. Create Request (if car details present)
+            if (data.brand) {
+                await createPublicRequest({
+                    title: `${data.brand} ${data.model}`,
+                    budgetMax: Number(data.budgetMax) || 0,
+                    yearMin: Number(data.yearMin),
+                    city: data.city,
+                    description: `Generated from Telegram Mini App\nLead ID: ${lead.id}`,
+                    status: RequestStatus.NEW,
+                    priority: 'HIGH',
+                    clientChatId: userTgId,
+                    language: lang
+                } as any);
+            }
+
+            setSuccess(true);
+        } catch (err) {
+            console.error(err);
+        } finally {
+            if (tg) tg.MainButton.hideProgress();
+            setLoading(false);
+        }
     };
 
     if (success) {

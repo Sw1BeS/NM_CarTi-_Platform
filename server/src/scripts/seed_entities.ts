@@ -1,11 +1,10 @@
 
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../services/prisma.js';
 import dotenv from 'dotenv';
 
 // Fix path to .env since this script is run from server/src/scripts or similar
 dotenv.config();
 
-const prisma = new PrismaClient();
 
 const DEFINITIONS = [
     { slug: 'sys_company', name: 'Company', description: 'Partner Companies' },

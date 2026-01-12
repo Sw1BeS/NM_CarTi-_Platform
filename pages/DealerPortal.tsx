@@ -1,10 +1,10 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Data } from '../services/data';
-import { MockDb } from '../services/mockDb';
 import { B2BRequest, RequestStatus, Variant, VariantStatus, User, UserRole, Company } from '../types';
 import { CarSearchEngine } from '../services/carService';
 import { ImageUtils } from '../services/imageUtils';
+import { addPublicVariant, createDealerSession } from '../services/publicApi';
 import { Briefcase, ChevronRight, X, DollarSign, Calendar, MapPin, Search, Plus, CheckCircle, Zap, Loader, ExternalLink, RefreshCw, Car, Upload, Image as ImageIcon, Camera, ArrowLeft } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 
@@ -31,44 +31,21 @@ export const DealerPortal = () => {
     const init = async () => {
         setIsLoading(true);
         const tg = (window as any).Telegram?.WebApp;
-        
-        let tgUserId = tg?.initDataUnsafe?.user?.id ? String(tg.initDataUnsafe.user.id) : null;
-        
-        // --- DEV DEBUG TRIGGER ---
-        const isDebug = window.location.hash.includes('debug');
-        if (!tgUserId && isDebug) {
-            const users = await Data.getUsers();
-            const dealer = users.find(u => u.role === 'DEALER');
-            if (dealer && dealer.telegramUserId) tgUserId = dealer.telegramUserId;
-        }
-
-        // 2. Validate User against DB
-        let foundUser = null;
-        const users = await Data.getUsers();
-        if (tgUserId) {
-            foundUser = users.find(u => u.telegramUserId === tgUserId);
-        }
-
-        if (!foundUser && !tgUserId) {
-             foundUser = users.find(u => u.role === 'DEALER');
-        }
-        
-        if (!foundUser) {
+        if (!tg?.initData) {
             setAccessError("Access Denied. Please launch via the verified Telegram Bot.");
             setIsLoading(false);
             return;
         }
-
-        if (foundUser.role !== 'DEALER' && foundUser.role !== 'ADMIN' && foundUser.role !== 'SUPER_ADMIN') {
+        try {
+            const session = await createDealerSession(tg.initData);
+            setUser(session.user);
+            setCompany(null);
+        } catch (err: any) {
+            console.error(err);
             setAccessError("Partner Access Only.");
             setIsLoading(false);
             return;
         }
-
-        const companies = await Data.getCompanies();
-        const comp = companies.find(c => c.id === foundUser?.companyId);
-        setUser(foundUser);
-        setCompany(comp || null);
 
         const loadedRequests = await loadRequests();
         const targetId = searchParams.get('request');
@@ -97,13 +74,13 @@ export const DealerPortal = () => {
 
     const handleSubmitVariant = async (data: any) => {
         if (!selectedReq) return;
-        
-        await MockDb.addVariant(selectedReq.id, {
+        const payload = {
             ...data,
             source: 'MANUAL',
             status: VariantStatus.PENDING,
             managerNotes: `Submitted by ${user?.username} (${company?.name || 'Partner'})`
-        });
+        };
+        await addPublicVariant(selectedReq.id, payload);
 
         const tg = (window as any).Telegram?.WebApp;
         if (tg) {

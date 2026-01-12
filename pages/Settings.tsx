@@ -86,7 +86,7 @@ const NavButton = ({ active, onClick, icon: Icon, label }: any) => (
 const UsersTab = () => {
     const [users, setUsers] = useState<User[]>([]);
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [formData, setFormData] = useState({ username: '', password: '', role: 'OPERATOR', name: '' });
+    const [formData, setFormData] = useState({ username: '', password: '', role: 'OPERATOR', name: '', telegramUserId: '', companyId: '' });
     const { showToast } = useToast();
 
     useEffect(() => {
@@ -102,9 +102,9 @@ const UsersTab = () => {
             name: formData.name || formData.username,
             email: `${formData.username}@cartie.local`,
             username: formData.username,
-            // In a real app, password should be hashed. For mock/local:
-            // @ts-ignore
-            passwordHash: formData.password, 
+            telegramUserId: formData.telegramUserId || undefined,
+            companyId: formData.companyId || undefined,
+            password: formData.password,
             role: formData.role as any
         } as any);
         setIsModalOpen(false);
@@ -149,6 +149,8 @@ const UsersTab = () => {
                             <input className="input" placeholder="Display Name" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
                             <input className="input" placeholder="Username" value={formData.username} onChange={e => setFormData({...formData, username: e.target.value})} />
                             <input className="input" type="password" placeholder="Password" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} />
+                            <input className="input" placeholder="Telegram User ID (optional)" value={formData.telegramUserId} onChange={e => setFormData({...formData, telegramUserId: e.target.value})} />
+                            <input className="input" placeholder="Company ID (optional)" value={formData.companyId} onChange={e => setFormData({...formData, companyId: e.target.value})} />
                             <select className="input" value={formData.role} onChange={e => setFormData({...formData, role: e.target.value})}>
                                 <option value="OPERATOR">Operator</option>
                                 <option value="MANAGER">Manager</option>
@@ -514,7 +516,6 @@ const ApiConnectionTab = () => {
     const { showToast } = useToast();
     const [baseUrl, setBaseUrl] = useState(getApiBase());
     const [status, setStatus] = useState<'IDLE' | 'CHECKING' | 'OK' | 'ERROR'>('IDLE');
-    const [mode, setMode] = useState(Data.getMode());
 
     const handleSave = () => {
         setApiBase(baseUrl);
@@ -538,47 +539,27 @@ const ApiConnectionTab = () => {
         }
     };
 
-    const toggleMode = () => {
-        const newMode = mode === 'SERVER' ? 'LOCAL' : 'SERVER';
-        if (confirm(`Switch to ${newMode} mode? This will reload the application.`)) {
-            Data.setMode(newMode);
-        }
-    };
-
     return (
         <div className="space-y-8 animate-slide-up max-w-2xl">
             <div>
-                <h3 className="text-xl font-medium text-[var(--text-primary)]">Data Layer Configuration</h3>
-                <p className="text-sm text-[var(--text-secondary)] mt-1">Configure backend connectivity and storage mode.</p>
+                <h3 className="text-xl font-medium text-[var(--text-primary)]">API Connection</h3>
+                <p className="text-sm text-[var(--text-secondary)] mt-1">Configure backend connectivity.</p>
             </div>
 
             <div className="panel p-6 border-gold-500/20">
-                <div className="flex justify-between items-center mb-6">
-                    <div>
-                        <h4 className="font-bold text-[var(--text-primary)]">Operation Mode</h4>
-                        <p className="text-xs text-[var(--text-secondary)]">Choose where data is stored.</p>
+                <div className="space-y-4">
+                    <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">API Base URL</label>
+                    <div className="flex gap-2">
+                        <input className="input font-mono text-sm" value={baseUrl} onChange={e => setBaseUrl(e.target.value)} placeholder="http://localhost:3000" />
+                        <button onClick={handleSave} className="btn-primary">Save & Reload</button>
                     </div>
-                    <button onClick={toggleMode} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold border transition-colors ${mode === 'SERVER' ? 'bg-green-500/10 border-green-500/30 text-green-500' : 'bg-amber-500/10 border-amber-500/30 text-amber-500'}`}>
-                        {mode === 'SERVER' ? <Server size={16}/> : <HardDrive size={16}/>}
-                        {mode} MODE
-                    </button>
+                    <div className="flex items-center gap-3 mt-4">
+                        <button onClick={checkHealth} className="btn-secondary text-xs">Test Connection</button>
+                        {status === 'CHECKING' && <RefreshCw size={16} className="animate-spin text-[var(--text-secondary)]"/>}
+                        {status === 'OK' && <span className="text-green-500 text-xs font-bold flex items-center gap-1"><CheckCircle size={14}/> Connected</span>}
+                        {status === 'ERROR' && <span className="text-red-500 text-xs font-bold flex items-center gap-1"><AlertTriangle size={14}/> Connection Failed</span>}
+                    </div>
                 </div>
-
-                {mode === 'SERVER' && (
-                    <div className="space-y-4">
-                        <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">API Base URL</label>
-                        <div className="flex gap-2">
-                            <input className="input font-mono text-sm" value={baseUrl} onChange={e => setBaseUrl(e.target.value)} placeholder="http://localhost:3000" />
-                            <button onClick={handleSave} className="btn-primary">Save & Reload</button>
-                        </div>
-                        <div className="flex items-center gap-3 mt-4">
-                            <button onClick={checkHealth} className="btn-secondary text-xs">Test Connection</button>
-                            {status === 'CHECKING' && <RefreshCw size={16} className="animate-spin text-[var(--text-secondary)]"/>}
-                            {status === 'OK' && <span className="text-green-500 text-xs font-bold flex items-center gap-1"><CheckCircle size={14}/> Connected</span>}
-                            {status === 'ERROR' && <span className="text-red-500 text-xs font-bold flex items-center gap-1"><AlertTriangle size={14}/> Connection Failed</span>}
-                        </div>
-                    </div>
-                )}
             </div>
         </div>
     );
@@ -588,7 +569,6 @@ const BackupTab = () => {
     const { showToast } = useToast();
     const [snapshots, setSnapshots] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
-    const mode = Data.getMode();
 
     useEffect(() => {
         loadSnapshots();
@@ -633,7 +613,7 @@ const BackupTab = () => {
                 <h3 className="text-xl font-medium text-[var(--text-primary)] flex items-center gap-2">
                     <Database size={24} className="text-gold-500"/> Full Data Backups
                 </h3>
-                <p className="text-sm text-[var(--text-secondary)] mt-1">Version control for your application data ({mode} Mode).</p>
+                <p className="text-sm text-[var(--text-secondary)] mt-1">Version control for your application data.</p>
             </div>
 
             <button onClick={handleCreateSnapshot} disabled={loading} className="btn-primary w-full py-3 flex items-center justify-center gap-2">

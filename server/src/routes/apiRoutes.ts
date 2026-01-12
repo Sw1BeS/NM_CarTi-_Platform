@@ -1,46 +1,47 @@
 
 import { Router, Request, Response } from 'express';
 // @ts-ignore
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../services/prisma.js';
 import bcrypt from 'bcryptjs';
 import { authenticateToken, requireRole } from '../middleware/auth.js';
-import { botManager } from '../services/botService.js';
+import { botManager } from '../modules/bots/bot.service.js';
 import { importDraft, searchAutoRia, sendMetaEvent } from '../services/integrationService.js';
+import { mapLeadCreateInput, mapLeadOutput, mapLeadStatusFilter, mapLeadUpdateInput } from '../services/dto.js';
+import { mapBotInput, mapBotOutput } from '../services/botDto.js';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 router.use(authenticateToken);
 
 // --- Bot Management (CRUD) ---
 router.get('/bots', requireRole(['ADMIN']), async (req, res) => {
     const bots = await prisma.botConfig.findMany({ orderBy: { id: 'asc' } });
-    res.json(bots);
+    res.json(bots.map(mapBotOutput));
 });
 
 router.post('/bots', requireRole(['ADMIN']), async (req, res) => {
-    const { name, template, token, channelId, adminChatId, isEnabled } = req.body;
+    const { data } = mapBotInput(req.body || {});
+    if (!data.token) return res.status(400).json({ error: 'Token is required' });
 
     // Sanitize optional fields: Convert empty strings to null
-    const cleanChannelId = channelId && channelId.trim() !== '' ? channelId.trim() : null;
-    const cleanAdminChatId = adminChatId && adminChatId.trim() !== '' ? adminChatId.trim() : null;
+    const cleanChannelId = data.channelId && String(data.channelId).trim() !== '' ? String(data.channelId).trim() : null;
+    const cleanAdminChatId = data.adminChatId && String(data.adminChatId).trim() !== '' ? String(data.adminChatId).trim() : null;
 
     try {
         const newBot = await prisma.botConfig.create({
             data: {
-                name,
-                template,
-                token: token.trim(),
+                ...data,
+                token: data.token.trim(),
                 channelId: cleanChannelId,
                 adminChatId: cleanAdminChatId,
-                isEnabled: isEnabled ?? true
+                isEnabled: data.isEnabled ?? true
             }
         });
 
         // Fire and forget restart to avoid blocking the UI response
         botManager.restartBot(newBot.id).catch(e => console.error("Async Bot Restart Failed:", e));
 
-        res.json(newBot);
+        res.json(mapBotOutput(newBot));
     } catch (e) {
         console.error("Create Bot Error:", e);
         res.status(500).json({ error: "Failed to create bot. Token might be duplicate or invalid." });
@@ -48,30 +49,31 @@ router.post('/bots', requireRole(['ADMIN']), async (req, res) => {
 });
 
 router.put('/bots/:id', requireRole(['ADMIN']), async (req, res) => {
-    const id = parseInt(req.params.id);
-    const { name, template, token, channelId, adminChatId, isEnabled } = req.body;
+    const { id } = req.params;
+    const existing = await prisma.botConfig.findUnique({ where: { id } });
+    if (!existing) return res.status(404).json({ error: 'Bot not found' });
+    const { data } = mapBotInput(req.body || {}, existing.config);
+    if ('token' in data && !data.token) return res.status(400).json({ error: 'Token is required' });
 
     // Sanitize optional fields
-    const cleanChannelId = channelId && channelId.trim() !== '' ? channelId.trim() : null;
-    const cleanAdminChatId = adminChatId && adminChatId.trim() !== '' ? adminChatId.trim() : null;
+    const cleanChannelId = data.channelId && String(data.channelId).trim() !== '' ? String(data.channelId).trim() : null;
+    const cleanAdminChatId = data.adminChatId && String(data.adminChatId).trim() !== '' ? String(data.adminChatId).trim() : null;
 
     try {
         const updated = await prisma.botConfig.update({
             where: { id },
             data: {
-                name,
-                template,
-                token: token.trim(),
+                ...data,
+                ...(data.token ? { token: data.token.trim() } : {}),
                 channelId: cleanChannelId,
-                adminChatId: cleanAdminChatId,
-                isEnabled
+                adminChatId: cleanAdminChatId
             }
         });
 
         // Fire and forget
         botManager.restartBot(id).catch(e => console.error("Async Bot Update Failed:", e));
 
-        res.json(updated);
+        res.json(mapBotOutput(updated));
     } catch (e) {
         console.error("Update Bot Error:", e);
         res.status(500).json({ error: 'Failed to update bot' });
@@ -79,7 +81,7 @@ router.put('/bots/:id', requireRole(['ADMIN']), async (req, res) => {
 });
 
 router.delete('/bots/:id', requireRole(['ADMIN']), async (req, res) => {
-    const id = parseInt(req.params.id);
+    const { id } = req.params;
     try {
         await prisma.botConfig.delete({ where: { id } });
         await botManager.stopAll();
@@ -89,9 +91,47 @@ router.delete('/bots/:id', requireRole(['ADMIN']), async (req, res) => {
 });
 
 // --- Leads ---
+// --- Leads ---
 router.get('/leads', async (req, res) => {
-    const leads = await prisma.lead.findMany({ orderBy: { createdAt: 'desc' }, take: 100 });
-    res.json(leads);
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 50));
+    const skip = (page - 1) * limit;
+
+    const status = req.query.status as string;
+    const source = req.query.source as string;
+    const search = req.query.search as string;
+
+    const where: any = {};
+    if (status && status !== 'ALL') {
+        const dbStatus = mapLeadStatusFilter(status);
+        if (dbStatus) where.status = dbStatus;
+    }
+    if (source) where.source = source;
+    if (search) {
+        where.OR = [
+            { clientName: { contains: search, mode: 'insensitive' } },
+            { phone: { contains: search, mode: 'insensitive' } },
+            { leadCode: { contains: search, mode: 'insensitive' } }
+        ];
+    }
+
+    const [total, items] = await Promise.all([
+        prisma.lead.count({ where }),
+        prisma.lead.findMany({
+            where,
+            orderBy: { createdAt: 'desc' },
+            take: limit,
+            skip
+        })
+    ]);
+
+    res.json({
+        items: items.map(mapLeadOutput),
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit)
+    });
 });
 
 // --- Integrations & Drafts ---
@@ -108,59 +148,34 @@ router.get('/drafts', async (req, res) => {
 // --- Leads CRUD ---
 router.post('/leads', async (req, res) => {
     try {
-        const { id, ...data } = req.body;
-        const lead = await prisma.lead.create({ data });
-        res.json(lead);
+        const { id, ...raw } = req.body || {};
+        const mapped = mapLeadCreateInput(raw);
+        if (mapped.error) return res.status(400).json({ error: mapped.error });
+        const lead = await prisma.lead.create({ data: mapped.data });
+        res.json(mapLeadOutput(lead));
     } catch (e) { console.error(e); res.status(500).json({ error: 'Failed to create lead' }); }
 });
 
 router.put('/leads/:id', async (req, res) => {
     try {
-        const { id: _, ...data } = req.body;
-        const id = parseInt(req.params.id);
-        const lead = await prisma.lead.update({ where: { id }, data });
-        res.json(lead);
+        const { id: _, ...raw } = req.body || {};
+        const { id } = req.params;
+        const existing = await prisma.lead.findUnique({ where: { id } });
+        if (!existing) return res.status(404).json({ error: 'Lead not found' });
+        const mapped = mapLeadUpdateInput(raw, existing.payload);
+        const lead = await prisma.lead.update({ where: { id }, data: mapped.data });
+        res.json(mapLeadOutput(lead));
     } catch (e) { console.error(e); res.status(500).json({ error: 'Failed to update lead' }); }
 });
 
 router.delete('/leads/:id', async (req, res) => {
     try {
-        const id = parseInt(req.params.id);
+        const { id } = req.params;
         await prisma.lead.delete({ where: { id } });
         res.json({ success: true });
     } catch (e) { res.status(500).json({ error: 'Failed to delete lead' }); }
 });
 
-// --- B2B Requests CRUD ---
-router.get('/requests', async (req, res) => {
-    const requests = await prisma.b2bRequest.findMany({ orderBy: { createdAt: 'desc' }, take: 100 });
-    res.json(requests);
-});
-
-router.post('/requests', async (req, res) => {
-    try {
-        const { id, ...data } = req.body;
-        const request = await prisma.b2bRequest.create({ data });
-        res.json(request);
-    } catch (e) { console.error(e); res.status(500).json({ error: 'Failed to create request' }); }
-});
-
-router.put('/requests/:id', async (req, res) => {
-    try {
-        const { id: _, ...data } = req.body;
-        const id = parseInt(req.params.id);
-        const request = await prisma.b2bRequest.update({ where: { id }, data });
-        res.json(request);
-    } catch (e) { console.error(e); res.status(500).json({ error: 'Failed to update request' }); }
-});
-
-router.delete('/requests/:id', async (req, res) => {
-    try {
-        const id = parseInt(req.params.id);
-        await prisma.b2bRequest.delete({ where: { id } });
-        res.json({ success: true });
-    } catch (e) { res.status(500).json({ error: 'Failed to delete request' }); }
-});
 
 router.get('/settings', requireRole(['ADMIN']), async (req, res) => {
     const settings = await prisma.systemSettings.findFirst();
@@ -200,7 +215,7 @@ router.post('/users', requireRole(['ADMIN']), async (req, res) => {
 router.put('/users/:id', requireRole(['ADMIN']), async (req, res) => {
     try {
         const { id: _, password, ...data } = req.body;
-        const id = parseInt(req.params.id);
+        const { id } = req.params;
         const updateData: any = { ...data };
         if (password) {
             updateData.password = await bcrypt.hash(password, 10);
@@ -215,7 +230,7 @@ router.put('/users/:id', requireRole(['ADMIN']), async (req, res) => {
 
 router.delete('/users/:id', requireRole(['ADMIN']), async (req, res) => {
     try {
-        const id = parseInt(req.params.id);
+        const { id } = req.params;
         await prisma.user.delete({ where: { id } });
         res.json({ success: true });
     } catch (e) { res.status(500).json({ error: 'Failed to delete user' }); }

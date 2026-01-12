@@ -13,7 +13,7 @@ import {
     BarChart3, PieChart, Send, Globe, Radio
 } from 'lucide-react';
 import { ScenarioBuilder } from './ScenarioBuilder';
-import { MockDb } from '../services/mockDb';
+import { DEFAULT_MENU_CONFIG, DEFAULT_MINI_APP_CONFIG } from '../services/defaults';
 
 export const TelegramHub = () => {
     const [bots, setBots] = useState<Bot[]>([]);
@@ -938,7 +938,18 @@ const AddBotModal = ({ onClose }: any) => {
 
     const handleAdd = async () => {
         if (!name || !token) return;
-        await MockDb.addBot(name, token);
+        await Data.saveBot({
+            id: `bot_${Date.now()}`,
+            name,
+            username: name.trim().toLowerCase().replace(/\s+/g, '_'),
+            token,
+            role: 'CLIENT',
+            active: true,
+            menuConfig: DEFAULT_MENU_CONFIG,
+            miniAppConfig: DEFAULT_MINI_APP_CONFIG,
+            processedUpdateIds: [],
+            stats: { processed: 0, ignored: 0, errors: 0, lastRun: '' }
+        } as any);
         showToast("Bot Added");
         onClose();
     };

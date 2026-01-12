@@ -1,13 +1,13 @@
 import { Router } from 'express';
 // @ts-ignore
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../services/prisma.js';
+import { authenticateToken, requireRole } from '../middleware/auth.js';
 
 const router = Router();
+const adminRoles = ['ADMIN', 'SUPER_ADMIN'];
+const editorRoles = ['ADMIN', 'SUPER_ADMIN', 'MANAGER'];
 
-// Prisma singleton (avoid too many connections in dev)
-const g = globalThis as any;
-const prisma: any = g.__prisma || new PrismaClient();
-if (!g.__prisma) g.__prisma = prisma;
+router.use(authenticateToken);
 
 const SLUG_RE = /^[a-z][a-z0-9-]{2,63}$/;
 const KEY_RE  = /^[a-z][a-z0-9_]{1,63}$/;
@@ -73,7 +73,7 @@ router.get('/meta', async (_req, res) => {
 });
 
 // --- DEFINITIONS ---
-router.post('/definitions', async (req, res) => {
+router.post('/definitions', requireRole(adminRoles), async (req, res) => {
   const { slug, name, description, fields } = req.body || {};
 
   if (!slug || typeof slug !== 'string' || !SLUG_RE.test(slug)) {
@@ -124,7 +124,7 @@ router.post('/definitions', async (req, res) => {
   res.json({ ok: true, definition: created });
 });
 
-router.put('/definitions/:slug', async (req, res) => {
+router.put('/definitions/:slug', requireRole(adminRoles), async (req, res) => {
   const slug = req.params.slug;
   const { name, description, status, fields, replaceFields } = req.body || {};
 
@@ -190,7 +190,7 @@ router.put('/definitions/:slug', async (req, res) => {
   res.json({ ok: true, definition: updated });
 });
 
-router.post('/definitions/:slug/archive', async (req, res) => {
+router.post('/definitions/:slug/archive', requireRole(adminRoles), async (req, res) => {
   const slug = req.params.slug;
   const def = await prisma.entityDefinition.findFirst({ where: { slug } });
   if (!def) return bad(res, 404, 'Definition not found');
@@ -231,7 +231,7 @@ router.get('/:slug/records', async (req, res) => {
   res.json({ ok: true, items, nextCursor });
 });
 
-router.post('/:slug/records', async (req, res) => {
+router.post('/:slug/records', requireRole(editorRoles), async (req, res) => {
   const slug = req.params.slug;
   const def = await getEntityBySlug(slug);
   if (!def) return bad(res, 404, 'Entity not found');
@@ -260,7 +260,7 @@ router.get('/:slug/records/:id', async (req, res) => {
   res.json({ ok: true, record: rec });
 });
 
-router.patch('/:slug/records/:id', async (req, res) => {
+const updateRecord = async (req: any, res: any) => {
   const slug = req.params.slug;
   const id = req.params.id;
   const def = await getEntityBySlug(slug);
@@ -281,9 +281,12 @@ router.patch('/:slug/records/:id', async (req, res) => {
   });
 
   res.json({ ok: true, record: updated });
-});
+};
 
-router.delete('/:slug/records/:id', async (req, res) => {
+router.patch('/:slug/records/:id', requireRole(editorRoles), updateRecord);
+router.put('/:slug/records/:id', requireRole(editorRoles), updateRecord);
+
+router.delete('/:slug/records/:id', requireRole(editorRoles), async (req, res) => {
   const slug = req.params.slug;
   const id = req.params.id;
   const def = await getEntityBySlug(slug);

@@ -1,13 +1,14 @@
 
 import axios from 'axios';
 // @ts-ignore
-import { PrismaClient, BotTemplate, LeadStatus } from '@prisma/client';
+import { BotTemplate, LeadStatus } from '@prisma/client';
+import { prisma } from '../../services/prisma.js';
 
-const prisma = new PrismaClient();
+
 
 // --- Types ---
 interface BotConfigModel {
-    id: number;
+    id: string;
     name: string | null;
     template: BotTemplate;
     token: string;
@@ -17,9 +18,9 @@ interface BotConfigModel {
 
 // --- Bot Manager Class ---
 export class BotManager {
-    private activeBots: Map<number, BotInstance> = new Map();
+    private activeBots: Map<string, BotInstance> = new Map();
 
-    constructor() {}
+    constructor() { }
 
     public async startAll() {
         console.log("🤖 Bot Manager: Loading configuration...");
@@ -34,7 +35,7 @@ export class BotManager {
         }
     }
 
-    public async restartBot(id: number) {
+    public async restartBot(id: string) {
         this.stopBot(id);
         const config = await prisma.botConfig.findUnique({ where: { id } });
         if (config && config.isEnabled) {
@@ -49,14 +50,14 @@ export class BotManager {
 
     private startBot(config: BotConfigModel) {
         if (this.activeBots.has(config.id)) return;
-        
+
         console.log(`🚀 Starting Bot [${config.id}]: ${config.name}`);
         const instance = new BotInstance(config);
         instance.start();
         this.activeBots.set(config.id, instance);
     }
 
-    private stopBot(id: number) {
+    private stopBot(id: string) {
         const bot = this.activeBots.get(id);
         if (bot) {
             console.log(`🛑 Stopping Bot ID: ${id}`);
@@ -111,7 +112,7 @@ class BotInstance {
                 ];
             }
             await axios.post(`https://api.telegram.org/bot${this.config.token}/setMyCommands`, { commands });
-        } catch (e: any) { 
+        } catch (e: any) {
             console.error(`⚠️ Failed to register commands for ${this.config.name}: ${e.message}`);
         }
     }
@@ -122,7 +123,7 @@ class BotInstance {
         try {
             const url = `https://api.telegram.org/bot${this.config.token}/getUpdates?offset=${this.offset + 1}&timeout=10`;
             const res = await axios.get(url, { timeout: 20000 });
-            
+
             if (res.data.ok) {
                 for (const update of res.data.result) {
                     this.offset = update.update_id;
@@ -130,24 +131,25 @@ class BotInstance {
                 }
             }
         } catch (e: any) {
-             // CRITICAL: Stop bot if token is invalid to prevent server hang/spam
-             if (e.response && e.response.status === 401) {
-                 console.error(`🚨 Fatal Error for Bot ${this.config.name}: Invalid Token. Stopping.`);
-                 this.stop();
-                 return; 
-             }
-             
-             if (e.code !== 'ECONNABORTED' && e.code !== 'ETIMEDOUT') {
+            // CRITICAL: Stop bot if token is invalid to prevent server hang/spam
+            if (e.response && e.response.status === 401) {
+                console.error(`🚨 Fatal Error for Bot ${this.config.name}: Invalid Token. Stopping.`);
+                this.stop();
+                return;
+            }
+
+            if (e.code !== 'ECONNABORTED' && e.code !== 'ETIMEDOUT') {
                 console.error(`Bot Loop Error (${this.config.name}):`, e.message);
-             }
-             // Backoff logic
-             await new Promise(r => setTimeout(r, 5000));
+            }
+            // Backoff logic
+            await new Promise(r => setTimeout(r, 5000));
         }
 
         if (this.isRunning) {
             this.timeoutHandle = setTimeout(() => this.loop(), 500);
         }
     }
+
 
     private async processUpdate(update: any) {
         if (update.callback_query) {
@@ -160,79 +162,110 @@ class BotInstance {
         const chatId = msg.chat.id.toString();
         const text = msg.text || '';
 
+        // 1. Load Session
+        let session = await prisma.botSession.findUnique({
+            where: { botId_chatId: { botId: String(this.config.id), chatId } }
+        });
+
+        if (!session) {
+            session = await prisma.botSession.create({
+                data: {
+                    botId: String(this.config.id),
+                    chatId,
+                    state: 'START',
+                    history: [],
+                    variables: {}
+                }
+            });
+        }
+
+        // 2. Update Access Time & History
+        // optimization: push message id/text to history array (limit size?)
+        // for now just update lastActive
+        await prisma.botSession.update({
+            where: { id: session.id },
+            data: { lastActive: new Date() }
+        });
+
+        // 3. Route based on Template
         switch (this.config.template) {
             case 'CLIENT_LEAD':
-                await this.handleClientBot(msg, chatId, text);
+                await this.handleClientBot(msg, chatId, text, session);
                 break;
             case 'CATALOG':
-                await this.handleCatalogBot(msg, chatId, text);
+                await this.handleCatalogBot(msg, chatId, text, session);
                 break;
             case 'B2B':
-                await this.handleB2BBot(msg, chatId, text);
+                await this.handleB2BBot(msg, chatId, text, session);
                 break;
         }
     }
 
     // --- TEMPLATE LOGIC: CLIENT LEAD ---
-    private async handleClientBot(msg: any, chatId: string, text: string) {
-        if (text === '/start') {
+    private async handleClientBot(msg: any, chatId: string, text: string, session: any) {
+        if (text === '/start' || text === 'reset') {
             await this.sendMessage(chatId, `👋 <b>${this.config.name}</b>\nWelcome! How can we help?`, {
                 keyboard: [[{ text: "🚗 Buy Car" }, { text: "📞 Contact" }]], resize_keyboard: true
             });
+            await this.updateState(session.id, 'START');
         } else if (text === '/buy' || text === '🚗 Buy Car') {
-             await this.sendMessage(chatId, "🚗 Describe the car you want (Model, Year, Budget):", { remove_keyboard: true });
-        } else if (text.length > 3 && !text.startsWith('/')) {
-             const leadCode = `L-${Math.floor(Math.random() * 10000)}`;
-             const lead = await prisma.lead.create({
-                 data: {
-                     leadCode,
-                     clientName: msg.from.first_name || 'User',
-                     phone: 'Not Provided',
-                     request: text,
-                     userTgId: chatId,
-                     status: LeadStatus.NEW,
-                     source: this.config.name
-                 }
-             });
-             await this.sendMessage(chatId, `✅ Request <b>${leadCode}</b> received! We will contact you.`);
-             
-             // Only send to admin if configured
-             if (this.config.adminChatId) {
-                 await this.sendMessage(this.config.adminChatId, `🔥 <b>${this.config.name}</b>\nLead: ${leadCode}\n${text}\nFrom: ${msg.from.first_name}`, {
-                     inline_keyboard: [[{ text: "Take", callback_data: `lead_CONTACTED_${lead.id}` }]]
-                 });
-             }
+            await this.sendMessage(chatId, "🚗 What car are you looking for? (e.g. BMW X5 2020)", { remove_keyboard: true });
+            await this.updateState(session.id, 'ASK_CAR_PREFS');
+        } else if (session.state === 'ASK_CAR_PREFS') {
+            // Save preference
+            const leadCode = `L-${Math.floor(Math.random() * 10000)}`;
+            await prisma.lead.create({
+                data: {
+                    leadCode,
+                    clientName: msg.from.first_name || 'User',
+                    phone: session.variables?.phone || 'Not Provided',
+                    request: text,
+                    userTgId: chatId,
+                    status: LeadStatus.NEW,
+                    source: this.config.name,
+                    payload: { type: 'CAR_REQUEST', sessionHistory: session.history }
+                }
+            });
+            await this.sendMessage(chatId, `✅ Request <b>${leadCode}</b> received! We will contact you.`);
+            await this.sendMessage(chatId, `Anything else?`, {
+                keyboard: [[{ text: "🚗 Buy Car" }, { text: "📞 Contact" }]], resize_keyboard: true
+            });
+            await this.updateState(session.id, 'START'); // Reset
+
+            // Notify Admin
+            if (this.config.adminChatId) {
+                await this.sendMessage(this.config.adminChatId, `🔥 <b>${this.config.name}</b>\nLead: ${leadCode}\n${text}\nFrom: ${msg.from.first_name}`, {
+                    inline_keyboard: [[{ text: "Take", callback_data: `lead_CONTACTED_${leadCode}` }]] // note: callback needs real ID usually
+                });
+            }
         }
     }
 
+    private async updateState(sessionId: string, newState: string, variables: any = undefined) {
+        await prisma.botSession.update({
+            where: { id: sessionId },
+            data: {
+                state: newState,
+                ...(variables ? { variables } : {})
+            }
+        });
+    }
+
     // --- TEMPLATE LOGIC: CATALOG ---
-    private async handleCatalogBot(msg: any, chatId: string, text: string) {
-         if (text === '/start') {
+    private async handleCatalogBot(msg: any, chatId: string, text: string, session: any) {
+        if (text === '/start') {
             await this.sendMessage(chatId, "🔍 <b>Catalog Search</b>\nUse menu below.", {
                 keyboard: [[{ text: "🔎 Find" }, { text: "💵 Sell" }]], resize_keyboard: true
             });
-         }
+        }
     }
 
     // --- TEMPLATE LOGIC: B2B ---
-    private async handleB2BBot(msg: any, chatId: string, text: string) {
+    private async handleB2BBot(msg: any, chatId: string, text: string, session: any) {
         if (text === '/start') {
-             await this.sendMessage(chatId, "🤝 <b>Dealer Network</b>", {
+            await this.sendMessage(chatId, "🤝 <b>Dealer Network</b>", {
                 keyboard: [[{ text: "📝 New Request" }]], resize_keyboard: true
             });
-        } else if (text === '📝 New Request') {
-             await this.sendMessage(chatId, "Send request: <b>Car - Budget</b>");
-        } else if (text.length > 5 && !text.startsWith('/')) {
-             const publicId = `B2B-${Math.floor(Math.random()*1000)}`;
-             const req = await prisma.b2bRequest.create({
-                 data: { publicId, content: text, chatId }
-             });
-             await this.sendMessage(chatId, `✅ Created ${publicId}`);
-             
-             // Only post if channel is configured
-             if (this.config.channelId) {
-                 await this.sendMessage(this.config.channelId, `🔔 <b>REQUEST ${publicId}</b>\n${text}`);
-             }
         }
     }
 
@@ -258,7 +291,7 @@ class BotInstance {
             await axios.post(`https://api.telegram.org/bot${this.config.token}/sendMessage`, {
                 chat_id: chatId, text, parse_mode: 'HTML', reply_markup: markup
             });
-        } catch(e) { /* ignore sending errors */ }
+        } catch (e) { /* ignore sending errors */ }
     }
 }
 

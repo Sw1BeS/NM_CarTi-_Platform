@@ -17,6 +17,9 @@ enum LeadStatus {
   NEW
   IN_PROGRESS
   DONE
+  CONTACTED
+  WON
+  LOST
 }
 
 enum DraftSource {
@@ -24,52 +27,102 @@ enum DraftSource {
   MANUAL
 }
 
+
 model User {
-  id        Int      @id @default(autoincrement())
+  id        String   @id @default(cuid())
   email     String   @unique
   password  String
+  username  String?
   name      String?
   role      String   @default("ADMIN")
+  companyId String?
+  telegramUserId String? @unique
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
+
 model BotConfig {
-  id          Int         @id @default(autoincrement())
+  id          String         @id @default(cuid())
   name        String?
   template    BotTemplate
-  token       String      @unique
+  token       String         @unique
   channelId   String?
   adminChatId String?
-  isEnabled   Boolean     @default(true)
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  isEnabled   Boolean        @default(true)
+  config      Json?          @db.JsonB
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  sessions    BotSession[]
+  campaigns   Campaign[]
+  leads       Lead[]         
 }
 
 model Lead {
-  source     String?
+  id         String     @id @default(cuid())
+  leadCode   String?    @unique
+  source     String?    // e.g. "BotName" or "Website"
+  botId      String?
+  bot        BotConfig? @relation(fields: [botId], references: [id])
+  
   userTgId   String?
-  request    String?
-  leadCode   String?
-  id         Int        @id @default(autoincrement())
   clientName String
   phone      String?
+  request    String?
   status     LeadStatus @default(NEW)
   payload    Json?
+  
   createdAt  DateTime   @default(now())
   updatedAt  DateTime   @updatedAt
 }
 
 model B2bRequest {
-  chatId     String?
-  content    String?
-  id        Int      @id @default(autoincrement())
-  publicId  String?  @unique
-  payload   Json?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id        String           @id @default(cuid())
+  publicId  String?          @unique
+  title     String           // Extracted from content or manual
+  description String?
+  budgetMin Int?
+  budgetMax Int?
+  yearMin   Int?
+  yearMax   Int?
+  city      String?
+  language  String?
+  
+  chatId    String?
+  content   String?          // Original raw text
+  status    String           @default("NEW") // NEW, IN_PROGRESS, ...
+  priority  String           @default("NORMAL")
+
+  variants  RequestVariant[]
+  
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
 }
+
+model RequestVariant {
+  id          String     @id @default(cuid())
+  requestId   String
+  request     B2bRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  
+  status      String     @default("PENDING") // PENDING, OFFERED, REJECTED, ACCEPTED
+  source      String     @default("MANUAL")
+  sourceUrl   String?
+  
+  title       String?
+  price       Int?
+  currency    String?    @default("USD")
+  year        Int?
+  mileage     Int?
+  location    String?
+  thumbnail   String?
+  specs       Json?
+  
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+}
+
 
 model Draft {
   id          Int         @id @default(autoincrement())
@@ -83,12 +136,84 @@ model Draft {
   updatedAt   DateTime    @updatedAt
 }
 
+model CarListing {
+  id          String   @id 
+  source      String   @default("MANUAL")
+  sourceUrl   String?
+  title       String
+  price       Int
+  currency    String   @default("USD")
+  year        Int
+  mileage     Int
+  location    String?
+  thumbnail   String?
+  mediaUrls   String[]
+  specs       Json?
+  description String?
+  status      String   @default("AVAILABLE") // AVAILABLE, RESERVED, SOLD, PENDING, HIDDEN
+  postedAt    DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([price])
+  @@index([year])
+  @@index([status])
+}
+
+model BotSession {
+  id          String     @id @default(cuid())
+  chatId      String
+  botId       String
+  bot         BotConfig  @relation(fields: [botId], references: [id], onDelete: Cascade)
+  
+  platform    String     @default("TG")
+  state       String     @default("START")
+  variables   Json?
+  history     Json?
+  lastActive  DateTime   @default(now())
+  
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  
+  @@unique([botId, chatId])
+  @@index([lastActive])
+}
+
+model Scenario {
+  id             String   @id @default(cuid())
+  name           String
+  triggerCommand String?
+  keywords       String[]
+  isActive       Boolean  @default(true)
+  entryNodeId    String?
+  nodes          Json
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model Campaign {
+  id             String     @id @default(cuid())
+  name           String
+  botId          String
+  bot            BotConfig  @relation(fields: [botId], references: [id], onDelete: Cascade)
+  
+  content        Json
+  status         String     @default("DRAFT")
+  scheduledAt    DateTime?
+  stats          Json?
+  targetAudience Json?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+}
+
 model SystemSettings {
-  id           Int      @id @default(autoincrement())
+  id           Int      @default(autoincrement()) @id
   autoriaApiKey String?
   metaPixelId   String?
   metaToken     String?
   metaTestCode  String?
+  navigation    Json?
+  features      Json?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 }

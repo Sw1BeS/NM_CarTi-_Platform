@@ -1,9 +1,9 @@
 
 import axios from 'axios';
 // @ts-ignore
-import { PrismaClient, DraftSource } from '@prisma/client';
+import { DraftSource } from '@prisma/client';
+import { prisma } from './prisma.js';
 
-const prisma = new PrismaClient();
 
 // --- Logging ---
 export const logSystem = async (module: string, action: string, status: string, message: string) => {

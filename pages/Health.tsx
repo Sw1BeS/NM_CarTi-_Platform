@@ -1,12 +1,12 @@
 
 import React, { useState, useEffect } from 'react';
-import { Storage } from '../services/storage';
+import { Data } from '../services/data';
 import { TelegramAPI } from '../services/telegram';
 import { ActivityLog, Bot, DeliveryLog, Campaign, RequestStatus, VariantStatus } from '../types';
 import { RefreshCw, AlertTriangle, Shield, Send, Terminal, Wifi, RotateCcw, Trash2, Play, TestTube, Cpu, HardDrive } from 'lucide-react';
 import { useToast } from '../contexts/ToastContext';
 import { BotEngine } from '../services/botEngine';
-import { MockDb } from '../services/mockDb';
+import { RequestsService } from '../services/requestsService';
 import { MatchingService } from '../services/matchingService';
 
 export const HealthPage = () => {
@@ -33,7 +33,7 @@ export const HealthPage = () => {
 const SystemQA = () => {
     const [logs, setLogs] = useState<string[]>([]);
     const [running, setRunning] = useState(false);
-    const [results, setResults] = useState<{name: string, status: 'PASS' | 'FAIL'}[]>([]);
+    const [results, setResults] = useState<{ name: string, status: 'PASS' | 'FAIL' }[]>([]);
 
     const log = (msg: string) => setLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] ${msg}`]);
 
@@ -41,18 +41,21 @@ const SystemQA = () => {
         setRunning(true);
         setLogs([]);
         setResults([]);
-        
+
         try {
             // TEST 1: Request Creation
             log("Test 1: Creating B2B Request...");
-            const req = await MockDb.createRequest({
+            const req = await RequestsService.createRequest({
                 title: "QA Test Car BMW",
                 budgetMax: 50000,
-                status: RequestStatus.NEW
+                status: RequestStatus.NEW,
+                // Defaults
+                budgetMin: 0, yearMin: 2020, yearMax: 2024, city: 'Kyiv', description: 'Test', priority: 'MEDIUM',
+                platform: 'TG', variants: []
             });
             if (!req || !req.id) throw new Error("Request creation failed");
             setResults(prev => [...prev, { name: 'Create Request', status: 'PASS' }]);
-            
+
             // TEST 2: Inventory Add & Match
             log("Test 2: Adding Matching Inventory...");
             const car = {
@@ -62,32 +65,37 @@ const SystemQA = () => {
                 year: 2022,
                 status: 'AVAILABLE'
             } as any;
-            Storage.saveInventoryItem(car);
-            
+            await Data.saveInventoryItem(car);
+
             // Check Match
             log("Test 3: Checking Match Logic...");
             const matches = await MatchingService.findMatchesForCar(car);
             const isMatch = matches.some(m => m.req.id === req.id);
-            
+
             if (!isMatch) throw new Error("Matching logic failed to pair Request and Car");
             setResults(prev => [...prev, { name: 'Matching Engine', status: 'PASS' }]);
 
             // TEST 4: Variant Attachment
             log("Test 4: Attaching Variant...");
-            await MockDb.addVariant(req.id, {
-                title: car.title,
-                price: car.price,
-                status: VariantStatus.FIT
+            await RequestsService.addVariant(req.id, {
+                title: "Test Variant",
+                price: { amount: 45000, currency: 'USD' },
+                status: VariantStatus.FIT,
+                canonicalId: 'test_var', source: 'MANUAL', sourceUrl: 'http://test', year: 2022, mileage: 0, location: '', thumbnail: '', specs: {}
             });
-            const updatedReq = Storage.getRequest(req.id);
+            // Verify via API
+            const allReqs = await RequestsService.getRequests({ search: req.publicId });
+            const updatedReq = allReqs.items.find(r => r.id === req.id);
+
             if (updatedReq?.variants.length !== 1) throw new Error("Variant attach failed");
             setResults(prev => [...prev, { name: 'Attach Variant', status: 'PASS' }]);
 
             // Cleanup
             log("Cleanup: Removing test data...");
-            Storage.deleteRequest(req.id);
-            Storage.deleteInventoryItem(car.canonicalId);
-            
+            log("Cleanup: Removing test data...");
+            await RequestsService.deleteRequest(req.id);
+            await Data.deleteInventoryItem(car.canonicalId);
+
             log("ALL TESTS PASSED ✅");
 
         } catch (e: any) {
@@ -103,7 +111,7 @@ const SystemQA = () => {
             <div className="bg-white p-6 rounded-xl shadow-sm border space-y-6">
                 <div className="flex items-center gap-4">
                     <div className="p-3 bg-blue-50 rounded-lg">
-                        <TestTube size={24} className="text-blue-600"/>
+                        <TestTube size={24} className="text-blue-600" />
                     </div>
                     <div>
                         <h3 className="font-bold text-gray-900">Automated Self-Test</h3>
@@ -111,10 +119,10 @@ const SystemQA = () => {
                     </div>
                 </div>
                 <button onClick={runTests} disabled={running} className="w-full bg-black text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-gray-800 disabled:opacity-50">
-                    {running ? <RefreshCw className="animate-spin"/> : <Play size={20}/>}
+                    {running ? <RefreshCw className="animate-spin" /> : <Play size={20} />}
                     Run Test Suite
                 </button>
-                
+
                 <div className="space-y-2">
                     {results.map((r, i) => (
                         <div key={i} className={`flex justify-between items-center p-3 rounded border ${r.status === 'PASS' ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
@@ -137,37 +145,41 @@ const SystemHealth = () => {
     const [bots, setBots] = useState<Bot[]>([]);
     const [botHealth, setBotHealth] = useState<Record<string, { status: 'OK' | 'FAIL', latency: number, msg?: string }>>({});
     const [logs, setLogs] = useState<ActivityLog[]>([]);
-    const [failedDeliveries, setFailedDeliveries] = useState<{campaign: Campaign, log: DeliveryLog}[]>([]);
+    const [failedDeliveries, setFailedDeliveries] = useState<{ campaign: Campaign, log: DeliveryLog }[]>([]);
     const [loading, setLoading] = useState(false);
+    const [features, setFeatures] = useState<Record<string, boolean>>({});
     const { showToast } = useToast();
-    const features = Storage.getSettings().features || {};
 
-    useEffect(() => {
-        setBots(Storage.getBots());
-        refreshLogs();
-        refreshFailed();
-    }, []);
-
-    const refreshLogs = () => {
-        const allLogs = Storage.getActivity();
+    const refreshLogs = async () => {
+        const allLogs = await Data.getActivity();
         setLogs(allLogs.filter(l => l.entityType === 'ERROR' || l.entityType === 'SYSTEM' || l.entityType.includes('API')));
     };
 
-    const refreshFailed = () => {
-        const allCampaigns = Storage.getCampaigns();
-        const failures: {campaign: Campaign, log: DeliveryLog}[] = [];
+    const refreshFailed = async () => {
+        const allCampaigns = await Data.getCampaigns();
+        const failures: { campaign: Campaign, log: DeliveryLog }[] = [];
         allCampaigns.forEach(c => {
-            c.logs.filter(l => l.status === 'FAILED').forEach(l => {
+            (c.logs || []).filter(l => l.status === 'FAILED').forEach(l => {
                 failures.push({ campaign: c, log: l });
             });
         });
         setFailedDeliveries(failures);
     };
 
+    useEffect(() => {
+        const load = async () => {
+            const [botList, settings] = await Promise.all([Data.getBots(), Data.getSettings()]);
+            setBots(botList);
+            setFeatures(settings.features || {});
+            await Promise.all([refreshLogs(), refreshFailed()]);
+        };
+        load();
+    }, []);
+
     const checkBots = async () => {
         setLoading(true);
         const newHealth: any = {};
-        
+
         for (const bot of bots) {
             if (!bot.active) {
                 newHealth[bot.id] = { status: 'DISABLED', latency: 0 };
@@ -188,10 +200,11 @@ const SystemHealth = () => {
 
     const sendTestMsg = async (botId: string) => {
         const bot = bots.find(b => b.id === botId);
-        const adminDest = Storage.getDestinations().find(d => d.type === 'USER'); 
-        
+        const destinations = await Data.getDestinations();
+        const adminDest = destinations.find(d => d.type === 'USER');
+
         if (!bot || !adminDest) return showToast("No bot or valid destination found", 'error');
-        
+
         try {
             await TelegramAPI.sendMessage(bot.token, adminDest.identifier, "Test Message from Health Check");
             showToast("Test message sent!");
@@ -200,11 +213,16 @@ const SystemHealth = () => {
         }
     };
 
-    const handleRetry = async (item: {campaign: Campaign, log: DeliveryLog}) => {
+    const handleRetry = async (item: { campaign: Campaign, log: DeliveryLog }) => {
         const { campaign, log } = item;
-        const dest = Storage.getDestinations().find(d => d.id === log.destinationId);
-        const content = Storage.getContent().find(c => c.id === campaign.contentId);
-        const bot = Storage.getBots().find(b => b.id === campaign.botId);
+        const [destinations, contents, botList] = await Promise.all([
+            Data.getDestinations(),
+            Data.getContent(),
+            Data.getBots()
+        ]);
+        const dest = destinations.find(d => d.id === log.destinationId);
+        const content = contents.find(c => c.id === campaign.contentId);
+        const bot = botList.find(b => b.id === campaign.botId);
 
         if (!dest || !content || !bot) {
             return showToast("Cannot retry: missing resources", 'error');
@@ -212,40 +230,41 @@ const SystemHealth = () => {
 
         try {
             await BotEngine.sendUnifiedMessage('TG', dest.identifier, content.body, content.mediaUrls?.[0]);
-            
-            const newLogs = campaign.logs.map(l => 
-                (l.destinationId === log.destinationId && l.sentAt === log.sentAt) 
-                ? { ...l, status: 'SUCCESS' as const, error: undefined } 
-                : l
+
+            const newLogs = campaign.logs.map(l =>
+                (l.destinationId === log.destinationId && l.sentAt === log.sentAt)
+                    ? { ...l, status: 'SUCCESS' as const, error: undefined }
+                    : l
             );
-            
+
             const sent = newLogs.filter(l => l.status === 'SUCCESS').length;
             const failed = newLogs.filter(l => l.status === 'FAILED').length;
-            
-            Storage.updateCampaign(campaign.id, { 
+
+            await Data.saveCampaign({
+                ...campaign,
                 logs: newLogs,
                 progress: { ...campaign.progress, sent, failed }
             });
-            
+
             showToast("Retried Successfully!");
-            refreshFailed();
+            await refreshFailed();
         } catch (e: any) {
             showToast(`Retry Failed: ${e.message}`, 'error');
         }
     };
 
-    const handleClearFailed = (item: {campaign: Campaign, log: DeliveryLog}) => {
+    const handleClearFailed = (item: { campaign: Campaign, log: DeliveryLog }) => {
         const { campaign, log } = item;
         const newLogs = campaign.logs.filter(l => !(l.destinationId === log.destinationId && l.sentAt === log.sentAt));
-        
+
         const sent = newLogs.filter(l => l.status === 'SUCCESS').length;
         const failed = newLogs.filter(l => l.status === 'FAILED').length;
-        
-        Storage.updateCampaign(campaign.id, { 
+
+        Data.saveCampaign({
+            ...campaign,
             logs: newLogs,
             progress: { ...campaign.progress, sent, failed, total: campaign.progress.total - 1 }
-        });
-        refreshFailed();
+        }).then(refreshFailed);
         showToast("Removed from queue");
     };
 
@@ -256,7 +275,7 @@ const SystemHealth = () => {
             {/* System Status Banner */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="bg-white p-4 rounded-xl shadow-sm border flex items-center gap-4">
-                    <div className="p-3 bg-purple-50 text-purple-600 rounded-lg"><Cpu size={24}/></div>
+                    <div className="p-3 bg-purple-50 text-purple-600 rounded-lg"><Cpu size={24} /></div>
                     <div>
                         <h3 className="font-bold text-gray-900 text-sm">Active Modules (Flags)</h3>
                         <div className="flex flex-wrap gap-1 mt-1">
@@ -269,12 +288,12 @@ const SystemHealth = () => {
                     </div>
                 </div>
                 <div className="bg-white p-4 rounded-xl shadow-sm border flex items-center gap-4">
-                    <div className="p-3 bg-amber-50 text-amber-600 rounded-lg"><HardDrive size={24}/></div>
+                    <div className="p-3 bg-amber-50 text-amber-600 rounded-lg"><HardDrive size={24} /></div>
                     <div>
-                        <h3 className="font-bold text-gray-900 text-sm">Storage Usage</h3>
+                        <h3 className="font-bold text-gray-900 text-sm">Browser Storage</h3>
                         <div className="text-xs text-gray-500 mt-1">
-                            <span className="font-mono font-bold text-gray-800">{(dataSize / 1024).toFixed(2)} KB</span> used. 
-                            Database V7 Prod.
+                            <span className="font-mono font-bold text-gray-800">{(dataSize / 1024).toFixed(2)} KB</span> used.
+                            Client cache only.
                         </div>
                     </div>
                 </div>
@@ -286,7 +305,7 @@ const SystemHealth = () => {
                         <RefreshCw size={18} /> Refresh Queues
                     </button>
                     <button onClick={checkBots} disabled={loading} className="bg-brand-600 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-brand-700 disabled:opacity-50">
-                        <Shield size={18} className={loading ? 'animate-spin' : ''}/> Run Diagnostics
+                        <Shield size={18} className={loading ? 'animate-spin' : ''} /> Run Diagnostics
                     </button>
                 </div>
             </div>
@@ -299,27 +318,26 @@ const SystemHealth = () => {
                             <div className="flex justify-between items-start mb-4">
                                 <div className="flex items-center gap-3">
                                     <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center">
-                                        <Shield size={20}/>
+                                        <Shield size={20} />
                                     </div>
                                     <div>
                                         <h3 className="font-bold text-gray-900">{bot.name}</h3>
                                         <p className="text-xs text-gray-500">@{bot.username}</p>
                                     </div>
                                 </div>
-                                <div className={`px-2 py-1 rounded text-xs font-bold ${
-                                    health?.status === 'OK' ? 'bg-green-100 text-green-700' : 
+                                <div className={`px-2 py-1 rounded text-xs font-bold ${health?.status === 'OK' ? 'bg-green-100 text-green-700' :
                                     health?.status === 'FAIL' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-500'
-                                }`}>
+                                    }`}>
                                     {health?.status || 'UNKNOWN'}
                                 </div>
                             </div>
-                            
+
                             {health?.status === 'OK' && (
                                 <div className="flex items-center gap-2 text-xs text-green-600 mb-4">
-                                    <Wifi size={14}/> Latency: {health.latency}ms
+                                    <Wifi size={14} /> Latency: {health.latency}ms
                                 </div>
                             )}
-                            
+
                             {health?.status === 'FAIL' && (
                                 <div className="text-xs text-red-600 bg-red-50 p-2 rounded mb-4">
                                     Error: {health.msg}
@@ -328,7 +346,7 @@ const SystemHealth = () => {
 
                             <div className="flex gap-2">
                                 <button onClick={() => sendTestMsg(bot.id)} disabled={!health || health.status !== 'OK'} className="flex-1 bg-gray-50 border hover:bg-gray-100 text-gray-700 text-xs py-2 rounded font-medium flex items-center justify-center gap-1 disabled:opacity-50">
-                                    <Send size={12}/> Test Send
+                                    <Send size={12} /> Test Send
                                 </button>
                             </div>
                         </div>
@@ -340,7 +358,7 @@ const SystemHealth = () => {
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col h-[500px]">
                     <div className="p-4 border-b flex justify-between items-center bg-red-50 rounded-t-xl">
                         <div className="flex items-center gap-2 text-red-700">
-                            <AlertTriangle size={18}/>
+                            <AlertTriangle size={18} />
                             <span className="font-bold text-sm">Failed Delivery Queue</span>
                         </div>
                         <span className="text-xs font-bold bg-white px-2 py-1 rounded border border-red-200">{failedDeliveries.length}</span>
@@ -367,8 +385,8 @@ const SystemHealth = () => {
                                         </td>
                                         <td className="p-3 text-right">
                                             <div className="flex justify-end gap-2">
-                                                <button onClick={() => handleRetry(item)} className="p-1.5 bg-green-50 text-green-700 rounded hover:bg-green-100" title="Retry"><RotateCcw size={14}/></button>
-                                                <button onClick={() => handleClearFailed(item)} className="p-1.5 bg-gray-50 text-gray-500 rounded hover:bg-red-50 hover:text-red-500" title="Dismiss"><Trash2 size={14}/></button>
+                                                <button onClick={() => handleRetry(item)} className="p-1.5 bg-green-50 text-green-700 rounded hover:bg-green-100" title="Retry"><RotateCcw size={14} /></button>
+                                                <button onClick={() => handleClearFailed(item)} className="p-1.5 bg-gray-50 text-gray-500 rounded hover:bg-red-50 hover:text-red-500" title="Dismiss"><Trash2 size={14} /></button>
                                             </div>
                                         </td>
                                     </tr>
@@ -381,7 +399,7 @@ const SystemHealth = () => {
                 <div className="bg-gray-900 rounded-xl overflow-hidden shadow-sm border border-gray-800 flex flex-col h-[500px]">
                     <div className="bg-gray-800 px-4 py-3 flex justify-between items-center shrink-0">
                         <div className="flex items-center gap-2 text-gray-300">
-                            <Terminal size={18}/>
+                            <Terminal size={18} />
                             <span className="font-bold text-sm">System Logs</span>
                         </div>
                         <button onClick={refreshLogs} className="text-xs text-gray-400 hover:text-white">Refresh</button>

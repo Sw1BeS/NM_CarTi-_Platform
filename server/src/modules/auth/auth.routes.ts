@@ -1,12 +1,11 @@
 import { Router, Request, Response } from 'express';
 // @ts-ignore
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../../services/prisma.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { authenticateToken, AuthRequest } from '../middleware/auth.js';
+import { authenticateToken, AuthRequest } from '../../middleware/auth.js';
 
 const router = Router();
-const prisma = new PrismaClient();
 let JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
   if (process.env.NODE_ENV === 'production') {

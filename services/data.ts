@@ -1,128 +1,19 @@
 
 import { DataAdapter } from './dataAdapter';
 import { ServerAdapter } from './serverAdapter';
-import { Storage as LocalStorageService } from './storage';
 
-// Wrapper to make sync Storage async and conform to DataAdapter
-class LocalAdapterWrapper implements DataAdapter {
-    async init() { return; }
-    // Implemented logic primarily bridges to Storage calls
-    async getEntity<T>(slug: string, id: string) {
-        const list = LocalStorageService.listCustomEntities(slug);
-        return list.find((x: any) => x.id === id) || null;
-    }
-    async listEntities<T>(slug: string) {
-        return LocalStorageService.listCustomEntities(slug);
-    }
-    async saveEntity<T extends { id: string }>(slug: string, d: T) {
-        return LocalStorageService.saveCustomEntity(slug, d);
-    }
-    async deleteEntity(slug: string, id: string) {
-        LocalStorageService.deleteCustomEntity(slug, id);
-    }
-
-    async getUsers() { return LocalStorageService.getUsers(); }
-    async saveUser(u: any) { LocalStorageService.createUser(u); return u; }
-
-    async getRequests() { return LocalStorageService.getRequests(); }
-    async saveRequest(r: any) {
-        const exists = LocalStorageService.getRequest(r.id);
-        if (exists) LocalStorageService.updateRequest(r.id, r);
-        else LocalStorageService.createRequest(r);
-        return r;
-    }
-    async deleteRequest(id: string) { LocalStorageService.deleteRequest(id); }
-
-    async getLeads() { return LocalStorageService.getLeads(); }
-    async saveLead(l: any) { LocalStorageService.createLead(l); return l; }
-
-    async getBots() { return LocalStorageService.getBots(); }
-    async saveBot(b: any) { LocalStorageService.saveBot(b, true); return b; }
-    async deleteBot(id: string) { LocalStorageService.deleteBot(id); }
-
-    async getSession(chatId: string) { return LocalStorageService.getSession(chatId); }
-    async saveSession(s: any) { LocalStorageService.saveSession(s); return s; }
-    async clearSession(chatId: string) { LocalStorageService.clearSession(chatId); }
-
-    async getScenarios() { return LocalStorageService.getScenarios(); }
-    async saveScenario(s: any) { LocalStorageService.saveScenario(s); return s; }
-    async deleteScenario(id: string) { LocalStorageService.deleteScenario(id); }
-
-    async getContent() { return LocalStorageService.getContent(); }
-    async saveContent(c: any) {
-        const all = LocalStorageService.getContent();
-        if (all.find(x => x.id === c.id)) LocalStorageService.updateContent(c.id, c);
-        else LocalStorageService.createContent(c);
-        return c;
-    }
-
-    async getCampaigns() { return LocalStorageService.getCampaigns(); }
-    async saveCampaign(c: any) { LocalStorageService.updateCampaign(c.id, c); return c; }
-
-    async getMessages() { return LocalStorageService.getMessages(); }
-    async saveMessage(m: any) { LocalStorageService.addMessage(m); return m; }
-
-    async getDestinations() { return LocalStorageService.getDestinations(); }
-    async saveDestination(d: any) { LocalStorageService.saveDestination(d); return d; }
-
-    async getInventory() { return LocalStorageService.getInventory(); }
-    async saveInventoryItem(i: any) { LocalStorageService.saveInventoryItem(i); return i; }
-    async deleteInventoryItem(id: string) { LocalStorageService.deleteInventoryItem(id); }
-
-    async getCompanies() { return LocalStorageService.getCompanies(); }
-    async saveCompany(c: any) { LocalStorageService.updateCompany(c.id, c); return c; }
-    async deleteCompany(id: string) { LocalStorageService.deleteCompany(id); }
-
-    async getSettings() { return LocalStorageService.getSettings(); }
-    async saveSettings(s: any) { LocalStorageService.saveSettings(s); return s; }
-
-    async getDictionaries() { return LocalStorageService.getDictionaries(); }
-    async saveDictionaries(d: any) { LocalStorageService.saveDictionaries(d); return d; }
-
-    async getNotifications() { return LocalStorageService.getNotifications(); }
-    async saveNotification(n: any) { return LocalStorageService.saveNotification(n); }
-
-    async getActivityLogs() { return LocalStorageService.getActivity(); }
-    async logActivity(l: any) { LocalStorageService.logActivity(l.userId, l.action, l.details, l.entityType); }
-
-    async getProposal(id: string) { return LocalStorageService.getProposal(id); }
-    async updateProposal(id: string, data: any) { LocalStorageService.updateProposal(id, data); }
-
-    async createSnapshot(name: string) { return LocalStorageService.exportState(); }
-    async listSnapshots() { return [LocalStorageService.getSnapshot()].filter(Boolean); }
-    async restoreSnapshot() { LocalStorageService.restoreSnapshot(); }
-}
-
-const localAdapter = new LocalAdapterWrapper();
 const serverAdapter = new ServerAdapter();
-
-export type DataMode = 'SERVER' | 'LOCAL';
 
 class DataService {
     private adapter: DataAdapter;
-    private mode: DataMode;
     private listeners: Record<string, Function[]> = {};
 
     constructor() {
-        const savedMode = localStorage.getItem('cartie_data_mode') as DataMode;
-        this.mode = savedMode || 'SERVER'; // Default to SERVER for production use
-        this.adapter = this.mode === 'SERVER' ? serverAdapter : localAdapter;
-    }
-
-    getMode() { return this.mode; }
-
-    setMode(mode: DataMode) {
-        this.mode = mode;
-        this.adapter = mode === 'SERVER' ? serverAdapter : localAdapter;
-        localStorage.setItem('cartie_data_mode', mode);
-        window.location.reload();
+        this.adapter = serverAdapter;
     }
 
     // --- Subscription Logic ---
     subscribe(event: string, callback: () => void) {
-        if (this.mode === 'LOCAL') {
-            return LocalStorageService.subscribe(event, callback);
-        }
         if (!this.listeners[event]) this.listeners[event] = [];
         this.listeners[event].push(callback);
         return () => {
@@ -131,7 +22,6 @@ class DataService {
     }
 
     private notify(event: string) {
-        if (this.mode === 'LOCAL') return; // Local handles itself
         if (this.listeners[event]) this.listeners[event].forEach(cb => cb());
     }
 
@@ -164,7 +54,7 @@ class DataService {
     async getScenarios() { return this.adapter.getScenarios(); }
     async saveScenario(s: any) { const res = await this.adapter.saveScenario(s); this.notify('UPDATE_SCENARIOS'); return res; }
     async deleteScenario(id: string) { await this.adapter.deleteScenario(id); this.notify('UPDATE_SCENARIOS'); }
-    async getTemplates() { return localAdapter.getScenarios(); }
+    async getTemplates() { return this.adapter.getScenarios(); }
 
     async getContent() { return this.adapter.getContent(); }
     async saveContent(c: any) { const res = await this.adapter.saveContent(c); this.notify('UPDATE_CONTENT'); return res; }

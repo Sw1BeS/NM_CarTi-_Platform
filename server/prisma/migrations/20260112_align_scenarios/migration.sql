@@ -1,0 +1,1 @@
+ALTER TABLE "Scenario" ADD COLUMN IF NOT EXISTS "entryNodeId" TEXT;

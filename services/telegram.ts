@@ -1,6 +1,4 @@
 
-import { Storage } from './storage';
-
 // Define Proxy Interface
 interface ProxyProvider {
     name: string;
