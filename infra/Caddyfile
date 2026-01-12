@@ -19,6 +19,7 @@
   }
 
   handle {
+    header Cache-Control "no-cache"
     root * /srv/www
     try_files {path} /index.html
     file_server
