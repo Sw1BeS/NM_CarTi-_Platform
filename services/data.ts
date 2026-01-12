@@ -1,35 +1,35 @@
 
 import { DataAdapter } from './dataAdapter';
 import { ServerAdapter } from './serverAdapter';
-import { Storage as LocalStorageService } from './storage'; 
+import { Storage as LocalStorageService } from './storage';
 
 // Wrapper to make sync Storage async and conform to DataAdapter
 class LocalAdapterWrapper implements DataAdapter {
     async init() { return; }
     // Implemented logic primarily bridges to Storage calls
-    async getEntity<T>(slug: string, id: string) { 
+    async getEntity<T>(slug: string, id: string) {
         const list = LocalStorageService.listCustomEntities(slug);
-        return list.find((x:any) => x.id === id) || null;
+        return list.find((x: any) => x.id === id) || null;
     }
-    async listEntities<T>(slug: string) { 
+    async listEntities<T>(slug: string) {
         return LocalStorageService.listCustomEntities(slug);
     }
-    async saveEntity<T extends { id: string }>(slug: string, d: T) { 
-        return LocalStorageService.saveCustomEntity(slug, d); 
+    async saveEntity<T extends { id: string }>(slug: string, d: T) {
+        return LocalStorageService.saveCustomEntity(slug, d);
     }
-    async deleteEntity(slug: string, id: string) { 
-        LocalStorageService.deleteCustomEntity(slug, id); 
+    async deleteEntity(slug: string, id: string) {
+        LocalStorageService.deleteCustomEntity(slug, id);
     }
 
     async getUsers() { return LocalStorageService.getUsers(); }
     async saveUser(u: any) { LocalStorageService.createUser(u); return u; }
 
     async getRequests() { return LocalStorageService.getRequests(); }
-    async saveRequest(r: any) { 
+    async saveRequest(r: any) {
         const exists = LocalStorageService.getRequest(r.id);
-        if(exists) LocalStorageService.updateRequest(r.id, r);
+        if (exists) LocalStorageService.updateRequest(r.id, r);
         else LocalStorageService.createRequest(r);
-        return r; 
+        return r;
     }
     async deleteRequest(id: string) { LocalStorageService.deleteRequest(id); }
 
@@ -49,11 +49,11 @@ class LocalAdapterWrapper implements DataAdapter {
     async deleteScenario(id: string) { LocalStorageService.deleteScenario(id); }
 
     async getContent() { return LocalStorageService.getContent(); }
-    async saveContent(c: any) { 
+    async saveContent(c: any) {
         const all = LocalStorageService.getContent();
-        if(all.find(x => x.id === c.id)) LocalStorageService.updateContent(c.id, c);
+        if (all.find(x => x.id === c.id)) LocalStorageService.updateContent(c.id, c);
         else LocalStorageService.createContent(c);
-        return c; 
+        return c;
     }
 
     async getCampaigns() { return LocalStorageService.getCampaigns(); }
@@ -105,7 +105,7 @@ class DataService {
 
     constructor() {
         const savedMode = localStorage.getItem('cartie_data_mode') as DataMode;
-        this.mode = savedMode || 'LOCAL'; // Default to LOCAL for offline/demo usage
+        this.mode = savedMode || 'SERVER'; // Default to SERVER for production use
         this.adapter = this.mode === 'SERVER' ? serverAdapter : localAdapter;
     }
 
@@ -115,7 +115,7 @@ class DataService {
         this.mode = mode;
         this.adapter = mode === 'SERVER' ? serverAdapter : localAdapter;
         localStorage.setItem('cartie_data_mode', mode);
-        window.location.reload(); 
+        window.location.reload();
     }
 
     // --- Subscription Logic ---
@@ -144,7 +144,7 @@ class DataService {
     // --- PROXY METHODS (Trigger notify on writes) ---
     async getUsers() { return this.adapter.getUsers(); }
     async saveUser(u: any) { const r = await this.adapter.saveUser(u); this.notify('UPDATE_USERS'); return r; }
-    
+
     async getRequests() { return this.adapter.getRequests(); }
     async createRequest(r: any) { const res = await this.adapter.saveRequest(r); this.notify('UPDATE_REQUESTS'); return res; }
     async saveRequest(r: any) { const res = await this.adapter.saveRequest(r); this.notify('UPDATE_REQUESTS'); return res; }
@@ -164,7 +164,7 @@ class DataService {
     async getScenarios() { return this.adapter.getScenarios(); }
     async saveScenario(s: any) { const res = await this.adapter.saveScenario(s); this.notify('UPDATE_SCENARIOS'); return res; }
     async deleteScenario(id: string) { await this.adapter.deleteScenario(id); this.notify('UPDATE_SCENARIOS'); }
-    async getTemplates() { return localAdapter.getScenarios(); } 
+    async getTemplates() { return localAdapter.getScenarios(); }
 
     async getContent() { return this.adapter.getContent(); }
     async saveContent(c: any) { const res = await this.adapter.saveContent(c); this.notify('UPDATE_CONTENT'); return res; }

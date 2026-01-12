@@ -1,10 +1,10 @@
 
 import { ApiClient } from './apiClient';
 import { DataAdapter } from './dataAdapter';
-import { 
-    User, B2BRequest, Lead, Bot, Scenario, TelegramContent, Campaign, 
-    TelegramMessage, TelegramDestination, CarListing, Company, 
-    SystemSettings, DictionaryCollection, SystemNotification, ActivityLog, BotSession, Proposal 
+import {
+    User, B2BRequest, Lead, Bot, Scenario, TelegramContent, Campaign,
+    TelegramMessage, TelegramDestination, CarListing, Company,
+    SystemSettings, DictionaryCollection, SystemNotification, ActivityLog, BotSession, Proposal
 } from '../types';
 
 const SLUGS = {
@@ -98,31 +98,85 @@ export class ServerAdapter implements DataAdapter {
 
     // --- DOMAIN METHODS ---
 
-    async getUsers() { return this.listEntities<User>(SLUGS.USER); }
+    async getUsers() {
+        // Users are special - likely managed via Auth, but for listing we can try generic or specific if added.
+        // Assuming generic 'sys_user' for now as no /users endpoint was visible in apiRoutes (except implicit auth)
+        return this.listEntities<User>(SLUGS.USER);
+    }
     async saveUser(u: User) { return this.saveEntity(SLUGS.USER, u); }
 
-    async getRequests() { return this.listEntities<B2BRequest>(SLUGS.REQUEST); }
-    async saveRequest(r: B2BRequest) { return this.saveEntity(SLUGS.REQUEST, r); }
-    async deleteRequest(id: string) { return this.deleteEntity(SLUGS.REQUEST, id); }
+    // --- REQUESTS (Relational) ---
+    async getRequests() {
+        const res = await ApiClient.get<B2BRequest[]>('requests');
+        return res.ok ? res.data : [];
+    }
+    async saveRequest(r: B2BRequest) {
+        // Check if ID exists and is not temp ID (usually real IDs are ints or uuids, temp are 'req_'...)
+        // But for consistency, let's try to fetch or assume if it looks like a server ID.
+        // Simplified: If it has an ID, try PUT, if fail, POST? Or just POST for new.
+        // Local adapter generates 'req_...' IDs. We should strip those for creation on server?
+        // Or if we trust the ID handling:
+        if (r.id && !r.id.startsWith('req_')) {
+            const res = await ApiClient.put(`requests/${r.id}`, r);
+            if (res.ok) return res.data;
+        }
+        const { id, ...payload } = r; // Strip local ID
+        const res = await ApiClient.post('requests', payload);
+        if (!res.ok) throw new Error(res.message);
+        return res.data;
+    }
+    async deleteRequest(id: string) {
+        await ApiClient.delete(`requests/${id}`);
+    }
 
-    async getLeads() { return this.listEntities<Lead>(SLUGS.LEAD); }
-    async saveLead(l: Lead) { return this.saveEntity(SLUGS.LEAD, l); }
+    // --- LEADS (Relational) ---
+    async getLeads() {
+        const res = await ApiClient.get<Lead[]>('leads');
+        return res.ok ? res.data : [];
+    }
+    async saveLead(l: Lead) {
+        if (l.id && !l.id.startsWith('lead_')) {
+            const res = await ApiClient.put(`leads/${l.id}`, l);
+            if (res.ok) return res.data;
+        }
+        const { id, ...payload } = l;
+        const res = await ApiClient.post('leads', payload);
+        if (!res.ok) throw new Error(res.message);
+        return res.data;
+    }
 
-    async getBots() { return this.listEntities<Bot>(SLUGS.BOT); }
-    async saveBot(b: Bot) { return this.saveEntity(SLUGS.BOT, b); }
-    async deleteBot(id: string) { return this.deleteEntity(SLUGS.BOT, id); }
+    // --- BOTS (Relational) ---
+    async getBots() {
+        const res = await ApiClient.get<Bot[]>('bots');
+        return res.ok ? res.data : [];
+    }
+    async saveBot(b: Bot) {
+        // Bots use numeric IDs usually in postgres, but string in Types?
+        // Prisma schema says Int id.
+        const numericId = parseInt(b.id);
+        if (!isNaN(numericId)) {
+            const res = await ApiClient.put(`bots/${numericId}`, b);
+            if (res.ok) return res.data;
+        }
+        const res = await ApiClient.post('bots', b);
+        if (!res.ok) throw new Error(res.message);
+        return res.data;
+    }
+    async deleteBot(id: string) {
+        await ApiClient.delete(`bots/${id}`);
+    }
 
-    // Sessions
-    async getSession(chatId: string) { 
+    // Sessions - Keep Dynamic
+    async getSession(chatId: string) {
         const all = await this.listEntities<BotSession>(SLUGS.SESSION);
         return all.find(s => s.chatId === chatId) || null;
     }
-    async saveSession(s: BotSession) { 
+    async saveSession(s: BotSession) {
         const payload = { ...s, id: `sess_${s.chatId}` };
-        return this.saveEntity(SLUGS.SESSION, payload); 
+        return this.saveEntity(SLUGS.SESSION, payload);
     }
-    async clearSession(chatId: string) { 
-        return this.deleteEntity(SLUGS.SESSION, `sess_${chatId}`); 
+    async clearSession(chatId: string) {
+        return this.deleteEntity(SLUGS.SESSION, `sess_${chatId}`);
     }
 
     async getScenarios() { return this.listEntities<Scenario>(SLUGS.SCENARIO); }
@@ -142,9 +196,9 @@ export class ServerAdapter implements DataAdapter {
     async saveDestination(d: TelegramDestination) { return this.saveEntity(SLUGS.DESTINATION, d); }
 
     async getInventory() { return this.listEntities<CarListing>(SLUGS.INVENTORY); }
-    async saveInventoryItem(i: CarListing) { 
-        const mapped = { ...i, id: i.canonicalId }; 
-        return this.saveEntity(SLUGS.INVENTORY, mapped); 
+    async saveInventoryItem(i: CarListing) {
+        const mapped = { ...i, id: i.canonicalId };
+        return this.saveEntity(SLUGS.INVENTORY, mapped);
     }
     async deleteInventoryItem(id: string) { return this.deleteEntity(SLUGS.INVENTORY, id); }
 
@@ -152,13 +206,15 @@ export class ServerAdapter implements DataAdapter {
     async saveCompany(c: Company) { return this.saveEntity(SLUGS.COMPANY, c); }
     async deleteCompany(id: string) { return this.deleteEntity(SLUGS.COMPANY, id); }
 
+    // --- SETTINGS (Relational) ---
     async getSettings() {
-        const list = await this.listEntities<SystemSettings>(SLUGS.SETTINGS);
-        return (list[0] || { id: 'sys_settings' }) as unknown as SystemSettings;
+        const res = await ApiClient.get<SystemSettings>('settings');
+        return res.ok ? res.data : {} as SystemSettings;
     }
     async saveSettings(s: SystemSettings) {
-        const payload = { ...s, id: 'sys_settings' };
-        return this.saveEntity(SLUGS.SETTINGS, payload);
+        const res = await ApiClient.post('settings', s);
+        if (!res.ok) throw new Error(res.message);
+        return s; // API returns success:true
     }
 
     async getDictionaries() {
@@ -174,7 +230,7 @@ export class ServerAdapter implements DataAdapter {
     async saveNotification(n: SystemNotification) { return this.saveEntity(SLUGS.NOTIFICATION, n); }
 
     async getActivityLogs() { return this.listEntities<ActivityLog>(SLUGS.ACTIVITY); }
-    async logActivity(log: ActivityLog) { 
+    async logActivity(log: ActivityLog) {
         // Best effort log
         try { await this.saveEntity(SLUGS.ACTIVITY, log); } catch (e) { console.debug("Log failed", e); }
     }
@@ -208,18 +264,18 @@ export class ServerAdapter implements DataAdapter {
     async restoreSnapshot(snapId: string) {
         const allSnaps = await this.listSnapshots();
         const target = allSnaps.find((s: any) => s.id === snapId);
-        
+
         if (!target || !(target as any).data) throw new Error("Snapshot not found or empty");
         const targetData = (target as any).data;
 
         const slugs = Object.keys(targetData);
         for (const slug of slugs) {
             const current = await this.listEntities<any>(slug);
-            await Promise.all(current.map(r => 
+            await Promise.all(current.map(r =>
                 ApiClient.delete(`entities/${slug}/records/${r._recordId}`)
             ));
             const records = targetData[slug];
-            await Promise.all(records.map((r: any) => 
+            await Promise.all(records.map((r: any) =>
                 ApiClient.post(`entities/${slug}/records`, { data: this.wrap(r) })
             ));
         }
