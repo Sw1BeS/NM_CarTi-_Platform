@@ -209,7 +209,34 @@ export class ServerAdapter implements DataAdapter {
     // --- SETTINGS (Relational) ---
     async getSettings() {
         const res = await ApiClient.get<SystemSettings>('settings');
-        return res.ok ? res.data : {} as SystemSettings;
+        const settings = res.ok ? res.data : {} as SystemSettings;
+
+        // Polyfill defaults if missing (e.g. empty DB)
+        if (!settings.features) {
+            settings.features = {
+                MODULE_SCENARIOS: true,
+                MODULE_SEARCH: true,
+                MODULE_CAMPAIGNS: true,
+                MODULE_COMPANIES: true
+            };
+        }
+        if (!settings.navigation) {
+            settings.navigation = [
+                { id: 'nav_dash', labelKey: 'nav.dashboard', path: '/', iconName: 'LayoutDashboard', visible: true, order: 1, roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER'] },
+                { id: 'nav_inbox', labelKey: 'nav.inbox', path: '/inbox', iconName: 'MessageCircle', visible: true, order: 2, roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OPERATOR'] },
+                { id: 'nav_leads', labelKey: 'nav.leads', path: '/leads', iconName: 'Users', visible: true, order: 3, roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OPERATOR'] },
+                { id: 'nav_req', labelKey: 'nav.requests', path: '/requests', iconName: 'FileText', visible: true, order: 4, roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER'] },
+                { id: 'nav_inv', labelKey: 'nav.inventory', path: '/inventory', iconName: 'Car', visible: true, order: 5, roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER'] },
+                { id: 'nav_search', labelKey: 'nav.search', path: '/search', iconName: 'Search', visible: true, order: 6, roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER'], featureKey: 'MODULE_SEARCH' },
+                { id: 'nav_tg', labelKey: 'nav.telegram', path: '/telegram', iconName: 'Send', visible: true, order: 7, roles: ['SUPER_ADMIN', 'ADMIN'], featureKey: 'MODULE_CAMPAIGNS' },
+                { id: 'nav_comp', labelKey: 'nav.companies', path: '/companies', iconName: 'Briefcase', visible: true, order: 8, roles: ['SUPER_ADMIN'], featureKey: 'MODULE_COMPANIES' },
+                { id: 'nav_ent', labelKey: 'nav.entities', path: '/entities', iconName: 'Database', visible: true, order: 9, roles: ['SUPER_ADMIN', 'ADMIN'] },
+                { id: 'nav_set', labelKey: 'nav.settings', path: '/settings', iconName: 'Settings', visible: true, order: 10, roles: ['SUPER_ADMIN', 'ADMIN'] },
+                { id: 'nav_health', labelKey: 'System Health', path: '/health', iconName: 'Activity', visible: true, order: 11, roles: ['SUPER_ADMIN'] }
+            ];
+        }
+
+        return settings;
     }
     async saveSettings(s: SystemSettings) {
         const res = await ApiClient.post('settings', s);
