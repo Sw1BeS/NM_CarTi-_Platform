@@ -229,7 +229,6 @@ class AutoRiaProvider implements ICarProvider {
         }
     }
 }
-}
 
 class CarSearchEngineService {
     private providers: ICarProvider[] = [new InternalProvider(), new AutoRiaProvider()];

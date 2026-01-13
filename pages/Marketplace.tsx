@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useToast } from '../contexts/ToastContext';
-import { Store, Search, Download, Check, Star, Grid, List, Filter } from 'lucide-react';
+import { Store, Search, Download, Check, Star, Grid, List, Filter, Crown } from 'lucide-react';
 
 interface Template {
     id: string;
@@ -123,8 +123,8 @@ export const MarketplacePage = () => {
                                 key={cat}
                                 onClick={() => setCategory(cat)}
                                 className={`px-4 py-2 rounded text-xs font-bold whitespace-nowrap transition-colors ${category === cat
-                                        ? 'bg-gold-500 text-black'
-                                        : 'bg-[var(--bg-input)] text-[var(--text-secondary)] hover:bg-[var(--bg-panel)]'
+                                    ? 'bg-gold-500 text-black'
+                                    : 'bg-[var(--bg-input)] text-[var(--text-secondary)] hover:bg-[var(--bg-panel)]'
                                     }`}
                             >
                                 {cat.replace('_', ' ')}

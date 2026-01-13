@@ -11,7 +11,7 @@ import { Login } from './pages/Login';
 import { SearchPage } from './pages/Search';
 import { SettingsPage } from './pages/Settings';
 import { InventoryPage } from './pages/Inventory';
-import { HealthPage } from './pages/Health';
+// import { HealthPage } from './pages/Health';  // Disabled: needs refactoring for Stage C
 import { CompaniesPage } from './pages/Companies';
 import { EntitiesPage } from './pages/Entities';
 import { PublicRequest } from './pages/PublicRequest';
@@ -71,7 +71,7 @@ export default function App() {
                     <Route path="/company" element={<ProtectedRoute><CompanySettingsPage /></ProtectedRoute>} />
                     <Route path="/marketplace" element={<ProtectedRoute><MarketplacePage /></ProtectedRoute>} />
                     <Route path="/integrations" element={<ProtectedRoute><IntegrationsPage /></ProtectedRoute>} />
-                    <Route path="/health" element={<ProtectedRoute><HealthPage /></ProtectedRoute>} />
+                    {/* <Route path="/health" element={<ProtectedRoute><HealthPage /></ProtectedRoute>} /> */}
 
                     <Route path="*" element={<NotFound />} />
                   </Routes>

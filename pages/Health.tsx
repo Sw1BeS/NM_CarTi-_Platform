@@ -400,14 +400,3 @@ const SystemHealth = () => {
         </div>
     );
 };
-                                <span className="text-gray-500 shrink-0 w-32">{new Date(l.timestamp).toLocaleString()}</span>
-                                <span className={`shrink-0 font-bold w-24 ${l.entityType === 'ERROR' ? 'text-red-500' : 'text-green-500'}`}>[{l.entityType}]</span>
-                                <span className="text-gray-300 break-all">{l.action}: {l.details}</span>
-                            </div >
-                        ))}
-                    </div >
-                </div >
-            </div >
-        </div >
-    );
-};

@@ -1,7 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
 import { Search as SearchIcon, Download, Loader, CheckCircle, Plus, Globe, Link as LinkIcon, ArrowRight, Eye, Edit3, Terminal, Filter, AlertTriangle, Bug, Megaphone } from 'lucide-react';
-import { MockDb } from '../services/mockDb';
 import { B2BRequest, Variant, VariantStatus, TelegramContent, ContentStatus } from '../types';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Data } from '../services/data';
