@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
-import { Data } from '../services/data';
+import { getPublicProposal, trackPublicProposalView, sendPublicProposalFeedback } from '../services/publicApi';
 import { Proposal, Variant, Language } from '../types';
 import { TRANSLATIONS } from '../translations';
 import { CheckCircle, X, ChevronRight, Share2, ThumbsUp, ThumbsDown, MessageCircle, MapPin, Calendar, Gauge, Phone } from 'lucide-react';
@@ -27,16 +27,14 @@ export const ClientProposal = () => {
         if (!id) return;
         
         const load = async () => {
-            const p = await Data.getProposal(id);
-            if (p) {
-                setProposal(p);
-                const reqs = await Data.getRequests();
-                const req = reqs.find(r => r.id === p.requestId);
-                if (req) {
-                    const vars = req.variants.filter(v => p.variantIds.includes(v.id));
-                    setVariants(vars);
-                }
-                await Data.updateProposal(p.id, { views: (p.views || 0) + 1, status: 'VIEWED' });
+            const res = await getPublicProposal(id);
+            if (res?.proposal) {
+                setProposal(res.proposal);
+                setVariants(res.variants || []);
+                await trackPublicProposalView(res.proposal.id);
+            } else {
+                setProposal(null);
+                setVariants(res?.variants || []);
             }
             setLoading(false);
         };
@@ -47,7 +45,7 @@ export const ClientProposal = () => {
         if (!proposal) return;
         
         const newFeedback = { ...(proposal.clientFeedback || {}), [variantId]: type };
-        await Data.updateProposal(proposal.id, { clientFeedback: newFeedback });
+        await sendPublicProposalFeedback(proposal.id, variantId, type);
         
         setFeedbackSent({ ...feedbackSent, [variantId]: type });
         setProposal({ ...proposal, clientFeedback: newFeedback });

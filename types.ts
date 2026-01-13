@@ -47,6 +47,7 @@ export type Permission = 'MANAGE_USERS' | 'MANAGE_SETTINGS' | 'VIEW_ANALYTICS' |
 export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
     'ADMIN': ['MANAGE_USERS', 'MANAGE_SETTINGS', 'VIEW_ANALYTICS', 'APPROVE_CONTENT', 'SEND_CAMPAIGNS', 'MANAGE_LEADS', 'MANAGE_REQUESTS', 'VIEW_LOGS', 'MANAGE_COMPANIES', 'MANAGE_ENTITIES'],
     'SUPER_ADMIN': ['MANAGE_USERS', 'MANAGE_SETTINGS', 'VIEW_ANALYTICS', 'APPROVE_CONTENT', 'SEND_CAMPAIGNS', 'MANAGE_LEADS', 'MANAGE_REQUESTS', 'VIEW_LOGS', 'MANAGE_COMPANIES', 'MANAGE_ENTITIES'],
+    'OWNER': ['MANAGE_USERS', 'MANAGE_SETTINGS', 'VIEW_ANALYTICS', 'APPROVE_CONTENT', 'SEND_CAMPAIGNS', 'MANAGE_LEADS', 'MANAGE_REQUESTS', 'VIEW_LOGS', 'MANAGE_COMPANIES', 'MANAGE_ENTITIES'],
     'MANAGER': ['VIEW_ANALYTICS', 'APPROVE_CONTENT', 'SEND_CAMPAIGNS', 'MANAGE_LEADS', 'MANAGE_REQUESTS'],
     'VIEWER': ['VIEW_ANALYTICS'],
     'OPERATOR': ['MANAGE_LEADS', 'MANAGE_REQUESTS'] // Legacy
@@ -73,6 +74,7 @@ export interface CarCard {
     id?: string; // DB ID (usually maps to canonicalId, but Prisma always returns 'id')
     canonicalId: string; // Unique Fingerprint
     source: 'INTERNAL' | 'AUTORIA' | 'OLX' | 'REONO' | 'EXTERNAL' | 'MANUAL';
+    sourceId?: string; // Raw source ID (if available)
     sourceUrl: string;
     title: string;
     price: { amount: number; currency: 'USD' | 'EUR' | 'UAH' };
@@ -86,6 +88,7 @@ export interface CarCard {
         transmission?: string;
         fuel?: string;
         vin?: string;
+        drive?: string;
         color?: string;
     };
     description?: string;
@@ -120,6 +123,7 @@ export interface B2BRequest {
     assigneeId?: string;
     tags?: string[];
     notes?: string;
+    internalNote?: string;
     status: RequestStatus;
     createdAt: string;
     updatedAt?: string;
@@ -304,12 +308,16 @@ export type NodeType =
     'QUESTION_CHOICE' |
     'MENU_REPLY' | // New: Persistent Keyboard
     'SEARCH_CARS' |
+    'SEARCH_FALLBACK' |
     'HANDOFF' |
     'REQUEST_CONTACT' |
     'ACTION' |
     'CONDITION' | // New: Branching
     'DELAY' |     // New: UX
     'GALLERY' |   // Added missing type
+    'CHANNEL_POST' |
+    'REQUEST_BROADCAST' |
+    'OFFER_COLLECT' |
     'START' |
     'JUMP';
 
@@ -336,6 +344,16 @@ export interface ScenarioNode {
         falseNodeId?: string;
         // Action Logic
         actionType?: 'NORMALIZE_REQUEST' | 'CREATE_LEAD' | 'CREATE_REQUEST' | 'TAG_USER' | 'SET_LANG' | 'NOTIFY_ADMIN';
+        // Channel/Content Logic
+        destinationId?: string;
+        destinationVar?: string;
+        imageUrl?: string;
+        imageVar?: string;
+        scheduledAt?: string;
+        scheduledAtVar?: string;
+        requestIdVar?: string;
+        buttonText?: string;
+        dealerChatVar?: string;
     };
     nextNodeId?: string;
     position?: { x: number; y: number };

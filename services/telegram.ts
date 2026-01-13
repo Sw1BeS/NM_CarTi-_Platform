@@ -1,139 +1,30 @@
 
-// Define Proxy Interface
-interface ProxyProvider {
-    name: string;
-    supportsMethod: (m: string) => boolean;
-    prepareUrl: (targetUrl: string) => string;
-    parseResponse: (res: Response) => Promise<any>;
-}
-
-const PROXIES: ProxyProvider[] = [
-    {
-        name: 'CorsProxy', // Primary: Supports POST, fast
-        supportsMethod: () => true,
-        prepareUrl: (u) => `https://corsproxy.io/?url=${encodeURIComponent(u)}`, // Fixed URL format
-        parseResponse: async (res) => res.json()
-    },
-    {
-        name: 'ThingProxy', // Secondary: Supports POST
-        supportsMethod: () => true,
-        prepareUrl: (u) => `https://thingproxy.freeboard.io/fetch/${u}`,
-        parseResponse: async (res) => res.json()
-    },
-    {
-        name: 'AllOrigins', // Fallback: GET only, high latency but reliable
-        supportsMethod: (m) => m === 'GET',
-        prepareUrl: (u) => `https://api.allorigins.win/get?url=${encodeURIComponent(u)}&t=${Date.now()}`, // Cache busting
-        parseResponse: async (res) => {
-            const json = await res.json();
-            if (!json.contents) throw new Error('Empty proxy response');
-            return typeof json.contents === 'string' ? JSON.parse(json.contents) : json.contents;
-        }
-    }
-];
+import { ApiClient } from './apiClient';
 
 export class TelegramService {
     
-    public lastUsedProxy: string = 'None';
+    public lastUsedProxy: string = 'Server';
     public lastError: string | null = null;
 
-    private async request(url: string, options: RequestInit = {}, method: 'GET' | 'POST' = 'GET'): Promise<any> {
-        // Filter proxies supporting the method
-        const candidates = PROXIES.filter(p => p.supportsMethod(method));
-        let lastError: Error | null = null;
-
-        for (const proxy of candidates) {
-            // Short timeout for proxies to fail fast and rotate
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 8000); 
-
-            try {
-                const proxyUrl = proxy.prepareUrl(url);
-                // console.log(`[TG] Request via ${proxy.name}: ${method} ${url.slice(0, 30)}...`); // Debug
-                
-                const res = await fetch(proxyUrl, {
-                    ...options,
-                    signal: controller.signal
-                });
-                
-                clearTimeout(timeoutId);
-
-                if (!res.ok) {
-                    // Critical API Errors - Stop Rotation
-                    if (res.status === 401) throw new Error('Telegram API: 401 Unauthorized');
-                    if (res.status === 404) throw new Error('Telegram API: 404 Not Found');
-                    if (res.status === 409) throw new Error('Telegram API: 409 Conflict');
-                    if (res.status === 429) throw new Error('Telegram API: 429 Too Many Requests');
-
-                    throw new Error(`HTTP ${res.status} ${res.statusText}`);
-                }
-
-                const data = await proxy.parseResponse(res);
-                
-                // Validate Telegram Response Schema
-                if (!data || typeof data !== 'object') {
-                    throw new Error('Invalid response format');
-                }
-                if (!data.ok) {
-                    throw new Error(data.description || `Telegram API Error ${data.error_code}`);
-                }
-
-                this.lastUsedProxy = proxy.name;
-                this.lastError = null;
-                return data.result;
-
-            } catch (error: any) {
-                clearTimeout(timeoutId);
-                lastError = error;
-                this.lastError = `${proxy.name}: ${error.message}`;
-                
-                // Critical errors: Stop rotating and throw immediately
-                if (error.message.includes('Telegram API: 4')) {
-                    throw error;
-                }
-            }
-        }
-
-        throw lastError || new Error('All proxies failed');
-    }
-
     async call(token: string, method: string, params: Record<string, any> = {}, httpMethod: 'GET' | 'POST' = 'GET') {
-        if (!token) throw new Error("Bot token missing");
-        
-        const baseUrl = `https://api.telegram.org/bot${token}/${method}`;
-        
-        const buildGetUrl = () => {
-            const query = new URLSearchParams();
-            Object.entries(params).forEach(([k, v]) => {
-                if (v !== undefined && v !== null) {
-                    // Telegram API GET requires JSON encoded objects for complex params like reply_markup
-                    if (typeof v === 'object') query.append(k, JSON.stringify(v));
-                    else query.append(k, String(v));
-                }
-            });
-            // Critical: Cache busting for proxy
-            query.append('_ts', String(Date.now()));
-            return `${baseUrl}?${query.toString()}`;
-        };
-
         try {
-            if (httpMethod === 'GET') {
-                return await this.request(buildGetUrl(), { method: 'GET' }, 'GET');
-            } else {
-                // Try POST first
-                try {
-                    return await this.request(baseUrl, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(params)
-                    }, 'POST');
-                } catch (postError) {
-                    // Fallback to GET if POST fails (common with some proxies)
-                    // console.warn(`[TG] POST ${method} failed, trying GET fallback...`);
-                    return await this.request(buildGetUrl(), { method: 'GET' }, 'GET');
-                }
+            if (!token) throw new Error("Bot token missing");
+            const res = await ApiClient.post<{ ok: boolean; result: any }>('telegram/call', {
+                token,
+                method,
+                params
+            });
+
+            if (!res.ok) {
+                this.lastError = res.message || 'Telegram proxy error';
+                throw new Error(this.lastError);
             }
+
+            this.lastUsedProxy = 'Server';
+            this.lastError = null;
+            return res.data?.result ?? res.data;
         } catch (e: any) {
+            this.lastError = e.message || 'Telegram request failed';
             throw e;
         }
     }

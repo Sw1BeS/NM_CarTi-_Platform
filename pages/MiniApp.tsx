@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Data } from '../services/data';
-import { Bot, MiniAppConfig, CarListing, RequestStatus, LeadStatus } from '../types';
+import { Bot, MiniAppConfig, CarListing } from '../types';
 import { getPublicBots } from '../services/publicApi';
 import {
     Search, LayoutGrid, User, Plus, Filter, ArrowRight, DollarSign,
@@ -98,21 +98,8 @@ export const MiniApp = () => {
         }
     };
 
-    const handleCarInterest = (car: CarListing) => {
+    const sendLeadPayload = (payload: any) => {
         const tg = (window as any).Telegram?.WebApp;
-
-        const payload = {
-            type: 'LEAD',
-            name: tgUser?.first_name || 'User',
-            phone: 'via WebApp',
-            request: {
-                brand: car.title,
-                model: '',
-                carId: car.canonicalId
-            },
-            lang: tg?.initDataUnsafe?.user?.language_code?.toUpperCase() || 'UK'
-        };
-
         if (tg && tg.initData) {
             tg.sendData(JSON.stringify(payload));
             tg.close();
@@ -121,14 +108,48 @@ export const MiniApp = () => {
         }
     };
 
+    const detectLang = () => {
+        const tg = (window as any).Telegram?.WebApp;
+        const raw = tg?.initDataUnsafe?.user?.language_code?.toUpperCase() || 'EN';
+        if (raw.startsWith('UK') || raw.startsWith('UA')) return 'UK';
+        if (raw.startsWith('RU')) return 'RU';
+        return 'EN';
+    };
+
+    const handleCarInterest = (car: CarListing) => {
+        const tg = (window as any).Telegram?.WebApp;
+
+        const titleParts = (car.title || '').split(' ');
+        const payload = {
+            type: 'lead',
+            name: tgUser?.first_name || 'User',
+            carId: car.canonicalId,
+            requestPreset: {
+                brand: titleParts[0] || car.title,
+                model: titleParts.slice(1).join(' ').trim(),
+                year: car.year,
+                budget: car.price?.amount
+            },
+            lang: detectLang()
+        };
+
+        if (tg?.initDataUnsafe?.user?.id) payload.telegramUserId = String(tg.initDataUnsafe.user.id);
+        sendLeadPayload(payload);
+    };
+
     const applyFiltersAndSort = () => {
         let filtered = cars;
 
         // Tab filter
+        const hasPending = filtered.some(c => c.status === 'PENDING');
         if (tab === 'IN_STOCK') {
-            filtered = filtered.filter(c => c.source === 'INTERNAL');
+            filtered = hasPending
+                ? filtered.filter(c => c.status !== 'PENDING')
+                : filtered.filter(c => c.source === 'INTERNAL');
         } else {
-            filtered = filtered.filter(c => c.source !== 'INTERNAL');
+            filtered = hasPending
+                ? filtered.filter(c => c.status === 'PENDING')
+                : filtered.filter(c => c.source !== 'INTERNAL');
         }
 
         // Search filter
@@ -403,7 +424,7 @@ export const MiniApp = () => {
                                     className="w-full py-3 rounded-xl font-bold text-black flex items-center justify-center gap-2 active:scale-95 transition-transform"
                                     style={{ backgroundColor: primaryColor }}
                                 >
-                                    <MessageSquare size={18} /> I'm Interested
+                                    <MessageSquare size={18} /> Запросить просчет
                                 </button>
                             </div>
                         </div>
@@ -421,24 +442,25 @@ export const MiniApp = () => {
         } else {
             const tg = (window as any).Telegram?.WebApp;
 
-            if (tg && tg.initData) {
-                const payload = {
-                    type: 'LEAD',
-                    name: tgUser?.first_name || 'User',
-                    phone: 'Shared via WebApp',
-                    request: {
-                        brand: reqData.brand,
-                        budget: Number(reqData.budget),
-                        year: Number(reqData.year)
-                    },
-                    lang: tg.initDataUnsafe?.user?.language_code?.toUpperCase() || 'EN'
-                };
-                tg.sendData(JSON.stringify(payload));
-                tg.close();
-            } else {
-                alert("[PREVIEW MODE] Data that would be sent to bot:\n" + JSON.stringify(reqData, null, 2));
-                setReqStep(3);
-            }
+                    const reqParts = (reqData.brand || '').split(' ');
+                    const payload = {
+                        type: 'lead',
+                        name: tgUser?.first_name || 'User',
+                        requestPreset: {
+                            brand: reqParts[0] || reqData.brand,
+                            model: reqParts.slice(1).join(' ').trim(),
+                            budget: Number(reqData.budget),
+                            year: Number(reqData.year)
+                        },
+                        lang: detectLang()
+                    };
+                    if (tg?.initDataUnsafe?.user?.id) payload.telegramUserId = String(tg.initDataUnsafe.user.id);
+                    if (tg && tg.initData) {
+                        sendLeadPayload(payload);
+                    } else {
+                        alert("[PREVIEW MODE] Data that would be sent to bot:\n" + JSON.stringify(payload, null, 2));
+                        setReqStep(3);
+                    }
         }
     };
 

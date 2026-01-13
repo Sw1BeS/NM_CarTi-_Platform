@@ -6,6 +6,8 @@
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
+    "worker:content": "ts-node src/workers/content.runner.ts",
+    "start:worker:content": "node dist/workers/content.runner.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate deploy",
     "seed": "ts-node prisma/seed.ts"

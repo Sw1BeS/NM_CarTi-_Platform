@@ -86,8 +86,9 @@ const NavButton = ({ active, onClick, icon: Icon, label }: any) => (
 const UsersTab = () => {
     const [users, setUsers] = useState<User[]>([]);
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [formData, setFormData] = useState({ username: '', password: '', role: 'OPERATOR', name: '', telegramUserId: '', companyId: '' });
+    const [formData, setFormData] = useState({ username: '', password: '', role: 'MANAGER', name: '', telegramUserId: '', companyId: '' });
     const { showToast } = useToast();
+    const { user } = useAuth();
 
     useEffect(() => {
         load();
@@ -97,13 +98,19 @@ const UsersTab = () => {
 
     const handleCreate = async () => {
         if (!formData.username || !formData.password) return showToast("Fields required", 'error');
+        const companyId = formData.companyId || user?.companyId;
+        if (!companyId) {
+            showToast("Company ID required", 'error');
+            return;
+        }
+
         await Data.saveUser({
             id: `u_${Date.now()}`,
             name: formData.name || formData.username,
             email: `${formData.username}@cartie.local`,
             username: formData.username,
             telegramUserId: formData.telegramUserId || undefined,
-            companyId: formData.companyId || undefined,
+            companyId,
             password: formData.password,
             role: formData.role as any
         } as any);
@@ -152,10 +159,10 @@ const UsersTab = () => {
                             <input className="input" placeholder="Telegram User ID (optional)" value={formData.telegramUserId} onChange={e => setFormData({...formData, telegramUserId: e.target.value})} />
                             <input className="input" placeholder="Company ID (optional)" value={formData.companyId} onChange={e => setFormData({...formData, companyId: e.target.value})} />
                             <select className="input" value={formData.role} onChange={e => setFormData({...formData, role: e.target.value})}>
-                                <option value="OPERATOR">Operator</option>
                                 <option value="MANAGER">Manager</option>
                                 <option value="ADMIN">Admin</option>
-                                <option value="DEALER">Dealer</option>
+                                <option value="OWNER">Owner</option>
+                                <option value="VIEWER">Viewer</option>
                             </select>
                         </div>
                         <div className="flex justify-end gap-3 mt-6">

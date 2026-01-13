@@ -212,10 +212,20 @@ export class ServerAdapter implements DataAdapter {
     async getCampaigns() { return this.listEntities<Campaign>(SLUGS.CAMPAIGN); }
     async saveCampaign(c: Campaign) { return this.saveEntity(SLUGS.CAMPAIGN, c); }
 
-    async getMessages() { return this.listEntities<TelegramMessage>(SLUGS.MESSAGE); }
-    async saveMessage(m: TelegramMessage) { return this.saveEntity(SLUGS.MESSAGE, m); }
+    async getMessages() {
+        const res = await ApiClient.get<TelegramMessage[]>('messages?limit=200');
+        return res.ok ? (res.data || []) : [];
+    }
+    async saveMessage(m: TelegramMessage) {
+        const res = await ApiClient.post('messages', m);
+        if (!res.ok) throw new Error(res.message);
+        return m;
+    }
 
-    async getDestinations() { return this.listEntities<TelegramDestination>(SLUGS.DESTINATION); }
+    async getDestinations() {
+        const res = await ApiClient.get<TelegramDestination[]>('destinations');
+        return res.ok ? (res.data || []) : [];
+    }
     async saveDestination(d: TelegramDestination) { return this.saveEntity(SLUGS.DESTINATION, d); }
 
     async getInventory() {

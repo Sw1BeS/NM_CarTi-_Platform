@@ -47,6 +47,7 @@ export const AuthProvider = ({ children }: React.PropsWithChildren) => {
                     email: res.user.email,
                     role: res.user.role,
                     username: res.user.username || res.user.name, // backward compat
+                    companyId: res.user.companyId
                 };
                 setUser(cleanUser);
                 return { success: true };

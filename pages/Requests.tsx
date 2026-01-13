@@ -1,9 +1,12 @@
 
 import React, { useState, useEffect } from 'react';
 import { RequestsService } from '../services/requestsService';
-import { B2BRequest, RequestStatus } from '../types';
-import { Plus, List as ListIcon, LayoutGrid, Search as SearchIcon, Filter, DollarSign, Calendar, ChevronRight, ChevronLeft } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { Data } from '../services/data';
+import { ApiClient } from '../services/apiClient';
+import { ContentGenerator } from '../services/contentGenerator';
+import { createDeepLinkKeyboard, buildDeepLink } from '../services/deeplink';
+import { B2BRequest, RequestStatus, TelegramDestination, Bot } from '../types';
+import { Plus, List as ListIcon, LayoutGrid, Search as SearchIcon, Filter, DollarSign, Calendar, ChevronRight, ChevronLeft, Send } from 'lucide-react';
 import { useToast } from '../contexts/ToastContext';
 
 export const RequestList: React.FC = () => {
@@ -20,9 +23,24 @@ export const RequestList: React.FC = () => {
 
     const [loading, setLoading] = useState(false);
     const { showToast } = useToast();
-    const navigate = useNavigate();
+    const [destinations, setDestinations] = useState<TelegramDestination[]>([]);
+    const [bots, setBots] = useState<Bot[]>([]);
+    const [broadcastReq, setBroadcastReq] = useState<B2BRequest | null>(null);
+    const [broadcastDest, setBroadcastDest] = useState('');
+    const [broadcastBotId, setBroadcastBotId] = useState('');
+    const [broadcasting, setBroadcasting] = useState(false);
 
     useEffect(() => { loadRequests(); }, [page, search, statusFilter]);
+    useEffect(() => {
+        const load = async () => {
+            const [dests, botList] = await Promise.all([Data.getDestinations(), Data.getBots()]);
+            setDestinations(dests.filter(d => d.type === 'CHANNEL'));
+            const activeBots = botList.filter(b => b.active);
+            setBots(activeBots);
+            if (!broadcastBotId && activeBots.length > 0) setBroadcastBotId(activeBots[0].id);
+        };
+        load();
+    }, []);
 
     const loadRequests = async () => {
         setLoading(true);
@@ -41,6 +59,51 @@ export const RequestList: React.FC = () => {
             showToast('Failed to load requests', 'error');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const openBroadcast = (req: B2BRequest) => {
+        setBroadcastReq(req);
+        if (destinations.length === 1) {
+            setBroadcastDest(destinations[0].identifier);
+        }
+    };
+
+    const handleBroadcast = async () => {
+        if (!broadcastReq) return;
+        const bot = bots.find(b => b.id === broadcastBotId);
+        if (!bot) {
+            showToast('Select an active bot', 'error');
+            return;
+        }
+        if (!broadcastDest) {
+            showToast('Select a channel', 'error');
+            return;
+        }
+        if (!bot.username) {
+            showToast('Bot username missing', 'error');
+            return;
+        }
+
+        setBroadcasting(true);
+        try {
+            const text = ContentGenerator.fromRequest(broadcastReq);
+            const link = buildDeepLink(bot.username, { type: 'request', requestId: broadcastReq.publicId });
+            const keyboard = createDeepLinkKeyboard([{ text: '💼 Подати пропозицію', link }]);
+            const res = await ApiClient.post('messages/send', {
+                chatId: broadcastDest,
+                text,
+                botId: bot.id,
+                keyboard
+            });
+            if (!res.ok) throw new Error(res.message);
+            showToast('Request sent to channel', 'success');
+            setBroadcastReq(null);
+            setBroadcastDest('');
+        } catch (e: any) {
+            showToast(e.message || 'Failed to send', 'error');
+        } finally {
+            setBroadcasting(false);
         }
     };
 
@@ -93,6 +156,7 @@ export const RequestList: React.FC = () => {
                                         <th>Status</th>
                                         <th>Budget</th>
                                         <th>City</th>
+                                        <th>Broadcast</th>
                                         <th></th>
                                     </tr>
                                 </thead>
@@ -115,6 +179,14 @@ export const RequestList: React.FC = () => {
                                                 ${r.budgetMax.toLocaleString()}
                                             </td>
                                             <td className="text-[var(--text-secondary)] text-sm">{r.city}</td>
+                                            <td>
+                                                <button
+                                                    onClick={() => openBroadcast(r)}
+                                                    className="btn-secondary text-xs px-3 py-1.5 flex items-center gap-1"
+                                                >
+                                                    <Send size={14} /> To Channel
+                                                </button>
+                                            </td>
                                             <td className="text-right">
                                                 <button className="text-[var(--text-secondary)] group-hover:text-gold-500 transition-colors">
                                                     <ChevronRight size={20} />
@@ -179,6 +251,54 @@ export const RequestList: React.FC = () => {
                     </div>
                 )}
             </div>
+
+            {broadcastReq && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="panel w-full max-w-lg p-6 animate-slide-up">
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="font-bold text-[var(--text-primary)]">Broadcast Request</h3>
+                            <button onClick={() => setBroadcastReq(null)} className="btn-ghost">Close</button>
+                        </div>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="text-xs font-bold text-[var(--text-secondary)] uppercase block mb-2">Bot</label>
+                                <select
+                                    className="input"
+                                    value={broadcastBotId}
+                                    onChange={e => setBroadcastBotId(e.target.value)}
+                                >
+                                    {bots.map(b => (
+                                        <option key={b.id} value={b.id}>{b.name} (@{b.username})</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="text-xs font-bold text-[var(--text-secondary)] uppercase block mb-2">Channel</label>
+                                <select
+                                    className="input"
+                                    value={broadcastDest}
+                                    onChange={e => setBroadcastDest(e.target.value)}
+                                >
+                                    <option value="">Select channel...</option>
+                                    {destinations.map(d => (
+                                        <option key={d.id} value={d.identifier}>{d.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="bg-[var(--bg-input)] border border-[var(--border-color)] rounded-lg p-3 text-xs text-[var(--text-secondary)]">
+                                <div className="font-bold text-[var(--text-primary)] mb-2">Preview</div>
+                                <div dangerouslySetInnerHTML={{ __html: ContentGenerator.fromRequest(broadcastReq).replace(/\n/g, '<br/>') }} />
+                            </div>
+                        </div>
+                        <div className="mt-6 flex justify-end gap-2">
+                            <button onClick={() => setBroadcastReq(null)} className="btn-ghost">Cancel</button>
+                            <button onClick={handleBroadcast} disabled={broadcasting} className="btn-primary">
+                                {broadcasting ? 'Sending...' : 'Send to Channel'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

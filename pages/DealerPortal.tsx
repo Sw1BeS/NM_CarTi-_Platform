@@ -1,10 +1,9 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Data } from '../services/data';
 import { B2BRequest, RequestStatus, Variant, VariantStatus, User, UserRole, Company } from '../types';
 import { CarSearchEngine } from '../services/carService';
 import { ImageUtils } from '../services/imageUtils';
-import { addPublicVariant, createDealerSession } from '../services/publicApi';
+import { addPublicVariant, createDealerSession, getPublicRequests } from '../services/publicApi';
 import { Briefcase, ChevronRight, X, DollarSign, Calendar, MapPin, Search, Plus, CheckCircle, Zap, Loader, ExternalLink, RefreshCw, Car, Upload, Image as ImageIcon, Camera, ArrowLeft } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 
@@ -66,8 +65,8 @@ export const DealerPortal = () => {
     };
 
     const loadRequests = async () => {
-        const all = await Data.getRequests();
-        const publicRequests = all.filter(r => r.status !== 'CLOSED');
+        const res = await getPublicRequests();
+        const publicRequests = (res.items || []).filter(r => r.status !== 'CLOSED');
         setRequests(publicRequests);
         return publicRequests;
     };

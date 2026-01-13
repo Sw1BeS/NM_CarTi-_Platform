@@ -1,29 +1,18 @@
 
 import React, { useState, useEffect } from 'react';
 import { Data } from '../services/data';
-import { TelegramAPI } from '../services/telegram';
+import { DraftsService, DraftRecord } from '../services/draftsService';
 import { CarListing, TelegramDestination, Bot } from '../types';
 import { useToast } from '../contexts/ToastContext';
 import {
-    Send, Calendar as CalendarIcon, Eye, X, Plus, Search,
-    ChevronLeft, ChevronRight, Grid, List, Settings, Copy, Trash2,
+    Send, Calendar as CalendarIcon, X, Plus,
+    ChevronLeft, ChevronRight, List, Settings, Copy, Trash2,
     Check, Clock, AlertCircle
 } from 'lucide-react';
-import { formatCarCaptionForTelegram } from '../services/carCaptionFormatter';
+import { ContentGenerator } from '../services/contentGenerator';
 
 type PostTemplate = 'IN_STOCK' | 'IN_TRANSIT' | 'CUSTOM';
-type ViewMode = 'GRID' | 'CALENDAR';
-
-interface DraftPost {
-    id: string;
-    carId?: string;
-    template: PostTemplate;
-    text: string;
-    imageUrl?: string;
-    destination: string;
-    scheduledAt?: string;
-    status: 'DRAFT' | 'SCHEDULED' | 'POSTED' | 'FAILED';
-}
+type ViewMode = 'GRID' | 'CALENDAR' | 'DAY';
 
 interface TemplateConfig {
     name: string;
@@ -34,13 +23,13 @@ interface TemplateConfig {
 const DEFAULT_TEMPLATES: Record<string, TemplateConfig> = {
     IN_STOCK: {
         name: 'В наявності',
-        ua: '🚗 <b>Нова пропозиція!</b>\n\n{car}\n\n✅ В наявності\n📞 Зв\'яжіться для деталей',
-        ru: '🚗 <b>Новое предложение!</b>\n\n{car}\n\n✅ В наличии\n📞 Свяжитесь для деталей'
+        ua: '🚗 <b>{title}</b>\n\n💰 {price} {currency}\n📍 {city}\n🗓 {year} | 🛣 {mileage} км\n⚙️ {specs}\n\n✅ В наявності\n📞 Зв\'яжіться для деталей\n\n{hashtags}',
+        ru: '🚗 <b>{title}</b>\n\n💰 {price} {currency}\n📍 {city}\n🗓 {year} | 🛣 {mileage} км\n⚙️ {specs}\n\n✅ В наличии\n📞 Свяжитесь для деталей\n\n{hashtags}'
     },
     IN_TRANSIT: {
         name: 'В дорозі',
-        ua: '📦 <b>В дорозі!</b>\n\n{car}\n\n🚢 Скоро в наявності\n📞 Бронюйте зараз',
-        ru: '📦 <b>В пути!</b>\n\n{car}\n\n🚢 Скоро в наличии\n📞 Бронируйте сейчас'
+        ua: '📦 <b>{title}</b>\n\n💰 {price} {currency}\n📍 {city}\n🗓 {year} | 🛣 {mileage} км\n⚙️ {specs}\n\n🚢 Скоро в наявності\n📞 Бронюйте зараз\n\n{hashtags}',
+        ru: '📦 <b>{title}</b>\n\n💰 {price} {currency}\n📍 {city}\n🗓 {year} | 🛣 {mileage} км\n⚙️ {specs}\n\n🚢 Скоро в наличии\n📞 Бронируйте сейчас\n\n{hashtags}'
     }
 };
 
@@ -48,11 +37,12 @@ export const ContentCalendarPage = () => {
     const [inventory, setInventory] = useState<CarListing[]>([]);
     const [destinations, setDestinations] = useState<TelegramDestination[]>([]);
     const [bots, setBots] = useState<Bot[]>([]);
-    const [drafts, setDrafts] = useState<DraftPost[]>([]);
+    const [drafts, setDrafts] = useState<DraftRecord[]>([]);
     const [viewMode, setViewMode] = useState<ViewMode>('CALENDAR');
 
     // Calendar state
     const [currentWeek, setCurrentWeek] = useState(new Date());
+    const [currentDay, setCurrentDay] = useState(new Date());
     const [selectedSlot, setSelectedSlot] = useState<{ date: Date; hour: number } | null>(null);
 
     // Bulk operations
@@ -61,6 +51,7 @@ export const ContentCalendarPage = () => {
     const [bulkConfig, setBulkConfig] = useState({
         destination: '',
         template: 'IN_STOCK' as PostTemplate,
+        lang: 'UA' as 'UA' | 'RU',
         startDate: '',
         startTime: '10:00',
         interval: 4, // hours between posts
@@ -73,27 +64,23 @@ export const ContentCalendarPage = () => {
     const [editingTemplate, setEditingTemplate] = useState<TemplateConfig | null>(null);
 
     const { showToast } = useToast();
+    const timeSlots = [9, 12, 15, 18, 21];
 
     useEffect(() => {
         loadData();
     }, []);
 
     const loadData = async () => {
-        const [inv, dests, botList] = await Promise.all([
+        const [inv, dests, botList, draftList] = await Promise.all([
             Data.getInventory(),
             Data.getDestinations(),
-            Data.getBots()
+            Data.getBots(),
+            DraftsService.getDrafts()
         ]);
         setInventory(inv.filter(c => c.status === 'AVAILABLE'));
-        setDestinations(dests.filter(d => d.type === 'CHANNEL' || d.type === 'GROUP'));
+        setDestinations(dests.filter(d => d.type === 'CHANNEL'));
         setBots(botList.filter(b => b.active));
-
-        const stored = localStorage.getItem('content_drafts');
-        if (stored) {
-            try {
-                setDrafts(JSON.parse(stored));
-            } catch (e) { }
-        }
+        setDrafts(draftList);
 
         const storedTemplates = localStorage.getItem('custom_templates');
         if (storedTemplates) {
@@ -125,83 +112,91 @@ export const ContentCalendarPage = () => {
         });
     };
 
-    const schedulePost = (car: CarListing, date: Date, hour: number) => {
+    const schedulePost = async (car: CarListing, date: Date, hour: number) => {
         if (!bulkConfig.destination) {
             showToast('Select destination first', 'error');
+            return;
+        }
+        if (bots.length === 0) {
+            showToast('No active bot found', 'error');
             return;
         }
 
         const scheduledDate = new Date(date);
         scheduledDate.setHours(hour, 0, 0, 0);
 
-        const text = DEFAULT_TEMPLATES[bulkConfig.template].ua.replace(
-            '{car}',
-            formatCarCaptionForTelegram(car, 'UK')
-        );
+        const template = bulkConfig.lang === 'RU'
+            ? DEFAULT_TEMPLATES[bulkConfig.template].ru
+            : DEFAULT_TEMPLATES[bulkConfig.template].ua;
+        const text = ContentGenerator.fromCarTemplate(car, template, bulkConfig.lang === 'RU' ? 'RU' : 'UK');
 
-        const draft: DraftPost = {
-            id: `draft_${Date.now()}_${Math.random()}`,
-            carId: car.canonicalId,
-            template: bulkConfig.template,
-            text,
-            imageUrl: car.thumbnail,
+        const bot = bots[0];
+        const created = await DraftsService.createDraft({
+            source: 'MANUAL',
+            title: car.title,
+            description: text,
+            url: car.thumbnail,
             destination: bulkConfig.destination,
             scheduledAt: scheduledDate.toISOString(),
-            status: 'SCHEDULED'
-        };
+            status: 'SCHEDULED',
+            botId: bot.id,
+            metadata: { carId: car.canonicalId, template: bulkConfig.template, lang: bulkConfig.lang }
+        });
 
-        const updated = [...drafts, draft];
-        setDrafts(updated);
-        localStorage.setItem('content_drafts', JSON.stringify(updated));
+        setDrafts([created, ...drafts]);
         showToast('Post scheduled!', 'success');
     };
 
-    const bulkSchedule = () => {
+    const bulkSchedule = async () => {
         if (!bulkConfig.destination || selectedCars.size === 0) {
             showToast('Select cars and destination', 'error');
+            return;
+        }
+        if (bots.length === 0) {
+            showToast('No active bot found', 'error');
             return;
         }
 
         const startDateTime = new Date(`${bulkConfig.startDate}T${bulkConfig.startTime}`);
         const carsArray = Array.from(selectedCars).map(id => inventory.find(c => c.canonicalId === id)!);
 
-        const newDrafts: DraftPost[] = [];
+        const newDrafts: Partial<DraftRecord>[] = [];
         let currentTime = new Date(startDateTime);
 
         carsArray.forEach((car, index) => {
-            const text = DEFAULT_TEMPLATES[bulkConfig.template].ua.replace(
-                '{car}',
-                formatCarCaptionForTelegram(car, 'UK')
-            );
+            const template = bulkConfig.lang === 'RU'
+                ? DEFAULT_TEMPLATES[bulkConfig.template].ru
+                : DEFAULT_TEMPLATES[bulkConfig.template].ua;
+            const text = ContentGenerator.fromCarTemplate(car, template, bulkConfig.lang === 'RU' ? 'RU' : 'UK');
 
             newDrafts.push({
-                id: `draft_bulk_${Date.now()}_${index}`,
-                carId: car.canonicalId,
-                template: bulkConfig.template,
-                text,
-                imageUrl: car.thumbnail,
+                source: 'MANUAL',
+                title: car.title,
+                description: text,
+                url: car.thumbnail,
                 destination: bulkConfig.destination,
                 scheduledAt: currentTime.toISOString(),
-                status: 'SCHEDULED'
+                status: 'SCHEDULED',
+                botId: bots[0].id,
+                metadata: { carId: car.canonicalId, template: bulkConfig.template, lang: bulkConfig.lang }
             });
 
             // Add interval for next post
             currentTime = new Date(currentTime.getTime() + bulkConfig.interval * 60 * 60 * 1000);
         });
 
-        const updated = [...drafts, ...newDrafts];
-        setDrafts(updated);
-        localStorage.setItem('content_drafts', JSON.stringify(updated));
+        const created = await Promise.all(newDrafts.map(d => DraftsService.createDraft(d)));
+        setDrafts([...created, ...drafts]);
 
         setShowBulkScheduler(false);
         setSelectedCars(new Set());
         showToast(`${newDrafts.length} posts scheduled!`, 'success');
     };
 
-    const deletePost = (id: string) => {
+    const deletePost = async (id: number) => {
+        await DraftsService.deleteDraft(id);
         const updated = drafts.filter(d => d.id !== id);
         setDrafts(updated);
-        localStorage.setItem('content_drafts', JSON.stringify(updated));
         showToast('Post deleted', 'success');
     };
 
@@ -220,6 +215,20 @@ export const ContentCalendarPage = () => {
     };
 
     const allTemplates = { ...DEFAULT_TEMPLATES, ...customTemplates };
+    const weekDays = getWeekDays();
+    const queueDrafts = [...drafts].sort((a, b) => {
+        const statusPriority: Record<DraftRecord['status'], number> = {
+            SCHEDULED: 0,
+            DRAFT: 1,
+            FAILED: 2,
+            POSTED: 3
+        };
+        const statusDiff = statusPriority[a.status] - statusPriority[b.status];
+        if (statusDiff !== 0) return statusDiff;
+        const aTime = new Date(a.scheduledAt || a.createdAt || 0).getTime();
+        const bTime = new Date(b.scheduledAt || b.createdAt || 0).getTime();
+        return aTime - bTime;
+    });
 
     return (
         <div className="flex flex-col h-[calc(100vh-100px)] gap-6">
@@ -249,14 +258,21 @@ export const ContentCalendarPage = () => {
                                 className={`px-3 py-1.5 rounded text-xs font-bold transition-colors ${viewMode === 'CALENDAR' ? 'bg-gold-500 text-black' : 'text-[var(--text-secondary)]'
                                     }`}
                             >
-                                <CalendarIcon size={14} className="inline mr-1" /> Calendar
+                                <CalendarIcon size={14} className="inline mr-1" /> Week
+                            </button>
+                            <button
+                                onClick={() => setViewMode('DAY')}
+                                className={`px-3 py-1.5 rounded text-xs font-bold transition-colors ${viewMode === 'DAY' ? 'bg-gold-500 text-black' : 'text-[var(--text-secondary)]'
+                                    }`}
+                            >
+                                <CalendarIcon size={14} className="inline mr-1" /> Day
                             </button>
                             <button
                                 onClick={() => setViewMode('GRID')}
                                 className={`px-3 py-1.5 rounded text-xs font-bold transition-colors ${viewMode === 'GRID' ? 'bg-gold-500 text-black' : 'text-[var(--text-secondary)]'
                                     }`}
                             >
-                                <Grid size={14} className="inline mr-1" /> Grid
+                                <List size={14} className="inline mr-1" /> Queue
                             </button>
                         </div>
                     </div>
@@ -275,7 +291,7 @@ export const ContentCalendarPage = () => {
                             <ChevronLeft size={20} />
                         </button>
                         <h3 className="font-bold text-[var(--text-primary)]">
-                            {getWeekDays()[0].toLocaleDateString('uk-UA', { month: 'long', year: 'numeric' })}
+                            {weekDays[0].toLocaleDateString('uk-UA', { month: 'long', year: 'numeric' })}
                         </h3>
                         <button
                             onClick={() => setCurrentWeek(new Date(currentWeek.getTime() + 7 * 24 * 60 * 60 * 1000))}
@@ -290,7 +306,7 @@ export const ContentCalendarPage = () => {
                         <div className="grid grid-cols-8 gap-2 min-w-[1200px]">
                             {/* Header Row */}
                             <div className="font-bold text-xs text-[var(--text-secondary)] p-2">Time</div>
-                            {getWeekDays().map(day => (
+                            {weekDays.map(day => (
                                 <div key={day.toISOString()} className="font-bold text-xs text-center p-2">
                                     <div className="text-[var(--text-secondary)]">{day.toLocaleDateString('uk-UA', { weekday: 'short' })}</div>
                                     <div className={`text-lg ${day.toDateString() === new Date().toDateString() ? 'text-gold-500' : 'text-[var(--text-primary)]'}`}>
@@ -300,14 +316,16 @@ export const ContentCalendarPage = () => {
                             ))}
 
                             {/* Time Slots */}
-                            {[9, 12, 15, 18, 21].map(hour => (
+                            {timeSlots.map(hour => (
                                 <React.Fragment key={hour}>
                                     <div className="text-xs text-[var(--text-secondary)] p-2 border-t border-[var(--border-color)]">
                                         {hour}:00
                                     </div>
-                                    {getWeekDays().map(day => {
+                                    {weekDays.map(day => {
                                         const posts = getPostsForSlot(day, hour);
-                                        const isPast = new Date(day.setHours(hour)) < new Date();
+                                        const slotTime = new Date(day);
+                                        slotTime.setHours(hour, 0, 0, 0);
+                                        const isPast = slotTime < new Date();
 
                                         return (
                                             <div
@@ -317,7 +335,8 @@ export const ContentCalendarPage = () => {
                                                 onClick={() => !isPast && setSelectedSlot({ date: day, hour })}
                                             >
                                                 {posts.map(post => {
-                                                    const car = inventory.find(c => c.canonicalId === post.carId);
+                                                    const carId = typeof post.metadata === 'object' ? post.metadata?.carId : undefined;
+                                                    const car = inventory.find(c => c.canonicalId === carId);
                                                     return (
                                                         <div
                                                             key={post.id}
@@ -369,25 +388,106 @@ export const ContentCalendarPage = () => {
                 </div>
             )}
 
+            {/* Day View */}
+            {viewMode === 'DAY' && (
+                <div className="panel flex-1 overflow-hidden p-6 flex flex-col">
+                    <div className="flex justify-between items-center mb-6">
+                        <button
+                            onClick={() => setCurrentDay(new Date(currentDay.getTime() - 24 * 60 * 60 * 1000))}
+                            className="btn-ghost p-2"
+                        >
+                            <ChevronLeft size={20} />
+                        </button>
+                        <h3 className="font-bold text-[var(--text-primary)]">
+                            {currentDay.toLocaleDateString('uk-UA', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+                        </h3>
+                        <button
+                            onClick={() => setCurrentDay(new Date(currentDay.getTime() + 24 * 60 * 60 * 1000))}
+                            className="btn-ghost p-2"
+                        >
+                            <ChevronRight size={20} />
+                        </button>
+                    </div>
+
+                    <div className="flex-1 overflow-auto">
+                        <div className="grid grid-cols-2 gap-2 min-w-[480px]">
+                            <div className="font-bold text-xs text-[var(--text-secondary)] p-2">Time</div>
+                            <div className="font-bold text-xs text-center p-2">
+                                <div className="text-[var(--text-secondary)]">{currentDay.toLocaleDateString('uk-UA', { weekday: 'short' })}</div>
+                                <div className={`text-lg ${currentDay.toDateString() === new Date().toDateString() ? 'text-gold-500' : 'text-[var(--text-primary)]'}`}>
+                                    {currentDay.getDate()}
+                                </div>
+                            </div>
+
+                            {timeSlots.map(hour => {
+                                const posts = getPostsForSlot(currentDay, hour);
+                                const slotTime = new Date(currentDay);
+                                slotTime.setHours(hour, 0, 0, 0);
+                                const isPast = slotTime < new Date();
+
+                                return (
+                                    <React.Fragment key={hour}>
+                                        <div className="text-xs text-[var(--text-secondary)] p-2 border-t border-[var(--border-color)]">
+                                            {hour}:00
+                                        </div>
+                                        <div
+                                            className={`border border-[var(--border-color)] rounded-lg p-2 min-h-[80px] ${isPast ? 'bg-[var(--bg-input)] opacity-50' : 'bg-[var(--bg-panel)] hover:border-gold-500/50 cursor-pointer'
+                                                }`}
+                                            onClick={() => !isPast && setSelectedSlot({ date: currentDay, hour })}
+                                        >
+                                            {posts.map(post => {
+                                                const carId = typeof post.metadata === 'object' ? post.metadata?.carId : undefined;
+                                                const car = inventory.find(c => c.canonicalId === carId);
+                                                return (
+                                                    <div
+                                                        key={post.id}
+                                                        className={`text-[10px] p-2 rounded mb-1 ${post.status === 'SCHEDULED' ? 'bg-blue-500/20 text-blue-400' :
+                                                                post.status === 'POSTED' ? 'bg-green-500/20 text-green-400' :
+                                                                    'bg-red-500/20 text-red-400'
+                                                            }`}
+                                                    >
+                                                        <div className="font-bold truncate">{car?.title || 'Unknown'}</div>
+                                                        <div className="flex justify-between items-center mt-1">
+                                                            <span className="opacity-70">{destinations.find(d => d.identifier === post.destination)?.name?.slice(0, 10) || 'Channel'}</span>
+                                                            <button
+                                                                onClick={(e) => { e.stopPropagation(); deletePost(post.id); }}
+                                                                className="hover:text-red-500"
+                                                            >
+                                                                <X size={12} />
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </React.Fragment>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Grid View */}
             {viewMode === 'GRID' && (
                 <div className="panel flex-1 overflow-auto p-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {drafts.map(draft => {
-                            const car = inventory.find(c => c.canonicalId === draft.carId);
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {queueDrafts.map(draft => {
+                            const carId = typeof draft.metadata === 'object' ? draft.metadata?.carId : undefined;
+                            const car = inventory.find(c => c.canonicalId === carId);
                             const dest = destinations.find(d => d.identifier === draft.destination);
 
                             return (
                                 <div key={draft.id} className="bg-[var(--bg-input)] rounded-xl border border-[var(--border-color)] p-4 flex flex-col gap-3">
-                                    {draft.imageUrl && (
-                                        <img src={draft.imageUrl} className="w-full h-32 object-cover rounded-lg" alt="" />
+                                    {draft.url && (
+                                        <img src={draft.url} className="w-full h-32 object-cover rounded-lg" alt="" />
                                     )}
                                     <div className="flex-1">
                                         <div className="text-xs font-mono text-[var(--text-secondary)] mb-2">
-                                            {car?.title || 'Unknown Car'}
+                                            {car?.title || draft.title || 'Unknown Car'}
                                         </div>
                                         <div className="text-xs text-[var(--text-muted)] line-clamp-3">
-                                            {draft.text}
+                                            {draft.description}
                                         </div>
                                     </div>
                                     <div className="flex items-center justify-between text-xs">
@@ -407,6 +507,12 @@ export const ContentCalendarPage = () => {
                                         <div className="text-[10px] text-[var(--text-secondary)] flex items-center gap-1">
                                             <Clock size={10} />
                                             {new Date(draft.scheduledAt).toLocaleString()}
+                                        </div>
+                                    )}
+                                    {draft.postedAt && (
+                                        <div className="text-[10px] text-[var(--text-secondary)] flex items-center gap-1">
+                                            <Check size={10} />
+                                            {new Date(draft.postedAt).toLocaleString()}
                                         </div>
                                     )}
                                     <button
@@ -484,6 +590,30 @@ export const ContentCalendarPage = () => {
                                             <option key={key} value={key}>{tmpl.name}</option>
                                         ))}
                                     </select>
+                                </div>
+
+                                <div>
+                                    <label className="text-xs font-bold text-[var(--text-secondary)] uppercase block mb-2">Language</label>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <button
+                                            onClick={() => setBulkConfig({ ...bulkConfig, lang: 'UA' })}
+                                            className={`py-2 px-3 rounded text-xs font-bold transition-colors ${bulkConfig.lang === 'UA'
+                                                    ? 'bg-gold-500 text-black'
+                                                    : 'bg-[var(--bg-input)] text-[var(--text-secondary)]'
+                                                }`}
+                                        >
+                                            Українська
+                                        </button>
+                                        <button
+                                            onClick={() => setBulkConfig({ ...bulkConfig, lang: 'RU' })}
+                                            className={`py-2 px-3 rounded text-xs font-bold transition-colors ${bulkConfig.lang === 'RU'
+                                                    ? 'bg-gold-500 text-black'
+                                                    : 'bg-[var(--bg-input)] text-[var(--text-secondary)]'
+                                                }`}
+                                        >
+                                            Русский
+                                        </button>
+                                    </div>
                                 </div>
 
                                 <div>

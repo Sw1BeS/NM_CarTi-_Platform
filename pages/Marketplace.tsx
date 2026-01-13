@@ -47,7 +47,7 @@ export const MarketplacePage = () => {
     const loadInstalled = async () => {
         try {
             const response = await fetch('/api/templates/installed/list', {
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('cartie_token')}` }
             });
 
             if (response.ok) {
@@ -63,7 +63,7 @@ export const MarketplacePage = () => {
         try {
             const response = await fetch(`/api/templates/${templateId}/install`, {
                 method: 'POST',
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('cartie_token')}` }
             });
 
             if (response.ok) {

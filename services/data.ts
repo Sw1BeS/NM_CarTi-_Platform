@@ -1,6 +1,7 @@
 
 import { DataAdapter } from './dataAdapter';
 import { ServerAdapter } from './serverAdapter';
+import type { CarListing, CarSearchFilter } from '../types';
 
 const serverAdapter = new ServerAdapter();
 
@@ -72,6 +73,27 @@ class DataService {
     async getInventory() { return this.adapter.getInventory(); }
     async saveInventoryItem(i: any) { const res = await this.adapter.saveInventoryItem(i); this.notify('UPDATE_INVENTORY'); return res; }
     async deleteInventoryItem(id: string) { await this.adapter.deleteInventoryItem(id); this.notify('UPDATE_INVENTORY'); }
+
+    async searchCars(filter: CarSearchFilter): Promise<CarListing[]> {
+        const inventory = await this.getInventory();
+        return inventory.filter(car => {
+            if (car.status !== 'AVAILABLE') return false;
+
+            const matchesBrand = !filter.brand || car.title.toLowerCase().includes(filter.brand.toLowerCase());
+            let matchesModel = true;
+            if (filter.model) {
+                const titleWords = car.title.toLowerCase().split(' ');
+                const modelWords = filter.model.toLowerCase().split(' ');
+                matchesModel = modelWords.some(w => w.length > 1 && titleWords.includes(w));
+            }
+            const matchesPrice = (!filter.priceMin || car.price.amount >= filter.priceMin) &&
+                (!filter.priceMax || car.price.amount <= filter.priceMax);
+            const matchesYear = (!filter.yearMin || car.year >= filter.yearMin) &&
+                (!filter.yearMax || car.year <= filter.yearMax);
+
+            return matchesBrand && matchesModel && matchesPrice && matchesYear;
+        });
+    }
 
     async getCompanies() { return this.adapter.getCompanies(); }
     async saveCompany(c: any) { const res = await this.adapter.saveCompany(c); this.notify('UPDATE_COMPANIES'); return res; }

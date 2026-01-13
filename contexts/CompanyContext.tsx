@@ -41,7 +41,7 @@ export const CompanyProvider: React.FC<{ children: ReactNode }> = ({ children })
         try {
             const response = await fetch('/api/companies/current', {
                 headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    'Authorization': `Bearer ${localStorage.getItem('cartie_token')}`
                 }
             });
 

@@ -34,7 +34,7 @@ async function main() {
     console.log('✅ System Settings initialized');
   }
 
-  // 3. Init Generic Entities (Stage D)
+  // 3. Init Generic Entities (Stage D/E)
   await seedEntities();
 
   console.log('🏁 Seed finished.');
@@ -109,6 +109,18 @@ async function seedEntities() {
         { key: 'stats', label: 'Stats', type: 'json' },
         { key: 'targetAudience', label: 'Target', type: 'json' }
       ]
+    },
+    {
+      slug: 'b2b_proposal',
+      name: 'B2B Proposal',
+      fields: [
+        { key: 'requestId', label: 'Request ID', type: 'text', required: true },
+        { key: 'dealerId', label: 'Dealer ID', type: 'text', required: true },
+        { key: 'status', label: 'Status', type: 'text' },
+        { key: 'offerPrice', label: 'Offer Price', type: 'number' },
+        { key: 'comment', label: 'Comment', type: 'text' },
+        { key: 'validUntil', label: 'Valid Until', type: 'datetime' }
+      ]
     }
   ];
 
@@ -129,21 +141,20 @@ async function seedEntities() {
           key: f.key,
           label: f.label,
           type: f.type,
-          required: f.required || false,
+          required: !!f.required,
           order: idx
         }))
       });
       console.log(`   + Created ${def.slug}`);
-    } else {
-      // console.log(`   . Exists ${def.slug}`);
     }
   }
+}
 
-  main()
-    .catch((e) => {
-      console.error(e);
-      process.exit(1);
-    })
-    .finally(async () => {
-      await prisma.$disconnect();
-    });
+main()
+  .catch((e) => {
+    console.error(e);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });

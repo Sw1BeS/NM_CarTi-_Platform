@@ -3,6 +3,8 @@ import { Router, Request, Response } from 'express';
 // @ts-ignore
 import { prisma } from '../services/prisma.js';
 import bcrypt from 'bcryptjs';
+import axios from 'axios';
+import { Prisma } from '@prisma/client';
 import { authenticateToken, requireRole } from '../middleware/auth.js';
 import { botManager } from '../modules/bots/bot.service.js';
 import { importDraft, searchAutoRia, sendMetaEvent } from '../services/integrationService.js';
@@ -90,6 +92,284 @@ router.delete('/bots/:id', requireRole(['ADMIN']), async (req, res) => {
     } catch (e) { res.status(500).json({ error: 'Failed to delete bot' }); }
 });
 
+const TELEGRAM_METHODS = new Set([
+    'getMe',
+    'sendMessage',
+    'sendPhoto',
+    'sendMediaGroup',
+    'sendChatAction',
+    'answerCallbackQuery',
+    'setMyCommands',
+    'setChatMenuButton',
+    'getFile',
+    'getUpdates'
+]);
+
+const resolveBot = async (token?: string, botId?: string) => {
+    if (token && botId) {
+        return { token, botId };
+    }
+    if (botId) {
+        const bot = await prisma.botConfig.findUnique({ where: { id: botId } });
+        return bot?.token ? { token: bot.token, botId: bot.id } : null;
+    }
+    if (token) {
+        const bot = await prisma.botConfig.findFirst({ where: { isEnabled: true } });
+        return { token, botId: bot?.id || '' };
+    }
+    const bot = await prisma.botConfig.findFirst({ where: { isEnabled: true } });
+    return bot?.token ? { token: bot.token, botId: bot.id } : null;
+};
+
+const callTelegram = async (token: string, method: string, params: Record<string, any>) => {
+    const url = `https://api.telegram.org/bot${token}/${method}`;
+    const response = await axios.post(url, params, { timeout: 15000 });
+    if (!response.data?.ok) {
+        const message = response.data?.description || 'Telegram API error';
+        throw new Error(message);
+    }
+    return response.data.result;
+};
+
+// --- Telegram Proxy (server-side) ---
+router.post('/telegram/call', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
+    try {
+        const { token, botId, method, params } = req.body || {};
+        if (!method || !TELEGRAM_METHODS.has(method)) {
+            return res.status(400).json({ error: 'Unsupported Telegram method' });
+        }
+        const resolved = await resolveBot(token, botId);
+        if (!resolved?.token) {
+            return res.status(400).json({ error: 'Bot token not found' });
+        }
+        const result = await callTelegram(resolved.token, method, params || {});
+        res.json({ ok: true, result });
+    } catch (e: any) {
+        console.error('[Telegram Proxy] Error:', e.message || e);
+        res.status(500).json({ error: e.message || 'Telegram proxy failed' });
+    }
+});
+
+// --- Telegram Messages (Inbox) ---
+router.get('/messages', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
+    try {
+        const limit = Math.min(500, Math.max(1, Number(req.query.limit) || 200));
+        const chatId = typeof req.query.chatId === 'string' ? req.query.chatId : undefined;
+        const botId = typeof req.query.botId === 'string' ? req.query.botId : undefined;
+
+        const conditions = [];
+        if (chatId) conditions.push(Prisma.sql`"chatId" = ${chatId}`);
+        if (botId) conditions.push(Prisma.sql`"botId" = ${botId}`);
+
+        const whereClause = conditions.length
+            ? Prisma.sql`WHERE ${Prisma.join(conditions, ' AND ')}`
+            : Prisma.sql``;
+
+        const rows = await prisma.$queryRaw<any[]>(Prisma.sql`
+            SELECT "id", "botId", "chatId", "direction", "text", "messageId", "payload", "createdAt"
+            FROM "BotMessage"
+            ${whereClause}
+            ORDER BY "createdAt" DESC
+            LIMIT ${limit}
+        `);
+
+        const messages = rows.map(row => {
+            const payload = row.payload || {};
+            const fromPayload = payload?.from || payload?.user || {};
+            const chatPayload = payload?.chat || {};
+            const fromName = fromPayload.first_name || fromPayload.username || (row.direction === 'OUTGOING' ? 'Bot' : 'User');
+
+            return {
+                id: row.id,
+                messageId: row.messageId || 0,
+                chatId: row.chatId,
+                platform: 'TG',
+                direction: row.direction,
+                from: fromName,
+                fromId: fromPayload.id ? String(fromPayload.id) : undefined,
+                text: row.text,
+                date: new Date(row.createdAt).toISOString(),
+                status: 'NEW',
+                buttons: payload?.markup?.inline_keyboard?.flat?.().map((b: any) => ({
+                    text: b.text,
+                    value: b.callback_data || b.url
+                })) || [],
+                chatTitle: chatPayload.title
+            };
+        });
+
+        res.json(messages);
+    } catch (e: any) {
+        console.error('[Messages] Fetch error:', e.message || e);
+        res.status(500).json({ error: 'Failed to fetch messages' });
+    }
+});
+
+router.post('/messages', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
+    try {
+        const payload = req.body || {};
+        if (!payload.chatId || !payload.text || !payload.direction) {
+            return res.status(400).json({ error: 'chatId, text, and direction are required' });
+        }
+        const botId = payload.botId || '';
+        await prisma.$executeRaw`
+            INSERT INTO "BotMessage" (id, "botId", "chatId", direction, text, "messageId", payload, "createdAt")
+            VALUES (
+                gen_random_uuid()::text,
+                ${String(botId)},
+                ${String(payload.chatId)},
+                ${String(payload.direction)},
+                ${String(payload.text)},
+                ${payload.messageId ?? null},
+                ${JSON.stringify(payload.payload || {})}::jsonb,
+                NOW()
+            )
+        `;
+        res.json({ success: true });
+    } catch (e: any) {
+        console.error('[Messages] Insert error:', e.message || e);
+        res.status(500).json({ error: 'Failed to store message' });
+    }
+});
+
+router.post('/messages/send', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
+    try {
+        const { chatId, text, imageUrl, botId, keyboard } = req.body || {};
+        if (!chatId || !text) {
+            return res.status(400).json({ error: 'chatId and text are required' });
+        }
+        const resolved = await resolveBot(undefined, botId);
+        if (!resolved?.token) {
+            return res.status(400).json({ error: 'Bot token not found' });
+        }
+
+        const method = imageUrl ? 'sendPhoto' : 'sendMessage';
+        const params = imageUrl
+            ? { chat_id: chatId, photo: imageUrl, caption: text, parse_mode: 'HTML', reply_markup: keyboard }
+            : { chat_id: chatId, text, parse_mode: 'HTML', reply_markup: keyboard };
+
+        const result = await callTelegram(resolved.token, method, params);
+
+        try {
+            await prisma.$executeRaw`
+                INSERT INTO "BotMessage" (id, "botId", "chatId", direction, text, "messageId", payload, "createdAt")
+                VALUES (
+                    gen_random_uuid()::text,
+                    ${String(resolved.botId || '')},
+                    ${String(chatId)},
+                    'OUTGOING',
+                    ${String(text)},
+                    ${result?.message_id ?? null},
+                    ${JSON.stringify({ markup: keyboard || null })}::jsonb,
+                    NOW()
+                )
+            `;
+        } catch (e) {
+            console.error('[Messages] Failed to log outgoing message:', e);
+        }
+
+        res.json({ ok: true, result });
+    } catch (e: any) {
+        console.error('[Messages] Send error:', e.message || e);
+        res.status(500).json({ error: e.message || 'Failed to send message' });
+    }
+});
+
+// --- Destinations (derived from messages + bot config) ---
+router.get('/destinations', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), async (_req, res) => {
+    try {
+        const bots = await prisma.botConfig.findMany({ where: { isEnabled: true } });
+        const rows = await prisma.$queryRaw<any[]>`
+            SELECT "chatId", "payload"
+            FROM "BotMessage"
+            ORDER BY "createdAt" DESC
+            LIMIT 500
+        `;
+
+        const destMap = new Map<string, any>();
+
+        bots.forEach(bot => {
+            if (bot.channelId) {
+                destMap.set(bot.channelId, {
+                    id: `dest_${bot.channelId}`,
+                    identifier: bot.channelId,
+                    name: bot.name ? `${bot.name} Channel` : 'Channel',
+                    type: 'CHANNEL',
+                    tags: ['bot-channel'],
+                    verified: true
+                });
+            }
+            if (bot.adminChatId) {
+                destMap.set(bot.adminChatId, {
+                    id: `dest_${bot.adminChatId}`,
+                    identifier: bot.adminChatId,
+                    name: bot.name ? `${bot.name} Admin` : 'Admin Chat',
+                    type: 'USER',
+                    tags: ['bot-admin'],
+                    verified: true
+                });
+            }
+        });
+
+        rows.forEach(row => {
+            const payload = row.payload || {};
+            const chat = payload.chat || {};
+            const from = payload.from || {};
+            const identifier = row.chatId;
+            if (!identifier || destMap.has(identifier)) return;
+
+            const chatType = String(chat.type || 'private');
+            const name = chat.title || from.first_name || from.username || identifier;
+            const type = chatType.includes('channel')
+                ? 'CHANNEL'
+                : chatType.includes('group')
+                    ? 'GROUP'
+                    : 'USER';
+
+            destMap.set(identifier, {
+                id: `dest_${identifier}`,
+                identifier,
+                name,
+                type,
+                tags: ['bot-user'],
+                verified: true
+            });
+        });
+
+        res.json(Array.from(destMap.values()));
+    } catch (e: any) {
+        console.error('[Destinations] Error:', e.message || e);
+        res.status(500).json({ error: 'Failed to fetch destinations' });
+    }
+});
+
+// --- HTML Proxy for Parsers ---
+router.get('/proxy', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
+    try {
+        const target = req.query.url;
+        if (!target || typeof target !== 'string') {
+            return res.status(400).json({ error: 'url is required' });
+        }
+        const parsed = new URL(target);
+        const allowedHosts = new Set(['auto.ria.com', 'www.auto.ria.com', 'olx.ua', 'www.olx.ua']);
+        if (!allowedHosts.has(parsed.hostname)) {
+            return res.status(400).json({ error: 'Host not allowed' });
+        }
+
+        const response = await axios.get(target, {
+            timeout: 15000,
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (compatible; CartieBot/1.0; +https://cartie.ai)'
+            }
+        });
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        res.send(response.data);
+    } catch (e: any) {
+        console.error('[Proxy] Error:', e.message || e);
+        res.status(500).json({ error: 'Failed to fetch target URL' });
+    }
+});
+
 // --- Leads ---
 // --- Leads ---
 router.get('/leads', async (req, res) => {
@@ -143,6 +423,68 @@ router.post('/drafts/import', async (req, res) => {
 router.get('/drafts', async (req, res) => {
     const drafts = await prisma.draft.findMany({ orderBy: { createdAt: 'desc' }, take: 50 });
     res.json(drafts);
+});
+
+router.post('/drafts', requireRole(['ADMIN', 'MANAGER']), async (req, res) => {
+    try {
+        const payload = req.body || {};
+        const draft = await prisma.draft.create({
+            data: {
+                source: payload.source || 'MANUAL',
+                title: payload.title || 'Untitled',
+                price: payload.price ?? null,
+                url: payload.url ?? payload.imageUrl ?? null,
+                description: payload.description ?? payload.text ?? null,
+                status: payload.status || 'DRAFT',
+                destination: payload.destination ?? null,
+                botId: payload.botId ?? null,
+                scheduledAt: payload.scheduledAt ? new Date(payload.scheduledAt) : null,
+                postedAt: payload.postedAt ? new Date(payload.postedAt) : null,
+                metadata: payload.metadata ?? null
+            }
+        });
+        res.json(draft);
+    } catch (e: any) {
+        console.error(e);
+        res.status(500).json({ error: 'Failed to create draft' });
+    }
+});
+
+router.put('/drafts/:id', requireRole(['ADMIN', 'MANAGER']), async (req, res) => {
+    try {
+        const id = Number(req.params.id);
+        const payload = req.body || {};
+        const draft = await prisma.draft.update({
+            where: { id },
+            data: {
+                title: payload.title ?? undefined,
+                price: payload.price ?? undefined,
+                url: payload.url ?? payload.imageUrl ?? undefined,
+                description: payload.description ?? payload.text ?? undefined,
+                status: payload.status ?? undefined,
+                destination: payload.destination ?? undefined,
+                botId: payload.botId ?? undefined,
+                scheduledAt: payload.scheduledAt ? new Date(payload.scheduledAt) : undefined,
+                postedAt: payload.postedAt ? new Date(payload.postedAt) : undefined,
+                metadata: payload.metadata ?? undefined
+            }
+        });
+        res.json(draft);
+    } catch (e: any) {
+        console.error(e);
+        res.status(500).json({ error: 'Failed to update draft' });
+    }
+});
+
+router.delete('/drafts/:id', requireRole(['ADMIN', 'MANAGER']), async (req, res) => {
+    try {
+        const id = Number(req.params.id);
+        await prisma.draft.delete({ where: { id } });
+        res.json({ success: true });
+    } catch (e: any) {
+        console.error(e);
+        res.status(500).json({ error: 'Failed to delete draft' });
+    }
 });
 
 // --- Leads CRUD ---

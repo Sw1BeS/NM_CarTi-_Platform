@@ -2,7 +2,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Data } from '../services/data';
 import { BotEngine } from '../services/botEngine';
-import { TelegramMessage, ChatMacro, User } from '../types';
+import { RequestsService } from '../services/requestsService';
+import { TelegramMessage, ChatMacro, User, B2BRequest } from '../types';
 import { Send, Inbox, Trash2, X, Zap, UserCheck, StickyNote, Filter } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
@@ -22,6 +23,7 @@ interface ChatInfo {
     lastMsg: TelegramMessage;
     assignedTo?: string;
     internalNote?: string;
+    requestId?: string;
     unreadCount: number;
 }
 
@@ -35,6 +37,7 @@ export const InboxPage = () => {
     const [showMacros, setShowMacros] = useState(false);
     const [internalNote, setInternalNote] = useState('');
     const [showNotePanel, setShowNotePanel] = useState(false);
+    const [requestByChat, setRequestByChat] = useState<Record<string, B2BRequest>>({});
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const { user } = useAuth();
@@ -44,18 +47,35 @@ export const InboxPage = () => {
     // Load messages and managers
     useEffect(() => {
         const load = async () => {
-            const messages = await Data.getMessages();
+            const [messages, requestRes] = await Promise.all([
+                Data.getMessages(),
+                RequestsService.getRequests({ status: 'ALL', limit: 200 })
+            ]);
             setMsgs(messages);
 
             // Build chat list with metadata
             const chatMap = new Map<string, ChatInfo>();
+            const reqMap: Record<string, B2BRequest> = {};
+
+            requestRes.items.forEach(req => {
+                if (!req.clientChatId) return;
+                const existing = reqMap[req.clientChatId];
+                if (!existing || new Date(req.createdAt) > new Date(existing.createdAt)) {
+                    reqMap[req.clientChatId] = req;
+                }
+            });
+
+            setRequestByChat(reqMap);
+
             messages.forEach(m => {
+                const linkedReq = reqMap[m.chatId];
                 if (!chatMap.has(m.chatId)) {
                     chatMap.set(m.chatId, {
                         chatId: m.chatId,
                         lastMsg: m,
-                        assignedTo: undefined, // TODO: load from API
-                        internalNote: undefined,
+                        assignedTo: linkedReq?.assigneeId,
+                        internalNote: linkedReq?.internalNote,
+                        requestId: linkedReq?.id,
                         unreadCount: 0
                     });
                 } else {
@@ -90,11 +110,9 @@ export const InboxPage = () => {
     // Load note when chat changes
     useEffect(() => {
         if (activeChatId) {
-            // TODO: Load from API/localStorage
-            const stored = localStorage.getItem(`note_${activeChatId}`);
-            setInternalNote(stored || '');
+            setInternalNote(requestByChat[activeChatId]?.internalNote || '');
         }
-    }, [activeChatId]);
+    }, [activeChatId, requestByChat]);
 
     // Scroll to bottom
     useEffect(() => {
@@ -108,16 +126,27 @@ export const InboxPage = () => {
     };
 
     const assignChat = async (chatId: string, userId: string) => {
-        // TODO: Save to API
+        const req = requestByChat[chatId];
+        if (!req) {
+            showToast('No request linked to this chat', 'error');
+            return;
+        }
+        await RequestsService.updateRequest(req.id, { assigneeId: userId || null });
         const updated = chats.map(c => c.chatId === chatId ? { ...c, assignedTo: userId } : c);
         setChats(updated);
+        setRequestByChat({ ...requestByChat, [chatId]: { ...req, assigneeId: userId || undefined } });
         showToast(`Assigned to ${managers.find(m => m.id === userId)?.name || 'manager'}`);
     };
 
     const saveNote = async () => {
         if (!activeChatId) return;
-        // TODO: Save to API
-        localStorage.setItem(`note_${activeChatId}`, internalNote);
+        const req = requestByChat[activeChatId];
+        if (!req) {
+            showToast('No request linked to this chat', 'error');
+            return;
+        }
+        await RequestsService.updateRequest(req.id, { internalNote });
+        setRequestByChat({ ...requestByChat, [activeChatId]: { ...req, internalNote } });
         showToast('Note saved', 'success');
         setShowNotePanel(false);
     };

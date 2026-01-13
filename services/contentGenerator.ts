@@ -1,5 +1,6 @@
 
-import { B2BRequest, Variant } from '../types';
+import { B2BRequest, Variant, CarListing, Language } from '../types';
+import { formatCarCaptionForTelegram } from './carCaptionFormatter';
 
 export const ContentGenerator = {
     // Advanced templates
@@ -68,5 +69,42 @@ export const ContentGenerator = {
             description: req.description || 'No special requirements'
         };
         return this.generate(tpl, data);
+    },
+
+    fromCarTemplate(car: CarListing, templateStr: string, lang: Language = 'UK'): string {
+        const title = car.title || 'Car';
+        const parts = title.split(' ').filter(Boolean);
+        const brandRaw = parts[0] || '';
+        const modelRaw = parts.slice(1).join(' ');
+        const cleanTag = (value: string) => value.replace(/[^a-zA-Z0-9]/g, '');
+        const brand = cleanTag(brandRaw);
+        const model = cleanTag(modelRaw);
+        const hashtagYear = car.year ? `#y${car.year}` : '';
+        const hashtags = ['#cartie', brand ? `#${brand}` : '', model ? `#${model}` : '', hashtagYear].filter(Boolean).join(' ');
+
+        const specsObj = car.specs || {};
+        const specsList = [];
+        if (specsObj.engine) specsList.push(`⛽ ${specsObj.engine}`);
+        if (specsObj.transmission) specsList.push(`🕹 ${specsObj.transmission}`);
+        if (specsObj.fuel) specsList.push(`⛽ ${specsObj.fuel}`);
+        const specsStr = specsList.join(' | ') || '';
+
+        const data = {
+            car: formatCarCaptionForTelegram(car, lang),
+            title: title,
+            price: car.price?.amount?.toLocaleString() || '0',
+            currency: car.price?.currency || 'USD',
+            city: car.location || '',
+            year: car.year || '',
+            mileage: car.mileage ? Math.round(car.mileage / 1000) : '',
+            specs: specsStr,
+            link: car.sourceUrl || '',
+            brand,
+            model,
+            hashtag_year: hashtagYear,
+            hashtags
+        };
+
+        return this.generate(templateStr, data);
     }
 };

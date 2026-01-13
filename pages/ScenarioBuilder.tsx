@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Data } from '../services/data';
 import { Scenario, ScenarioNode, NodeType, Bot, BotMenuButtonConfig } from '../types';
-import { Plus, Save, Trash2, ArrowRight, MessageSquare, HelpCircle, Search, UserCheck, X, GitMerge, MousePointer2, Move, LayoutGrid, Smartphone, Filter, Play, Send, Menu, Smartphone as PhoneIcon, Link as LinkIcon, Type, Zap, Globe, UploadCloud, Loader, Grid, Box, Crosshair, ChevronDown, Check, FolderOpen, DollarSign, Key, Settings, Download, Upload } from 'lucide-react';
+import { Plus, Save, Trash2, ArrowRight, MessageSquare, HelpCircle, Search, UserCheck, X, GitMerge, MousePointer2, Move, LayoutGrid, Smartphone, Filter, Play, Send, Menu, Smartphone as PhoneIcon, Link as LinkIcon, Type, Zap, Globe, UploadCloud, Loader, Grid, Box, Crosshair, ChevronDown, Check, FolderOpen, DollarSign, Key, Settings, Download, Upload, Megaphone } from 'lucide-react';
 import { useToast } from '../contexts/ToastContext';
 import { BotEngine } from '../services/botEngine';
 import { TelegramAPI } from '../services/telegram';
@@ -442,8 +442,12 @@ const ScenarioEditor = ({ scenario, onSave, onDelete, onTestRun }: any) => {
                         <ToolBtn label="Choices" onClick={() => addNode('QUESTION_CHOICE')} icon={MousePointer2} color="text-orange-400 bg-orange-900/20 border-orange-500/30" />
                         <ToolBtn label="Action" onClick={() => addNode('ACTION')} icon={Zap} color="text-pink-400 bg-pink-900/20 border-pink-500/30" />
                         <ToolBtn label="Search" onClick={() => addNode('SEARCH_CARS')} icon={Search} color="text-purple-400 bg-purple-900/20 border-purple-500/30" />
+                        <ToolBtn label="Fallback" onClick={() => addNode('SEARCH_FALLBACK')} icon={Filter} color="text-violet-400 bg-violet-900/20 border-violet-500/30" />
                         <ToolBtn label="Gallery" onClick={() => addNode('GALLERY')} icon={LayoutGrid} color="text-cyan-400 bg-cyan-900/20 border-cyan-500/30" />
                         <ToolBtn label="Condition" onClick={() => addNode('CONDITION')} icon={GitMerge} color="text-emerald-400 bg-emerald-900/20 border-emerald-500/30" />
+                        <ToolBtn label="Channel Post" onClick={() => addNode('CHANNEL_POST')} icon={Megaphone} color="text-sky-400 bg-sky-900/20 border-sky-500/30" />
+                        <ToolBtn label="Broadcast" onClick={() => addNode('REQUEST_BROADCAST')} icon={Send} color="text-indigo-400 bg-indigo-900/20 border-indigo-500/30" />
+                        <ToolBtn label="Offer Collect" onClick={() => addNode('OFFER_COLLECT')} icon={UserCheck} color="text-rose-400 bg-rose-900/20 border-rose-500/30" />
                     </div>
                 </div>
 
@@ -466,9 +470,13 @@ const NodeCard: React.FC<{ node: ScenarioNode, isActive: boolean, onMouseDown: (
             case 'MENU_REPLY': return { border: 'border-orange-500', icon: Menu, label: 'Menu Reply', color: 'text-orange-400', glow: 'shadow-orange-500/20' };
             case 'ACTION': return { border: 'border-pink-500', icon: Zap, label: 'System Action', color: 'text-pink-400', glow: 'shadow-pink-500/20' };
             case 'SEARCH_CARS': return { border: 'border-purple-500', icon: Search, label: 'Car Search', color: 'text-purple-400', glow: 'shadow-purple-500/20' };
+            case 'SEARCH_FALLBACK': return { border: 'border-violet-500', icon: Filter, label: 'Fallback Search', color: 'text-violet-400', glow: 'shadow-violet-500/20' };
             case 'CONDITION': return { border: 'border-emerald-500', icon: GitMerge, label: 'Logic', color: 'text-emerald-400', glow: 'shadow-emerald-500/20' };
             case 'REQUEST_CONTACT': return { border: 'border-green-500', icon: Smartphone, label: 'Get Contact', color: 'text-green-400', glow: 'shadow-green-500/20' };
             case 'GALLERY': return { border: 'border-cyan-500', icon: LayoutGrid, label: 'Gallery', color: 'text-cyan-400', glow: 'shadow-cyan-500/20' };
+            case 'CHANNEL_POST': return { border: 'border-sky-500', icon: Megaphone, label: 'Channel Post', color: 'text-sky-400', glow: 'shadow-sky-500/20' };
+            case 'REQUEST_BROADCAST': return { border: 'border-indigo-500', icon: Send, label: 'Request Broadcast', color: 'text-indigo-400', glow: 'shadow-indigo-500/20' };
+            case 'OFFER_COLLECT': return { border: 'border-rose-500', icon: UserCheck, label: 'Offer Collect', color: 'text-rose-400', glow: 'shadow-rose-500/20' };
             default: return { border: 'border-gray-500', icon: Box, label: node.type, color: 'text-gray-400', glow: '' };
         }
     };
@@ -538,7 +546,7 @@ const PropertiesPanel = ({ node, allNodes, onChange, onDelete, onClose }: any) =
             </div>
             
             <div className="flex-1 overflow-y-auto p-5 space-y-6 custom-scrollbar">
-                {(node.type === 'MESSAGE' || node.type.includes('QUESTION') || node.type === 'REQUEST_CONTACT' || node.type === 'MENU_REPLY' || node.type === 'GALLERY') && (
+                {(node.type === 'MESSAGE' || node.type.includes('QUESTION') || node.type === 'REQUEST_CONTACT' || node.type === 'MENU_REPLY' || node.type === 'GALLERY' || node.type === 'CHANNEL_POST' || node.type === 'REQUEST_BROADCAST' || node.type === 'OFFER_COLLECT') && (
                     <div className="space-y-4">
                         <div>
                             <label className="text-[10px] font-bold text-[var(--text-secondary)] uppercase mb-2 block">Message Text</label>
@@ -559,6 +567,107 @@ const PropertiesPanel = ({ node, allNodes, onChange, onDelete, onClose }: any) =
                                 <input className="input text-xs" placeholder="Russian Text" value={node.content.text_ru || ''} onChange={e => onChange({ content: { ...node.content, text_ru: e.target.value } })} />
                             </div>
                         </div>
+                    </div>
+                )}
+
+                {(node.type === 'CHANNEL_POST' || node.type === 'REQUEST_BROADCAST' || node.type === 'OFFER_COLLECT') && (
+                    <div className="space-y-4 bg-slate-900/20 p-4 rounded-xl border border-slate-500/20">
+                        <div>
+                            <label className="text-[10px] font-bold text-[var(--text-secondary)] uppercase mb-2 block">Destination ID</label>
+                            <input
+                                className="input text-xs font-mono"
+                                placeholder="Channel/chat ID"
+                                value={node.content.destinationId || ''}
+                                onChange={e => onChange({ content: { ...node.content, destinationId: e.target.value } })}
+                            />
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-bold text-[var(--text-secondary)] uppercase mb-2 block">Destination Variable</label>
+                            <input
+                                className="input text-xs font-mono"
+                                placeholder="e.g. destinationId"
+                                value={node.content.destinationVar || ''}
+                                onChange={e => onChange({ content: { ...node.content, destinationVar: e.target.value } })}
+                            />
+                        </div>
+
+                        {(node.type === 'REQUEST_BROADCAST' || node.type === 'OFFER_COLLECT') && (
+                            <>
+                                <div>
+                                    <label className="text-[10px] font-bold text-[var(--text-secondary)] uppercase mb-2 block">Request ID Variable</label>
+                                    <input
+                                        className="input text-xs font-mono"
+                                        placeholder="requestId"
+                                        value={node.content.requestIdVar || ''}
+                                        onChange={e => onChange({ content: { ...node.content, requestIdVar: e.target.value } })}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-bold text-[var(--text-secondary)] uppercase mb-2 block">Button Text</label>
+                                    <input
+                                        className="input text-xs"
+                                        placeholder="Подати пропозицію"
+                                        value={node.content.buttonText || ''}
+                                        onChange={e => onChange({ content: { ...node.content, buttonText: e.target.value } })}
+                                    />
+                                </div>
+                            </>
+                        )}
+
+                        {node.type === 'OFFER_COLLECT' && (
+                            <div>
+                                <label className="text-[10px] font-bold text-[var(--text-secondary)] uppercase mb-2 block">Dealer Chat Variable</label>
+                                <input
+                                    className="input text-xs font-mono"
+                                    placeholder="dealerChatId"
+                                    value={node.content.dealerChatVar || ''}
+                                    onChange={e => onChange({ content: { ...node.content, dealerChatVar: e.target.value } })}
+                                />
+                            </div>
+                        )}
+
+                        {node.type === 'CHANNEL_POST' && (
+                            <>
+                                <div>
+                                    <label className="text-[10px] font-bold text-[var(--text-secondary)] uppercase mb-2 block">Image URL</label>
+                                    <input
+                                        className="input text-xs font-mono"
+                                        placeholder="https://..."
+                                        value={node.content.imageUrl || ''}
+                                        onChange={e => onChange({ content: { ...node.content, imageUrl: e.target.value } })}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-bold text-[var(--text-secondary)] uppercase mb-2 block">Image Variable</label>
+                                    <input
+                                        className="input text-xs font-mono"
+                                        placeholder="imageUrl"
+                                        value={node.content.imageVar || ''}
+                                        onChange={e => onChange({ content: { ...node.content, imageVar: e.target.value } })}
+                                    />
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <div>
+                                        <label className="text-[10px] font-bold text-[var(--text-secondary)] uppercase mb-2 block">Scheduled At</label>
+                                        <input
+                                            className="input text-xs font-mono"
+                                            placeholder="2025-01-20T10:00"
+                                            value={node.content.scheduledAt || ''}
+                                            onChange={e => onChange({ content: { ...node.content, scheduledAt: e.target.value } })}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-bold text-[var(--text-secondary)] uppercase mb-2 block">Schedule Var</label>
+                                        <input
+                                            className="input text-xs font-mono"
+                                            placeholder="scheduledAt"
+                                            value={node.content.scheduledAtVar || ''}
+                                            onChange={e => onChange({ content: { ...node.content, scheduledAtVar: e.target.value } })}
+                                        />
+                                    </div>
+                                </div>
+                            </>
+                        )}
                     </div>
                 )}
 

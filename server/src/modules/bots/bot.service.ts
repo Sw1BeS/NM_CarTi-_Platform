@@ -4,6 +4,7 @@ import axios from 'axios';
 import { BotTemplate, LeadStatus } from '@prisma/client';
 import { prisma } from '../../services/prisma.js';
 import { parseStartPayload, type DeepLinkPayload } from '../../utils/deeplink.utils.js';
+import { ScenarioEngine } from './scenario.engine.js';
 
 
 
@@ -15,6 +16,8 @@ interface BotConfigModel {
     token: string;
     channelId: string | null;
     adminChatId: string | null;
+    companyId?: string | null;
+    config?: any;
 }
 
 // --- Bot Manager Class ---
@@ -154,7 +157,13 @@ class BotInstance {
 
     private async processUpdate(update: any) {
         if (update.callback_query) {
-            await this.handleCallback(update.callback_query);
+            const session = await this.ensureSession(update);
+            const handled = session
+                ? await ScenarioEngine.handleUpdate(this.config, session, update)
+                : false;
+            if (!handled) {
+                await this.handleCallback(update.callback_query);
+            }
             return;
         }
 
@@ -227,13 +236,19 @@ class BotInstance {
             data: { lastActive: new Date() }
         });
 
-        // 5. Handle deep-link payload first if present
+        // 5. Scenario Engine (primary)
+        const scenarioHandled = await ScenarioEngine.handleUpdate(this.config, session, update);
+        if (scenarioHandled) {
+            return;
+        }
+
+        // 6. Handle deep-link payload (legacy fallback)
         if (deepLinkPayload) {
             await this.handleDeepLink(msg, chatId, deepLinkPayload, session);
             return;
         }
 
-        // 6. Route based on Template
+        // 7. Route based on Template (fallback)
         switch (this.config.template) {
             case 'CLIENT_LEAD':
                 await this.handleClientBot(msg, chatId, text, session);
@@ -245,6 +260,25 @@ class BotInstance {
                 await this.handleB2BBot(msg, chatId, text, session);
                 break;
         }
+    }
+
+    private async ensureSession(update: any) {
+        const msg = update.message || update.callback_query?.message;
+        const chatId = msg?.chat?.id?.toString?.();
+        if (!chatId) return null;
+        const existing = await prisma.botSession.findUnique({
+            where: { botId_chatId: { botId: String(this.config.id), chatId } }
+        });
+        if (existing) return existing;
+        return prisma.botSession.create({
+            data: {
+                botId: String(this.config.id),
+                chatId,
+                state: 'START',
+                history: [],
+                variables: {}
+            }
+        });
     }
 
     // --- DEEP-LINK HANDLER ---

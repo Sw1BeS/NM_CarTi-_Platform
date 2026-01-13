@@ -79,7 +79,7 @@ export const IntegrationsPage = () => {
     const loadIntegrations = async () => {
         try {
             const response = await fetch('/api/integrations', {
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('cartie_token')}` }
             });
 
             if (response.ok) {
@@ -94,7 +94,7 @@ export const IntegrationsPage = () => {
     const loadConfig = async (type: string) => {
         try {
             const response = await fetch(`/api/integrations/${type}`, {
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('cartie_token')}` }
             });
 
             if (response.ok) {
@@ -120,7 +120,7 @@ export const IntegrationsPage = () => {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    'Authorization': `Bearer ${localStorage.getItem('cartie_token')}`
                 },
                 body: JSON.stringify({
                     config: configData,
@@ -148,7 +148,7 @@ export const IntegrationsPage = () => {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    'Authorization': `Bearer ${localStorage.getItem('cartie_token')}`
                 },
                 body: JSON.stringify({ isActive })
             });
@@ -168,7 +168,7 @@ export const IntegrationsPage = () => {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    'Authorization': `Bearer ${localStorage.getItem('cartie_token')}`
                 },
                 body: JSON.stringify({
                     event: 'test',

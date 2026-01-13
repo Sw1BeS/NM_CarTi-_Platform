@@ -52,7 +52,7 @@ export const CompanySettingsPage = () => {
     const loadUsers = async () => {
         try {
             const response = await fetch('/api/companies/current/users', {
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('cartie_token')}` }
             });
 
             if (response.ok) {
@@ -70,7 +70,7 @@ export const CompanySettingsPage = () => {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    'Authorization': `Bearer ${localStorage.getItem('cartie_token')}`
                 },
                 body: JSON.stringify(branding)
             });
@@ -93,7 +93,7 @@ export const CompanySettingsPage = () => {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    'Authorization': `Bearer ${localStorage.getItem('cartie_token')}`
                 },
                 body: JSON.stringify(inviteData)
             });
@@ -118,7 +118,7 @@ export const CompanySettingsPage = () => {
         try {
             const response = await fetch(`/api/companies/current/users/${userId}`, {
                 method: 'DELETE',
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('cartie_token')}` }
             });
 
             if (response.ok) {

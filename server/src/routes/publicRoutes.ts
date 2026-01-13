@@ -104,4 +104,140 @@ router.get('/bots', async (_req, res) => {
   res.json(sanitized);
 });
 
+// --- PUBLIC MARKETPLACE & DEALER API ---
+
+router.get('/requests', async (req, res) => {
+  try {
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const limit = Math.min(50, Number(req.query.limit) || 20);
+    const skip = (page - 1) * limit;
+
+    const [total, requests] = await Promise.all([
+      prisma.b2bRequest.count({
+        where: { status: { in: ['NEW', 'IN_PROGRESS', 'OPEN'] } }
+      }),
+      prisma.b2bRequest.findMany({
+        where: { status: { in: ['NEW', 'IN_PROGRESS', 'OPEN'] } },
+        include: { variants: true },
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+        skip
+      })
+    ]);
+
+    res.json({
+      items: requests.map(mapRequestOutput),
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit)
+    });
+  } catch (e: any) {
+    console.error(e);
+    res.status(500).json({ error: 'Failed to fetch public requests' });
+  }
+});
+
+router.get('/proposals/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    // Assuming 'RequestVariant' is used as a Proposal or there is a Proposal entity.
+    // Based on user request "proposals/:id", if Proposal is a generic entity or a variant.
+    // Checking serverAdapter, 'proposals' maps to generic entity 'b2b_proposal'.
+    // Let's support the Generic Entity 'b2b_proposal' mapping here.
+
+    // First check if it's a generic entity proposal
+    const proposal = await prisma.entityRecord.findFirst({
+      where: {
+        id,
+        entity: { slug: 'b2b_proposal' }
+      }
+    });
+
+    if (proposal) {
+      const proposalData = { ...(proposal.data || {}), id: proposal.id };
+      let variants: any[] = [];
+      if (proposalData.requestId) {
+        const request = await prisma.b2bRequest.findUnique({
+          where: { id: proposalData.requestId },
+          include: { variants: true }
+        });
+        if (request) {
+          const allowed = Array.isArray(proposalData.variantIds) ? proposalData.variantIds : [];
+          variants = (request.variants || [])
+            .filter(v => allowed.length === 0 || allowed.includes(v.id))
+            .map(mapVariantOutput);
+        }
+      }
+      return res.json({ ok: true, proposal: proposalData, variants });
+    }
+
+    // Fallback: Check if it refers to a RequestVariant (often used interchangeably in simple setups)
+    const variant = await prisma.requestVariant.findUnique({
+      where: { id },
+      include: { request: true }
+    });
+
+    if (variant) {
+      return res.json({ ok: true, proposal: null, variants: [mapVariantOutput(variant)] });
+    }
+
+    res.status(404).json({ error: 'Proposal not found' });
+  } catch (e: any) {
+    console.error(e);
+    res.status(500).json({ error: 'Failed to fetch proposal' });
+  }
+});
+
+router.post('/proposals/:id/view', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const record = await prisma.entityRecord.findFirst({
+      where: { id, entity: { slug: 'b2b_proposal' } }
+    });
+    if (!record) return res.status(404).json({ error: 'Proposal not found' });
+
+    const data = (record.data && typeof record.data === 'object') ? (record.data as any) : {};
+    const views = Number(data.views || 0) + 1;
+    const next = { ...data, views, status: data.status || 'VIEWED' };
+
+    await prisma.entityRecord.update({
+      where: { id: record.id },
+      data: { data: next }
+    });
+
+    res.json({ ok: true, views });
+  } catch (e: any) {
+    console.error(e);
+    res.status(500).json({ error: 'Failed to update views' });
+  }
+});
+
+router.post('/proposals/:id/feedback', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { variantId, type } = req.body || {};
+    if (!variantId || !type) return res.status(400).json({ error: 'variantId and type are required' });
+
+    const record = await prisma.entityRecord.findFirst({
+      where: { id, entity: { slug: 'b2b_proposal' } }
+    });
+    if (!record) return res.status(404).json({ error: 'Proposal not found' });
+
+    const data = (record.data && typeof record.data === 'object') ? (record.data as any) : {};
+    const clientFeedback = { ...(data.clientFeedback || {}), [variantId]: type };
+    const next = { ...data, clientFeedback };
+
+    await prisma.entityRecord.update({
+      where: { id: record.id },
+      data: { data: next }
+    });
+
+    res.json({ ok: true });
+  } catch (e: any) {
+    console.error(e);
+    res.status(500).json({ error: 'Failed to save feedback' });
+  }
+});
+
 export default router;

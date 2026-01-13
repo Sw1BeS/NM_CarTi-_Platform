@@ -23,6 +23,14 @@ export const SearchPage = () => {
 
     const [results, setResults] = useState<any[]>([]);
     const [sourceFilter, setSourceFilter] = useState<'ALL' | 'INTERNAL' | 'EXTERNAL'>('ALL');
+    const [parsePreview, setParsePreview] = useState<{
+        title: string;
+        price: string;
+        vin: string;
+        image: string;
+        sourceId: string;
+        source: string;
+    } | null>(null);
 
     const [requests, setRequests] = useState<B2BRequest[]>([]);
     const [selectedReqId, setSelectedReqId] = useState<string>('');
@@ -86,11 +94,21 @@ export const SearchPage = () => {
         setLoading(true);
         setResults([]);
         setErrorMsg('');
+        setParsePreview(null);
 
         try {
             // Use Real CarSearchEngine
             const data = await CarSearchEngine.parseUrl(directUrl);
             setResults([{ ...data, url: directUrl, source: data.source }]);
+            const priceLabel = data.price ? `${data.price.amount.toLocaleString()} ${data.price.currency}` : '—';
+            setParsePreview({
+                title: data.title || '—',
+                price: priceLabel,
+                vin: data.specs?.vin || '—',
+                image: (data.mediaUrls && data.mediaUrls.length > 0 ? data.mediaUrls[0] : data.thumbnail) || '—',
+                sourceId: data.sourceId || '—',
+                source: data.source || '—'
+            });
         } catch (err: any) {
             console.error(err);
             setErrorMsg(err.message || "Failed to parse URL. Ensure it's a valid public listing.");
@@ -180,13 +198,13 @@ export const SearchPage = () => {
             <div className="flex justify-between items-end border-b border-[var(--border-color)] shrink-0">
                 <div className="flex gap-4">
                     <button
-                        onClick={() => { setMode('GLOBAL'); setResults([]); setQuery(''); setErrorMsg(''); }}
+                        onClick={() => { setMode('GLOBAL'); setResults([]); setQuery(''); setErrorMsg(''); setParsePreview(null); }}
                         className={`pb-3 px-2 text-sm font-medium transition-colors flex items-center gap-2 ${mode === 'GLOBAL' ? 'border-b-2 border-gold-500 text-gold-500' : 'text-[var(--text-secondary)]'}`}
                     >
                         <Globe size={16} /> Global Search
                     </button>
                     <button
-                        onClick={() => { setMode('DIRECT'); setResults([]); setDirectUrl(''); setErrorMsg(''); }}
+                        onClick={() => { setMode('DIRECT'); setResults([]); setDirectUrl(''); setErrorMsg(''); setParsePreview(null); }}
                         className={`pb-3 px-2 text-sm font-medium transition-colors flex items-center gap-2 ${mode === 'DIRECT' ? 'border-b-2 border-gold-500 text-gold-500' : 'text-[var(--text-secondary)]'}`}
                     >
                         <LinkIcon size={16} /> Direct URL Parser
@@ -264,6 +282,37 @@ export const SearchPage = () => {
                         <span className="text-sm font-medium">{errorMsg}</span>
                     </div>
                 )}
+
+                {mode === 'DIRECT' && parsePreview && (
+                    <div className="mt-4 bg-[var(--bg-input)] border border-[var(--border-color)] rounded-lg p-4 text-xs">
+                        <div className="flex justify-between items-center mb-3">
+                            <span className="font-bold text-[var(--text-primary)]">Parse Verification</span>
+                            <span className="text-[10px] text-[var(--text-secondary)] uppercase">Source: {parsePreview.source}</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3 text-[var(--text-secondary)]">
+                            <div>
+                                <div className="text-[10px] uppercase font-bold">Title</div>
+                                <div className="text-[var(--text-primary)]">{parsePreview.title}</div>
+                            </div>
+                            <div>
+                                <div className="text-[10px] uppercase font-bold">Price</div>
+                                <div className="text-[var(--text-primary)]">{parsePreview.price}</div>
+                            </div>
+                            <div>
+                                <div className="text-[10px] uppercase font-bold">VIN</div>
+                                <div className="text-[var(--text-primary)]">{parsePreview.vin}</div>
+                            </div>
+                            <div>
+                                <div className="text-[10px] uppercase font-bold">Source ID</div>
+                                <div className="text-[var(--text-primary)]">{parsePreview.sourceId}</div>
+                            </div>
+                            <div className="col-span-2">
+                                <div className="text-[10px] uppercase font-bold">images[0]</div>
+                                <div className="text-[var(--text-primary)] break-all">{parsePreview.image}</div>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Results */}
@@ -316,8 +365,33 @@ export const SearchPage = () => {
                                             <button
                                                 onClick={() => handleImport(res, idx)}
                                                 className="btn-primary text-sm flex items-center gap-2"
+                                                title="Import to Request"
                                             >
-                                                <Download size={18} /> Import
+                                                <Download size={18} />
+                                            </button>
+                                        )}
+
+                                        {/* Add to Stock Button */}
+                                        {res.source !== 'INTERNAL' && (
+                                            <button
+                                                onClick={async () => {
+                                                    try {
+                                                        await Data.saveInventoryItem({
+                                                            ...res,
+                                                            id: `car_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                                                            status: 'AVAILABLE',
+                                                            source: 'EXTERNAL_IMPORT',
+                                                            importedAt: new Date().toISOString()
+                                                        } as any);
+                                                        showToast("Saved to Stock!", 'success');
+                                                    } catch (e: any) {
+                                                        showToast("Failed to save to stock", 'error');
+                                                    }
+                                                }}
+                                                className="btn-secondary px-3 py-2 text-green-500 hover:bg-green-500/10"
+                                                title="Save to Stock"
+                                            >
+                                                <Plus size={18} /> Stock
                                             </button>
                                         )}
                                     </div>

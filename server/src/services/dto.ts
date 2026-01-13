@@ -219,6 +219,12 @@ export const mapRequestInput = (input: any) => {
   const chatId = input.chatId ?? input.clientChatId;
   if (chatId !== undefined) data.chatId = String(chatId);
   if ('content' in input) data.content = input.content ?? null;
+  if ('assignedTo' in input || 'assigneeId' in input) {
+    data.assignedTo = input.assignedTo ?? input.assigneeId ?? null;
+  }
+  if ('internalNote' in input || 'internalNotes' in input || 'notes' in input) {
+    data.internalNotes = input.internalNote ?? input.internalNotes ?? input.notes ?? null;
+  }
   return data;
 };
 
@@ -235,6 +241,9 @@ export const mapRequestOutput = (request: any) => ({
   language: request.language ?? undefined,
   status: request.status ?? 'NEW',
   priority: request.priority ?? 'NORMAL',
+  assigneeId: request.assignedTo ?? undefined,
+  internalNote: request.internalNotes ?? undefined,
+  clientChatId: request.chatId ?? undefined,
   createdAt: request.createdAt,
   updatedAt: request.updatedAt,
   variants: (request.variants || []).map(mapVariantOutput)

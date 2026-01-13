@@ -1,7 +1,7 @@
 
 import React, { useEffect, useRef } from 'react';
 import { Data } from '../services/data';
-import { TelegramAPI } from '../services/telegram';
+import { ApiClient } from '../services/apiClient';
 import { BotEngine } from '../services/botEngine';
 import { Bot } from '../types';
 import { useAuth } from './AuthContext';
@@ -37,6 +37,12 @@ export const WorkerProvider = ({ children }: React.PropsWithChildren) => {
 
     useEffect(() => {
         isMounted.current = true;
+
+        const meta = import.meta as any;
+        const isProdHost = typeof window !== 'undefined'
+            && !['localhost', '127.0.0.1'].includes(window.location.hostname);
+        const disablePolling = meta.env?.VITE_DISABLE_CLIENT_POLLING === 'true' || isProdHost;
+        const disableCampaigns = meta.env?.VITE_DISABLE_CLIENT_CAMPAIGNS === 'true';
 
         const token = localStorage.getItem('cartie_token');
         if (!user || !token) {
@@ -82,12 +88,14 @@ export const WorkerProvider = ({ children }: React.PropsWithChildren) => {
                                         .replace(/{{name}}/g, dest.name || 'Friend')
                                         .replace(/{{manager}}/g, 'Cartie Agent');
 
-                                    let sentMsg;
-                                    // Send Logic
-                                    if (content.mediaUrls && content.mediaUrls.length > 0) {
-                                        sentMsg = await TelegramAPI.sendPhoto(bot.token, dest.identifier, content.mediaUrls[0], bodyText);
-                                    } else {
-                                        sentMsg = await TelegramAPI.sendMessage(bot.token, dest.identifier, bodyText);
+                                    const sendRes = await ApiClient.post('messages/send', {
+                                        chatId: dest.identifier,
+                                        text: bodyText,
+                                        imageUrl: content.mediaUrls?.[0],
+                                        botId: bot.id
+                                    });
+                                    if (!sendRes.ok) {
+                                        throw new Error(sendRes.message || 'Send failed');
                                     }
 
                                     // Async save log (Data service handles notification)
@@ -99,7 +107,7 @@ export const WorkerProvider = ({ children }: React.PropsWithChildren) => {
                                             destinationId: nextId,
                                             status: 'SUCCESS' as const,
                                             sentAt: new Date().toISOString(),
-                                            messageId: sentMsg?.message_id || 0
+                                            messageId: (sendRes.data as any)?.result?.message_id || 0
                                         };
                                         updatedCamp.logs.push(newLog);
                                         updatedCamp.progress.sent = updatedCamp.logs.filter(l => l.status === 'SUCCESS').length;
@@ -218,8 +226,8 @@ export const WorkerProvider = ({ children }: React.PropsWithChildren) => {
             runPoll();
         };
 
-        startCampaignWorker();
-        startPollingWorker();
+        if (!disableCampaigns) startCampaignWorker();
+        if (!disablePolling) startPollingWorker();
 
         return () => {
             isMounted.current = false;

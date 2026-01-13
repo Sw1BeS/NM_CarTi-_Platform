@@ -1,33 +1,23 @@
 
 import React, { useState, useEffect } from 'react';
 import { Data } from '../services/data';
-import { TelegramAPI } from '../services/telegram';
-import { CarListing, TelegramDestination, Bot, ContentStatus } from '../types';
+import { ApiClient } from '../services/apiClient';
+import { DraftsService, DraftRecord } from '../services/draftsService';
+import { CarListing, TelegramDestination, Bot } from '../types';
 import { useToast } from '../contexts/ToastContext';
 import { Send, Image as ImageIcon, Calendar, Eye, X, Check, Plus, Search, Filter } from 'lucide-react';
-import { formatCarCaptionForTelegram } from '../services/carCaptionFormatter';
+import { ContentGenerator } from '../services/contentGenerator';
 
 type PostTemplate = 'IN_STOCK' | 'IN_TRANSIT' | 'CUSTOM';
 
-interface DraftPost {
-    id: string;
-    carId?: string;
-    template: PostTemplate;
-    text: string;
-    imageUrl?: string;
-    destination: string;
-    scheduledAt?: string;
-    status: 'DRAFT' | 'SCHEDULED' | 'POSTED';
-}
-
 const TEMPLATES = {
     IN_STOCK: {
-        ua: '🚗 <b>Нова пропозиція!</b>\n\n{car}\n\n✅ В наявності\n📞 Зв\'яжіться для деталей',
-        ru: '🚗 <b>Новое предложение!</b>\n\n{car}\n\n✅ В наличии\n📞 Свяжитесь для деталей'
+        ua: '🚗 <b>{title}</b>\n\n💰 {price} {currency}\n📍 {city}\n🗓 {year} | 🛣 {mileage} км\n⚙️ {specs}\n\n✅ В наявності\n📞 Зв\'яжіться для деталей\n\n{hashtags}',
+        ru: '🚗 <b>{title}</b>\n\n💰 {price} {currency}\n📍 {city}\n🗓 {year} | 🛣 {mileage} км\n⚙️ {specs}\n\n✅ В наличии\n📞 Свяжитесь для деталей\n\n{hashtags}'
     },
     IN_TRANSIT: {
-        ua: '📦 <b>В дорозі!</b>\n\n{car}\n\n🚢 Скоро в наявності\n📞 Бронюйте зараз',
-        ru: '📦 <b>В пути!</b>\n\n{car}\n\n🚢 Скоро в наличии\n📞 Бронируйте сейчас'
+        ua: '📦 <b>{title}</b>\n\n💰 {price} {currency}\n📍 {city}\n🗓 {year} | 🛣 {mileage} км\n⚙️ {specs}\n\n🚢 Скоро в наявності\n📞 Бронюйте зараз\n\n{hashtags}',
+        ru: '📦 <b>{title}</b>\n\n💰 {price} {currency}\n📍 {city}\n🗓 {year} | 🛣 {mileage} км\n⚙️ {specs}\n\n🚢 Скоро в наличии\n📞 Бронируйте сейчас\n\n{hashtags}'
     }
 };
 
@@ -35,13 +25,14 @@ export const ContentPage = () => {
     const [inventory, setInventory] = useState<CarListing[]>([]);
     const [destinations, setDestinations] = useState<TelegramDestination[]>([]);
     const [bots, setBots] = useState<Bot[]>([]);
-    const [drafts, setDrafts] = useState<DraftPost[]>([]);
+    const [drafts, setDrafts] = useState<DraftRecord[]>([]);
     const [isCreating, setIsCreating] = useState(false);
     const [selectedCar, setSelectedCar] = useState<CarListing | null>(null);
     const [template, setTemplate] = useState<PostTemplate>('IN_STOCK');
     const [customText, setCustomText] = useState('');
     const [selectedDest, setSelectedDest] = useState('');
     const [scheduleDate, setScheduleDate] = useState('');
+    const [postLang, setPostLang] = useState<'UA' | 'RU'>('UA');
     const [searchQuery, setSearchQuery] = useState('');
     const { showToast } = useToast();
 
@@ -50,57 +41,56 @@ export const ContentPage = () => {
     }, []);
 
     const loadData = async () => {
-        const [inv, dests, botList] = await Promise.all([
+        const [inv, dests, botList, draftList] = await Promise.all([
             Data.getInventory(),
             Data.getDestinations(),
-            Data.getBots()
+            Data.getBots(),
+            DraftsService.getDrafts()
         ]);
         setInventory(inv.filter(c => c.status === 'AVAILABLE'));
-        setDestinations(dests.filter(d => d.type === 'CHANNEL' || d.type === 'GROUP'));
+        setDestinations(dests.filter(d => d.type === 'CHANNEL'));
         setBots(botList.filter(b => b.active));
-
-        // Load drafts from localStorage
-        const stored = localStorage.getItem('content_drafts');
-        if (stored) {
-            try {
-                setDrafts(JSON.parse(stored));
-            } catch (e) { }
-        }
+        setDrafts(draftList);
     };
 
     const generatePreview = () => {
         if (!selectedCar) return '';
-
-        const carCaption = formatCarCaptionForTelegram(selectedCar, 'UK');
+        const lang = postLang === 'RU' ? 'RU' : 'UK';
 
         if (template === 'CUSTOM') {
-            return customText.replace('{car}', carCaption);
+            return ContentGenerator.fromCarTemplate(selectedCar, customText, lang);
         }
 
-        return TEMPLATES[template].ua.replace('{car}', carCaption);
+        const tpl = postLang === 'RU' ? TEMPLATES[template].ru : TEMPLATES[template].ua;
+        return ContentGenerator.fromCarTemplate(selectedCar, tpl, lang);
     };
 
-    const createDraft = () => {
+    const createDraft = async () => {
         if (!selectedCar || !selectedDest) {
             showToast('Select car and destination', 'error');
             return;
         }
 
-        const draft: DraftPost = {
-            id: `draft_${Date.now()}`,
-            carId: selectedCar.canonicalId,
-            template,
-            text: generatePreview(),
-            imageUrl: selectedCar.thumbnail,
+        const bot = bots[0];
+        if (!bot) {
+            showToast('No active bot found', 'error');
+            return;
+        }
+
+        const scheduledAt = scheduleDate ? new Date(scheduleDate).toISOString() : undefined;
+        const created = await DraftsService.createDraft({
+            source: 'MANUAL',
+            title: selectedCar.title,
+            description: generatePreview(),
+            url: selectedCar.thumbnail,
             destination: selectedDest,
-            scheduledAt: scheduleDate || undefined,
-            status: scheduleDate ? 'SCHEDULED' : 'DRAFT'
-        };
+            scheduledAt: scheduledAt,
+            status: scheduleDate ? 'SCHEDULED' : 'DRAFT',
+            botId: bot.id,
+            metadata: { carId: selectedCar.canonicalId, template, lang: postLang }
+        });
 
-        const updated = [...drafts, draft];
-        setDrafts(updated);
-        localStorage.setItem('content_drafts', JSON.stringify(updated));
-
+        setDrafts([created, ...drafts]);
         showToast(`Draft created${scheduleDate ? ' and scheduled' : ''}`, 'success');
         setIsCreating(false);
         resetForm();
@@ -116,12 +106,26 @@ export const ContentPage = () => {
         const text = generatePreview();
 
         try {
-            if (selectedCar.thumbnail) {
-                await TelegramAPI.sendPhoto(bot.token, selectedDest, selectedCar.thumbnail, text);
-            } else {
-                await TelegramAPI.sendMessage(bot.token, selectedDest, text);
-            }
+            const res = await ApiClient.post('messages/send', {
+                chatId: selectedDest,
+                text,
+                imageUrl: selectedCar.thumbnail || undefined,
+                botId: bot.id
+            });
+            if (!res.ok) throw new Error(res.message);
 
+            const created = await DraftsService.createDraft({
+                source: 'MANUAL',
+                title: selectedCar.title,
+                description: text,
+                url: selectedCar.thumbnail,
+                destination: selectedDest,
+                status: 'POSTED',
+                postedAt: new Date().toISOString(),
+                botId: bot.id,
+                metadata: { carId: selectedCar.canonicalId, template, lang: postLang }
+            });
+            setDrafts([created, ...drafts]);
             showToast('Posted to channel!', 'success');
             setIsCreating(false);
             resetForm();
@@ -130,10 +134,10 @@ export const ContentPage = () => {
         }
     };
 
-    const deleteDraft = (id: string) => {
+    const deleteDraft = async (id: number) => {
+        await DraftsService.deleteDraft(id);
         const updated = drafts.filter(d => d.id !== id);
         setDrafts(updated);
-        localStorage.setItem('content_drafts', JSON.stringify(updated));
         showToast('Draft deleted', 'success');
     };
 
@@ -143,6 +147,7 @@ export const ContentPage = () => {
         setCustomText('');
         setSelectedDest('');
         setScheduleDate('');
+        setPostLang('UA');
     };
 
     const filteredInventory = inventory.filter(car =>
@@ -172,20 +177,21 @@ export const ContentPage = () => {
                 <h3 className="font-bold text-[var(--text-primary)] mb-4">Drafts & Scheduled</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 overflow-y-auto max-h-[calc(100%-2rem)]">
                     {drafts.map(draft => {
-                        const car = inventory.find(c => c.canonicalId === draft.carId);
+                        const carId = typeof draft.metadata === 'object' ? draft.metadata?.carId : undefined;
+                        const car = inventory.find(c => c.canonicalId === carId);
                         const dest = destinations.find(d => d.identifier === draft.destination);
 
                         return (
                             <div key={draft.id} className="bg-[var(--bg-input)] rounded-xl border border-[var(--border-color)] p-4 flex flex-col gap-3">
-                                {draft.imageUrl && (
-                                    <img src={draft.imageUrl} className="w-full h-32 object-cover rounded-lg" alt="" />
+                                {draft.url && (
+                                    <img src={draft.url} className="w-full h-32 object-cover rounded-lg" alt="" />
                                 )}
                                 <div className="flex-1">
                                     <div className="text-xs font-mono text-[var(--text-secondary)] mb-2">
-                                        {car?.title || 'Unknown Car'}
+                                        {car?.title || draft.title || 'Unknown Car'}
                                     </div>
                                     <div className="text-xs text-[var(--text-muted)] line-clamp-3">
-                                        {draft.text}
+                                        {draft.description}
                                     </div>
                                 </div>
                                 <div className="flex items-center justify-between text-xs">
@@ -204,6 +210,12 @@ export const ContentPage = () => {
                                     <div className="text-[10px] text-[var(--text-secondary)] flex items-center gap-1">
                                         <Calendar size={10} />
                                         {new Date(draft.scheduledAt).toLocaleString()}
+                                    </div>
+                                )}
+                                {draft.postedAt && (
+                                    <div className="text-[10px] text-[var(--text-secondary)] flex items-center gap-1">
+                                        <Check size={10} />
+                                        {new Date(draft.postedAt).toLocaleString()}
                                     </div>
                                 )}
                                 <button
@@ -302,16 +314,42 @@ export const ContentPage = () => {
                                     </div>
                                 </div>
 
+                                <div>
+                                    <label className="text-xs font-bold text-[var(--text-secondary)] uppercase block mb-2">
+                                        Language
+                                    </label>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <button
+                                            onClick={() => setPostLang('UA')}
+                                            className={`py-2 px-3 rounded text-xs font-bold transition-colors ${postLang === 'UA'
+                                                    ? 'bg-gold-500 text-black'
+                                                    : 'bg-[var(--bg-input)] text-[var(--text-secondary)]'
+                                                }`}
+                                        >
+                                            Українська
+                                        </button>
+                                        <button
+                                            onClick={() => setPostLang('RU')}
+                                            className={`py-2 px-3 rounded text-xs font-bold transition-colors ${postLang === 'RU'
+                                                    ? 'bg-gold-500 text-black'
+                                                    : 'bg-[var(--bg-input)] text-[var(--text-secondary)]'
+                                                }`}
+                                        >
+                                            Русский
+                                        </button>
+                                    </div>
+                                </div>
+
                                 {template === 'CUSTOM' && (
                                     <div>
                                         <label className="text-xs font-bold text-[var(--text-secondary)] uppercase block mb-2">
-                                            Custom Text (use {'{car}'} for car info)
+                                            Custom Text (use variables like {'{title}'}, {'{price}'}, {'{hashtags}'})
                                         </label>
                                         <textarea
                                             className="textarea h-32"
                                             value={customText}
                                             onChange={e => setCustomText(e.target.value)}
-                                            placeholder="🚗 Your custom post text here...\n\n{car}"
+                                            placeholder="🚗 Your custom post text here...\n\n{title}\n💰 {price} {currency}\n{hashtags}"
                                         />
                                     </div>
                                 )}
