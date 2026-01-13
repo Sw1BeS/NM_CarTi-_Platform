@@ -5,6 +5,8 @@ import { B2BRequest, Variant, VariantStatus, TelegramContent, ContentStatus } fr
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Data } from '../services/data';
 import { ContentGenerator } from '../services/contentGenerator';
+import { CarSearchEngine } from '../services/carService'; // Real Service
+import { RequestsService } from '../services/requestsService'; // Real Service
 import { useToast } from '../contexts/ToastContext';
 
 export const SearchPage = () => {
@@ -28,8 +30,9 @@ export const SearchPage = () => {
     const [previewItem, setPreviewItem] = useState<{ item: Partial<Variant> & { description?: string }, idx: number } | null>(null);
 
     useEffect(() => {
-        MockDb.getRequests().then(reqs => {
-            const activeReqs = reqs.filter(r => r.status !== 'CLOSED' && r.status !== 'PUBLISHED');
+        // Load Requests via RequestsService (API)
+        RequestsService.getRequests({ status: 'ALL', limit: 100 }).then(res => {
+            const activeReqs = res.items.filter(r => r.status && r.status !== 'CLOSED' && r.status !== 'PUBLISHED');
             setRequests(activeReqs);
 
             const paramId = searchParams.get('requestId');
@@ -55,8 +58,20 @@ export const SearchPage = () => {
         setLoading(true);
         setErrorMsg('');
         setResults([]);
+
         try {
-            const data = await MockDb.searchGlobal(q);
+            // Simplified parsing of query string for demo purposes
+            // In a real app, you might parse "BMW X5 2020" into brand/model/year
+            const parts = q.split(' ');
+            const brand = parts[0];
+            const model = parts.slice(1).join(' ');
+
+            // Use Real CarSearchEngine
+            const data = await CarSearchEngine.searchAll({
+                brand: brand || '',
+                model: model || '',
+                priceMax: 0
+            });
             setResults(data);
         } catch (e: any) {
             setErrorMsg(e.message);
@@ -73,7 +88,8 @@ export const SearchPage = () => {
         setErrorMsg('');
 
         try {
-            const data = await MockDb.parseUrl(directUrl);
+            // Use Real CarSearchEngine
+            const data = await CarSearchEngine.parseUrl(directUrl);
             setResults([{ ...data, url: directUrl, source: data.source }]);
         } catch (err: any) {
             console.error(err);
@@ -84,29 +100,38 @@ export const SearchPage = () => {
     };
 
     const handleImport = async (result: any, index: number) => {
-        if (!selectedReqId) return alert("Select a request first");
+        if (!selectedReqId) {
+            showToast("Select a request first", 'error');
+            return;
+        }
 
         let finalPrice = 0;
         if (result.price) {
             finalPrice = typeof result.price === 'object' ? result.price.amount : result.price;
         }
 
-        await MockDb.addVariant(selectedReqId, {
-            ...result,
-            price: finalPrice,
-            url: result.sourceUrl || result.url,
-            source: mode === 'DIRECT' ? 'Direct Parse' : result.source,
-            status: VariantStatus.PENDING
-        });
+        try {
+            // Use Real RequestsService
+            await RequestsService.addVariant(selectedReqId, {
+                ...result,
+                price: finalPrice,
+                sourceUrl: result.sourceUrl || result.url,
+                source: mode === 'DIRECT' ? 'Direct Parse' : result.source,
+                status: VariantStatus.PENDING
+            });
 
-        const newSet = new Set(importedIds);
-        newSet.add(index);
-        setImportedIds(newSet);
-        setPreviewItem(null);
-        showToast("Added to request!");
+            const newSet = new Set(importedIds);
+            newSet.add(index);
+            setImportedIds(newSet);
+            setPreviewItem(null);
+            showToast("Added to request!", 'success');
+        } catch (e: any) {
+            showToast(e.message || "Import failed", 'error');
+        }
     };
 
     const handleDraftPost = async (result: any) => {
+        // Use Data Service (Proxies to API)
         const tempVariant: any = {
             ...result,
             specs: result.specs || { engine: 'N/A', transmission: 'N/A', fuel: 'N/A' }
@@ -123,7 +148,7 @@ export const SearchPage = () => {
         };
 
         await Data.saveContent({ ...contentData, id: `cnt_${Date.now()}`, createdAt: new Date().toISOString() } as any);
-        showToast("Draft created! Redirecting...");
+        showToast("Draft created! Redirecting...", 'success');
         navigate('/telegram');
     };
 
@@ -178,14 +203,14 @@ export const SearchPage = () => {
             {/* Input Area */}
             <div className="panel p-6 shrink-0">
                 {mode === 'GLOBAL' ? (
-                    <form onSubmit={handleSearch} className="flex gap-4">
+                    <form onSubmit={e => handleSearch(e)} className="flex gap-4">
                         <div className="flex-1 relative">
                             <Globe className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)]" size={20} />
                             <input
                                 type="text"
                                 value={query}
                                 onChange={e => setQuery(e.target.value)}
-                                placeholder="Enter keywords (e.g. 'BMW X5 2021 white')..."
+                                placeholder="Enter keywords (e.g. 'BMW X5')..."
                                 className="input pl-10 py-3"
                             />
                         </div>
