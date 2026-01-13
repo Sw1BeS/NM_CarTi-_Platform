@@ -21,7 +21,8 @@ export const seedAdmin = async () => {
                 email: adminEmail,
                 password: hash,
                 name: "Super Admin",
-                role: "ADMIN"
+                role: "ADMIN",
+                companyId: "company_system"  // Stage C: assign to system company
             }
         });
         const passwordHint = process.env.NODE_ENV === 'production' ? '[set via SEED_ADMIN_PASSWORD]' : adminPassword;

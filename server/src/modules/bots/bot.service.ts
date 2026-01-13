@@ -3,6 +3,7 @@ import axios from 'axios';
 // @ts-ignore
 import { BotTemplate, LeadStatus } from '@prisma/client';
 import { prisma } from '../../services/prisma.js';
+import { parseStartPayload, type DeepLinkPayload } from '../../utils/deeplink.utils.js';
 
 
 
@@ -162,7 +163,26 @@ class BotInstance {
         const chatId = msg.chat.id.toString();
         const text = msg.text || '';
 
-        // 1. Load Session
+        // 1. Log incoming message to database
+        try {
+            await prisma.$executeRaw`
+                INSERT INTO "BotMessage" (id, "botId", "chatId", direction, text, "messageId", payload, "createdAt")
+                VALUES (
+                    gen_random_uuid()::text,
+                    ${String(this.config.id)},
+                    ${chatId},
+                    'INCOMING',
+                    ${text},
+                    ${msg.message_id},
+                    ${JSON.stringify({ from: msg.from, chat: msg.chat })}::jsonb,
+                    NOW()
+                )
+            `;
+        } catch (e) {
+            console.error('[BotMessage] Failed to log incoming message:', e);
+        }
+
+        // 2. Load Session
         let session = await prisma.botSession.findUnique({
             where: { botId_chatId: { botId: String(this.config.id), chatId } }
         });
@@ -179,15 +199,41 @@ class BotInstance {
             });
         }
 
-        // 2. Update Access Time & History
-        // optimization: push message id/text to history array (limit size?)
-        // for now just update lastActive
+        // 3. Parse /start payload (deep-links)
+        let deepLinkPayload: DeepLinkPayload | null = null;
+        if (text.startsWith('/start')) {
+            const parts = text.split(' ');
+            if (parts.length > 1) {
+                deepLinkPayload = parseStartPayload(parts[1]);
+                if (deepLinkPayload) {
+                    console.log(`[DeepLink] Parsed: ${deepLinkPayload.type} -> ${deepLinkPayload.id}`);
+                    // Store in session variables for later use
+                    await prisma.botSession.update({
+                        where: { id: session.id },
+                        data: {
+                            variables: {
+                                ...(session.variables as any || {}),
+                                deepLink: deepLinkPayload
+                            }
+                        }
+                    });
+                }
+            }
+        }
+
+        // 4. Update Access Time
         await prisma.botSession.update({
             where: { id: session.id },
             data: { lastActive: new Date() }
         });
 
-        // 3. Route based on Template
+        // 5. Handle deep-link payload first if present
+        if (deepLinkPayload) {
+            await this.handleDeepLink(msg, chatId, deepLinkPayload, session);
+            return;
+        }
+
+        // 6. Route based on Template
         switch (this.config.template) {
             case 'CLIENT_LEAD':
                 await this.handleClientBot(msg, chatId, text, session);
@@ -198,6 +244,53 @@ class BotInstance {
             case 'B2B':
                 await this.handleB2BBot(msg, chatId, text, session);
                 break;
+        }
+    }
+
+    // --- DEEP-LINK HANDLER ---
+    private async handleDeepLink(msg: any, chatId: string, payload: DeepLinkPayload, session: any) {
+        switch (payload.type) {
+            case 'dealer_invite':
+                // Dealer joining from channel post
+                await this.sendMessage(chatId, `🤝 <b>Welcome, Dealer!</b>\n\nYou've been invited to join our partner network.\n\nPlease share your contact to proceed.`, {
+                    keyboard: [[{ text: "📱 Share Contact", request_contact: true }]], resize_keyboard: true
+                });
+                await this.updateState(session.id, 'DEALER_ONBOARDING', {
+                    role: 'DEALER',
+                    dealerId: payload.id,
+                    requestId: payload.metadata?.requestId
+                });
+                break;
+
+            case 'request':
+                // Public request link shared to client/dealer
+                try {
+                    const request = await prisma.b2bRequest.findUnique({
+                        where: { publicId: payload.id },
+                        include: { variants: true }
+                    });
+                    if (request) {
+                        await this.sendMessage(chatId, `📋 <b>Request: ${request.title}</b>\n\n${request.description || ''}\n\n💰 Budget: $${request.budgetMin}-${request.budgetMax}\n📅 Year: ${request.yearMin}-${request.yearMax}\n📍 ${request.city || 'Any'}`);
+                        if (request.variants.length > 0) {
+                            await this.sendMessage(chatId, `Found ${request.variants.length} options. Contact us to view.`);
+                        }
+                    } else {
+                        await this.sendMessage(chatId, `❌ Request not found or expired.`);
+                    }
+                } catch (e) {
+                    console.error('[DeepLink] Failed to load request:', e);
+                    await this.sendMessage(chatId, `⚠️ Error loading request.`);
+                }
+                break;
+
+            case 'offer':
+                // Offer notification from dealer to client
+                await this.sendMessage(chatId, `📦 <b>New Offer Available</b>\n\nA dealer has submitted an offer for your request #${payload.id}.\n\nUse /requests to view details.`);
+                break;
+
+            default:
+                // Unknown payload, proceed to regular flow
+                await this.sendMessage(chatId, `👋 Welcome! Use /start to begin.`);
         }
     }
 
@@ -288,10 +381,33 @@ class BotInstance {
     private async sendMessage(chatId: string, text: string, markup: any = {}) {
         if (!chatId) return; // Guard clause
         try {
-            await axios.post(`https://api.telegram.org/bot${this.config.token}/sendMessage`, {
+            const response = await axios.post(`https://api.telegram.org/bot${this.config.token}/sendMessage`, {
                 chat_id: chatId, text, parse_mode: 'HTML', reply_markup: markup
             });
-        } catch (e) { /* ignore sending errors */ }
+
+            // Log outgoing message to database
+            if (response.data?.result) {
+                try {
+                    await prisma.$executeRaw`
+                        INSERT INTO "BotMessage" (id, "botId", "chatId", direction, text, "messageId", payload, "createdAt")
+                        VALUES (
+                            gen_random_uuid()::text,
+                            ${String(this.config.id)},
+                            ${chatId},
+                            'OUTGOING',
+                            ${text},
+                            ${response.data.result.message_id},
+                            ${JSON.stringify({ markup })}::jsonb,
+                            NOW()
+                        )
+                    `;
+                } catch (e) {
+                    console.error('[BotMessage] Failed to log outgoing message:', e);
+                }
+            }
+        } catch (e) {
+            console.error('[SendMessage] Error:', e);
+        }
     }
 }
 

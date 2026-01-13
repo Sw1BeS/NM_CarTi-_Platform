@@ -3,11 +3,14 @@ import React, { useState, useEffect } from 'react';
 import { Data } from '../services/data';
 import { Bot, MiniAppConfig, CarListing, RequestStatus, LeadStatus } from '../types';
 import { getPublicBots } from '../services/publicApi';
-import { 
-    Search, LayoutGrid, User, Plus, Filter, ArrowRight, DollarSign, 
-    MessageSquare, Zap, List as ListIcon, Star, Phone, Home, 
-    ChevronRight, MapPin, Calendar, CheckCircle, AlertTriangle
+import {
+    Search, LayoutGrid, User, Plus, Filter, ArrowRight, DollarSign,
+    MessageSquare, Zap, List as ListIcon, Star, Phone, Home,
+    ChevronRight, MapPin, Calendar, CheckCircle, AlertTriangle, SlidersHorizontal,
+    X, ChevronLeft, ChevronRight as ChevronRightIcon
 } from 'lucide-react';
+
+type InventoryTab = 'IN_STOCK' | 'IN_TRANSIT';
 
 export const MiniApp = () => {
     const [activeBot, setActiveBot] = useState<Bot | null>(null);
@@ -15,10 +18,24 @@ export const MiniApp = () => {
     const [view, setView] = useState<'HOME' | 'INVENTORY' | 'REQUEST' | 'PROFILE'>('HOME');
     const [tgUser, setTgUser] = useState<any>(null);
     const [isPreview, setIsPreview] = useState(false);
-    
+
     // Inventory State
     const [cars, setCars] = useState<CarListing[]>([]);
+    const [tab, setTab] = useState<InventoryTab>('IN_STOCK');
     const [search, setSearch] = useState('');
+    const [showFilters, setShowFilters] = useState(false);
+    const [filters, setFilters] = useState({
+        brand: '',
+        minYear: '',
+        maxYear: '',
+        minPrice: '',
+        maxPrice: ''
+    });
+    const [sortBy, setSortBy] = useState<'price_asc' | 'price_desc' | 'year_desc'>('year_desc');
+
+    // Gallery State
+    const [lightboxCar, setLightboxCar] = useState<CarListing | null>(null);
+    const [lightboxImageIndex, setLightboxImageIndex] = useState(0);
 
     // Request Form State
     const [reqStep, setReqStep] = useState(1);
@@ -28,7 +45,7 @@ export const MiniApp = () => {
         const load = async () => {
             // 1. Initialize Telegram Web App
             const tg = (window as any).Telegram?.WebApp;
-            
+
             if (tg && tg.initData) {
                 tg.ready();
                 tg.expand();
@@ -41,7 +58,7 @@ export const MiniApp = () => {
                 setTgUser({ first_name: 'Guest', username: 'guest_user' });
             }
 
-            // 2. Load Bot Configuration (Simulating connection to specific bot)
+            // 2. Load Bot Configuration
             const bots = await getPublicBots();
             const bot = bots.find(b => b.active) || bots[0];
             if (bot) {
@@ -81,6 +98,73 @@ export const MiniApp = () => {
         }
     };
 
+    const handleCarInterest = (car: CarListing) => {
+        const tg = (window as any).Telegram?.WebApp;
+
+        const payload = {
+            type: 'LEAD',
+            name: tgUser?.first_name || 'User',
+            phone: 'via WebApp',
+            request: {
+                brand: car.title,
+                model: '',
+                carId: car.canonicalId
+            },
+            lang: tg?.initDataUnsafe?.user?.language_code?.toUpperCase() || 'UK'
+        };
+
+        if (tg && tg.initData) {
+            tg.sendData(JSON.stringify(payload));
+            tg.close();
+        } else {
+            alert('[PREVIEW] Lead sent:\n' + JSON.stringify(payload, null, 2));
+        }
+    };
+
+    const applyFiltersAndSort = () => {
+        let filtered = cars;
+
+        // Tab filter
+        if (tab === 'IN_STOCK') {
+            filtered = filtered.filter(c => c.source === 'INTERNAL');
+        } else {
+            filtered = filtered.filter(c => c.source !== 'INTERNAL');
+        }
+
+        // Search filter
+        if (search) {
+            filtered = filtered.filter(c => c.title.toLowerCase().includes(search.toLowerCase()));
+        }
+
+        // Advanced filters
+        if (filters.brand) {
+            filtered = filtered.filter(c => c.title.toLowerCase().includes(filters.brand.toLowerCase()));
+        }
+        if (filters.minYear) {
+            filtered = filtered.filter(c => c.year >= parseInt(filters.minYear));
+        }
+        if (filters.maxYear) {
+            filtered = filtered.filter(c => c.year <= parseInt(filters.maxYear));
+        }
+        if (filters.minPrice) {
+            filtered = filtered.filter(c => c.price.amount >= parseInt(filters.minPrice));
+        }
+        if (filters.maxPrice) {
+            filtered = filtered.filter(c => c.price.amount <= parseInt(filters.maxPrice));
+        }
+
+        // Sort
+        if (sortBy === 'price_asc') {
+            filtered.sort((a, b) => a.price.amount - b.price.amount);
+        } else if (sortBy === 'price_desc') {
+            filtered.sort((a, b) => b.price.amount - a.price.amount);
+        } else if (sortBy === 'year_desc') {
+            filtered.sort((a, b) => b.year - a.year);
+        }
+
+        return filtered;
+    };
+
     const renderHome = () => (
         <div className="animate-fade-in pb-24">
             {/* Header */}
@@ -88,7 +172,7 @@ export const MiniApp = () => {
                 <div className="relative z-10">
                     <h1 className="text-2xl font-bold text-white mb-1">{config.title}</h1>
                     <p className="text-white/70 text-sm">{config.welcomeText}</p>
-                    
+
                     {tgUser && (
                         <div className="mt-6 flex items-center gap-3 bg-white/10 p-2.5 rounded-xl backdrop-blur-md border border-white/5 shadow-inner">
                             <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-yellow-400 to-yellow-600 flex items-center justify-center text-black font-bold text-sm shadow-md">
@@ -108,7 +192,7 @@ export const MiniApp = () => {
                 <div className="bg-[#1c1c1e] rounded-2xl p-4 shadow-2xl border border-white/5">
                     <div className={`grid gap-3 ${config.layout === 'GRID' ? 'grid-cols-2' : 'grid-cols-1'}`}>
                         {config.actions.map(act => (
-                            <button 
+                            <button
                                 key={act.id}
                                 onClick={() => handleAction(act)}
                                 className="bg-[#2c2c2e] hover:bg-[#3a3a3c] transition-colors p-4 rounded-xl flex flex-col items-center justify-center gap-2 text-center group active:scale-95 duration-100 border border-transparent hover:border-white/5"
@@ -132,7 +216,7 @@ export const MiniApp = () => {
                 <div className="flex gap-4 overflow-x-auto pb-4 hide-scrollbar">
                     {cars.slice(0, 5).map(car => (
                         <div key={car.canonicalId} className="min-w-[220px] bg-[#1c1c1e] rounded-xl overflow-hidden border border-white/5 shadow-lg">
-                            <div className="h-32 bg-gray-800 relative">
+                            <div className="h-32 bg-gray-800 relative cursor-pointer" onClick={() => { setLightboxCar(car); setLightboxImageIndex(0); }}>
                                 <img src={car.thumbnail} className="w-full h-full object-cover opacity-90" />
                                 <div className="absolute top-2 right-2 bg-black/60 backdrop-blur px-2 py-1 rounded text-[10px] font-bold text-white">
                                     {car.year}
@@ -140,7 +224,7 @@ export const MiniApp = () => {
                             </div>
                             <div className="p-3">
                                 <h4 className="text-sm font-bold text-white truncate">{car.title}</h4>
-                                <p className="text-xs text-white/50 mt-1 mb-2">{car.specs?.engine} • {car.mileage/1000}k km</p>
+                                <p className="text-xs text-white/50 mt-1 mb-2">{car.specs?.engine} • {car.mileage / 1000}k km</p>
                                 <div className="font-bold text-sm" style={{ color: primaryColor }}>
                                     {car.price.amount.toLocaleString()} $
                                 </div>
@@ -152,63 +236,196 @@ export const MiniApp = () => {
         </div>
     );
 
-    const renderInventory = () => (
-        <div className="animate-fade-in pb-24 h-full flex flex-col bg-black">
-            <div className="p-4 sticky top-0 bg-[#000000]/90 backdrop-blur-md z-20 border-b border-white/10">
-                <h2 className="text-xl font-bold text-white mb-4">Inventory</h2>
-                <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={18}/>
-                    <input 
-                        className="w-full bg-[#1c1c1e] text-white pl-10 pr-4 py-3 rounded-xl outline-none placeholder-gray-600 border border-white/5 focus:border-yellow-500/50 transition-colors"
-                        placeholder="Search cars..."
-                        value={search}
-                        onChange={e => setSearch(e.target.value)}
-                    />
-                </div>
-            </div>
-            
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                {cars.filter(c => c.title.toLowerCase().includes(search.toLowerCase())).map(car => (
-                    <div key={car.canonicalId} className="bg-[#1c1c1e] rounded-2xl overflow-hidden border border-white/5 flex flex-col shadow-lg">
-                        <div className="h-48 bg-gray-800 relative">
-                            <img src={car.thumbnail} className="w-full h-full object-cover" />
-                            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-4 pt-12">
-                                <h3 className="text-lg font-bold text-white">{car.title}</h3>
-                            </div>
+    const renderInventory = () => {
+        const filteredCars = applyFiltersAndSort();
+
+        return (
+            <div className="animate-fade-in pb-24 h-full flex flex-col bg-black">
+                <div className="p-4 sticky top-0 bg-[#000000]/90 backdrop-blur-md z-20 border-b border-white/10 space-y-3">
+                    <h2 className="text-xl font-bold text-white">Inventory</h2>
+
+                    {/* Tabs */}
+                    <div className="flex gap-2">
+                        <button
+                            onClick={() => setTab('IN_STOCK')}
+                            className={`flex-1 py-2.5 px-4 rounded-lg font-bold text-sm transition-all ${tab === 'IN_STOCK'
+                                    ? 'text-black shadow-lg'
+                                    : 'bg-[#1c1c1e] text-white/50'
+                                }`}
+                            style={tab === 'IN_STOCK' ? { backgroundColor: primaryColor } : {}}
+                        >
+                            ✅ В наявності
+                        </button>
+                        <button
+                            onClick={() => setTab('IN_TRANSIT')}
+                            className={`flex-1 py-2.5 px-4 rounded-lg font-bold text-sm transition-all ${tab === 'IN_TRANSIT'
+                                    ? 'text-black shadow-lg'
+                                    : 'bg-[#1c1c1e] text-white/50'
+                                }`}
+                            style={tab === 'IN_TRANSIT' ? { backgroundColor: primaryColor } : {}}
+                        >
+                            📦 В дорозі
+                        </button>
+                    </div>
+
+                    {/* Search + Filter Button */}
+                    <div className="flex gap-2">
+                        <div className="flex-1 relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
+                            <input
+                                className="w-full bg-[#1c1c1e] text-white pl-10 pr-4 py-3 rounded-xl outline-none placeholder-gray-600 border border-white/5 focus:border-yellow-500/50 transition-colors"
+                                placeholder="Search cars..."
+                                value={search}
+                                onChange={e => setSearch(e.target.value)}
+                            />
                         </div>
-                        <div className="p-4">
-                            <div className="flex justify-between items-center mb-4">
-                                <div className="text-xl font-bold" style={{ color: primaryColor }}>{car.price.amount.toLocaleString()} $</div>
-                                <div className="text-xs text-white/50 bg-white/5 px-2 py-1 rounded">{car.year}</div>
+                        <button
+                            onClick={() => setShowFilters(!showFilters)}
+                            className={`w-12 h-12 rounded-xl flex items-center justify-center transition-colors ${showFilters ? 'text-black' : 'bg-[#1c1c1e] text-white'
+                                }`}
+                            style={showFilters ? { backgroundColor: primaryColor } : {}}
+                        >
+                            <SlidersHorizontal size={20} />
+                        </button>
+                    </div>
+
+                    {/* Advanced Filters */}
+                    {showFilters && (
+                        <div className="bg-[#1c1c1e] rounded-xl p-4 space-y-3 border border-white/5 animate-slide-down">
+                            <div>
+                                <label className="text-[10px] text-white/50 uppercase font-bold block mb-1">Brand</label>
+                                <input
+                                    className="w-full bg-black/30 text-white px-3 py-2 rounded-lg text-sm outline-none border border-white/10"
+                                    placeholder="BMW, Mercedes..."
+                                    value={filters.brand}
+                                    onChange={e => setFilters({ ...filters, brand: e.target.value })}
+                                />
                             </div>
-                            <div className="grid grid-cols-3 gap-2 text-xs text-white/70 mb-4">
-                                <div className="bg-black/30 p-2 rounded text-center border border-white/5">{car.specs?.engine || 'N/A'}</div>
-                                <div className="bg-black/30 p-2 rounded text-center border border-white/5">{car.mileage.toLocaleString()} km</div>
-                                <div className="bg-black/30 p-2 rounded text-center border border-white/5">{car.specs?.fuel || 'N/A'}</div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="text-[10px] text-white/50 uppercase font-bold block mb-1">Min Year</label>
+                                    <input
+                                        type="number"
+                                        className="w-full bg-black/30 text-white px-3 py-2 rounded-lg text-sm outline-none border border-white/10"
+                                        placeholder="2018"
+                                        value={filters.minYear}
+                                        onChange={e => setFilters({ ...filters, minYear: e.target.value })}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] text-white/50 uppercase font-bold block mb-1">Max Year</label>
+                                    <input
+                                        type="number"
+                                        className="w-full bg-black/30 text-white px-3 py-2 rounded-lg text-sm outline-none border border-white/10"
+                                        placeholder="2024"
+                                        value={filters.maxYear}
+                                        onChange={e => setFilters({ ...filters, maxYear: e.target.value })}
+                                    />
+                                </div>
                             </div>
-                            <button className="w-full py-3 rounded-xl font-bold text-black flex items-center justify-center gap-2 active:scale-95 transition-transform" style={{ backgroundColor: primaryColor }}>
-                                <MessageSquare size={18}/> I'm Interested
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="text-[10px] text-white/50 uppercase font-bold block mb-1">Min Price ($)</label>
+                                    <input
+                                        type="number"
+                                        className="w-full bg-black/30 text-white px-3 py-2 rounded-lg text-sm outline-none border border-white/10"
+                                        placeholder="10000"
+                                        value={filters.minPrice}
+                                        onChange={e => setFilters({ ...filters, minPrice: e.target.value })}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] text-white/50 uppercase font-bold block mb-1">Max Price ($)</label>
+                                    <input
+                                        type="number"
+                                        className="w-full bg-black/30 text-white px-3 py-2 rounded-lg text-sm outline-none border border-white/10"
+                                        placeholder="100000"
+                                        value={filters.maxPrice}
+                                        onChange={e => setFilters({ ...filters, maxPrice: e.target.value })}
+                                    />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="text-[10px] text-white/50 uppercase font-bold block mb-1">Sort By</label>
+                                <select
+                                    className="w-full bg-black/30 text-white px-3 py-2 rounded-lg text-sm outline-none border border-white/10"
+                                    value={sortBy}
+                                    onChange={e => setSortBy(e.target.value as any)}
+                                >
+                                    <option value="year_desc">Newest First</option>
+                                    <option value="price_asc">Price: Low to High</option>
+                                    <option value="price_desc">Price: High to Low</option>
+                                </select>
+                            </div>
+                            <button
+                                onClick={() => {
+                                    setFilters({ brand: '', minYear: '', maxYear: '', minPrice: '', maxPrice: '' });
+                                    setSearch('');
+                                }}
+                                className="w-full py-2 bg-red-500/20 text-red-500 rounded-lg text-xs font-bold"
+                            >
+                                Reset Filters
                             </button>
                         </div>
-                    </div>
-                ))}
-                {cars.length === 0 && <div className="text-center text-white/50 mt-10">No cars found.</div>}
-            </div>
-        </div>
-    );
+                    )}
 
+                    <div className="text-[10px] text-white/50">
+                        {filteredCars.length} cars found
+                    </div>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                    {filteredCars.map(car => (
+                        <div key={car.canonicalId} className="bg-[#1c1c1e] rounded-2xl overflow-hidden border border-white/5 flex flex-col shadow-lg">
+                            <div className="h-48 bg-gray-800 relative cursor-pointer" onClick={() => { setLightboxCar(car); setLightboxImageIndex(0); }}>
+                                <img src={car.thumbnail} className="w-full h-full object-cover" />
+                                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-4 pt-12">
+                                    <h3 className="text-lg font-bold text-white">{car.title}</h3>
+                                </div>
+                                {car.mediaUrls && car.mediaUrls.length > 1 && (
+                                    <div className="absolute top-2 left-2 bg-black/60 backdrop-blur px-2 py-1 rounded text-[10px] font-bold text-white">
+                                        +{car.mediaUrls.length - 1} photos
+                                    </div>
+                                )}
+                            </div>
+                            <div className="p-4">
+                                <div className="flex justify-between items-center mb-4">
+                                    <div className="text-xl font-bold" style={{ color: primaryColor }}>{car.price.amount.toLocaleString()} $</div>
+                                    <div className="text-xs text-white/50 bg-white/5 px-2 py-1 rounded">{car.year}</div>
+                                </div>
+                                <div className="grid grid-cols-3 gap-2 text-xs text-white/70 mb-4">
+                                    <div className="bg-black/30 p-2 rounded text-center border border-white/5">{car.specs?.engine || 'N/A'}</div>
+                                    <div className="bg-black/30 p-2 rounded text-center border border-white/5">{car.mileage.toLocaleString()} km</div>
+                                    <div className="bg-black/30 p-2 rounded text-center border border-white/5">{car.specs?.fuel || 'N/A'}</div>
+                                </div>
+                                <button
+                                    onClick={() => handleCarInterest(car)}
+                                    className="w-full py-3 rounded-xl font-bold text-black flex items-center justify-center gap-2 active:scale-95 transition-transform"
+                                    style={{ backgroundColor: primaryColor }}
+                                >
+                                    <MessageSquare size={18} /> I'm Interested
+                                </button>
+                            </div>
+                        </div>
+                    ))}
+                    {filteredCars.length === 0 && <div className="text-center text-white/50 mt-10">No cars found. Try adjusting filters.</div>}
+                </div>
+            </div>
+        );
+    };
+
+    // ... renderRequest та інші методи залишаються як є ...
     const handleNextStep = async () => {
         if (reqStep === 1) {
             setReqStep(2);
         } else {
-            // Submit via Telegram WebApp if available
             const tg = (window as any).Telegram?.WebApp;
-            
+
             if (tg && tg.initData) {
                 const payload = {
                     type: 'LEAD',
                     name: tgUser?.first_name || 'User',
-                    phone: reqData.brand ? 'Shared via WebApp' : '', // Fallback
+                    phone: 'Shared via WebApp',
                     request: {
                         brand: reqData.brand,
                         budget: Number(reqData.budget),
@@ -219,7 +436,6 @@ export const MiniApp = () => {
                 tg.sendData(JSON.stringify(payload));
                 tg.close();
             } else {
-                // Fallback for browser (Dev mode)
                 alert("[PREVIEW MODE] Data that would be sent to bot:\n" + JSON.stringify(reqData, null, 2));
                 setReqStep(3);
             }
@@ -231,7 +447,7 @@ export const MiniApp = () => {
             {reqStep === 3 ? (
                 <div className="text-center animate-slide-up">
                     <div className="w-24 h-24 rounded-full bg-green-500/20 text-green-500 flex items-center justify-center mx-auto mb-6 shadow-[0_0_30px_rgba(34,197,94,0.3)]">
-                        <CheckCircle size={48}/>
+                        <CheckCircle size={48} />
                     </div>
                     <h2 className="text-2xl font-bold text-white mb-2">Request Sent!</h2>
                     <p className="text-white/50 mb-8">We have received your request. A manager will check the market and contact you shortly.</p>
@@ -243,34 +459,34 @@ export const MiniApp = () => {
                 <>
                     <h2 className="text-3xl font-bold text-white mb-2">Find Your Car</h2>
                     <p className="text-white/50 mb-8">Tell us what you are looking for.</p>
-                    
+
                     <div className="space-y-6">
                         {reqStep === 1 && (
                             <div className="space-y-5 animate-slide-up">
                                 <div>
                                     <label className="text-xs font-bold text-white/70 uppercase mb-2 block">Brand & Model</label>
-                                    <input className="w-full bg-[#1c1c1e] text-white p-4 rounded-xl outline-none border border-white/10 focus:border-yellow-500 transition-colors" placeholder="e.g. BMW X5" value={reqData.brand} onChange={e => setReqData({...reqData, brand: e.target.value})} />
+                                    <input className="w-full bg-[#1c1c1e] text-white p-4 rounded-xl outline-none border border-white/10 focus:border-yellow-500 transition-colors" placeholder="e.g. BMW X5" value={reqData.brand} onChange={e => setReqData({ ...reqData, brand: e.target.value })} />
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
                                         <label className="text-xs font-bold text-white/70 uppercase mb-2 block">Min Year</label>
-                                        <input type="number" className="w-full bg-[#1c1c1e] text-white p-4 rounded-xl outline-none border border-white/10" placeholder="2018" value={reqData.year} onChange={e => setReqData({...reqData, year: e.target.value})} />
+                                        <input type="number" className="w-full bg-[#1c1c1e] text-white p-4 rounded-xl outline-none border border-white/10" placeholder="2018" value={reqData.year} onChange={e => setReqData({ ...reqData, year: e.target.value })} />
                                     </div>
                                     <div>
                                         <label className="text-xs font-bold text-white/70 uppercase mb-2 block">Max Budget</label>
-                                        <input type="number" className="w-full bg-[#1c1c1e] text-white p-4 rounded-xl outline-none border border-white/10" placeholder="50000" value={reqData.budget} onChange={e => setReqData({...reqData, budget: e.target.value})} />
+                                        <input type="number" className="w-full bg-[#1c1c1e] text-white p-4 rounded-xl outline-none border border-white/10" placeholder="50000" value={reqData.budget} onChange={e => setReqData({ ...reqData, budget: e.target.value })} />
                                     </div>
                                 </div>
                             </div>
                         )}
-                        
+
                         {reqStep === 2 && (
                             <div className="space-y-4 animate-slide-up">
                                 <div className="bg-[#1c1c1e] p-6 rounded-xl border border-white/10 text-white/80 text-sm space-y-2">
                                     <p className="font-bold text-white mb-4 text-lg border-b border-white/10 pb-2">Summary</p>
                                     <div className="flex justify-between"><span>Vehicle:</span> <span className="font-bold text-white">{reqData.brand}</span></div>
                                     <div className="flex justify-between"><span>Year:</span> <span className="font-bold text-white">{reqData.year}+</span></div>
-                                    <div className="flex justify-between"><span>Budget:</span> <span className="font-bold text-white" style={{color: primaryColor}}>${reqData.budget}</span></div>
+                                    <div className="flex justify-between"><span>Budget:</span> <span className="font-bold text-white" style={{ color: primaryColor }}>${reqData.budget}</span></div>
                                 </div>
                                 <p className="text-xs text-white/50 text-center px-4">
                                     By submitting, you agree to be contacted by our concierge team via this chat.
@@ -279,13 +495,13 @@ export const MiniApp = () => {
                         )}
 
                         <div className="pt-4">
-                            <button 
+                            <button
                                 onClick={handleNextStep}
                                 disabled={reqStep === 1 && !reqData.brand}
                                 className="w-full py-4 rounded-xl font-bold text-black flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-50 disabled:scale-100 shadow-lg"
                                 style={{ backgroundColor: primaryColor }}
                             >
-                                {reqStep === 1 ? 'Continue' : 'Submit Request'} <ArrowRight size={18}/>
+                                {reqStep === 1 ? 'Continue' : 'Submit Request'} <ArrowRight size={18} />
                             </button>
                         </div>
                     </div>
@@ -296,15 +512,15 @@ export const MiniApp = () => {
 
     const AppIcon = ({ name }: { name: string }) => {
         const props = { size: 24 };
-        switch(name) {
-            case 'Search': return <Search {...props}/>;
-            case 'Zap': return <Zap {...props}/>;
-            case 'DollarSign': return <DollarSign {...props}/>;
-            case 'MessageCircle': return <MessageSquare {...props}/>;
-            case 'Grid': return <LayoutGrid {...props}/>;
-            case 'List': return <ListIcon {...props}/>;
-            case 'Phone': return <Phone {...props}/>;
-            default: return <Star {...props}/>;
+        switch (name) {
+            case 'Search': return <Search {...props} />;
+            case 'Zap': return <Zap {...props} />;
+            case 'DollarSign': return <DollarSign {...props} />;
+            case 'MessageCircle': return <MessageSquare {...props} />;
+            case 'Grid': return <LayoutGrid {...props} />;
+            case 'List': return <ListIcon {...props} />;
+            case 'Phone': return <Phone {...props} />;
+            default: return <Star {...props} />;
         }
     };
 
@@ -313,31 +529,72 @@ export const MiniApp = () => {
             {/* Preview Banner */}
             {isPreview && (
                 <div className="bg-orange-500/20 text-orange-400 text-[10px] uppercase font-bold text-center py-1 border-b border-orange-500/30 flex items-center justify-center gap-2">
-                    <AlertTriangle size={10}/> Preview Mode (No Telegram Bridge)
+                    <AlertTriangle size={10} /> Preview Mode (No Telegram Bridge)
                 </div>
             )}
 
             {view === 'HOME' && renderHome()}
             {view === 'INVENTORY' && renderInventory()}
             {view === 'REQUEST' && renderRequest()}
-            {view === 'PROFILE' && <div className="p-8 text-center text-white/50 pt-20 flex flex-col items-center"><User size={48} className="mb-4 opacity-50"/>Profile Coming Soon</div>}
+            {view === 'PROFILE' && <div className="p-8 text-center text-white/50 pt-20 flex flex-col items-center"><User size={48} className="mb-4 opacity-50" />Profile Coming Soon</div>}
+
+            {/* Gallery Lightbox */}
+            {lightboxCar && (
+                <div className="fixed inset-0 bg-black z-[100] flex flex-col">
+                    <div className="p-4 flex justify-between items-center">
+                        <h3 className="text-white font-bold truncate">{lightboxCar.title}</h3>
+                        <button onClick={() => setLightboxCar(null)} className="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center">
+                            <X size={20} className="text-white" />
+                        </button>
+                    </div>
+                    <div className="flex-1 relative flex items-center justify-center">
+                        <img
+                            src={(lightboxCar.mediaUrls && lightboxCar.mediaUrls[lightboxImageIndex]) || lightboxCar.thumbnail}
+                            className="max-w-full max-h-full object-contain"
+                        />
+                        {lightboxCar.mediaUrls && lightboxCar.mediaUrls.length > 1 && (
+                            <>
+                                {lightboxImageIndex > 0 && (
+                                    <button
+                                        onClick={() => setLightboxImageIndex(lightboxImageIndex - 1)}
+                                        className="absolute left-4 w-12 h-12 bg-black/50 backdrop-blur rounded-full flex items-center justify-center"
+                                    >
+                                        <ChevronLeft size={24} className="text-white" />
+                                    </button>
+                                )}
+                                {lightboxImageIndex < lightboxCar.mediaUrls.length - 1 && (
+                                    <button
+                                        onClick={() => setLightboxImageIndex(lightboxImageIndex + 1)}
+                                        className="absolute right-4 w-12 h-12 bg-black/50 backdrop-blur rounded-full flex items-center justify-center"
+                                    >
+                                        <ChevronRightIcon size={24} className="text-white" />
+                                    </button>
+                                )}
+                                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/50 backdrop-blur px-3 py-1 rounded-full text-xs text-white">
+                                    {lightboxImageIndex + 1} / {lightboxCar.mediaUrls.length}
+                                </div>
+                            </>
+                        )}
+                    </div>
+                </div>
+            )}
 
             {/* Bottom Navigation */}
             <div className="h-20 bg-[#1c1c1e]/90 backdrop-blur-md border-t border-white/5 fixed bottom-0 w-full max-w-md flex items-center justify-around z-50 pb-4 shadow-lg">
                 <button onClick={() => setView('HOME')} className={`flex flex-col items-center gap-1 transition-colors ${view === 'HOME' ? 'text-white' : 'text-white/40'}`}>
-                    <Home size={22} className={view === 'HOME' ? 'fill-current' : ''} style={view === 'HOME' ? {color: primaryColor} : {}}/>
+                    <Home size={22} className={view === 'HOME' ? 'fill-current' : ''} style={view === 'HOME' ? { color: primaryColor } : {}} />
                     <span className="text-[10px] font-medium">Home</span>
                 </button>
                 <button onClick={() => setView('INVENTORY')} className={`flex flex-col items-center gap-1 transition-colors ${view === 'INVENTORY' ? 'text-white' : 'text-white/40'}`}>
-                    <LayoutGrid size={22} className={view === 'INVENTORY' ? 'fill-current' : ''} style={view === 'INVENTORY' ? {color: primaryColor} : {}}/>
+                    <LayoutGrid size={22} className={view === 'INVENTORY' ? 'fill-current' : ''} style={view === 'INVENTORY' ? { color: primaryColor } : {}} />
                     <span className="text-[10px] font-medium">Stock</span>
                 </button>
                 <button onClick={() => setView('REQUEST')} className={`flex flex-col items-center gap-1 transition-colors ${view === 'REQUEST' ? 'text-white' : 'text-white/40'}`}>
-                    <Search size={22} className="stroke-[3px]" style={view === 'REQUEST' ? {color: primaryColor} : {}}/>
+                    <Search size={22} className="stroke-[3px]" style={view === 'REQUEST' ? { color: primaryColor } : {}} />
                     <span className="text-[10px] font-medium">Find</span>
                 </button>
                 <button onClick={() => setView('PROFILE')} className={`flex flex-col items-center gap-1 transition-colors ${view === 'PROFILE' ? 'text-white' : 'text-white/40'}`}>
-                    <User size={22} className={view === 'PROFILE' ? 'fill-current' : ''} style={view === 'PROFILE' ? {color: primaryColor} : {}}/>
+                    <User size={22} className={view === 'PROFILE' ? 'fill-current' : ''} style={view === 'PROFILE' ? { color: primaryColor } : {}} />
                     <span className="text-[10px] font-medium">Profile</span>
                 </button>
             </div>

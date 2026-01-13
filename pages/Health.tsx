@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Data } from '../services/data';
+import { Storage } from '../services/storage';
 import { TelegramAPI } from '../services/telegram';
 import { ActivityLog, Bot, DeliveryLog, Campaign, RequestStatus, VariantStatus } from '../types';
 import { RefreshCw, AlertTriangle, Shield, Send, Terminal, Wifi, RotateCcw, Trash2, Play, TestTube, Cpu, HardDrive } from 'lucide-react';
@@ -45,13 +45,10 @@ const SystemQA = () => {
         try {
             // TEST 1: Request Creation
             log("Test 1: Creating B2B Request...");
-            const req = await RequestsService.createRequest({
+            const req = await MockDb.createRequest({
                 title: "QA Test Car BMW",
                 budgetMax: 50000,
-                status: RequestStatus.NEW,
-                // Defaults
-                budgetMin: 0, yearMin: 2020, yearMax: 2024, city: 'Kyiv', description: 'Test', priority: 'MEDIUM',
-                platform: 'TG', variants: []
+                status: RequestStatus.NEW
             });
             if (!req || !req.id) throw new Error("Request creation failed");
             setResults(prev => [...prev, { name: 'Create Request', status: 'PASS' }]);
@@ -65,7 +62,7 @@ const SystemQA = () => {
                 year: 2022,
                 status: 'AVAILABLE'
             } as any;
-            await Data.saveInventoryItem(car);
+            Storage.saveInventoryItem(car);
 
             // Check Match
             log("Test 3: Checking Match Logic...");
@@ -77,24 +74,19 @@ const SystemQA = () => {
 
             // TEST 4: Variant Attachment
             log("Test 4: Attaching Variant...");
-            await RequestsService.addVariant(req.id, {
-                title: "Test Variant",
-                price: { amount: 45000, currency: 'USD' },
-                status: VariantStatus.FIT,
-                canonicalId: 'test_var', source: 'MANUAL', sourceUrl: 'http://test', year: 2022, mileage: 0, location: '', thumbnail: '', specs: {}
+            await MockDb.addVariant(req.id, {
+                title: car.title,
+                price: car.price,
+                status: VariantStatus.FIT
             });
-            // Verify via API
-            const allReqs = await RequestsService.getRequests({ search: req.publicId });
-            const updatedReq = allReqs.items.find(r => r.id === req.id);
-
+            const updatedReq = Storage.getRequest(req.id);
             if (updatedReq?.variants.length !== 1) throw new Error("Variant attach failed");
             setResults(prev => [...prev, { name: 'Attach Variant', status: 'PASS' }]);
 
             // Cleanup
             log("Cleanup: Removing test data...");
-            log("Cleanup: Removing test data...");
-            await RequestsService.deleteRequest(req.id);
-            await Data.deleteInventoryItem(car.canonicalId);
+            Storage.deleteRequest(req.id);
+            Storage.deleteInventoryItem(car.canonicalId);
 
             log("ALL TESTS PASSED ✅");
 
@@ -147,34 +139,30 @@ const SystemHealth = () => {
     const [logs, setLogs] = useState<ActivityLog[]>([]);
     const [failedDeliveries, setFailedDeliveries] = useState<{ campaign: Campaign, log: DeliveryLog }[]>([]);
     const [loading, setLoading] = useState(false);
-    const [features, setFeatures] = useState<Record<string, boolean>>({});
     const { showToast } = useToast();
+    const features = Storage.getSettings().features || {};
 
-    const refreshLogs = async () => {
-        const allLogs = await Data.getActivity();
+    useEffect(() => {
+        setBots(Storage.getBots());
+        refreshLogs();
+        refreshFailed();
+    }, []);
+
+    const refreshLogs = () => {
+        const allLogs = Storage.getActivity();
         setLogs(allLogs.filter(l => l.entityType === 'ERROR' || l.entityType === 'SYSTEM' || l.entityType.includes('API')));
     };
 
-    const refreshFailed = async () => {
-        const allCampaigns = await Data.getCampaigns();
+    const refreshFailed = () => {
+        const allCampaigns = Storage.getCampaigns();
         const failures: { campaign: Campaign, log: DeliveryLog }[] = [];
         allCampaigns.forEach(c => {
-            (c.logs || []).filter(l => l.status === 'FAILED').forEach(l => {
+            c.logs.filter(l => l.status === 'FAILED').forEach(l => {
                 failures.push({ campaign: c, log: l });
             });
         });
         setFailedDeliveries(failures);
     };
-
-    useEffect(() => {
-        const load = async () => {
-            const [botList, settings] = await Promise.all([Data.getBots(), Data.getSettings()]);
-            setBots(botList);
-            setFeatures(settings.features || {});
-            await Promise.all([refreshLogs(), refreshFailed()]);
-        };
-        load();
-    }, []);
 
     const checkBots = async () => {
         setLoading(true);
@@ -200,8 +188,7 @@ const SystemHealth = () => {
 
     const sendTestMsg = async (botId: string) => {
         const bot = bots.find(b => b.id === botId);
-        const destinations = await Data.getDestinations();
-        const adminDest = destinations.find(d => d.type === 'USER');
+        const adminDest = Storage.getDestinations().find(d => d.type === 'USER');
 
         if (!bot || !adminDest) return showToast("No bot or valid destination found", 'error');
 
@@ -215,14 +202,9 @@ const SystemHealth = () => {
 
     const handleRetry = async (item: { campaign: Campaign, log: DeliveryLog }) => {
         const { campaign, log } = item;
-        const [destinations, contents, botList] = await Promise.all([
-            Data.getDestinations(),
-            Data.getContent(),
-            Data.getBots()
-        ]);
-        const dest = destinations.find(d => d.id === log.destinationId);
-        const content = contents.find(c => c.id === campaign.contentId);
-        const bot = botList.find(b => b.id === campaign.botId);
+        const dest = Storage.getDestinations().find(d => d.id === log.destinationId);
+        const content = Storage.getContent().find(c => c.id === campaign.contentId);
+        const bot = Storage.getBots().find(b => b.id === campaign.botId);
 
         if (!dest || !content || !bot) {
             return showToast("Cannot retry: missing resources", 'error');
@@ -240,14 +222,13 @@ const SystemHealth = () => {
             const sent = newLogs.filter(l => l.status === 'SUCCESS').length;
             const failed = newLogs.filter(l => l.status === 'FAILED').length;
 
-            await Data.saveCampaign({
-                ...campaign,
+            Storage.updateCampaign(campaign.id, {
                 logs: newLogs,
                 progress: { ...campaign.progress, sent, failed }
             });
 
             showToast("Retried Successfully!");
-            await refreshFailed();
+            refreshFailed();
         } catch (e: any) {
             showToast(`Retry Failed: ${e.message}`, 'error');
         }
@@ -260,11 +241,11 @@ const SystemHealth = () => {
         const sent = newLogs.filter(l => l.status === 'SUCCESS').length;
         const failed = newLogs.filter(l => l.status === 'FAILED').length;
 
-        Data.saveCampaign({
-            ...campaign,
+        Storage.updateCampaign(campaign.id, {
             logs: newLogs,
             progress: { ...campaign.progress, sent, failed, total: campaign.progress.total - 1 }
-        }).then(refreshFailed);
+        });
+        refreshFailed();
         showToast("Removed from queue");
     };
 
@@ -290,10 +271,10 @@ const SystemHealth = () => {
                 <div className="bg-white p-4 rounded-xl shadow-sm border flex items-center gap-4">
                     <div className="p-3 bg-amber-50 text-amber-600 rounded-lg"><HardDrive size={24} /></div>
                     <div>
-                        <h3 className="font-bold text-gray-900 text-sm">Browser Storage</h3>
+                        <h3 className="font-bold text-gray-900 text-sm">Storage Usage</h3>
                         <div className="text-xs text-gray-500 mt-1">
                             <span className="font-mono font-bold text-gray-800">{(dataSize / 1024).toFixed(2)} KB</span> used.
-                            Client cache only.
+                            Database V7 Prod.
                         </div>
                     </div>
                 </div>
@@ -417,5 +398,16 @@ const SystemHealth = () => {
                 </div>
             </div>
         </div>
+    );
+};
+                                <span className="text-gray-500 shrink-0 w-32">{new Date(l.timestamp).toLocaleString()}</span>
+                                <span className={`shrink-0 font-bold w-24 ${l.entityType === 'ERROR' ? 'text-red-500' : 'text-green-500'}`}>[{l.entityType}]</span>
+                                <span className="text-gray-300 break-all">{l.action}: {l.details}</span>
+                            </div >
+                        ))}
+                    </div >
+                </div >
+            </div >
+        </div >
     );
 };

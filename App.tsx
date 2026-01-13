@@ -18,9 +18,15 @@ import { PublicRequest } from './pages/PublicRequest';
 import { DealerPortal } from './pages/DealerPortal';
 import { ClientProposal } from './pages/ClientProposal';
 import { MiniApp } from './pages/MiniApp';
+import { ContentPage } from './pages/Content';
+import { ContentCalendarPage } from './pages/ContentCalendar';
+import { CompanySettingsPage } from './pages/CompanySettings';
+import { MarketplacePage } from './pages/Marketplace';
+import { IntegrationsPage } from './pages/Integrations';
 import { NotFound } from './components/NotFound';
 
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { CompanyProvider } from './contexts/CompanyContext';
 import { LangProvider } from './contexts/LanguageContext';
 import { WorkerProvider } from './contexts/WorkerContext';
 import { ToastProvider } from './contexts/ToastContext';
@@ -37,35 +43,42 @@ export default function App() {
     <ThemeProvider>
       <LangProvider>
         <AuthProvider>
-          <ToastProvider>
+          <CompanyProvider>
+            <ToastProvider>
               <WorkerProvider>
-              <HashRouter>
+                <HashRouter>
                   <Routes>
-                  {/* Public Routes */}
-                  <Route path="/login" element={<Login />} />
-                  <Route path="/p/request" element={<PublicRequest />} />
-                  <Route path="/p/app" element={<MiniApp />} />
-                  <Route path="/p/dealer" element={<DealerPortal />} />
-                  <Route path="/p/proposal/:id" element={<ClientProposal />} />
-                  
-                  {/* Protected Routes */}
-                  <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-                  <Route path="/inbox" element={<ProtectedRoute><InboxPage /></ProtectedRoute>} />
-                  <Route path="/requests" element={<ProtectedRoute><RequestList /></ProtectedRoute>} />
-                  <Route path="/telegram" element={<ProtectedRoute><TelegramHub /></ProtectedRoute>} />
-                  <Route path="/leads" element={<ProtectedRoute><Leads /></ProtectedRoute>} />
-                  <Route path="/search" element={<ProtectedRoute><SearchPage /></ProtectedRoute>} />
-                  <Route path="/inventory" element={<ProtectedRoute><InventoryPage /></ProtectedRoute>} />
-                  <Route path="/companies" element={<ProtectedRoute><CompaniesPage /></ProtectedRoute>} />
-                  <Route path="/entities" element={<ProtectedRoute><EntitiesPage /></ProtectedRoute>} />
-                  <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
-                  <Route path="/health" element={<ProtectedRoute><HealthPage /></ProtectedRoute>} />
+                    {/* Public Routes */}
+                    <Route path="/login" element={<Login />} />
+                    <Route path="/p/request" element={<PublicRequest />} />
+                    <Route path="/p/app" element={<MiniApp />} />
+                    <Route path="/p/dealer" element={<DealerPortal />} />
+                    <Route path="/p/proposal/:id" element={<ClientProposal />} />
 
-                  <Route path="*" element={<NotFound />} />
+                    {/* Protected Routes */}
+                    <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+                    <Route path="/inbox" element={<ProtectedRoute><InboxPage /></ProtectedRoute>} />
+                    <Route path="/requests" element={<ProtectedRoute><RequestList /></ProtectedRoute>} />
+                    <Route path="/telegram" element={<ProtectedRoute><TelegramHub /></ProtectedRoute>} />
+                    <Route path="/leads" element={<ProtectedRoute><Leads /></ProtectedRoute>} />
+                    <Route path="/search" element={<ProtectedRoute><SearchPage /></ProtectedRoute>} />
+                    <Route path="/inventory" element={<ProtectedRoute><InventoryPage /></ProtectedRoute>} />
+                    <Route path="/companies" element={<ProtectedRoute><CompaniesPage /></ProtectedRoute>} />
+                    <Route path="/entities" element={<ProtectedRoute><EntitiesPage /></ProtectedRoute>} />
+                    <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+                    <Route path="/content" element={<ProtectedRoute><ContentPage /></ProtectedRoute>} />
+                    <Route path="/calendar" element={<ProtectedRoute><ContentCalendarPage /></ProtectedRoute>} />
+                    <Route path="/company" element={<ProtectedRoute><CompanySettingsPage /></ProtectedRoute>} />
+                    <Route path="/marketplace" element={<ProtectedRoute><MarketplacePage /></ProtectedRoute>} />
+                    <Route path="/integrations" element={<ProtectedRoute><IntegrationsPage /></ProtectedRoute>} />
+                    <Route path="/health" element={<ProtectedRoute><HealthPage /></ProtectedRoute>} />
+
+                    <Route path="*" element={<NotFound />} />
                   </Routes>
-              </HashRouter>
+                </HashRouter>
               </WorkerProvider>
-          </ToastProvider>
+            </ToastProvider>
+          </CompanyProvider>
         </AuthProvider>
       </LangProvider>
     </ThemeProvider>

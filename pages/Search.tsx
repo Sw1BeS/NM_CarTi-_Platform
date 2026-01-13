@@ -1,46 +1,12 @@
 
 import React, { useState, useEffect } from 'react';
 import { Search as SearchIcon, Download, Loader, CheckCircle, Plus, Globe, Link as LinkIcon, ArrowRight, Eye, Edit3, Terminal, Filter, AlertTriangle, Bug, Megaphone } from 'lucide-react';
-import { RequestsService } from '../services/requestsService';
-import { InventoryService } from '../services/inventoryService';
+import { MockDb } from '../services/mockDb';
 import { B2BRequest, Variant, VariantStatus, TelegramContent, ContentStatus } from '../types';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Data } from '../services/data';
 import { ContentGenerator } from '../services/contentGenerator';
 import { useToast } from '../contexts/ToastContext';
-
-// ... (imports)
-
-// Local Mock Helpers since MockDb is gone
-const mockSearchGlobal = async (query: string) => {
-    // Simulate API delay
-    await new Promise(r => setTimeout(r, 800));
-    // Return dummy data
-    return Array.from({ length: 5 }).map((_, i) => ({
-        title: `${query} Result ${i + 1}`,
-        price: { amount: 20000 + i * 5000, currency: 'USD' },
-        year: 2020 + i,
-        source: i % 2 === 0 ? 'EXTERNAL' : 'OLX',
-        sourceUrl: 'https://example.com',
-        thumbnail: 'https://via.placeholder.com/150',
-        location: 'Kyiv'
-    }));
-};
-
-const mockParseUrl = async (url: string) => {
-    await new Promise(r => setTimeout(r, 800));
-    return {
-        title: "Parsed Listing Title",
-        price: { amount: 15000, currency: 'USD' },
-        year: 2018,
-        source: 'EXTERNAL',
-        sourceUrl: url,
-        thumbnail: 'https://via.placeholder.com/150',
-        location: 'Parsed City',
-        specs: {}
-    };
-};
-
 
 export const SearchPage = () => {
     const [searchParams] = useSearchParams();
@@ -63,8 +29,8 @@ export const SearchPage = () => {
     const [previewItem, setPreviewItem] = useState<{ item: Partial<Variant> & { description?: string }, idx: number } | null>(null);
 
     useEffect(() => {
-        RequestsService.getRequests({ status: 'ALL' }).then(data => {
-            const activeReqs = data.items.filter(r => r.status !== 'CLOSED' && r.status !== 'PUBLISHED');
+        MockDb.getRequests().then(reqs => {
+            const activeReqs = reqs.filter(r => r.status !== 'CLOSED' && r.status !== 'PUBLISHED');
             setRequests(activeReqs);
 
             const paramId = searchParams.get('requestId');
@@ -91,7 +57,7 @@ export const SearchPage = () => {
         setErrorMsg('');
         setResults([]);
         try {
-            const data = await mockSearchGlobal(q);
+            const data = await MockDb.searchGlobal(q);
             setResults(data);
         } catch (e: any) {
             setErrorMsg(e.message);
@@ -108,7 +74,7 @@ export const SearchPage = () => {
         setErrorMsg('');
 
         try {
-            const data = await mockParseUrl(directUrl);
+            const data = await MockDb.parseUrl(directUrl);
             setResults([{ ...data, url: directUrl, source: data.source }]);
         } catch (err: any) {
             console.error(err);
@@ -126,16 +92,13 @@ export const SearchPage = () => {
             finalPrice = typeof result.price === 'object' ? result.price.amount : result.price;
         }
 
-        await RequestsService.addVariant(selectedReqId, {
-            title: result.title,
-            price: { amount: finalPrice, currency: 'USD' },
+        await MockDb.addVariant(selectedReqId, {
+            ...result,
+            price: finalPrice,
             url: result.sourceUrl || result.url,
-            source: mode === 'DIRECT' ? 'MANUAL' : (result.source || 'EXTERNAL'),
-            status: VariantStatus.PENDING,
-            year: result.year,
-            mileage: 0,
-            location: result.location
-        } as any);
+            source: mode === 'DIRECT' ? 'Direct Parse' : result.source,
+            status: VariantStatus.PENDING
+        });
 
         const newSet = new Set(importedIds);
         newSet.add(index);

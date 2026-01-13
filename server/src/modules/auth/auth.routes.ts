@@ -17,7 +17,21 @@ if (!JWT_SECRET) {
 router.post('/login', async (req: Request, res: Response) => {
   const { email, password } = (req as any).body;
   try {
-    const user = await prisma.user.findUnique({ where: { email } });
+    const user = await prisma.user.findUnique({
+      where: { email },
+      include: {
+        company: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            primaryColor: true,
+            plan: true
+          }
+        }
+      }
+    });
+
     if (!user || !user.isActive) {
       return (res as any).status(401).json({ error: 'Invalid credentials' });
     }
@@ -27,8 +41,25 @@ router.post('/login', async (req: Request, res: Response) => {
       return (res as any).status(401).json({ error: 'Invalid credentials' });
     }
 
-    const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '12h' });
-    (res as any).json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
+    // Include companyId and role in JWT for multi-tenancy
+    const token = jwt.sign({
+      userId: user.id,
+      email: user.email,
+      role: user.role,
+      companyId: user.companyId
+    }, JWT_SECRET, { expiresIn: '12h' });
+
+    (res as any).json({
+      token,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        companyId: user.companyId,
+        company: user.company
+      }
+    });
   } catch (e) {
     (res as any).status(500).json({ error: 'Internal error' });
   }

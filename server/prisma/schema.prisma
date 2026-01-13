@@ -27,37 +27,145 @@ enum DraftSource {
   MANUAL
 }
 
+enum IntegrationType {
+  SENDPULSE
+  META_PIXEL
+  GOOGLE_SHEETS
+  WEBHOOK
+  ZAPIER
+}
+
+enum CompanyPlan {
+  FREE
+  PRO
+  ENTERPRISE
+}
+
+enum UserRole {
+  SUPER_ADMIN  // Hidden system admin with full access to all companies
+  OWNER
+  ADMIN
+  MANAGER
+  VIEWER
+}
+
+// ========================================
+// Stage C: Multi-Tenancy Models
+// ========================================
+
+model Company {
+  id           String      @id @default(cuid())
+  name         String
+  slug         String      @unique
+  logo         String?
+  primaryColor String      @default("#D4AF37")
+  domain       String?     @unique
+  plan         CompanyPlan @default(FREE)
+  isActive     Boolean     @default(true)
+  
+  // Relations
+  users        User[]
+  bots         BotConfig[]
+  scenarios    Scenario[]
+  templates    CompanyTemplate[]
+  integrations Integration[]
+  
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+}
+
+model ScenarioTemplate {
+  id          String   @id @default(cuid())
+  name        String
+  category    String   // LEAD_GEN, E_COMMERCE, B2B, SUPPORT
+  description String
+  thumbnail   String?
+  isPublic    Boolean  @default(true)
+  isPremium   Boolean  @default(false)
+  
+  // Template structure (nodes, settings)
+  structure   Json     @db.JsonB
+  
+  // Marketplace metadata
+  installs    Int      @default(0)
+  rating      Float?
+  
+  // Relations
+  installations CompanyTemplate[]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model CompanyTemplate {
+  id          String           @id @default(cuid())
+  companyId   String
+  company     Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  templateId  String
+  template    ScenarioTemplate @relation(fields: [templateId], references: [id])
+  
+  installedAt DateTime         @default(now())
+  
+  @@unique([companyId, templateId])
+}
+
+model Integration {
+  id        String          @id @default(cuid())
+  companyId String
+  company   Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  type      IntegrationType
+  isActive  Boolean         @default(true)
+  
+  // Credentials & config
+  config    Json            @db.JsonB
+  
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  
+  @@unique([companyId, type])
+}
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  password  String
-  username  String?
-  name      String?
-  role      String   @default("ADMIN")
-  companyId String?
-  telegramUserId String? @unique
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id             String   @id @default(cuid())
+  email          String   @unique
+  password       String
+  username       String?
+  name           String?
+  role           UserRole @default(MANAGER)
+  companyId      String
+  company        Company  @relation(fields: [companyId], references: [id])
+  telegramUserId String?  @unique
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  
+  @@index([companyId])
 }
 
 
 model BotConfig {
-  id          String         @id @default(cuid())
+  id          String      @id @default(cuid())
   name        String?
   template    BotTemplate
-  token       String         @unique
+  token       String      @unique
   channelId   String?
   adminChatId String?
-  isEnabled   Boolean        @default(true)
-  config      Json?          @db.JsonB
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+  isEnabled   Boolean     @default(true)
+  config      Json?       @db.JsonB
+  
+  companyId   String
+  company     Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
 
   sessions    BotSession[]
   campaigns   Campaign[]
-  leads       Lead[]         
+  leads       Lead[]
+  
+  @@index([companyId])
 }
 
 model Lead {
@@ -79,26 +187,32 @@ model Lead {
 }
 
 model B2bRequest {
-  id        String           @id @default(cuid())
-  publicId  String?          @unique
-  title     String           // Extracted from content or manual
+  id          String           @id @default(cuid())
+  publicId    String?          @unique
+  title       String           // Extracted from content or manual
   description String?
-  budgetMin Int?
-  budgetMax Int?
-  yearMin   Int?
-  yearMax   Int?
-  city      String?
-  language  String?
+  budgetMin   Int?
+  budgetMax   Int?
+  yearMin     Int?
+  yearMax     Int?
+  city        String?
+  language    String?
   
-  chatId    String?
-  content   String?          // Original raw text
-  status    String           @default("NEW") // NEW, IN_PROGRESS, ...
-  priority  String           @default("NORMAL")
+  chatId      String?
+  content     String?          // Original raw text
+  status      String           @default("NEW") // NEW, IN_PROGRESS, ...
+  priority    String           @default("NORMAL")
+  
+  companyId   String?
+  assignedTo  String?          // Stage A: Manager assignment
+  internalNotes String?        // Stage A: Private notes
 
-  variants  RequestVariant[]
+  variants    RequestVariant[]
   
-  createdAt DateTime         @default(now())
-  updatedAt DateTime         @updatedAt
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  
+  @@index([companyId])
 }
 
 model RequestVariant {
@@ -132,8 +246,19 @@ model Draft {
   url         String?
   description String?
   status      String      @default("PENDING")
+  
+  // Stage B: Content Calendar fields
+  scheduledAt DateTime?
+  postedAt    DateTime?
+  destination String?     // 'channel' or 'group'
+  botId       String?
+  metadata    Json?       @db.JsonB
+  
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
+  
+  @@index([scheduledAt, status])
+  @@index([postedAt])
 }
 
 model CarListing {
@@ -151,6 +276,7 @@ model CarListing {
   specs       Json?
   description String?
   status      String   @default("AVAILABLE") // AVAILABLE, RESERVED, SOLD, PENDING, HIDDEN
+  companyId   String?
   postedAt    DateTime @default(now())
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -158,6 +284,7 @@ model CarListing {
   @@index([price])
   @@index([year])
   @@index([status])
+  @@index([companyId])
 }
 
 model BotSession {
@@ -187,8 +314,14 @@ model Scenario {
   isActive       Boolean  @default(true)
   entryNodeId    String?
   nodes          Json
+  
+  companyId      String
+  company        Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+  
+  @@index([companyId])
 }
 
 model Campaign {

@@ -1,0 +1,12 @@
+{
+    "name": "templates-seed",
+    "version": "1.0.0",
+    "type": "module",
+    "scripts": {
+        "seed": "tsx templates.seed.ts"
+    },
+    "devDependencies": {
+        "tsx": "^4.7.0",
+        "@prisma/client": "*"
+    }
+}

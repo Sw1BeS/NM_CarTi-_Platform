@@ -2,50 +2,142 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Data } from '../services/data';
 import { BotEngine } from '../services/botEngine';
-import { TelegramMessage, ChatMacro, Lead, Scenario } from '../types';
-import { Send, Inbox, RefreshCw, Zap, Trash2, Bot as BotIcon, X, Smile, MessageCircle, Smartphone, Megaphone, Users, User, ArrowRight, Image as ImageIcon, StopCircle } from 'lucide-react';
+import { TelegramMessage, ChatMacro, User } from '../types';
+import { Send, Inbox, Trash2, X, Zap, UserCheck, StickyNote, Filter } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
+
+// Default macros (можна винести в БД пізніше)
+const DEFAULT_MACROS: ChatMacro[] = [
+    { id: 'm1', shortcut: '/hi', text: 'Привіт! Чим можу допомогти? 👋', category: 'greeting' },
+    { id: 'm2', shortcut: '/wait', text: 'Уточнюю інформацію, дайте секунду... ⏳', category: 'status' },
+    { id: 'm3', shortcut: '/thanks', text: 'Дякую! Зв\'яжемося найближчим часом 🙏', category: 'closing' },
+    { id: 'm4', shortcut: '/check', text: 'Перевірили наявність, зараз підготуємо варіанти 📋', category: 'status' },
+    { id: 'm5', shortcut: '/price', text: 'Актуальну ціну уточню у постачальника та повернусь протягом години 💰', category: 'info' }
+];
+
+interface ChatInfo {
+    chatId: string;
+    lastMsg: TelegramMessage;
+    assignedTo?: string;
+    internalNote?: string;
+    unreadCount: number;
+}
 
 export const InboxPage = () => {
     const [msgs, setMsgs] = useState<TelegramMessage[]>([]);
+    const [chats, setChats] = useState<ChatInfo[]>([]);
     const [activeChatId, setActiveChatId] = useState<string | null>(null);
     const [replyText, setReplyText] = useState('');
+    const [filter, setFilter] = useState<'ALL' | 'MY' | 'UNASSIGNED'>('ALL');
+    const [managers, setManagers] = useState<User[]>([]);
+    const [showMacros, setShowMacros] = useState(false);
+    const [internalNote, setInternalNote] = useState('');
+    const [showNotePanel, setShowNotePanel] = useState(false);
+
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const { user } = useAuth();
-    const navigate = useNavigate();
+    const { showToast } = useToast();
     const [searchParams] = useSearchParams();
 
-    // Load Data
+    // Load messages and managers
     useEffect(() => {
-        const load = async () => setMsgs([...await Data.getMessages()]);
+        const load = async () => {
+            const messages = await Data.getMessages();
+            setMsgs(messages);
+
+            // Build chat list with metadata
+            const chatMap = new Map<string, ChatInfo>();
+            messages.forEach(m => {
+                if (!chatMap.has(m.chatId)) {
+                    chatMap.set(m.chatId, {
+                        chatId: m.chatId,
+                        lastMsg: m,
+                        assignedTo: undefined, // TODO: load from API
+                        internalNote: undefined,
+                        unreadCount: 0
+                    });
+                } else {
+                    const existing = chatMap.get(m.chatId)!;
+                    if (new Date(m.date) > new Date(existing.lastMsg.date)) {
+                        existing.lastMsg = m;
+                    }
+                }
+            });
+
+            setChats(Array.from(chatMap.values()).sort((a, b) =>
+                new Date(b.lastMsg.date).getTime() - new Date(a.lastMsg.date).getTime()
+            ));
+        };
+
         load();
         const unsub = Data.subscribe('UPDATE_MESSAGES', load);
+
         const target = searchParams.get('chatId');
         if (target) setActiveChatId(target);
+
         return unsub;
     }, [searchParams]);
 
-    // Scroll
+    // Load managers for assignment
+    useEffect(() => {
+        Data.getUsers().then(users => {
+            setManagers(users.filter(u => u.role === 'MANAGER' || u.role === 'ADMIN'));
+        });
+    }, []);
+
+    // Load note when chat changes
+    useEffect(() => {
+        if (activeChatId) {
+            // TODO: Load from API/localStorage
+            const stored = localStorage.getItem(`note_${activeChatId}`);
+            setInternalNote(stored || '');
+        }
+    }, [activeChatId]);
+
+    // Scroll to bottom
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [msgs, activeChatId]);
 
     const handleReply = async () => {
-        if (!activeChatId || !replyText) return;
+        if (!activeChatId || !replyText.trim()) return;
         await BotEngine.sendUnifiedMessage('TG', activeChatId, replyText);
         setReplyText('');
     };
 
-    const activeMessages = activeChatId 
+    const assignChat = async (chatId: string, userId: string) => {
+        // TODO: Save to API
+        const updated = chats.map(c => c.chatId === chatId ? { ...c, assignedTo: userId } : c);
+        setChats(updated);
+        showToast(`Assigned to ${managers.find(m => m.id === userId)?.name || 'manager'}`);
+    };
+
+    const saveNote = async () => {
+        if (!activeChatId) return;
+        // TODO: Save to API
+        localStorage.setItem(`note_${activeChatId}`, internalNote);
+        showToast('Note saved', 'success');
+        setShowNotePanel(false);
+    };
+
+    const insertMacro = (text: string) => {
+        setReplyText(text);
+        setShowMacros(false);
+    };
+
+    const activeMessages = activeChatId
         ? msgs.filter(m => m.chatId === activeChatId).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
         : [];
 
-    // Distinct Chats
-    const chats = Array.from(new Set(msgs.map(m => m.chatId))).map(cid => {
-        const last = msgs.filter(m => m.chatId === cid).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
-        return { chatId: cid, lastMsg: last };
+    const activeChat = chats.find(c => c.chatId === activeChatId);
+
+    // Filter chats by assignment
+    const filteredChats = chats.filter(c => {
+        if (filter === 'MY') return c.assignedTo === user?.id;
+        if (filter === 'UNASSIGNED') return !c.assignedTo;
+        return true;
     });
 
     return (
@@ -53,21 +145,49 @@ export const InboxPage = () => {
             {/* Sidebar List */}
             <div className="w-80 panel flex flex-col overflow-hidden shrink-0">
                 <div className="p-4 border-b border-[var(--border-color)] bg-[var(--bg-panel)] backdrop-blur">
-                    <h2 className="font-bold text-[var(--text-primary)]">Messages</h2>
-                    <p className="text-xs text-[var(--text-secondary)]">{chats.length} active conversations</p>
+                    <div className="flex justify-between items-center mb-3">
+                        <h2 className="font-bold text-[var(--text-primary)]">Inbox</h2>
+                        <div className="flex gap-1">
+                            <button
+                                onClick={() => setFilter('ALL')}
+                                className={`px-2 py-1 text-[10px] rounded ${filter === 'ALL' ? 'bg-gold-500 text-black' : 'bg-[var(--bg-input)] text-[var(--text-secondary)]'}`}
+                            >
+                                All
+                            </button>
+                            <button
+                                onClick={() => setFilter('MY')}
+                                className={`px-2 py-1 text-[10px] rounded ${filter === 'MY' ? 'bg-gold-500 text-black' : 'bg-[var(--bg-input)] text-[var(--text-secondary)]'}`}
+                            >
+                                My
+                            </button>
+                            <button
+                                onClick={() => setFilter('UNASSIGNED')}
+                                className={`px-2 py-1 text-[10px] rounded ${filter === 'UNASSIGNED' ? 'bg-gold-500 text-black' : 'bg-[var(--bg-input)] text-[var(--text-secondary)]'}`}
+                            >
+                                Unassigned
+                            </button>
+                        </div>
+                    </div>
+                    <p className="text-xs text-[var(--text-secondary)]">{filteredChats.length} conversations</p>
                 </div>
                 <div className="flex-1 overflow-y-auto">
-                    {chats.map(c => (
-                        <div 
-                            key={c.chatId} 
-                            onClick={() => setActiveChatId(c.chatId)} 
+                    {filteredChats.map(c => (
+                        <div
+                            key={c.chatId}
+                            onClick={() => setActiveChatId(c.chatId)}
                             className={`p-4 border-b border-[var(--border-color)] cursor-pointer hover:bg-[var(--bg-input)] transition-colors ${activeChatId === c.chatId ? 'bg-gold-500/10 border-l-4 border-l-gold-500' : 'border-l-4 border-l-transparent'}`}
                         >
                             <div className="flex justify-between mb-1">
                                 <span className="font-bold text-sm text-[var(--text-primary)] truncate max-w-[150px]">{c.lastMsg.from}</span>
-                                <span className="text-[10px] text-[var(--text-secondary)] tabular-nums">{new Date(c.lastMsg.date).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>
+                                <span className="text-[10px] text-[var(--text-secondary)] tabular-nums">{new Date(c.lastMsg.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                             </div>
-                            <div className="text-xs text-[var(--text-muted)] truncate">{c.lastMsg.text}</div>
+                            <div className="text-xs text-[var(--text-muted)] truncate mb-2">{c.lastMsg.text}</div>
+                            {c.assignedTo && (
+                                <div className="flex items-center gap-1 text-[9px] text-blue-500">
+                                    <UserCheck size={10} />
+                                    {managers.find(m => m.id === c.assignedTo)?.name || 'Assigned'}
+                                </div>
+                            )}
                         </div>
                     ))}
                 </div>
@@ -79,11 +199,57 @@ export const InboxPage = () => {
                     <>
                         {/* Header */}
                         <div className="p-4 border-b border-[var(--border-color)] bg-[var(--bg-panel)] backdrop-blur flex justify-between items-center z-10">
-                            <div className="font-bold text-[var(--text-primary)]">
-                                Chat #{activeChatId}
+                            <div className="flex items-center gap-3">
+                                <div>
+                                    <div className="font-bold text-[var(--text-primary)]">
+                                        {activeChat?.lastMsg.from || 'Chat'}
+                                    </div>
+                                    <div className="text-[10px] text-[var(--text-secondary)]">ID: {activeChatId}</div>
+                                </div>
                             </div>
-                            <button onClick={async () => { await Data.clearSession(activeChatId); window.location.reload(); }} className="btn-ghost text-xs text-red-500 hover:bg-red-500/10"><Trash2 size={16}/> Clear</button>
+                            <div className="flex items-center gap-2">
+                                {/* Assignment */}
+                                <select
+                                    className="input text-xs px-2 py-1"
+                                    value={activeChat?.assignedTo || ''}
+                                    onChange={e => assignChat(activeChatId, e.target.value)}
+                                >
+                                    <option value="">Unassigned</option>
+                                    {managers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                                </select>
+
+                                {/* Note Button */}
+                                <button
+                                    onClick={() => setShowNotePanel(!showNotePanel)}
+                                    className={`btn-secondary px-3 py-1.5 text-xs ${internalNote ? 'text-gold-500' : ''}`}
+                                >
+                                    <StickyNote size={14} />
+                                </button>
+
+                                <button onClick={async () => { await Data.clearSession(activeChatId); window.location.reload(); }} className="btn-ghost text-xs text-red-500 hover:bg-red-500/10 px-3 py-1.5">
+                                    <Trash2 size={14} />
+                                </button>
+                            </div>
                         </div>
+
+                        {/* Note Panel */}
+                        {showNotePanel && (
+                            <div className="bg-yellow-500/10 border-b border-yellow-500/30 p-3">
+                                <div className="flex justify-between items-start mb-2">
+                                    <div className="text-xs font-bold text-yellow-600 flex items-center gap-1">
+                                        <StickyNote size={12} /> Internal Note (not visible to client)
+                                    </div>
+                                    <button onClick={() => setShowNotePanel(false)}><X size={14} className="text-[var(--text-secondary)]" /></button>
+                                </div>
+                                <textarea
+                                    className="textarea text-xs h-20 w-full"
+                                    placeholder="Add private notes about this conversation..."
+                                    value={internalNote}
+                                    onChange={e => setInternalNote(e.target.value)}
+                                />
+                                <button onClick={saveNote} className="btn-primary text-xs px-3 py-1 mt-2">Save Note</button>
+                            </div>
+                        )}
 
                         {/* Messages */}
                         <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-[var(--bg-input)]">
@@ -91,39 +257,74 @@ export const InboxPage = () => {
                                 const isOut = m.direction === 'OUTGOING';
                                 return (
                                     <div key={m.id} className={`flex ${isOut ? 'justify-end' : 'justify-start'}`}>
-                                        <div className={`max-w-[70%] p-3 rounded-2xl shadow-sm text-sm relative group ${
-                                            isOut 
-                                                ? 'bg-gold-500 text-charcoal-950 rounded-tr-none' 
+                                        <div className={`max-w-[70%] p-3 rounded-2xl shadow-sm text-sm relative group ${isOut
+                                                ? 'bg-gold-500 text-charcoal-950 rounded-tr-none'
                                                 : 'bg-[var(--bg-panel)] text-[var(--text-primary)] rounded-tl-none border border-[var(--border-color)]'
-                                        }`}>
+                                            }`}>
                                             {m.text}
                                             <div className={`text-[9px] mt-1 text-right opacity-60 ${isOut ? 'text-charcoal-800' : 'text-[var(--text-secondary)]'}`}>
-                                                {new Date(m.date).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}
+                                                {new Date(m.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                             </div>
                                         </div>
                                     </div>
                                 );
                             })}
-                            <div ref={messagesEndRef}/>
+                            <div ref={messagesEndRef} />
                         </div>
 
                         {/* Input */}
-                        <div className="p-4 border-t border-[var(--border-color)] bg-[var(--bg-panel)] backdrop-blur flex gap-3">
-                            <input 
-                                className="input" 
-                                placeholder="Type message..." 
-                                value={replyText} 
-                                onChange={e => setReplyText(e.target.value)}
-                                onKeyDown={e => e.key === 'Enter' && handleReply()}
-                            />
-                            <button onClick={handleReply} className="btn-primary w-12 h-12 rounded-full !p-0 flex items-center justify-center shrink-0">
-                                <Send size={20}/>
-                            </button>
+                        <div className="border-t border-[var(--border-color)] bg-[var(--bg-panel)] backdrop-blur">
+                            {/* Macros Panel */}
+                            {showMacros && (
+                                <div className="p-3 border-b border-[var(--border-color)] bg-[var(--bg-input)]">
+                                    <div className="flex justify-between items-center mb-2">
+                                        <span className="text-xs font-bold text-[var(--text-secondary)]">Quick Replies</span>
+                                        <button onClick={() => setShowMacros(false)}><X size={14} className="text-[var(--text-secondary)]" /></button>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {DEFAULT_MACROS.map(macro => (
+                                            <button
+                                                key={macro.id}
+                                                onClick={() => insertMacro(macro.text)}
+                                                className="text-left p-2 rounded bg-[var(--bg-panel)] hover:bg-[var(--bg-app)] border border-[var(--border-color)] transition-colors"
+                                            >
+                                                <div className="text-[10px] font-mono text-gold-500 mb-1">{macro.shortcut}</div>
+                                                <div className="text-xs text-[var(--text-primary)] line-clamp-2">{macro.text}</div>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="p-4 flex gap-3">
+                                <button
+                                    onClick={() => setShowMacros(!showMacros)}
+                                    className={`btn-secondary w-10 h-10 rounded-full !p-0 flex items-center justify-center shrink-0 ${showMacros ? 'bg-gold-500 text-black' : ''}`}
+                                    title="Quick replies"
+                                >
+                                    <Zap size={18} />
+                                </button>
+                                <input
+                                    className="input"
+                                    placeholder="Type message or use / for macros..."
+                                    value={replyText}
+                                    onChange={e => setReplyText(e.target.value)}
+                                    onKeyDown={e => {
+                                        if (e.key === 'Enter' && !e.shiftKey) {
+                                            e.preventDefault();
+                                            handleReply();
+                                        }
+                                    }}
+                                />
+                                <button onClick={handleReply} disabled={!replyText.trim()} className="btn-primary w-12 h-12 rounded-full !p-0 flex items-center justify-center shrink-0">
+                                    <Send size={20} />
+                                </button>
+                            </div>
                         </div>
                     </>
                 ) : (
                     <div className="flex-1 flex flex-col items-center justify-center text-[var(--text-muted)]">
-                        <Inbox size={64} className="mb-4 opacity-20"/>
+                        <Inbox size={64} className="mb-4 opacity-20" />
                         <p>Select a conversation</p>
                     </div>
                 )}

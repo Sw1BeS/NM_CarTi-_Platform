@@ -10,8 +10,13 @@ import inventoryRoutes from './modules/inventory/inventory.routes.js';
 import requestsRoutes from './modules/requests/requests.routes.js';
 import botRoutes from './modules/bots/bot.routes.js';
 import publicRoutes from './routes/publicRoutes.js';
+import companyRoutes from './modules/companies/company.routes.js';
+import templateRoutes from './modules/templates/template.routes.js';
+import integrationRoutes from './modules/integrations/integration.routes.js';
+import superadminRoutes from './modules/superadmin/superadmin.routes.js';
 import { BotManager } from './modules/bots/bot.service.js';
 import { seedAdmin } from './modules/users/user.service.js';
+import { startContentWorker, stopContentWorker } from './workers/content.worker.js';
 import process from 'process';
 
 dotenv.config();
@@ -50,6 +55,10 @@ app.use('/api/auth', authRoutes);
 app.use('/api/entities', entityRoutes); // Generic fallback for other entities
 app.use('/api/inventory', inventoryRoutes); // Dedicate Inventory
 app.use('/api/requests', requestsRoutes);
+app.use('/api/companies', companyRoutes); // Stage C: Multi-tenancy
+app.use('/api/templates', templateRoutes); // Stage C: Marketplace
+app.use('/api/integrations', integrationRoutes); // Stage C: Integrations
+app.use('/api/superadmin', superadminRoutes); // Stage C: System admin
 app.use('/api', botRoutes); // Mount at /api root for /bots, /scenarios etc.
 app.use('/api', apiRoutes);
 
@@ -71,6 +80,9 @@ const startServer = async () => {
     const botManager = new BotManager();
     botManager.startAll();
 
+    // Start Content Worker for scheduled posts
+    startContentWorker();
+
     const server = app.listen(PORT, () => {
       console.log(`🚀 Server running on http://localhost:${PORT}`);
     });
@@ -79,6 +91,7 @@ const startServer = async () => {
     const shutdown = async () => {
       console.log('🛑 SIGTERM received: closing HTTP server & Bots');
       botManager.stopAll();
+      stopContentWorker();
       server.close(() => {
         console.log('HTTP server closed');
         prisma.$disconnect();
