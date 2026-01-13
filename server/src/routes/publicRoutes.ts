@@ -158,7 +158,7 @@ router.get('/proposals/:id', async (req, res) => {
       const rawData = (proposal.data && typeof proposal.data === 'object' && !Array.isArray(proposal.data))
         ? proposal.data
         : {};
-      const proposalData = { ...(rawData as Record<string, any>), id: proposal.id };
+      const proposalData: Record<string, any> = { ...(rawData as Record<string, any>), id: proposal.id };
       let variants: any[] = [];
       if (proposalData.requestId) {
         const request = await prisma.b2bRequest.findUnique({
