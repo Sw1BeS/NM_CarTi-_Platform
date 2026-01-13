@@ -655,7 +655,6 @@ export class ScenarioEngine {
     }
 
     // Menu button match
-    const menuConfig = getMenuConfig(bot);
     const menuBtn = (menuConfig.buttons || []).find((btn: any) => {
       const normInput = input;
       const labelDefault = normalizeTextCommand(btn.label);
@@ -750,8 +749,8 @@ export class ScenarioEngine {
     if (!vars.__activeScenarioId || !vars.__currentNodeId) return false;
     const scenario = await prisma.scenario.findUnique({ where: { id: vars.__activeScenarioId } });
     if (!scenario) return false;
-    const nodes = Array.isArray(scenario.nodes) ? scenario.nodes : [];
-    const node = nodes.find((n: any) => n.id === vars.__currentNodeId);
+    const nodes = Array.isArray((scenario as any).nodes) ? ((scenario as any).nodes as ScenarioNode[]) : [];
+    const node = nodes.find((n: ScenarioNode) => n.id === vars.__currentNodeId);
     if (!node) return false;
 
     if (node.type === 'QUESTION_CHOICE' || node.type === 'MENU_REPLY') {
@@ -802,8 +801,8 @@ export class ScenarioEngine {
   }
 
   static async executeNode(bot: BotRuntime, session: any, vars: Record<string, any>, history: string[], scenario: ScenarioRecord, nodeId: string, isBack = false) {
-    const nodes = Array.isArray(scenario.nodes) ? scenario.nodes : [];
-    const node: ScenarioNode | undefined = nodes.find((n: any) => n.id === nodeId);
+    const nodes = Array.isArray(scenario.nodes) ? (scenario.nodes as ScenarioNode[]) : [];
+    const node: ScenarioNode | undefined = nodes.find((n: ScenarioNode) => n.id === nodeId);
     const lang = getLanguage(vars);
     if (!node) {
       delete vars.__activeScenarioId;
