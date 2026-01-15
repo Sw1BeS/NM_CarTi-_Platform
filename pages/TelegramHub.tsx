@@ -15,6 +15,26 @@ import {
 import { ScenarioBuilder } from './ScenarioBuilder';
 import { DEFAULT_MENU_CONFIG, DEFAULT_MINI_APP_CONFIG } from '../services/defaults';
 
+const normalizeMenuConfig = (menuConfig?: Bot['menuConfig']) => {
+    const buttonsRaw = Array.isArray(menuConfig?.buttons) ? menuConfig!.buttons : [];
+    const buttons = buttonsRaw
+        .filter((btn: any) => btn && typeof btn === 'object')
+        .map((btn: any, idx: number) => ({
+            ...btn,
+            id: btn.id || `btn_${idx}`,
+            label: typeof btn.label === 'string' ? btn.label.trim() : '',
+            label_uk: typeof btn.label_uk === 'string' ? btn.label_uk : undefined,
+            label_ru: typeof btn.label_ru === 'string' ? btn.label_ru : undefined,
+            row: Number.isFinite(Number(btn.row)) ? Number(btn.row) : 0,
+            col: Number.isFinite(Number(btn.col)) ? Number(btn.col) : idx
+        }));
+
+    return {
+        welcomeMessage: menuConfig?.welcomeMessage || '',
+        buttons
+    };
+};
+
 export const TelegramHub = () => {
     const [bots, setBots] = useState<Bot[]>([]);
     const [selectedBotId, setSelectedBotId] = useState<string | null>(null);
@@ -474,10 +494,10 @@ const AutomationSuite = ({ bot }: { bot: Bot }) => {
 const UnifiedMenuManager = ({ bot, onEditFlow }: { bot: Bot, onEditFlow: (id: string) => void }) => {
     const { showToast } = useToast();
     const [scenarios, setScenarios] = useState<Scenario[]>([]);
-    const [menuConfig, setMenuConfig] = useState(bot.menuConfig || { buttons: [], welcomeMessage: '' });
+    const [menuConfig, setMenuConfig] = useState(() => normalizeMenuConfig(bot.menuConfig));
     const [isSyncing, setIsSyncing] = useState(false);
 
-    useEffect(() => { setMenuConfig(bot.menuConfig || { buttons: [], welcomeMessage: '' }); }, [bot.id]);
+    useEffect(() => { setMenuConfig(normalizeMenuConfig(bot.menuConfig)); }, [bot.id, bot.menuConfig]);
     useEffect(() => {
         const load = async () => setScenarios(await Data.getScenarios());
         load();
@@ -486,8 +506,9 @@ const UnifiedMenuManager = ({ bot, onEditFlow }: { bot: Bot, onEditFlow: (id: st
     }, []);
 
     const save = async (newConfig: any) => {
-        setMenuConfig(newConfig);
-        const updatedBot = { ...bot, menuConfig: newConfig };
+        const normalized = normalizeMenuConfig(newConfig);
+        setMenuConfig(normalized);
+        const updatedBot = { ...bot, menuConfig: normalized };
         await Data.saveBot(updatedBot);
     };
 

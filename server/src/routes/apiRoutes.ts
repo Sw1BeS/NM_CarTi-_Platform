@@ -11,6 +11,8 @@ import { importDraft, searchAutoRia, sendMetaEvent } from '../services/integrati
 import { mapLeadCreateInput, mapLeadOutput, mapLeadStatusFilter, mapLeadUpdateInput } from '../services/dto.js';
 import { mapBotInput, mapBotOutput } from '../services/botDto.js';
 import { IntegrationService } from '../modules/integrations/integration.service.js';
+import { setWebhookForBot, deleteWebhookForBot } from '../modules/telegram/telegramAdmin.service.js';
+import { telegramOutbox } from '../modules/telegram/outbox/telegramOutbox.js';
 
 const integrationService = new IntegrationService();
 
@@ -85,6 +87,31 @@ router.put('/bots/:id', requireRole(['ADMIN']), async (req, res) => {
     }
 });
 
+router.post('/bots/:id/webhook', requireRole(['ADMIN']), async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { publicBaseUrl, secretToken } = req.body || {};
+        const result = await setWebhookForBot(id, { publicBaseUrl, secretToken });
+        botManager.restartBot(id).catch(e => console.error('Async Bot Restart Failed:', e));
+        res.json({ ok: true, ...result });
+    } catch (e: any) {
+        console.error('[Webhook] Set error:', e.message || e);
+        res.status(500).json({ error: e.message || 'Failed to set webhook' });
+    }
+});
+
+router.delete('/bots/:id/webhook', requireRole(['ADMIN']), async (req, res) => {
+    try {
+        const { id } = req.params;
+        await deleteWebhookForBot(id);
+        botManager.restartBot(id).catch(e => console.error('Async Bot Restart Failed:', e));
+        res.json({ ok: true });
+    } catch (e: any) {
+        console.error('[Webhook] Delete error:', e.message || e);
+        res.status(500).json({ error: e.message || 'Failed to delete webhook' });
+    }
+});
+
 router.delete('/bots/:id', requireRole(['ADMIN']), async (req, res) => {
     const { id } = req.params;
     try {
@@ -100,6 +127,7 @@ const TELEGRAM_METHODS = new Set([
     'sendMessage',
     'sendPhoto',
     'sendMediaGroup',
+    'editMessageText',
     'sendChatAction',
     'answerCallbackQuery',
     'setMyCommands',
@@ -109,19 +137,16 @@ const TELEGRAM_METHODS = new Set([
 ]);
 
 const resolveBot = async (token?: string, botId?: string) => {
-    if (token && botId) {
-        return { token, botId };
-    }
     if (botId) {
         const bot = await prisma.botConfig.findUnique({ where: { id: botId } });
-        return bot?.token ? { token: bot.token, botId: bot.id } : null;
+        return bot?.token ? { token: bot.token, botId: bot.id, bot } : null;
     }
     if (token) {
-        const bot = await prisma.botConfig.findFirst({ where: { isEnabled: true } });
-        return { token, botId: bot?.id || '' };
+        const bot = await prisma.botConfig.findFirst({ where: { token } });
+        return { token, botId: bot?.id, bot: bot || null };
     }
     const bot = await prisma.botConfig.findFirst({ where: { isEnabled: true } });
-    return bot?.token ? { token: bot.token, botId: bot.id } : null;
+    return bot?.token ? { token: bot.token, botId: bot.id, bot } : null;
 };
 
 const callTelegram = async (token: string, method: string, params: Record<string, any>) => {
@@ -144,6 +169,115 @@ router.post('/telegram/call', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), asy
         const resolved = await resolveBot(token, botId);
         if (!resolved?.token) {
             return res.status(400).json({ error: 'Bot token not found' });
+        }
+        const userRole = (req as any).user?.role;
+        const companyId = (req as any).user?.companyId;
+        if (resolved.bot?.companyId && companyId && resolved.bot.companyId !== companyId && userRole !== 'SUPER_ADMIN') {
+            return res.status(403).json({ error: 'Forbidden' });
+        }
+
+        if (method === 'sendMessage') {
+            if (!resolved.botId) return res.status(400).json({ error: 'Bot not registered' });
+            const chatId = String(params?.chat_id || params?.chatId || '');
+            const text = String(params?.text || '');
+            if (!chatId || !text) {
+                return res.status(400).json({ error: 'chat_id and text are required' });
+            }
+            const result = await telegramOutbox.sendMessage({
+                botId: resolved.botId,
+                token: resolved.token,
+                chatId,
+                text,
+                replyMarkup: params?.reply_markup,
+                companyId: resolved.bot?.companyId || null
+            });
+            return res.json({ ok: true, result });
+        }
+
+        if (method === 'sendPhoto') {
+            if (!resolved.botId) return res.status(400).json({ error: 'Bot not registered' });
+            const chatId = String(params?.chat_id || params?.chatId || '');
+            const photo = String(params?.photo || '');
+            if (!chatId || !photo) {
+                return res.status(400).json({ error: 'chat_id and photo are required' });
+            }
+            const result = await telegramOutbox.sendPhoto({
+                botId: resolved.botId,
+                token: resolved.token,
+                chatId,
+                photo,
+                caption: String(params?.caption || ''),
+                replyMarkup: params?.reply_markup,
+                companyId: resolved.bot?.companyId || null
+            });
+            return res.json({ ok: true, result });
+        }
+
+        if (method === 'sendMediaGroup') {
+            if (!resolved.botId) return res.status(400).json({ error: 'Bot not registered' });
+            const chatId = String(params?.chat_id || params?.chatId || '');
+            const media = params?.media;
+            if (!chatId || !Array.isArray(media)) {
+                return res.status(400).json({ error: 'chat_id and media array are required' });
+            }
+            const result = await telegramOutbox.sendMediaGroup({
+                botId: resolved.botId,
+                token: resolved.token,
+                chatId,
+                media,
+                companyId: resolved.bot?.companyId || null
+            });
+            return res.json({ ok: true, result });
+        }
+
+        if (method === 'editMessageText') {
+            if (!resolved.botId) return res.status(400).json({ error: 'Bot not registered' });
+            const chatId = String(params?.chat_id || params?.chatId || '');
+            const messageId = Number(params?.message_id || params?.messageId);
+            const text = String(params?.text || '');
+            if (!chatId || !messageId || !text) {
+                return res.status(400).json({ error: 'chat_id, message_id, and text are required' });
+            }
+            const result = await telegramOutbox.editMessageText({
+                botId: resolved.botId,
+                token: resolved.token,
+                chatId,
+                messageId,
+                text,
+                replyMarkup: params?.reply_markup,
+                companyId: resolved.bot?.companyId || null
+            });
+            return res.json({ ok: true, result });
+        }
+
+        if (method === 'sendChatAction') {
+            if (!resolved.botId) return res.status(400).json({ error: 'Bot not registered' });
+            const chatId = String(params?.chat_id || params?.chatId || '');
+            const action = String(params?.action || 'typing');
+            if (!chatId) {
+                return res.status(400).json({ error: 'chat_id is required' });
+            }
+            const result = await telegramOutbox.sendChatAction({
+                botId: resolved.botId,
+                token: resolved.token,
+                chatId,
+                action,
+                companyId: resolved.bot?.companyId || null
+            });
+            return res.json({ ok: true, result });
+        }
+
+        if (method === 'answerCallbackQuery') {
+            const callbackId = String(params?.callback_query_id || params?.callbackId || '');
+            if (!callbackId) {
+                return res.status(400).json({ error: 'callback_query_id is required' });
+            }
+            const result = await telegramOutbox.answerCallback({
+                token: resolved.token,
+                callbackId,
+                text: params?.text
+            });
+            return res.json({ ok: true, result });
         }
         const result = await callTelegram(resolved.token, method, params || {});
         res.json({ ok: true, result });
@@ -182,6 +316,11 @@ router.get('/messages', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), async (re
             const chatPayload = payload?.chat || {};
             const fromName = fromPayload.first_name || fromPayload.username || (row.direction === 'OUTGOING' ? 'Bot' : 'User');
 
+            const inlineKeyboard = Array.isArray(payload?.markup?.inline_keyboard) ? payload.markup.inline_keyboard : [];
+            const flatButtons = Array.isArray(inlineKeyboard)
+                ? (inlineKeyboard.flat ? inlineKeyboard.flat() : inlineKeyboard.reduce((acc: any[], row: any) => acc.concat(row || []), []))
+                : [];
+
             return {
                 id: row.id,
                 botId: row.botId,
@@ -194,10 +333,10 @@ router.get('/messages', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), async (re
                 text: row.text,
                 date: new Date(row.createdAt).toISOString(),
                 status: 'NEW',
-                buttons: payload?.markup?.inline_keyboard?.flat?.().map((b: any) => ({
+                buttons: flatButtons.map((b: any) => ({
                     text: b.text,
                     value: b.callback_data || b.url
-                })) || [],
+                })),
                 chatTitle: chatPayload.title
             };
         });
@@ -206,6 +345,38 @@ router.get('/messages', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), async (re
     } catch (e: any) {
         console.error('[Messages] Fetch error:', e.message || e);
         res.status(500).json({ error: 'Failed to fetch messages' });
+    }
+});
+
+// --- Platform Events (Telegram analytics) ---
+router.get('/events', requireRole(['ADMIN', 'MANAGER']), async (req, res) => {
+    try {
+        const companyId = (req as any).user?.companyId;
+        if (!companyId) return res.status(400).json({ error: 'Company context required' });
+
+        const botId = typeof req.query.botId === 'string' ? req.query.botId : undefined;
+        const startDate = typeof req.query.startDate === 'string' ? new Date(req.query.startDate) : undefined;
+        const endDate = typeof req.query.endDate === 'string' ? new Date(req.query.endDate) : undefined;
+        const limit = Math.min(500, Math.max(1, Number(req.query.limit) || 200));
+
+        const where: any = { companyId };
+        if (botId) where.botId = botId;
+        if (startDate || endDate) {
+            where.createdAt = {};
+            if (startDate && !Number.isNaN(startDate.getTime())) where.createdAt.gte = startDate;
+            if (endDate && !Number.isNaN(endDate.getTime())) where.createdAt.lte = endDate;
+        }
+
+        const events = await prisma.platformEvent.findMany({
+            where,
+            orderBy: { createdAt: 'desc' },
+            take: limit
+        });
+
+        res.json(events);
+    } catch (e: any) {
+        console.error('[Events] Fetch error:', e.message || e);
+        res.status(500).json({ error: 'Failed to fetch events' });
     }
 });
 
@@ -321,22 +492,37 @@ router.post('/scenarios', requireRole(['ADMIN', 'MANAGER']), async (req, res) =>
         // But the frontend usually sends `id` which might be temporary `scn_...`.
         // If it sends a real ID, we update.
 
-        let existingId = id;
-        if (id && !id.startsWith('scn_')) {
-            const found = await prisma.scenario.findUnique({ where: { id } });
-            if (!found) existingId = null; // ID sent but not found, treat as new? or error?
-        } else {
-            existingId = null;
+        const rawId = typeof id === 'string' && id.trim() ? id.trim() : undefined;
+        const existing = rawId ? await prisma.scenario.findUnique({ where: { id: rawId } }) : null;
+
+        const status = String(data.status || 'PUBLISHED').toUpperCase();
+        const trigger = data.triggerCommand ? String(data.triggerCommand).trim() : null;
+        if (trigger && status === 'PUBLISHED') {
+            const conflict = await prisma.scenario.findFirst({
+                where: {
+                    companyId,
+                    status: 'PUBLISHED',
+                    triggerCommand: { equals: trigger, mode: 'insensitive' },
+                    ...(existing ? { id: { not: existing.id } } : {})
+                }
+            });
+            if (conflict) {
+                return res.status(409).json({ error: 'Trigger command already used by another published scenario' });
+            }
         }
 
-        if (existingId) {
+        if (existing) {
+            if (existing.companyId !== companyId) {
+                return res.status(403).json({ error: 'Forbidden' });
+            }
             const updated = await prisma.scenario.update({
-                where: { id: existingId },
+                where: { id: existing.id },
                 data: {
                     name: data.name,
                     triggerCommand: data.triggerCommand || null,
                     keywords: data.keywords || [],
                     isActive: data.isActive ?? false,
+                    status: status as any,
                     entryNodeId: data.entryNodeId,
                     nodes: data.nodes || [],
                     companyId // Ensure ownership
@@ -346,10 +532,12 @@ router.post('/scenarios', requireRole(['ADMIN', 'MANAGER']), async (req, res) =>
         } else {
             const created = await prisma.scenario.create({
                 data: {
+                    ...(rawId ? { id: rawId } : {}),
                     name: data.name,
                     triggerCommand: data.triggerCommand || null,
                     keywords: data.keywords || [],
                     isActive: data.isActive ?? false,
+                    status: status as any,
                     entryNodeId: data.entryNodeId,
                     nodes: data.nodes || [],
                     companyId
@@ -367,7 +555,9 @@ router.delete('/scenarios/:id', requireRole(['ADMIN', 'MANAGER']), async (req, r
     try {
         const { id } = req.params;
         const companyId = (req as any).user?.companyId;
-        await prisma.scenario.delete({ where: { id, companyId } });
+        if (!companyId) return res.status(400).json({ error: 'Company context required' });
+        const deleted = await prisma.scenario.deleteMany({ where: { id, companyId } });
+        if (!deleted.count) return res.status(404).json({ error: 'Scenario not found' });
         res.json({ success: true });
     } catch (e: any) {
         console.error('[Scenarios] Delete error:', e);
@@ -418,9 +608,10 @@ router.get('/destinations', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), async
 
         bots.forEach(bot => {
             if (bot.channelId) {
-                destMap.set(bot.channelId, {
-                    id: `dest_${bot.channelId}`,
-                    identifier: bot.channelId,
+                const identifier = String(bot.channelId);
+                destMap.set(identifier, {
+                    id: `dest_${identifier}`,
+                    identifier,
                     name: bot.name ? `${bot.name} Channel` : 'Channel',
                     type: 'CHANNEL',
                     tags: ['bot-channel'],
@@ -428,9 +619,10 @@ router.get('/destinations', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), async
                 });
             }
             if (bot.adminChatId) {
-                destMap.set(bot.adminChatId, {
-                    id: `dest_${bot.adminChatId}`,
-                    identifier: bot.adminChatId,
+                const identifier = String(bot.adminChatId);
+                destMap.set(identifier, {
+                    id: `dest_${identifier}`,
+                    identifier,
                     name: bot.name ? `${bot.name} Admin` : 'Admin Chat',
                     type: 'USER',
                     tags: ['bot-admin'],
@@ -443,7 +635,7 @@ router.get('/destinations', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), async
             const payload = row.payload || {};
             const chat = payload.chat || {};
             const from = payload.from || {};
-            const identifier = row.chatId;
+            const identifier = row.chatId ? String(row.chatId) : '';
             if (!identifier || destMap.has(identifier)) return;
 
             const chatType = String(chat.type || 'private');
@@ -463,6 +655,36 @@ router.get('/destinations', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), async
                 verified: true
             });
         });
+
+        const destDef = await prisma.entityDefinition.findFirst({
+            where: { slug: 'tg_destination', status: 'ACTIVE' },
+            select: { id: true }
+        });
+
+        if (destDef) {
+            const records = await prisma.entityRecord.findMany({
+                where: { entityId: destDef.id },
+                orderBy: { updatedAt: 'desc' },
+                take: 500
+            });
+
+            records.forEach(record => {
+                const data = (record as any).data || {};
+                const identifier = data.identifier || data.chatId || data.id;
+                if (!identifier || destMap.has(identifier)) return;
+
+                const typeRaw = String(data.type || '').toUpperCase();
+                const type = typeRaw === 'CHANNEL' || typeRaw === 'GROUP' ? typeRaw : 'USER';
+                destMap.set(identifier, {
+                    id: data.id || `dest_${identifier}`,
+                    identifier: String(identifier),
+                    name: data.name || data.title || String(identifier),
+                    type,
+                    tags: Array.isArray(data.tags) ? data.tags : [],
+                    verified: data.verified !== false
+                });
+            });
+        }
 
         res.json(Array.from(destMap.values()));
     } catch (e: any) {

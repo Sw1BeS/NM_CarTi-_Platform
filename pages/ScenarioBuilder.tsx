@@ -9,6 +9,46 @@ import { ApiClient } from '../services/apiClient';
 
 const NODE_WIDTH = 280;
 
+const normalizeScenario = (s: Scenario): Scenario => {
+    const safeNodes = (Array.isArray(s.nodes) && s.nodes.length > 0 ? s.nodes : [{
+        id: 'node_start',
+        type: 'START',
+        content: { text: '' },
+        nextNodeId: '',
+        position: { x: 200, y: 300 }
+    }]).map((n: any, idx: number) => {
+        const base = (n && typeof n === 'object') ? n : {};
+        return {
+            ...base,
+            id: (base as any).id || `node_${idx}_${Date.now()}`,
+            content: (base as any).content || {},
+            position: (base as any).position || { x: 200 + idx * 40, y: 300 + idx * 40 }
+        };
+    });
+    const entryNodeId = s.entryNodeId && safeNodes.find(n => n.id === s.entryNodeId) ? s.entryNodeId : safeNodes[0].id;
+    return { ...s, nodes: safeNodes, entryNodeId };
+};
+
+const normalizeMenuConfig = (menuConfig?: Bot['menuConfig']) => {
+    const buttonsRaw = Array.isArray(menuConfig?.buttons) ? menuConfig!.buttons : [];
+    const buttons = buttonsRaw
+        .filter((btn: any) => btn && typeof btn === 'object')
+        .map((btn: any, idx: number) => ({
+            ...btn,
+            id: btn.id || `btn_${idx}`,
+            label: typeof btn.label === 'string' ? btn.label.trim() : '',
+            label_uk: typeof btn.label_uk === 'string' ? btn.label_uk : undefined,
+            label_ru: typeof btn.label_ru === 'string' ? btn.label_ru : undefined,
+            row: Number.isFinite(Number(btn.row)) ? Number(btn.row) : 0,
+            col: Number.isFinite(Number(btn.col)) ? Number(btn.col) : idx
+        }));
+
+    return {
+        welcomeMessage: menuConfig?.welcomeMessage || '',
+        buttons
+    };
+};
+
 export const ScenarioBuilder = () => {
     const [view, setView] = useState<'FLOWS' | 'MENU'>('FLOWS');
     const [scenarios, setScenarios] = useState<Scenario[]>([]);
@@ -16,7 +56,10 @@ export const ScenarioBuilder = () => {
     const { showToast } = useToast();
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    const loadScenarios = async () => setScenarios([...await Data.getScenarios()]);
+    const loadScenarios = async () => {
+        const list = await Data.getScenarios();
+        setScenarios(list.map(normalizeScenario));
+    };
 
     useEffect(() => {
         loadScenarios();
@@ -132,7 +175,7 @@ export const ScenarioBuilder = () => {
     const [templates, setTemplates] = useState<Scenario[]>([]);
 
     useEffect(() => {
-        Data.getTemplates().then(setTemplates);
+        Data.getTemplates().then(list => setTemplates((list || []).map(normalizeScenario)));
     }, []);
 
     return (
@@ -260,7 +303,7 @@ export const ScenarioBuilder = () => {
 const ScenarioEditor = ({ scenario, onSave, onDelete, onTestRun }: any) => {
     // Keep existing logic, handled by parent's async handlers
     const { showToast } = useToast();
-    const [scen, setScen] = useState<Scenario>(scenario);
+    const [scen, setScen] = useState<Scenario>(normalizeScenario(scenario));
     const [activeNodeId, setActiveNodeId] = useState<string | null>(null);
     const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 });
     const [isPanning, setIsPanning] = useState(false);
@@ -269,8 +312,9 @@ const ScenarioEditor = ({ scenario, onSave, onDelete, onTestRun }: any) => {
     const lastMousePos = useRef({ x: 0, y: 0 });
 
     useEffect(() => {
-        setScen(scenario);
-        const entry = scenario.nodes.find((n: any) => n.id === scenario.entryNodeId);
+        const safe = normalizeScenario(scenario);
+        setScen(safe);
+        const entry = safe.nodes.find((n: any) => n.id === safe.entryNodeId);
         if (entry && entry.position) {
             setTransform({ x: -entry.position.x + 300, y: -entry.position.y + 300, scale: 1 });
         }
@@ -347,7 +391,9 @@ const ScenarioEditor = ({ scenario, onSave, onDelete, onTestRun }: any) => {
     const handleMouseUp = () => { setIsPanning(false); setDraggingNode(null); };
 
     const renderConnections = () => {
-        return scen.nodes.flatMap(source => {
+        const nodes = Array.isArray(scen.nodes) ? scen.nodes : [];
+        return nodes.flatMap(source => {
+            const sourceContent = source.content || {};
             const links = [];
             const sx = (source.position?.x || 0) + NODE_WIDTH - 20;
             const sy = (source.position?.y || 0) + 40;
@@ -356,13 +402,13 @@ const ScenarioEditor = ({ scenario, onSave, onDelete, onTestRun }: any) => {
                 if (target) links.push({ sx, sy, tx: target.position?.x || 0, ty: (target.position?.y || 0) + 20, color: '#52525B' });
             }
             if (source.type === 'CONDITION') {
-                const trueNode = scen.nodes.find(n => n.id === source.content.trueNodeId);
+                const trueNode = scen.nodes.find(n => n.id === sourceContent.trueNodeId);
                 if (trueNode) links.push({ sx, sy: sy + 40, tx: trueNode.position?.x || 0, ty: (trueNode.position?.y || 0) + 20, color: '#22c55e' });
-                const falseNode = scen.nodes.find(n => n.id === source.content.falseNodeId);
+                const falseNode = scen.nodes.find(n => n.id === sourceContent.falseNodeId);
                 if (falseNode) links.push({ sx, sy: sy + 70, tx: falseNode.position?.x || 0, ty: (falseNode.position?.y || 0) + 20, color: '#ef4444' });
             }
-            if (source.content.choices) {
-                source.content.choices.forEach((c, idx) => {
+            if (sourceContent.choices) {
+                sourceContent.choices.forEach((c: any, idx: number) => {
                     if (c.nextNodeId) {
                         const target = scen.nodes.find(n => n.id === c.nextNodeId);
                         if (target) {
@@ -427,7 +473,7 @@ const ScenarioEditor = ({ scenario, onSave, onDelete, onTestRun }: any) => {
                         <div className="absolute top-[-5000px] left-[-5000px] w-[10000px] h-[10000px] pointer-events-none opacity-10" style={{ backgroundImage: 'radial-gradient(#A1A1AA 1.5px, transparent 1.5px)', backgroundSize: '32px 32px' }} />
                         <svg className="absolute top-0 left-0 w-[10000px] h-[10000px] overflow-visible z-0 pointer-events-none filter drop-shadow-lg">{renderConnections()}</svg>
                         <div className="pointer-events-auto">
-                            {scen.nodes.map((node: any) => (
+                            {(Array.isArray(scen.nodes) ? scen.nodes : []).map((node: any) => (
                                 <NodeCard key={node.id} node={node} isActive={activeNodeId === node.id} onMouseDown={(e) => { e.stopPropagation(); setDraggingNode({ id: node.id, startX: e.clientX, startY: e.clientY }); setActiveNodeId(node.id); }} />
                             ))}
                         </div>
@@ -477,6 +523,8 @@ const ScenarioEditor = ({ scenario, onSave, onDelete, onTestRun }: any) => {
 };
 
 const NodeCard: React.FC<{ node: ScenarioNode, isActive: boolean, onMouseDown: (e: React.MouseEvent) => void }> = ({ node, isActive, onMouseDown }) => {
+    const content = node.content || {};
+    const safeId = node.id || 'node';
     const getStyle = () => {
         switch (node.type) {
             case 'START': return { border: 'border-gray-600', icon: Play, label: 'Start', color: 'text-gray-100', glow: 'shadow-gray-500/20' };
@@ -511,27 +559,27 @@ const NodeCard: React.FC<{ node: ScenarioNode, isActive: boolean, onMouseDown: (
                     <Icon size={14} />
                 </div>
                 <span className={`text-xs font-bold uppercase tracking-wider flex-1 ${s.color}`}>{s.label}</span>
-                <span className="text-[9px] text-[#52525B] font-mono">{node.id.slice(-4)}</span>
+                <span className="text-[9px] text-[#52525B] font-mono">{safeId.slice(-4)}</span>
             </div>
 
             <div className="p-4 space-y-3">
-                {node.content.text && <div className="text-sm text-[#E4E4E7] font-medium leading-relaxed line-clamp-3">{node.content.text}</div>}
+                {content.text && <div className="text-sm text-[#E4E4E7] font-medium leading-relaxed line-clamp-3">{content.text}</div>}
 
-                {node.content.variableName && (
+                {content.variableName && (
                     <div className="flex items-center gap-2 bg-amber-900/20 border border-amber-500/20 px-2 py-1.5 rounded text-[10px] text-amber-400 font-mono">
-                        <DatabaseIcon size={12} /> {node.content.variableName}
+                        <DatabaseIcon size={12} /> {content.variableName}
                     </div>
                 )}
 
-                {node.content.actionType && (
+                {content.actionType && (
                     <div className="text-xs font-bold font-mono bg-pink-900/20 text-pink-400 p-2 rounded text-center border border-pink-500/20">
-                        {node.content.actionType}
+                        {content.actionType}
                     </div>
                 )}
 
-                {node.content.choices && (
+                {content.choices && (
                     <div className="space-y-1.5">
-                        {node.content.choices.map((c, i) => (
+                        {content.choices.map((c, i) => (
                             <div key={i} className="text-xs bg-[#27272A] border border-[#3F3F46] px-3 py-2 rounded flex justify-between items-center">
                                 <span className="font-bold text-white">{c.label}</span>
                                 <ArrowRight size={12} className="text-[#71717A]" />
@@ -541,7 +589,7 @@ const NodeCard: React.FC<{ node: ScenarioNode, isActive: boolean, onMouseDown: (
                 )}
             </div>
 
-            {node.nextNodeId && node.type !== 'CONDITION' && !node.content.choices && (
+            {node.nextNodeId && node.type !== 'CONDITION' && !(content as any).choices && (
                 <div className="h-3 bg-[#27272A] rounded-b-xl border-t border-[#3F3F46] flex items-center justify-center">
                     <div className="w-1.5 h-1.5 bg-[#71717A] rounded-full"></div>
                 </div>
@@ -551,6 +599,7 @@ const NodeCard: React.FC<{ node: ScenarioNode, isActive: boolean, onMouseDown: (
 };
 
 const PropertiesPanel = ({ node, allNodes, onChange, onDelete, onClose }: any) => {
+    const content = node.content || {};
     return (
         <div className="flex flex-col h-full bg-[var(--bg-panel)]">
             <div className="p-5 border-b border-[var(--border-color)] flex justify-between items-center">
@@ -569,18 +618,18 @@ const PropertiesPanel = ({ node, allNodes, onChange, onDelete, onClose }: any) =
                             <textarea
                                 className="textarea min-h-[120px] font-medium"
                                 placeholder="What the bot says..."
-                                value={node.content.text || ''}
-                                onChange={e => onChange({ content: { ...node.content, text: e.target.value } })}
+                                value={content.text || ''}
+                                onChange={e => onChange({ content: { ...content, text: e.target.value } })}
                             />
                         </div>
                         <div className="grid grid-cols-2 gap-3">
                             <div>
                                 <label className="text-[10px] font-bold text-[var(--text-secondary)] uppercase mb-1 block">UK (Alt)</label>
-                                <input className="input text-xs" placeholder="Ukrainian Text" value={node.content.text_uk || ''} onChange={e => onChange({ content: { ...node.content, text_uk: e.target.value } })} />
+                                <input className="input text-xs" placeholder="Ukrainian Text" value={content.text_uk || ''} onChange={e => onChange({ content: { ...content, text_uk: e.target.value } })} />
                             </div>
                             <div>
                                 <label className="text-[10px] font-bold text-[var(--text-secondary)] uppercase mb-1 block">RU (Alt)</label>
-                                <input className="input text-xs" placeholder="Russian Text" value={node.content.text_ru || ''} onChange={e => onChange({ content: { ...node.content, text_ru: e.target.value } })} />
+                                <input className="input text-xs" placeholder="Russian Text" value={content.text_ru || ''} onChange={e => onChange({ content: { ...content, text_ru: e.target.value } })} />
                             </div>
                         </div>
                     </div>
@@ -593,8 +642,8 @@ const PropertiesPanel = ({ node, allNodes, onChange, onDelete, onClose }: any) =
                             <input
                                 className="input text-xs font-mono"
                                 placeholder="Channel/chat ID"
-                                value={node.content.destinationId || ''}
-                                onChange={e => onChange({ content: { ...node.content, destinationId: e.target.value } })}
+                                value={content.destinationId || ''}
+                                onChange={e => onChange({ content: { ...content, destinationId: e.target.value } })}
                             />
                         </div>
                         <div>
@@ -602,8 +651,8 @@ const PropertiesPanel = ({ node, allNodes, onChange, onDelete, onClose }: any) =
                             <input
                                 className="input text-xs font-mono"
                                 placeholder="e.g. destinationId"
-                                value={node.content.destinationVar || ''}
-                                onChange={e => onChange({ content: { ...node.content, destinationVar: e.target.value } })}
+                                value={content.destinationVar || ''}
+                                onChange={e => onChange({ content: { ...content, destinationVar: e.target.value } })}
                             />
                         </div>
 
@@ -614,8 +663,8 @@ const PropertiesPanel = ({ node, allNodes, onChange, onDelete, onClose }: any) =
                                     <input
                                         className="input text-xs font-mono"
                                         placeholder="requestId"
-                                        value={node.content.requestIdVar || ''}
-                                        onChange={e => onChange({ content: { ...node.content, requestIdVar: e.target.value } })}
+                                        value={content.requestIdVar || ''}
+                                        onChange={e => onChange({ content: { ...content, requestIdVar: e.target.value } })}
                                     />
                                 </div>
                                 <div>
@@ -623,8 +672,8 @@ const PropertiesPanel = ({ node, allNodes, onChange, onDelete, onClose }: any) =
                                     <input
                                         className="input text-xs"
                                         placeholder="Подати пропозицію"
-                                        value={node.content.buttonText || ''}
-                                        onChange={e => onChange({ content: { ...node.content, buttonText: e.target.value } })}
+                                        value={content.buttonText || ''}
+                                        onChange={e => onChange({ content: { ...content, buttonText: e.target.value } })}
                                     />
                                 </div>
                             </>
@@ -636,11 +685,11 @@ const PropertiesPanel = ({ node, allNodes, onChange, onDelete, onClose }: any) =
                                 <input
                                     className="input text-xs font-mono"
                                     placeholder="dealerChatId"
-                                    value={node.content.dealerChatVar || ''}
-                                    onChange={e => onChange({ content: { ...node.content, dealerChatVar: e.target.value } })}
-                                />
-                            </div>
-                        )}
+                                value={content.dealerChatVar || ''}
+                                onChange={e => onChange({ content: { ...content, dealerChatVar: e.target.value } })}
+                            />
+                        </div>
+                    )}
 
                         {node.type === 'CHANNEL_POST' && (
                             <>
@@ -649,8 +698,8 @@ const PropertiesPanel = ({ node, allNodes, onChange, onDelete, onClose }: any) =
                                     <input
                                         className="input text-xs font-mono"
                                         placeholder="https://..."
-                                        value={node.content.imageUrl || ''}
-                                        onChange={e => onChange({ content: { ...node.content, imageUrl: e.target.value } })}
+                                        value={content.imageUrl || ''}
+                                        onChange={e => onChange({ content: { ...content, imageUrl: e.target.value } })}
                                     />
                                 </div>
                                 <div>
@@ -658,8 +707,8 @@ const PropertiesPanel = ({ node, allNodes, onChange, onDelete, onClose }: any) =
                                     <input
                                         className="input text-xs font-mono"
                                         placeholder="imageUrl"
-                                        value={node.content.imageVar || ''}
-                                        onChange={e => onChange({ content: { ...node.content, imageVar: e.target.value } })}
+                                        value={content.imageVar || ''}
+                                        onChange={e => onChange({ content: { ...content, imageVar: e.target.value } })}
                                     />
                                 </div>
                                 <div className="grid grid-cols-2 gap-2">
@@ -668,8 +717,8 @@ const PropertiesPanel = ({ node, allNodes, onChange, onDelete, onClose }: any) =
                                         <input
                                             className="input text-xs font-mono"
                                             placeholder="2025-01-20T10:00"
-                                            value={node.content.scheduledAt || ''}
-                                            onChange={e => onChange({ content: { ...node.content, scheduledAt: e.target.value } })}
+                                            value={content.scheduledAt || ''}
+                                            onChange={e => onChange({ content: { ...content, scheduledAt: e.target.value } })}
                                         />
                                     </div>
                                     <div>
@@ -677,8 +726,8 @@ const PropertiesPanel = ({ node, allNodes, onChange, onDelete, onClose }: any) =
                                         <input
                                             className="input text-xs font-mono"
                                             placeholder="scheduledAt"
-                                            value={node.content.scheduledAtVar || ''}
-                                            onChange={e => onChange({ content: { ...node.content, scheduledAtVar: e.target.value } })}
+                                            value={content.scheduledAtVar || ''}
+                                            onChange={e => onChange({ content: { ...content, scheduledAtVar: e.target.value } })}
                                         />
                                     </div>
                                 </div>
@@ -690,7 +739,7 @@ const PropertiesPanel = ({ node, allNodes, onChange, onDelete, onClose }: any) =
                 {(node.type === 'QUESTION_TEXT' || node.type === 'QUESTION_CHOICE') && (
                     <div className="bg-amber-900/10 p-3 rounded-xl border border-amber-500/20">
                         <label className="text-[10px] font-bold text-amber-500 uppercase flex items-center gap-1 mb-2"><DatabaseIcon size={12} /> Save Input As</label>
-                        <input className="input font-mono text-xs border-amber-500/30 focus:border-amber-500" placeholder="e.g. user_phone" value={node.content.variableName || ''} onChange={e => onChange({ content: { ...node.content, variableName: e.target.value } })} />
+                        <input className="input font-mono text-xs border-amber-500/30 focus:border-amber-500" placeholder="e.g. user_phone" value={content.variableName || ''} onChange={e => onChange({ content: { ...content, variableName: e.target.value } })} />
                     </div>
                 )}
 
@@ -698,44 +747,44 @@ const PropertiesPanel = ({ node, allNodes, onChange, onDelete, onClose }: any) =
                     <div>
                         <label className="text-[10px] font-bold text-[var(--text-secondary)] uppercase mb-3 block">Options</label>
                         <div className="space-y-4">
-                            {(node.content.choices || []).map((c: any, i: number) => (
+                            {(content.choices || []).map((c: any, i: number) => (
                                 <div key={i} className="bg-[var(--bg-input)] p-3 rounded-xl border border-[var(--border-color)] space-y-3 relative">
                                     <button onClick={() => {
-                                        const newChoices = node.content.choices.filter((_: any, idx: number) => idx !== i);
-                                        onChange({ content: { ...node.content, choices: newChoices } });
+                                        const newChoices = content.choices.filter((_: any, idx: number) => idx !== i);
+                                        onChange({ content: { ...content, choices: newChoices } });
                                     }} className="absolute top-2 right-2 text-red-500 hover:bg-red-500/10 p-1.5 rounded"><X size={12} /></button>
 
                                     <div>
                                         <label className="text-[9px] text-[var(--text-muted)] uppercase mb-1 block">Button Label</label>
                                         <input className="input text-xs font-bold w-full mb-2" placeholder="Label (Default)" value={c.label} onChange={e => {
-                                            const newChoices = [...node.content.choices];
+                                            const newChoices = [...content.choices];
                                             newChoices[i] = { ...c, label: e.target.value, value: e.target.value };
-                                            onChange({ content: { ...node.content, choices: newChoices } });
+                                            onChange({ content: { ...content, choices: newChoices } });
                                         }} />
                                         <div className="grid grid-cols-2 gap-2">
                                             <input className="input text-xs" placeholder="UK Label" value={c.label_uk || ''} onChange={e => {
-                                                const newChoices = [...node.content.choices];
+                                                const newChoices = [...content.choices];
                                                 newChoices[i] = { ...c, label_uk: e.target.value };
-                                                onChange({ content: { ...node.content, choices: newChoices } });
+                                                onChange({ content: { ...content, choices: newChoices } });
                                             }} />
                                             <input className="input text-xs" placeholder="RU Label" value={c.label_ru || ''} onChange={e => {
-                                                const newChoices = [...node.content.choices];
+                                                const newChoices = [...content.choices];
                                                 newChoices[i] = { ...c, label_ru: e.target.value };
-                                                onChange({ content: { ...node.content, choices: newChoices } });
+                                                onChange({ content: { ...content, choices: newChoices } });
                                             }} />
                                         </div>
                                     </div>
 
                                     {node.type === 'QUESTION_CHOICE' && (
                                         <NodeSelector value={c.nextNodeId} nodes={allNodes} currentNodeId={node.id} onChange={(val: any) => {
-                                            const newChoices = [...node.content.choices];
+                                            const newChoices = [...content.choices];
                                             newChoices[i] = { ...c, nextNodeId: val };
-                                            onChange({ content: { ...node.content, choices: newChoices } });
+                                            onChange({ content: { ...content, choices: newChoices } });
                                         }} label="Target Node" />
                                     )}
                                 </div>
                             ))}
-                            <button onClick={() => onChange({ content: { ...node.content, choices: [...(node.content.choices || []), { label: 'Option', value: 'Option', nextNodeId: '' }] } })} className="w-full border border-dashed border-[var(--text-secondary)] py-3 text-xs text-[var(--text-secondary)] rounded-xl hover:bg-[var(--bg-input)] hover:text-white transition-colors">+ Add Button</button>
+                            <button onClick={() => onChange({ content: { ...content, choices: [...(content.choices || []), { label: 'Option', value: 'Option', nextNodeId: '' }] } })} className="w-full border border-dashed border-[var(--text-secondary)] py-3 text-xs text-[var(--text-secondary)] rounded-xl hover:bg-[var(--bg-input)] hover:text-white transition-colors">+ Add Button</button>
                         </div>
                     </div>
                 )}
@@ -745,12 +794,12 @@ const PropertiesPanel = ({ node, allNodes, onChange, onDelete, onClose }: any) =
                         <div className="bg-emerald-900/10 p-4 rounded-xl border border-emerald-500/20 space-y-3">
                             <div>
                                 <label className="block text-[10px] font-bold text-emerald-500 mb-1">Variable</label>
-                                <input className="input text-xs font-mono border-emerald-500/30" placeholder="found_count" value={node.content.conditionVariable || ''} onChange={e => onChange({ content: { ...node.content, conditionVariable: e.target.value } })} />
+                                <input className="input text-xs font-mono border-emerald-500/30" placeholder="found_count" value={content.conditionVariable || ''} onChange={e => onChange({ content: { ...content, conditionVariable: e.target.value } })} />
                             </div>
                             <div className="grid grid-cols-2 gap-2">
                                 <div>
                                     <label className="block text-xs font-bold text-emerald-500 mb-1">Operator</label>
-                                    <select className="input text-xs border-emerald-500/30" value={node.content.conditionOperator || 'GT'} onChange={e => onChange({ content: { ...node.content, conditionOperator: e.target.value } })}>
+                                    <select className="input text-xs border-emerald-500/30" value={content.conditionOperator || 'GT'} onChange={e => onChange({ content: { ...content, conditionOperator: e.target.value } })}>
                                         <option value="GT">&gt; Greater</option>
                                         <option value="EQUALS">== Equals</option>
                                         <option value="HAS_VALUE">Has Value</option>
@@ -758,19 +807,19 @@ const PropertiesPanel = ({ node, allNodes, onChange, onDelete, onClose }: any) =
                                 </div>
                                 <div>
                                     <label className="block text-xs font-bold text-emerald-500 mb-1">Value</label>
-                                    <input className="input text-xs border-emerald-500/30" placeholder="0" value={node.content.conditionValue || ''} onChange={e => onChange({ content: { ...node.content, conditionValue: e.target.value } })} />
+                                    <input className="input text-xs border-emerald-500/30" placeholder="0" value={content.conditionValue || ''} onChange={e => onChange({ content: { ...content, conditionValue: e.target.value } })} />
                                 </div>
                             </div>
                         </div>
-                        <NodeSelector value={node.content.trueNodeId} nodes={allNodes} currentNodeId={node.id} onChange={(val: any) => onChange({ content: { ...node.content, trueNodeId: val } })} label="If TRUE:" />
-                        <NodeSelector value={node.content.falseNodeId} nodes={allNodes} currentNodeId={node.id} onChange={(val: any) => onChange({ content: { ...node.content, falseNodeId: val } })} label="If FALSE:" />
+                        <NodeSelector value={content.trueNodeId} nodes={allNodes} currentNodeId={node.id} onChange={(val: any) => onChange({ content: { ...content, trueNodeId: val } })} label="If TRUE:" />
+                        <NodeSelector value={content.falseNodeId} nodes={allNodes} currentNodeId={node.id} onChange={(val: any) => onChange({ content: { ...content, falseNodeId: val } })} label="If FALSE:" />
                     </div>
                 )}
 
                 {node.type === 'ACTION' && (
                     <div>
                         <label className="block text-[10px] font-bold text-pink-500 uppercase mb-2">System Action</label>
-                        <select className="input text-sm border-pink-500/30 focus:border-pink-500" value={node.content.actionType || ''} onChange={e => onChange({ content: { ...node.content, actionType: e.target.value } })}>
+                        <select className="input text-sm border-pink-500/30 focus:border-pink-500" value={content.actionType || ''} onChange={e => onChange({ content: { ...content, actionType: e.target.value } })}>
                             <option value="">Select Action...</option>
                             <option value="NORMALIZE_REQUEST">Normalize Input (Cars)</option>
                             <option value="CREATE_LEAD">Create CRM Lead</option>
@@ -781,7 +830,7 @@ const PropertiesPanel = ({ node, allNodes, onChange, onDelete, onClose }: any) =
                     </div>
                 )}
 
-                {!node.content.choices && node.type !== 'CONDITION' && node.type !== 'START' && (
+                {!content.choices && node.type !== 'CONDITION' && node.type !== 'START' && (
                     <div className="pt-6 border-t border-[var(--border-color)]">
                         <NodeSelector value={node.nextNodeId} nodes={allNodes} currentNodeId={node.id} onChange={(val: any) => onChange({ nextNodeId: val })} label="Next Step (Default)" />
                     </div>
@@ -794,20 +843,23 @@ const PropertiesPanel = ({ node, allNodes, onChange, onDelete, onClose }: any) =
     );
 };
 
-const NodeSelector = ({ value, nodes, currentNodeId, onChange, label }: any) => (
-    <div>
-        <label className="block text-[10px] font-bold text-[var(--text-muted)] uppercase mb-1.5">{label}</label>
-        <div className="relative">
-            <select className="input text-xs appearance-none" value={value || ''} onChange={e => onChange(e.target.value)}>
-                <option value="">(End of Flow)</option>
-                {nodes.filter((n: any) => n.id !== currentNodeId).map((n: any) => (
-                    <option key={n.id} value={n.id}>[{n.type}] {n.content.text ? n.content.text.substring(0, 15) + '...' : n.id.slice(-4)}</option>
-                ))}
-            </select>
-            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)] pointer-events-none" size={14} />
+const NodeSelector = ({ value, nodes, currentNodeId, onChange, label }: any) => {
+    const safeNodes = Array.isArray(nodes) ? nodes.map((n: any) => ({ ...n, content: n.content || {} })) : [];
+    return (
+        <div>
+            <label className="block text-[10px] font-bold text-[var(--text-muted)] uppercase mb-1.5">{label}</label>
+            <div className="relative">
+                <select className="input text-xs appearance-none" value={value || ''} onChange={e => onChange(e.target.value)}>
+                    <option value="">(End of Flow)</option>
+                    {safeNodes.filter((n: any) => n.id !== currentNodeId).map((n: any) => (
+                        <option key={n.id} value={n.id}>[{n.type}] {n.content.text ? n.content.text.substring(0, 15) + '...' : n.id.slice(-4)}</option>
+                    ))}
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)] pointer-events-none" size={14} />
+            </div>
         </div>
-    </div>
-);
+    );
+};
 
 const ToolBtn = ({ label, onClick, color, icon: Icon }: any) => (
     <button onClick={onClick} className={`w-10 h-10 rounded-lg flex items-center justify-center shadow-lg hover:scale-105 transition-transform relative group ${color} hover:brightness-110`}>
@@ -839,6 +891,7 @@ const MenuDesigner = ({ scenarios }: { scenarios: Scenario[] }) => {
     const bot = bots.find(b => b.id === selectedBotId);
 
     if (!bot) return <div className="p-10 text-center text-gray-400">No active bots found.</div>;
+    const menuConfig = normalizeMenuConfig(bot.menuConfig);
 
     const handlePublish = async () => {
         try {
@@ -849,8 +902,7 @@ const MenuDesigner = ({ scenarios }: { scenarios: Scenario[] }) => {
     };
 
     const handleExportConfig = () => {
-        if (!bot.menuConfig) return;
-        const dataStr = JSON.stringify(bot.menuConfig, null, 2);
+        const dataStr = JSON.stringify(menuConfig, null, 2);
         const blob = new Blob([dataStr], { type: "application/json" });
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
@@ -885,7 +937,6 @@ const MenuDesigner = ({ scenarios }: { scenarios: Scenario[] }) => {
     };
 
     const addButton = (row: number) => {
-        if (!bot.menuConfig) return;
         const newBtn: BotMenuButtonConfig = {
             id: `btn_${Date.now()}`,
             label: 'New Button',
@@ -894,30 +945,29 @@ const MenuDesigner = ({ scenarios }: { scenarios: Scenario[] }) => {
             row: row,
             col: 0
         };
-        const updatedButtons = [...bot.menuConfig.buttons, newBtn];
+        const updatedButtons = [...menuConfig.buttons, newBtn];
         saveConfig(updatedButtons);
     };
 
     const updateButton = (id: string, updates: Partial<BotMenuButtonConfig>) => {
-        if (!bot.menuConfig) return;
-        const updatedButtons = bot.menuConfig.buttons.map(b => b.id === id ? { ...b, ...updates } : b);
+        const updatedButtons = menuConfig.buttons.map(b => b.id === id ? { ...b, ...updates } : b);
         saveConfig(updatedButtons);
     };
 
     const deleteButton = (id: string) => {
-        if (!bot.menuConfig) return;
-        const updatedButtons = bot.menuConfig.buttons.filter(b => b.id !== id);
+        const updatedButtons = menuConfig.buttons.filter(b => b.id !== id);
         saveConfig(updatedButtons);
     };
 
     const saveConfig = async (buttons: BotMenuButtonConfig[], msg?: string) => {
-        const updatedBot = { ...bot, menuConfig: { ...bot.menuConfig!, buttons, welcomeMessage: msg || bot.menuConfig?.welcomeMessage } };
+        const nextConfig = normalizeMenuConfig({ ...menuConfig, buttons, welcomeMessage: msg || menuConfig.welcomeMessage });
+        const updatedBot = { ...bot, menuConfig: nextConfig };
         await Data.saveBot(updatedBot);
         setBots(await Data.getBots());
     };
 
     const rows = [0, 1, 2, 3];
-    const buttonsByRow = (bot.menuConfig?.buttons || []).reduce((acc, btn) => {
+    const buttonsByRow = menuConfig.buttons.reduce((acc, btn) => {
         if (!acc[btn.row]) acc[btn.row] = [];
         acc[btn.row].push(btn);
         return acc;
@@ -935,7 +985,7 @@ const MenuDesigner = ({ scenarios }: { scenarios: Scenario[] }) => {
                 {/* Screen Content */}
                 <div className="bg-[url('https://telegram.org/file/464001088/1/bSWkX5Y-Q7Y/7680076a5933615174')] bg-cover flex-1 p-4 flex flex-col items-center justify-center text-white text-sm">
                     <div className="bg-[#182533] p-3 rounded-lg shadow-sm mt-4 text-xs w-full max-w-[80%] ml-auto text-left opacity-90">
-                        {bot.menuConfig?.welcomeMessage || "Welcome!"}
+                        {menuConfig.welcomeMessage || "Welcome!"}
                         <div className="text-[9px] text-gray-400 text-right mt-1">10:00 AM</div>
                     </div>
                 </div>
@@ -982,11 +1032,9 @@ const MenuDesigner = ({ scenarios }: { scenarios: Scenario[] }) => {
                     <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2">Welcome Message</label>
                     <textarea
                         className="textarea h-24"
-                        value={bot.menuConfig?.welcomeMessage || ''}
+                        value={menuConfig.welcomeMessage || ''}
                         onChange={async e => {
-                            const updated = { ...bot, menuConfig: { ...bot.menuConfig!, welcomeMessage: e.target.value } };
-                            await Data.saveBot(updated);
-                            setBots(await Data.getBots());
+                            await saveConfig(menuConfig.buttons, e.target.value);
                         }}
                     />
                 </div>
@@ -995,7 +1043,7 @@ const MenuDesigner = ({ scenarios }: { scenarios: Scenario[] }) => {
                     <h4 className="text-sm font-bold text-[var(--text-primary)] uppercase border-b border-[var(--border-color)] pb-3 flex items-center gap-2">
                         <Grid size={16} /> Button Actions
                     </h4>
-                    {bot.menuConfig?.buttons.map((btn, idx) => (
+                    {menuConfig.buttons.map((btn, idx) => (
                         <div key={btn.id} className="bg-[var(--bg-input)] p-5 rounded-xl border border-[var(--border-color)] flex flex-col gap-4 group hover:border-gold-500/30 transition-all">
                             <div className="flex justify-between items-center">
                                 <span className="text-xs font-bold bg-[var(--bg-panel)] px-2 py-1 rounded text-[var(--text-secondary)] border border-[var(--border-color)]">Row {btn.row + 1}</span>
@@ -1032,7 +1080,7 @@ const MenuDesigner = ({ scenarios }: { scenarios: Scenario[] }) => {
                             </div>
                         </div>
                     ))}
-                    {(!bot.menuConfig?.buttons || bot.menuConfig.buttons.length === 0) && (
+                    {menuConfig.buttons.length === 0 && (
                         <div className="text-center text-[var(--text-muted)] py-10 text-sm border-2 border-dashed border-[var(--border-color)] rounded-xl">
                             No buttons configured. Click + on the phone preview to add.
                         </div>

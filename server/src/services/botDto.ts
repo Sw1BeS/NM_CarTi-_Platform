@@ -28,6 +28,8 @@ export const mapBotInput = (input: any, existingConfig: any = {}) => {
   if ('stats' in input) setConfigValue(config, 'stats', input.stats);
   if ('processedUpdateIds' in input) setConfigValue(config, 'processedUpdateIds', input.processedUpdateIds);
   if ('lastUpdateId' in input) setConfigValue(config, 'lastUpdateId', input.lastUpdateId);
+  if ('deliveryMode' in input) setConfigValue(config, 'deliveryMode', input.deliveryMode);
+  if ('webhookSecret' in input) setConfigValue(config, 'webhookSecret', input.webhookSecret);
 
   const role = input.role || config.role || 'CLIENT';
   const template = normalizeTemplate(input.template || TEMPLATE_BY_ROLE[role] || config.template);
@@ -64,6 +66,9 @@ export const mapBotOutput = (bot: any) => {
     stats: config.stats,
     processedUpdateIds: config.processedUpdateIds,
     lastUpdateId: config.lastUpdateId,
+    deliveryMode: config.deliveryMode || 'polling',
+    webhookSecret: config.webhookSecret,
+    webhookUrl: config.webhookUrl,
     adminChannelId: bot.adminChatId,
     channelId: bot.channelId,
     template: bot.template

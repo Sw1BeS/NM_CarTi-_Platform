@@ -3,10 +3,10 @@ import axios from 'axios';
 // @ts-ignore
 import { BotTemplate, LeadStatus } from '@prisma/client';
 import { prisma } from '../../services/prisma.js';
-import { parseStartPayload, type DeepLinkPayload } from '../../utils/deeplink.utils.js';
-import { ScenarioEngine } from './scenario.engine.js';
-import { TelegramSender } from '../../services/telegramSender.js';
+import { type DeepLinkPayload } from '../../utils/deeplink.utils.js';
 import { renderLeadCard, renderRequestCard } from '../../services/cardRenderer.js';
+import { runTelegramPipeline } from '../telegram/pipeline/pipeline.js';
+import { telegramOutbox } from '../telegram/outbox/telegramOutbox.js';
 
 
 
@@ -56,6 +56,12 @@ export class BotManager {
 
     private startBot(config: BotConfigModel) {
         if (this.activeBots.has(config.id)) return;
+
+        const deliveryMode = (config.config as any)?.deliveryMode || 'polling';
+        if (deliveryMode === 'webhook') {
+            console.log(`🔔 Bot [${config.id}] running in webhook mode. Polling disabled.`);
+            return;
+        }
 
         console.log(`🚀 Starting Bot [${config.id}]: ${config.name}`);
         const instance = new BotInstance(config);
@@ -168,110 +174,7 @@ class BotInstance {
 
 
     private async processUpdate(update: any) {
-        if (update.callback_query) {
-            const session = await this.ensureSession(update);
-            const handled = session
-                ? await ScenarioEngine.handleUpdate(this.config, session, update)
-                : false;
-            if (!handled) {
-                await this.handleCallback(update.callback_query);
-            }
-            return;
-        }
-
-        if (!update.message) return;
-        const msg = update.message;
-        const chatId = msg.chat.id.toString();
-        const text = msg.text || '';
-
-        // 1. Log incoming message to database
-        try {
-            await prisma.$executeRaw`
-                INSERT INTO "BotMessage" (id, "botId", "chatId", direction, text, "messageId", payload, "createdAt")
-                VALUES (
-                    gen_random_uuid()::text,
-                    ${String(this.config.id)},
-                    ${chatId},
-                    'INCOMING',
-                    ${text},
-                    ${msg.message_id},
-                    ${JSON.stringify({ from: msg.from, chat: msg.chat })}::jsonb,
-                    NOW()
-                )
-            `;
-        } catch (e) {
-            console.error('[BotMessage] Failed to log incoming message:', e);
-        }
-
-        // 2. Load Session
-        let session = await prisma.botSession.findUnique({
-            where: { botId_chatId: { botId: String(this.config.id), chatId } }
-        });
-
-        if (!session) {
-            session = await prisma.botSession.create({
-                data: {
-                    botId: String(this.config.id),
-                    chatId,
-                    state: 'START',
-                    history: [],
-                    variables: {}
-                }
-            });
-        }
-
-        // 3. Parse /start payload (deep-links)
-        let deepLinkPayload: DeepLinkPayload | null = null;
-        if (text.startsWith('/start')) {
-            const parts = text.split(' ');
-            if (parts.length > 1) {
-                deepLinkPayload = parseStartPayload(parts[1]);
-                if (deepLinkPayload) {
-                    console.log(`[DeepLink] Parsed: ${deepLinkPayload.type} -> ${deepLinkPayload.id}`);
-                    // Store in session variables for later use
-                    await prisma.botSession.update({
-                        where: { id: session.id },
-                        data: {
-                            variables: {
-                                ...(session.variables as any || {}),
-                                deepLink: deepLinkPayload
-                            }
-                        }
-                    });
-                }
-            }
-        }
-
-        // 4. Update Access Time
-        await prisma.botSession.update({
-            where: { id: session.id },
-            data: { lastActive: new Date() }
-        });
-
-        // 5. Scenario Engine (primary)
-        const scenarioHandled = await ScenarioEngine.handleUpdate(this.config, session, update);
-        if (scenarioHandled) {
-            return;
-        }
-
-        // 6. Handle deep-link payload (legacy fallback)
-        if (deepLinkPayload) {
-            await this.handleDeepLink(msg, chatId, deepLinkPayload, session);
-            return;
-        }
-
-        // 7. Route based on Template (fallback)
-        switch (this.config.template) {
-            case 'CLIENT_LEAD':
-                await this.handleClientBot(msg, chatId, text, session);
-                break;
-            case 'CATALOG':
-                await this.handleCatalogBot(msg, chatId, text, session);
-                break;
-            case 'B2B':
-                await this.handleB2BBot(msg, chatId, text, session);
-                break;
-        }
+        await runTelegramPipeline({ update, bot: this.config as any, botId: this.config.id, source: 'polling' });
     }
 
     private async ensureSession(update: any) {
@@ -547,11 +450,13 @@ class BotInstance {
             const status = parts[1] as LeadStatus;
             const id = parts[2];
             await prisma.lead.update({ where: { id }, data: { status } });
-            await axios.post(`https://api.telegram.org/bot${this.config.token}/editMessageText`, {
-                chat_id: cb.message.chat.id,
-                message_id: cb.message.message_id,
+            await telegramOutbox.editMessageText({
+                botId: this.config.id,
+                token: this.config.token,
+                chatId: String(cb.message.chat.id),
+                messageId: cb.message.message_id,
                 text: `${cb.message.text}\n\n✅ ${status}`,
-                parse_mode: 'HTML'
+                companyId: this.config.companyId || null
             });
         }
     }
@@ -559,29 +464,14 @@ class BotInstance {
     private async sendMessage(chatId: string, text: string, markup: any = {}) {
         if (!chatId) return; // Guard clause
         try {
-            const response = await TelegramSender.sendMessage(this.config.token, chatId, text, markup);
-            const messageId = (response as any)?.message_id;
-
-            // Log outgoing message to database
-            if (messageId) {
-                try {
-                    await prisma.$executeRaw`
-                        INSERT INTO "BotMessage" (id, "botId", "chatId", direction, text, "messageId", payload, "createdAt")
-                        VALUES (
-                            gen_random_uuid()::text,
-                            ${String(this.config.id)},
-                            ${chatId},
-                            'OUTGOING',
-                            ${text},
-                            ${messageId},
-                            ${JSON.stringify({ markup })}::jsonb,
-                            NOW()
-                        )
-                    `;
-                } catch (e) {
-                    console.error('[BotMessage] Failed to log outgoing message:', e);
-                }
-            }
+            await telegramOutbox.sendMessage({
+                botId: this.config.id,
+                token: this.config.token,
+                chatId,
+                text,
+                replyMarkup: markup,
+                companyId: this.config.companyId || null
+            });
         } catch (e) {
             console.error('[SendMessage] Error:', e);
         }

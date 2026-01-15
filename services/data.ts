@@ -2,9 +2,46 @@
 import { DataAdapter } from './dataAdapter';
 import { ServerAdapter } from './serverAdapter';
 import { ApiClient } from './apiClient';
-import type { CarListing, CarSearchFilter } from '../types';
+import type { CarListing, CarSearchFilter, Scenario } from '../types';
 
 const serverAdapter = new ServerAdapter();
+
+const buildDefaultScenarioNode = () => ({
+    id: 'node_start',
+    type: 'START',
+    content: { text: '' },
+    nextNodeId: '',
+    position: { x: 200, y: 300 }
+});
+
+const normalizeScenario = (s: any): Scenario => {
+    const source = (s && typeof s === 'object') ? s : {};
+    const nodesValue = (source as any)?.nodes;
+    let rawNodes = Array.isArray(nodesValue) ? nodesValue : [];
+    if (!rawNodes.length && nodesValue && typeof nodesValue === 'object') {
+        rawNodes = Object.values(nodesValue);
+    }
+    const nodes = rawNodes.length ? rawNodes : [buildDefaultScenarioNode()];
+    const safeNodes = nodes.map((n: any, idx: number) => {
+        const base = (n && typeof n === 'object') ? n : {};
+        return {
+            ...base,
+            id: (base as any).id || `node_${idx}`,
+            content: ((base as any).content && typeof (base as any).content === 'object') ? (base as any).content : {},
+            position: ((base as any).position && typeof (base as any).position === 'object') ? (base as any).position : undefined
+        };
+    });
+    const entryNodeId = (source as any)?.entryNodeId && safeNodes.find(n => n.id === (source as any).entryNodeId)
+        ? (source as any).entryNodeId
+        : (safeNodes[0]?.id || '');
+
+    return {
+        ...source,
+        keywords: Array.isArray((source as any)?.keywords) ? (source as any).keywords : [],
+        nodes: safeNodes,
+        entryNodeId
+    } as Scenario;
+};
 
 class DataService {
     private adapter: DataAdapter;
@@ -55,10 +92,21 @@ class DataService {
     async saveSession(s: any) { return this.adapter.saveSession(s); }
     async clearSession(chatId: string) { await this.adapter.clearSession(chatId); }
 
-    async getScenarios() { return this.adapter.getScenarios(); }
-    async saveScenario(s: any) { const res = await this.adapter.saveScenario(s); this.notify('UPDATE_SCENARIOS'); return res; }
+    async getScenarios() {
+        const scenarios = await this.adapter.getScenarios();
+        return Array.isArray(scenarios) ? scenarios.map(normalizeScenario) : [];
+    }
+    async saveScenario(s: any) {
+        const normalized = normalizeScenario(s);
+        const res = await this.adapter.saveScenario(normalized);
+        this.notify('UPDATE_SCENARIOS');
+        return res;
+    }
     async deleteScenario(id: string) { await this.adapter.deleteScenario(id); this.notify('UPDATE_SCENARIOS'); }
-    async getTemplates() { return this.adapter.getScenarios(); }
+    async getTemplates() {
+        const templates = await this.adapter.getScenarios();
+        return Array.isArray(templates) ? templates.map(normalizeScenario) : [];
+    }
 
     async getContent() { return this.adapter.getContent(); }
     async saveContent(c: any) { const res = await this.adapter.saveContent(c); this.notify('UPDATE_CONTENT'); return res; }

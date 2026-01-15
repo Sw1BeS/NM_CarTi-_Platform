@@ -5,7 +5,7 @@ import { prisma } from '../../services/prisma.js';
 import { authenticateToken, requireRole } from '../../middleware/auth.js';
 import { generatePublicId, mapRequestInput, mapRequestOutput, mapVariantInput, mapVariantOutput, mapRequestStatusFilter } from '../../services/dto.js';
 import { renderRequestCard, managerActionsKeyboard } from '../../services/cardRenderer.js';
-import { TelegramSender } from '../../services/telegramSender.js';
+import { telegramOutbox } from '../telegram/outbox/telegramOutbox.js';
 import { generateRequestLink } from '../../utils/deeplink.utils.js';
 
 const router = Router();
@@ -187,7 +187,14 @@ router.post('/:id/publish-channel', authenticateToken, requireRole(['ADMIN', 'MA
             : undefined;
         const keyboard = dl ? { inline_keyboard: [[{ text: '🚗 Є авто', url: dl }]] } : undefined;
 
-        const sent = await TelegramSender.sendMessage(bot.token, destination, text || reqCard, keyboard);
+        const sent = await telegramOutbox.sendMessage({
+            botId: bot.id,
+            token: bot.token,
+            chatId: destination,
+            text: text || reqCard,
+            replyMarkup: keyboard,
+            companyId: bot.companyId || null
+        });
         const messageId = (sent as any)?.message_id;
 
         const channelPost = await prisma.channelPost.create({
@@ -231,7 +238,14 @@ router.put('/:id/channel-post', authenticateToken, requireRole(['ADMIN', 'MANAGE
         if (!bot?.token) return res.status(400).json({ error: 'Bot not found' });
         const payload = (cp.payload as any) || {};
         const nextText = text || payload.text || 'Updated';
-        await TelegramSender.editMessageText(bot.token, cp.channelId, cp.messageId, nextText);
+        await telegramOutbox.editMessageText({
+            botId: bot.id,
+            token: bot.token,
+            chatId: cp.channelId,
+            messageId: cp.messageId,
+            text: nextText,
+            companyId: bot.companyId || null
+        });
         const updated = await prisma.channelPost.update({
             where: { id: cp.id },
             data: { status: 'UPDATED', payload: { ...(payload || {}), text: nextText } }
@@ -265,7 +279,15 @@ router.post('/:id/close-channel', authenticateToken, requireRole(['ADMIN', 'MANA
         if (!bot?.token) return res.status(400).json({ error: 'Bot not found' });
         const payload = (cp.payload as any) || {};
         const closedText = `${payload.text || ''}\n\n🚫 Запит закрито`;
-        await TelegramSender.editMessageText(bot.token, cp.channelId, cp.messageId, closedText, { inline_keyboard: [] });
+        await telegramOutbox.editMessageText({
+            botId: bot.id,
+            token: bot.token,
+            chatId: cp.channelId,
+            messageId: cp.messageId,
+            text: closedText,
+            replyMarkup: { inline_keyboard: [] },
+            companyId: bot.companyId || null
+        });
         const updated = await prisma.channelPost.update({
             where: { id: cp.id },
             data: { status: 'CLOSED', payload: { ...(payload || {}), closed: true, text: closedText } }

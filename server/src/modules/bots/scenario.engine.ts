@@ -1,9 +1,11 @@
 import axios from 'axios';
 import { prisma } from '../../services/prisma.js';
-import { generatePublicId, mapLeadCreateInput, mapRequestInput, mapRequestOutput, mapVariantInput } from '../../services/dto.js';
+import { generatePublicId, mapRequestInput, mapRequestOutput, mapVariantInput } from '../../services/dto.js';
 import { createDeepLinkKeyboard, generateOfferLink, generateRequestLink, parseStartPayload } from '../../utils/deeplink.utils.js';
-import { TelegramSender } from '../../services/telegramSender.js';
+import { telegramOutbox } from '../telegram/outbox/telegramOutbox.js';
+import { emitPlatformEvent } from '../telegram/events/eventEmitter.js';
 import { renderVariantCard, managerActionsKeyboard, renderRequestCard } from '../../services/cardRenderer.js';
+import { createOrMergeLead } from '../telegram/services/leadService.js';
 
 type BotRuntime = {
   id: string;
@@ -65,22 +67,53 @@ const getLanguage = (vars: Record<string, any>) => {
   return 'EN';
 };
 
-const getMenuConfig = (bot: BotRuntime) => bot.config?.menuConfig || { buttons: [], welcomeMessage: 'Menu:' };
+const normalizeMenuConfig = (menuConfig: any) => {
+  const buttonsRaw = Array.isArray(menuConfig?.buttons) ? menuConfig.buttons : [];
+  const buttons = buttonsRaw
+    .filter((btn: any) => btn && typeof btn === 'object')
+    .map((btn: any, idx: number) => {
+      const label = typeof btn.label === 'string' ? btn.label.trim() : '';
+      const labelUk = typeof btn.label_uk === 'string' ? btn.label_uk.trim() : '';
+      const labelRu = typeof btn.label_ru === 'string' ? btn.label_ru.trim() : '';
+      return {
+        ...btn,
+        id: btn.id || `btn_${idx}`,
+        label,
+        label_uk: labelUk || undefined,
+        label_ru: labelRu || undefined,
+        row: Number.isFinite(Number(btn.row)) ? Number(btn.row) : 0,
+        col: Number.isFinite(Number(btn.col)) ? Number(btn.col) : idx
+      };
+    })
+    .filter((btn: any) => btn.label || btn.label_uk || btn.label_ru);
+
+  return {
+    welcomeMessage: menuConfig?.welcomeMessage || 'Menu:',
+    buttons
+  };
+};
+
+const getMenuConfig = (bot: BotRuntime) => normalizeMenuConfig(bot.config?.menuConfig);
 
 const buildMainMenuButtons = (bot: BotRuntime, lang: string) => {
   const config = getMenuConfig(bot);
   const buttons: string[][] = [];
-  const sorted = [...(config.buttons || [])].sort((a, b) => (a.row - b.row) || (a.col - b.col));
+  const sorted = [...config.buttons].sort((a, b) => (a.row - b.row) || (a.col - b.col));
   const rows: Record<number, string[]> = {};
 
   sorted.forEach((btn: any) => {
     if (!rows[btn.row]) rows[btn.row] = [];
+    const fallbackLabel = btn.label || btn.label_uk || btn.label_ru || '';
     const label = (lang === 'UK' && btn.label_uk) ? btn.label_uk :
-      (lang === 'RU' && btn.label_ru) ? btn.label_ru : btn.label;
-    rows[btn.row].push(label);
+      (lang === 'RU' && btn.label_ru) ? btn.label_ru : fallbackLabel;
+    if (label) rows[btn.row].push(label);
   });
 
-  Object.keys(rows).sort().forEach(key => buttons.push(rows[Number(key)]));
+  Object.keys(rows)
+    .map(key => Number(key))
+    .filter(key => Number.isFinite(key))
+    .sort((a, b) => a - b)
+    .forEach(key => buttons.push(rows[key]));
   return buttons;
 };
 
@@ -94,46 +127,35 @@ const buildWelcomeMessage = (bot: BotRuntime, lang: string, textOverride?: strin
   return text;
 };
 
-const TELEGRAM_BASE = (token: string) => `https://api.telegram.org/bot${token}`;
-
-const logOutgoing = async (botId: string, chatId: string, text: string, messageId?: number | null, payload?: any) => {
-  try {
-    await prisma.$executeRaw`
-      INSERT INTO "BotMessage" (id, "botId", "chatId", direction, text, "messageId", payload, "createdAt")
-      VALUES (
-        gen_random_uuid()::text,
-        ${String(botId)},
-        ${String(chatId)},
-        'OUTGOING',
-        ${String(text)},
-        ${messageId ?? null},
-        ${JSON.stringify(payload || {})}::jsonb,
-        NOW()
-      )
-    `;
-  } catch (e) {
-    console.error('[ScenarioEngine] Failed to log outgoing message:', e);
-  }
-};
-
 const sendMessage = async (bot: BotRuntime, chatId: string, text: string, replyMarkup?: any) => {
-  const result = await TelegramSender.sendMessage(bot.token, chatId, text, replyMarkup);
-  await logOutgoing(bot.id, chatId, text, (result as any)?.message_id, { markup: replyMarkup });
-  return result;
+  return telegramOutbox.sendMessage({
+    botId: bot.id,
+    token: bot.token,
+    chatId,
+    text,
+    replyMarkup,
+    companyId: bot.companyId || null
+  });
 };
 
 const sendPhoto = async (bot: BotRuntime, chatId: string, photo: string, caption: string, replyMarkup?: any) => {
-  const result = await TelegramSender.sendPhoto(bot.token, chatId, photo, caption, replyMarkup);
-  await logOutgoing(bot.id, chatId, caption, (result as any)?.message_id, { markup: replyMarkup });
-  return result;
+  return telegramOutbox.sendPhoto({
+    botId: bot.id,
+    token: bot.token,
+    chatId,
+    photo,
+    caption,
+    replyMarkup,
+    companyId: bot.companyId || null
+  });
 };
 
 const answerCallback = async (bot: BotRuntime, callbackId: string, text?: string) => {
-  await TelegramSender.answerCallback(bot.token, callbackId, text);
+  await telegramOutbox.answerCallback({ token: bot.token, callbackId, text });
 };
 
 const sendChatAction = async (bot: BotRuntime, chatId: string, action = 'typing') => {
-  await TelegramSender.sendChatAction(bot.token, chatId, action);
+  await telegramOutbox.sendChatAction({ token: bot.token, chatId, action });
 };
 
 const sendReplyKeyboard = async (bot: BotRuntime, chatId: string, text: string, keyboard: string[][]) => {
@@ -163,6 +185,18 @@ const sendChoices = async (bot: BotRuntime, chatId: string, text: string, choice
     return [{ text: label || choice.label, callback_data: `SCN:CHOICE:${choice.value}` }];
   });
   return sendMessage(bot, chatId, text, { inline_keyboard });
+};
+
+const emitScenarioCompleted = async (bot: BotRuntime, chatId: string, scenarioId?: string, payload?: Record<string, any>) => {
+  if (!scenarioId) return;
+  await emitPlatformEvent({
+    companyId: bot.companyId || null,
+    botId: bot.id,
+    eventType: 'scenario.completed',
+    userId: chatId,
+    chatId,
+    payload: { scenarioId, ...(payload || {}) }
+  });
 };
 
 const formatCarCaption = (car: any, lang: string) => {
@@ -408,17 +442,29 @@ export class ScenarioEngine {
   const messageTextRaw = update.message?.text || '';
   const chatId = String(update.message?.chat?.id || update.callback_query?.message?.chat?.id || session.chatId);
   const lang = getLanguage(vars);
+  const startPayloadRaw = messageTextRaw.startsWith('/start') ? messageTextRaw.split(' ')[1] : '';
+  const hasStartPayload = !!(startPayloadRaw && parseStartPayload(startPayloadRaw));
   const isDealerFlow = vars.role === 'DEALER' || vars.dealer_invite_id || vars.ref_request_id;
 
     const scenarios: ScenarioRecord[] = bot.companyId
       ? await prisma.scenario.findMany({
-          where: { companyId: bot.companyId },
+          where: { companyId: bot.companyId, status: 'PUBLISHED', isActive: true },
           orderBy: { createdAt: 'desc' }
         })
       : [];
     const menuConfig = getMenuConfig(bot);
     const hasMenuButtons = Array.isArray(menuConfig.buttons) && menuConfig.buttons.length > 0;
     const actionKeyboard = (variantId: string) => managerActionsKeyboard(variantId);
+    const emitScenarioEvent = async (eventType: string, payload: Record<string, any>) => {
+      await emitPlatformEvent({
+        companyId: bot.companyId || null,
+        botId: bot.id,
+        eventType,
+        userId: chatId,
+        chatId,
+        payload
+      });
+    };
 
     const saveSession = async () => {
       await prisma.botSession.update({
@@ -438,6 +484,9 @@ export class ScenarioEngine {
     };
 
     const resetFlow = () => {
+      if (vars.__activeScenarioId) {
+        emitScenarioEvent('scenario.completed', { scenarioId: vars.__activeScenarioId }).catch(() => null);
+      }
       delete vars.__activeScenarioId;
       delete vars.__currentNodeId;
       delete vars.__tempResults;
@@ -458,6 +507,7 @@ export class ScenarioEngine {
       vars.__tempResults = [];
       history.length = 0;
       await saveSession();
+      await emitScenarioEvent('scenario.started', { scenarioId: scenario.id });
       const entryId = scenario.entryNodeId || (Array.isArray(scenario.nodes) ? (scenario.nodes.find((n: any) => n.type === 'START')?.id || scenario.nodes[0]?.id) : undefined);
       if (entryId) {
         await this.executeNode(bot, session, vars, history, scenario, entryId);
@@ -490,19 +540,6 @@ export class ScenarioEngine {
           if (webData.phone) vars.phone = webData.phone;
           if (webData.lang) vars.language = webData.lang;
 
-          const leadInput = mapLeadCreateInput({
-            clientName: webData.name || vars.name || 'Client',
-            phone: webData.phone || vars.phone,
-            source: 'TELEGRAM',
-            telegramChatId: chatId,
-            status: 'NEW',
-            goal: webData.carId ? `MiniApp: ${webData.carId}` : undefined,
-            language: vars.language
-          });
-          if (!leadInput.error) {
-            await prisma.lead.create({ data: leadInput.data });
-          }
-
           const preset = webData.requestPreset || webData.request || {};
           let requestTitle = '';
           if (preset.brand) requestTitle = `${preset.brand} ${preset.model || ''}`.trim();
@@ -511,29 +548,31 @@ export class ScenarioEngine {
             const car = await prisma.carListing.findUnique({ where: { id: webData.carId } });
             if (car) requestTitle = car.title;
           }
-
-          if (requestTitle) {
-            const payload = mapRequestInput({
-              title: requestTitle,
-              yearMin: preset.year || 2015,
-              budgetMax: preset.budget || 0,
+          const leadResult = await createOrMergeLead({
+            botId: bot.id,
+            companyId: bot.companyId || null,
+            chatId,
+            userId: chatId,
+            name: webData.name || vars.name || 'Client',
+            phone: webData.phone || vars.phone,
+            request: requestTitle || undefined,
+            source: 'TELEGRAM',
+            payload: { goal: webData.carId ? `MiniApp: ${webData.carId}` : undefined },
+            leadType: 'BUY',
+            createRequest: !!requestTitle,
+            requestData: {
+              title: requestTitle || undefined,
+              yearMin: preset.year || undefined,
+              budgetMax: preset.budget || undefined,
               description: `Via MiniApp. Lead: ${webData.name || 'Client'}`,
-              status: 'COLLECTING_VARIANTS',
-              source: 'TG',
-              clientChatId: chatId,
               language: vars.language
-            });
-            const request = await prisma.b2bRequest.create({
-              data: {
-                ...payload,
-                publicId: generatePublicId(),
-                companyId: bot.companyId || null
-              }
-            });
-            vars.requestId = request.publicId;
-            vars.requestPublicId = request.publicId;
+            }
+          }, bot.config);
 
-            await notifyRequestAdmin(bot, request);
+          if (leadResult.request) {
+            vars.requestId = leadResult.request.publicId;
+            vars.requestPublicId = leadResult.request.publicId;
+            await notifyRequestAdmin(bot, leadResult.request);
           }
 
           const notifyText = [
@@ -552,6 +591,14 @@ export class ScenarioEngine {
           const confirmMsg = lang === 'UK' ? '✅ Ваша заявка прийнята!' :
             lang === 'RU' ? '✅ Ваша заявка принята!' : '✅ Request received!';
           await sendMessage(bot, chatId, confirmMsg);
+          await emitPlatformEvent({
+            companyId: bot.companyId || null,
+            botId: bot.id,
+            eventType: 'miniapp.submitted',
+            userId: chatId,
+            chatId,
+            payload: { legacy: true, type: 'LEAD', duplicate: leadResult.isDuplicate }
+          });
           resetFlow();
           await saveSession();
           await sendMainMenu();
@@ -562,7 +609,7 @@ export class ScenarioEngine {
       }
     }
 
-    if (!scenarios.length && !hasMenuButtons) {
+    if (!scenarios.length && !hasMenuButtons && !isDealerFlow && !hasStartPayload) {
       return false;
     }
 
@@ -764,12 +811,18 @@ export class ScenarioEngine {
           if (bot.adminChatId) {
             const caption = `📨 Новий варіант по запиту ${requestId}\n${summaryCard({ specs: { vin: flow.vin, note: flow.details } })}`;
             if (Array.isArray(vars.dealer_photos) && vars.dealer_photos.length) {
-              await TelegramSender.sendMediaGroup(bot.token, bot.adminChatId, vars.dealer_photos.map((p: string, idx: number) => ({
-                type: 'photo',
-                media: p,
-                caption: idx === 0 ? caption : undefined,
-                parse_mode: 'HTML'
-              })));
+              await telegramOutbox.sendMediaGroup({
+                botId: bot.id,
+                token: bot.token,
+                chatId: String(bot.adminChatId),
+                media: vars.dealer_photos.map((p: string, idx: number) => ({
+                  type: 'photo',
+                  media: p,
+                  caption: idx === 0 ? caption : undefined,
+                  parse_mode: 'HTML'
+                })),
+                companyId: bot.companyId || null
+              });
               await sendMessage(bot, bot.adminChatId, 'Дії з варіантом:', managerActionsKeyboard(variant.id));
             } else {
               await sendMessage(bot, bot.adminChatId, caption, managerActionsKeyboard(variant.id));
@@ -866,27 +919,64 @@ export class ScenarioEngine {
         if (payload) {
           vars.start_payload = payloadText;
           if (payload.type === 'dealer_invite') {
-            vars.role = 'DEALER';
-            vars.dealerId = payload.id;
-            vars.dealer_invite_id = payload.id;
-            if (payload.metadata?.requestId) vars.requestId = payload.metadata.requestId;
-            vars.dealer_state = 'INIT';
-            deepLinkMsg = lang === 'UK'
-              ? '👋 Вітаємо! Вас запрошено як партнер. Залиш контакт і надішли варіант.'
-              : '👋 Welcome partner! Share contact and send your offer.';
+            let requestOk = true;
+            if (payload.metadata?.requestId) {
+              const request = await prisma.b2bRequest.findFirst({
+                where: { OR: [{ id: payload.metadata.requestId }, { publicId: payload.metadata.requestId }] }
+              });
+              requestOk = !!request;
+              if (requestOk) vars.requestId = request?.publicId || request?.id;
+            }
+
+            if (!requestOk) {
+              deepLinkMsg = lang === 'UK'
+                ? '⚠️ Запит не знайдено або посилання застаріло.'
+                : lang === 'RU'
+                  ? '⚠️ Запрос не найден или ссылка устарела.'
+                  : '⚠️ Request not found or invite expired.';
+            } else {
+              vars.role = 'DEALER';
+              vars.dealerId = payload.id;
+              vars.dealer_invite_id = payload.id;
+              vars.dealer_state = 'INIT';
+              deepLinkMsg = lang === 'UK'
+                ? '👋 Вітаємо! Ви запрошені як партнер. Поділіться контактом і надішліть варіант.'
+                : lang === 'RU'
+                  ? '👋 Добро пожаловать! Вы приглашены как партнер. Поделитесь контактом и отправьте вариант.'
+                  : '👋 Welcome partner! Share your contact and send your offer.';
+            }
           } else if (payload.type === 'request') {
-            vars.role = 'DEALER';
-            vars.requestId = payload.id;
-            vars.requestPublicId = payload.id;
-            vars.ref_request_id = payload.id;
-            vars.dealer_state = 'INIT';
-            deepLinkMsg = lang === 'UK' ? `📄 Запит #${payload.id}. Надішли варіант.` : `📄 Request #${payload.id}. Send your offer.`;
+            const req = await prisma.b2bRequest.findFirst({
+              where: { OR: [{ id: payload.id }, { publicId: payload.id }] }
+            });
+            if (!req) {
+              deepLinkMsg = lang === 'UK'
+                ? '⚠️ Запит не знайдено.'
+                : lang === 'RU'
+                  ? '⚠️ Запрос не найден.'
+                  : '⚠️ Request not found.';
+            } else {
+              vars.role = 'DEALER';
+              vars.requestId = req.publicId || req.id;
+              vars.requestPublicId = req.publicId || req.id;
+              vars.ref_request_id = req.publicId || req.id;
+              vars.dealer_state = 'INIT';
+              deepLinkMsg = lang === 'UK'
+                ? `📄 Запит #${req.publicId || req.id}. Надішли варіант.`
+                : lang === 'RU'
+                  ? `📄 Запрос #${req.publicId || req.id}. Отправьте вариант.`
+                  : `📄 Request #${req.publicId || req.id}. Send your offer.`;
+            }
           } else if (payload.type === 'offer') {
             vars.role = 'DEALER';
             vars.requestId = payload.id;
             if (payload.metadata?.offerId) vars.offerId = payload.metadata.offerId;
             vars.ref_offer_id = payload.id;
-            deepLinkMsg = lang === 'UK' ? `💰 Перегляд пропозиції #${payload.id}` : `💰 Viewing Offer #${payload.id}`;
+            deepLinkMsg = lang === 'UK'
+              ? `💰 Перегляд пропозиції #${payload.id}`
+              : lang === 'RU'
+                ? `💰 Просмотр предложения #${payload.id}`
+                : `💰 Viewing Offer #${payload.id}`;
           }
         }
       }
@@ -1002,6 +1092,7 @@ export class ScenarioEngine {
     if (scenario && prevNodeId) {
       await this.executeNode(bot, session, vars, history, scenario as any, prevNodeId, true);
     } else {
+      await emitScenarioCompleted(bot, session.chatId, vars.__activeScenarioId, { reason: 'back_reset' });
       delete vars.__activeScenarioId;
       delete vars.__currentNodeId;
       history.length = 0;
@@ -1057,6 +1148,7 @@ export class ScenarioEngine {
       return true;
     }
 
+    await emitScenarioCompleted(bot, session.chatId, scenario.id, { reason: 'end' });
     delete vars.__activeScenarioId;
     delete vars.__currentNodeId;
     history.length = 0;
@@ -1069,6 +1161,7 @@ export class ScenarioEngine {
     const node: ScenarioNode | undefined = nodes.find((n: ScenarioNode) => n.id === nodeId);
     const lang = getLanguage(vars);
     if (!node) {
+      await emitScenarioCompleted(bot, session.chatId, vars.__activeScenarioId || scenario.id, { reason: 'missing_node' });
       delete vars.__activeScenarioId;
       delete vars.__currentNodeId;
       history.length = 0;
@@ -1083,6 +1176,20 @@ export class ScenarioEngine {
 
     vars.__activeScenarioId = scenario.id;
     vars.__currentNodeId = node.id;
+
+    await emitPlatformEvent({
+      companyId: bot.companyId || null,
+      botId: bot.id,
+      eventType: 'scenario.step',
+      userId: session.chatId,
+      chatId: session.chatId,
+      payload: {
+        scenarioId: scenario.id,
+        nodeId: node.id,
+        nodeType: node.type,
+        isBack
+      }
+    });
 
     const getText = () => {
       if (lang === 'UK' && node.content?.text_uk) return node.content.text_uk;
@@ -1104,6 +1211,7 @@ export class ScenarioEngine {
         await sendMessage(bot, session.chatId, text);
         if (node.nextNodeId) await this.executeNode(bot, session, vars, history, scenario, node.nextNodeId, isBack);
         else {
+          await emitScenarioCompleted(bot, session.chatId, scenario.id, { reason: 'end' });
           delete vars.__activeScenarioId;
           delete vars.__currentNodeId;
           history.length = 0;
@@ -1155,6 +1263,7 @@ export class ScenarioEngine {
         const nextId = result ? node.content?.trueNodeId : node.content?.falseNodeId;
         if (nextId) await this.executeNode(bot, session, vars, history, scenario, nextId, isBack);
         else {
+          await emitScenarioCompleted(bot, session.chatId, scenario.id, { reason: 'end' });
           delete vars.__activeScenarioId;
           delete vars.__currentNodeId;
           history.length = 0;
@@ -1186,6 +1295,7 @@ export class ScenarioEngine {
         }
         if (node.nextNodeId) await this.executeNode(bot, session, vars, history, scenario, node.nextNodeId, isBack);
         else {
+          await emitScenarioCompleted(bot, session.chatId, scenario.id, { reason: 'end' });
           delete vars.__activeScenarioId;
           delete vars.__currentNodeId;
           history.length = 0;
@@ -1210,15 +1320,18 @@ export class ScenarioEngine {
           if (rawBrand) vars.brand = String(rawBrand).trim();
         }
         if (actionType === 'CREATE_LEAD') {
-          const leadInput = mapLeadCreateInput({
-            clientName: vars.name || vars.first_name || 'Client',
+          await createOrMergeLead({
+            botId: bot.id,
+            companyId: bot.companyId || null,
+            chatId: session.chatId,
+            userId: session.chatId,
+            name: vars.name || vars.first_name || 'Client',
             phone: vars.phone,
             source: 'TELEGRAM',
-            telegramChatId: session.chatId,
-            status: 'NEW',
-            language: vars.language
-          });
-          if (!leadInput.error) await prisma.lead.create({ data: leadInput.data });
+            payload: { language: vars.language },
+            leadType: 'BUY',
+            createRequest: false
+          }, bot.config);
         }
         if (actionType === 'CREATE_REQUEST') {
           const payload = mapRequestInput({
@@ -1249,6 +1362,7 @@ export class ScenarioEngine {
 
         if (node.nextNodeId) await this.executeNode(bot, session, vars, history, scenario, node.nextNodeId, isBack);
         else {
+          await emitScenarioCompleted(bot, session.chatId, scenario.id, { reason: 'end' });
           delete vars.__activeScenarioId;
           delete vars.__currentNodeId;
           history.length = 0;
@@ -1296,6 +1410,7 @@ export class ScenarioEngine {
 
         if (node.nextNodeId) await this.executeNode(bot, session, vars, history, scenario, node.nextNodeId, isBack);
         else {
+          await emitScenarioCompleted(bot, session.chatId, scenario.id, { reason: 'end' });
           delete vars.__activeScenarioId;
           delete vars.__currentNodeId;
           history.length = 0;
@@ -1317,6 +1432,7 @@ export class ScenarioEngine {
 
         if (node.nextNodeId) await this.executeNode(bot, session, vars, history, scenario, node.nextNodeId, isBack);
         else {
+          await emitScenarioCompleted(bot, session.chatId, scenario.id, { reason: 'end' });
           delete vars.__activeScenarioId;
           delete vars.__currentNodeId;
           history.length = 0;
@@ -1378,6 +1494,7 @@ export class ScenarioEngine {
 
         if (node.nextNodeId) await this.executeNode(bot, session, vars, history, scenario, node.nextNodeId, isBack);
         else {
+          await emitScenarioCompleted(bot, session.chatId, scenario.id, { reason: 'end' });
           delete vars.__activeScenarioId;
           delete vars.__currentNodeId;
           history.length = 0;
@@ -1415,6 +1532,7 @@ export class ScenarioEngine {
 
         if (node.nextNodeId) await this.executeNode(bot, session, vars, history, scenario, node.nextNodeId, isBack);
         else {
+          await emitScenarioCompleted(bot, session.chatId, scenario.id, { reason: 'end' });
           delete vars.__activeScenarioId;
           delete vars.__currentNodeId;
           history.length = 0;
@@ -1452,6 +1570,7 @@ export class ScenarioEngine {
 
         if (node.nextNodeId) await this.executeNode(bot, session, vars, history, scenario, node.nextNodeId, isBack);
         else {
+          await emitScenarioCompleted(bot, session.chatId, scenario.id, { reason: 'end' });
           delete vars.__activeScenarioId;
           delete vars.__currentNodeId;
           history.length = 0;
@@ -1465,16 +1584,19 @@ export class ScenarioEngine {
   static async handleCarSelection(bot: BotRuntime, chatId: string, vars: Record<string, any>, carId: string) {
     const inventory = await prisma.carListing.findMany({ where: { id: carId } });
     const car = inventory[0];
-    const leadInput = mapLeadCreateInput({
-      clientName: vars.name || vars.first_name || `User ${chatId}`,
+    await createOrMergeLead({
+      botId: bot.id,
+      companyId: bot.companyId || null,
+      chatId,
+      userId: chatId,
+      name: vars.name || vars.first_name || `User ${chatId}`,
       phone: vars.phone,
+      request: car?.title || carId,
       source: 'TELEGRAM',
-      telegramChatId: chatId,
-      goal: `Selected: ${car?.title || carId}`,
-      status: 'NEW',
-      language: vars.language
-    });
-    if (!leadInput.error) await prisma.lead.create({ data: leadInput.data });
+      payload: { goal: `Selected: ${car?.title || carId}`, language: vars.language },
+      leadType: 'BUY',
+      createRequest: false
+    }, bot.config);
     const lang = getLanguage(vars);
     const msg = lang === 'UK' ? '✅ Заявку прийнято!' : '✅ Request received!';
     await sendMessage(bot, chatId, msg);

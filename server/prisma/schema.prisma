@@ -45,6 +45,17 @@ enum DraftSource {
   MANUAL
 }
 
+enum ScenarioStatus {
+  DRAFT
+  PUBLISHED
+}
+
+enum NormalizationType {
+  brand
+  model
+  city
+}
+
 enum IntegrationType {
   SENDPULSE
   META_PIXEL
@@ -206,6 +217,19 @@ model Lead {
   
   createdAt  DateTime   @default(now())
   updatedAt  DateTime   @updatedAt
+
+  activities LeadActivity[]
+}
+
+model LeadActivity {
+  id        String   @id @default(cuid())
+  leadId    String
+  lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  type      String
+  payload   Json?
+  createdAt DateTime @default(now())
+
+  @@index([leadId, createdAt])
 }
 
 model B2bRequest {
@@ -394,12 +418,56 @@ model BotSession {
   @@index([lastActive])
 }
 
+model NormalizationAlias {
+  id        String            @id @default(cuid())
+  type      NormalizationType
+  alias     String
+  canonical String
+  companyId String?
+  company   Company?          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdAt DateTime          @default(now())
+
+  @@unique([type, alias, companyId])
+  @@index([type, alias])
+  @@index([companyId])
+}
+
+model PlatformEvent {
+  id        String     @id @default(cuid())
+  companyId String?
+  company   Company?   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  botId     String?
+  bot       BotConfig? @relation(fields: [botId], references: [id], onDelete: SetNull)
+  eventType String
+  userId    String?
+  chatId    String?
+  payload   Json?
+  createdAt DateTime   @default(now())
+
+  @@index([companyId, createdAt])
+  @@index([botId, createdAt])
+  @@index([eventType, createdAt])
+}
+
+model TelegramUpdate {
+  id        String    @id @default(cuid())
+  botId     String
+  bot       BotConfig @relation(fields: [botId], references: [id], onDelete: Cascade)
+  updateId  Int
+  payload   Json?
+  createdAt DateTime  @default(now())
+
+  @@unique([botId, updateId])
+  @@index([createdAt])
+}
+
 model Scenario {
   id             String   @id @default(cuid())
   name           String
   triggerCommand String?
   keywords       String[]
   isActive       Boolean  @default(true)
+  status         ScenarioStatus @default(PUBLISHED)
   entryNodeId    String?
   nodes          Json
   

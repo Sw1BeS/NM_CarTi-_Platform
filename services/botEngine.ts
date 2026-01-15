@@ -28,6 +28,32 @@ interface PlatformAdapter {
     getFile(fileId: string): Promise<string | null>;
 }
 
+const normalizeMenuConfig = (menuConfig?: Bot['menuConfig']) => {
+    const buttonsRaw = Array.isArray(menuConfig?.buttons) ? menuConfig!.buttons : [];
+    const buttons = buttonsRaw
+        .filter((btn: any) => btn && typeof btn === 'object')
+        .map((btn: any, idx: number) => {
+            const label = typeof btn.label === 'string' ? btn.label.trim() : '';
+            const labelUk = typeof btn.label_uk === 'string' ? btn.label_uk.trim() : '';
+            const labelRu = typeof btn.label_ru === 'string' ? btn.label_ru.trim() : '';
+            return {
+                ...btn,
+                id: btn.id || `btn_${idx}`,
+                label,
+                label_uk: labelUk || undefined,
+                label_ru: labelRu || undefined,
+                row: Number.isFinite(Number(btn.row)) ? Number(btn.row) : 0,
+                col: Number.isFinite(Number(btn.col)) ? Number(btn.col) : idx
+            };
+        })
+        .filter(btn => btn.label || btn.label_uk || btn.label_ru);
+
+    return {
+        welcomeMessage: menuConfig?.welcomeMessage || 'Menu:',
+        buttons
+    };
+};
+
 // Telegram Implementation
 const TelegramAdapter = (token: string): PlatformAdapter => ({
     sendMessage: async (chatId, text, options) => {
@@ -128,20 +154,25 @@ export class BotEngine {
     }
 
     private static async sendMainMenu(chatId: string, bot: Bot, lang: string, adapter: PlatformAdapter, textOverride?: string) {
-        const config = bot.menuConfig || { buttons: [], welcomeMessage: 'Menu:' };
+        const config = normalizeMenuConfig(bot.menuConfig);
         const buttons: string[][] = [];
 
-        const sorted = [...(config.buttons || [])].sort((a, b) => (a.row - b.row) || (a.col - b.col));
+        const sorted = [...config.buttons].sort((a, b) => (a.row - b.row) || (a.col - b.col));
         const rows: Record<number, string[]> = {};
 
         sorted.forEach(btn => {
             if (!rows[btn.row]) rows[btn.row] = [];
+            const fallbackLabel = btn.label || btn.label_uk || btn.label_ru || '';
             const label = (lang === 'UK' && btn.label_uk) ? btn.label_uk :
-                (lang === 'RU' && btn.label_ru) ? btn.label_ru : btn.label;
-            rows[btn.row].push(label);
+                (lang === 'RU' && btn.label_ru) ? btn.label_ru : fallbackLabel;
+            if (label) rows[btn.row].push(label);
         });
 
-        Object.keys(rows).sort().forEach(key => buttons.push(rows[parseInt(key)]));
+        Object.keys(rows)
+            .map(key => Number(key))
+            .filter(key => Number.isFinite(key))
+            .sort((a, b) => a - b)
+            .forEach(key => buttons.push(rows[key]));
         const text = textOverride || config.welcomeMessage || "Main Menu:";
 
         // Translate welcome if possible (simple static check)
@@ -275,12 +306,14 @@ export class BotEngine {
         // 1. Log Message
         await Data.addMessage({
             id: `msg_${update.update_id}`,
+            botId: bot.id,
             messageId: msg.message_id,
             chatId,
             platform: 'TG',
             direction: 'INCOMING',
             from: from.first_name,
             text: update.message?.contact ? '[Contact Shared]' : text,
+            payload: { from, chat: msg.chat },
             date: new Date().toISOString(),
             status: 'NEW'
         });
@@ -517,7 +550,7 @@ export class BotEngine {
             }
 
             // Priority 3: Menu Button Match (Global Override)
-            const menuBtn = bot.menuConfig?.buttons.find(b => {
+            const menuBtn = normalizeMenuConfig(bot.menuConfig).buttons.find(b => {
                 const normInput = input;
                 return this.normalizeTextCommand(b.label) === normInput ||
                     (b.label_uk && this.normalizeTextCommand(b.label_uk) === normInput) ||

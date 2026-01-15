@@ -15,6 +15,7 @@ import templateRoutes from './modules/templates/template.routes.js';
 import integrationRoutes from './modules/integrations/integration.routes.js';
 import superadminRoutes from './modules/superadmin/superadmin.routes.js';
 import qaRoutes from './routes/qaRoutes.js';
+import telegramRoutes from './modules/telegram/telegram.routes.js';
 import { botManager } from './modules/bots/bot.service.js';
 import { seedAdmin } from './modules/users/user.service.js';
 import { startContentWorker, stopContentWorker, getWorkerStatus } from './workers/content.worker.js';
@@ -60,9 +61,10 @@ app.use('/api/companies', companyRoutes); // Stage C: Multi-tenancy
 app.use('/api/templates', templateRoutes); // Stage C: Marketplace
 app.use('/api/integrations', integrationRoutes); // Stage C: Integrations
 app.use('/api/superadmin', superadminRoutes); // Stage C: System admin
-app.use('/api', botRoutes); // Mount at /api root for /bots, /scenarios etc.
 app.use('/api', apiRoutes);
+app.use('/api', botRoutes); // Mount at /api root for /bots, /scenarios etc.
 app.use('/api/qa', qaRoutes);
+app.use('/api/telegram', telegramRoutes);
 
 // Health Check
 app.get('/health', (req, res) => {

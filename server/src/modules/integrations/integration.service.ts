@@ -5,6 +5,7 @@
 
 import { prisma } from '../../services/prisma.js';
 import axios from 'axios';
+import { telegramOutbox } from '../telegram/outbox/telegramOutbox.js';
 
 export class IntegrationService {
     /**
@@ -224,45 +225,28 @@ export class IntegrationService {
         imageUrl?: string;
         keyboard?: any;
     }) {
-        const { botToken, destination, text, imageUrl, keyboard, botId } = params;
+        const { botToken, destination, text, imageUrl, keyboard, botId, companyId } = params as any;
 
         try {
-            const method = imageUrl ? 'sendPhoto' : 'sendMessage';
-            const apiParams = imageUrl
-                ? { chat_id: destination, photo: imageUrl, caption: text, parse_mode: 'HTML', reply_markup: keyboard }
-                : { chat_id: destination, text, parse_mode: 'HTML', reply_markup: keyboard };
-
-            const url = `https://api.telegram.org/bot${botToken}/${method}`;
-            const response = await axios.post(url, apiParams, { timeout: 15000 });
-
-            if (!response.data?.ok) {
-                throw new Error(response.data?.description || 'Telegram API error');
-            }
-
-            const result = response.data.result;
-
-            // Log to BotMessage for consistency
-            // We use raw query for performance and to match existing patterns in apiRoutes
-            // Ideally this should be a separate service or repository method
-            try {
-                if (botId) {
-                    await prisma.$executeRaw`
-                        INSERT INTO "BotMessage" (id, "botId", "chatId", direction, text, "messageId", payload, "createdAt")
-                        VALUES (
-                            gen_random_uuid()::text,
-                            ${String(botId)},
-                            ${String(destination)},
-                            'OUTGOING',
-                            ${String(text)},
-                            ${result?.message_id ?? null},
-                            ${JSON.stringify({ markup: keyboard || null })}::jsonb,
-                            NOW()
-                        )
-                    `;
-                }
-            } catch (e) {
-                console.error('[IntegrationService] Failed to log outgoing message:', e);
-            }
+            if (!botId) throw new Error('botId is required for outbox logging');
+            const result = imageUrl
+                ? await telegramOutbox.sendPhoto({
+                    botId,
+                    token: botToken,
+                    chatId: destination,
+                    photo: imageUrl,
+                    caption: text,
+                    replyMarkup: keyboard,
+                    companyId: companyId || null
+                })
+                : await telegramOutbox.sendMessage({
+                    botId,
+                    token: botToken,
+                    chatId: destination,
+                    text,
+                    replyMarkup: keyboard,
+                    companyId: companyId || null
+                });
 
             return { success: true, result };
         } catch (e: any) {

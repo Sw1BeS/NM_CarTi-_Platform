@@ -7,7 +7,7 @@
 
 import cron from 'node-cron';
 import { prisma } from '../services/prisma.js';
-import axios from 'axios';
+import { telegramOutbox } from '../modules/telegram/outbox/telegramOutbox.js';
 
 interface ScheduledPost {
     id: string;
@@ -24,22 +24,24 @@ let cronTask: cron.ScheduledTask | null = null;
 /**
  * Send post to Telegram channel
  */
-async function publishPost(post: ScheduledPost, botToken: string): Promise<void> {
-    const apiUrl = `https://api.telegram.org/bot${botToken}`;
-
+async function publishPost(post: ScheduledPost, botToken: string, companyId?: string | null): Promise<void> {
     try {
         if (post.imageUrl) {
-            await axios.post(`${apiUrl}/sendPhoto`, {
-                chat_id: post.destination,
+            await telegramOutbox.sendPhoto({
+                botId: post.botId,
+                token: botToken,
+                chatId: post.destination,
                 photo: post.imageUrl,
                 caption: post.text,
-                parse_mode: 'HTML'
+                companyId: companyId || null
             });
         } else {
-            await axios.post(`${apiUrl}/sendMessage`, {
-                chat_id: post.destination,
+            await telegramOutbox.sendMessage({
+                botId: post.botId,
+                token: botToken,
+                chatId: post.destination,
                 text: post.text,
-                parse_mode: 'HTML'
+                companyId: companyId || null
             });
         }
 
@@ -113,7 +115,7 @@ async function processScheduledPosts(): Promise<void> {
                     destination: draft.destination || '',
                     scheduledAt: draft.scheduledAt!,
                     botId: draft.botId || ''
-                }, bot.token);
+                }, bot.token, bot.companyId || null);
 
                 // Mark as posted
                 await prisma.draft.update({

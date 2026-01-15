@@ -45,27 +45,18 @@ export const InventoryService = {
     },
 
     async saveCar(car: Partial<CarListing>): Promise<CarListing> {
-        // If ID exists and isn't a temp ID, update. Else Create.
-        // Or if canonicalId passed...
-        // Backend handles ID generation if missing.
-
-        // NOTE: The frontend types use 'canonicalId'. Prism uses 'id'.
-        // We need to map them.
-
+        // NOTE: Front uses canonicalId, backend uses id. Map for API.
         const payload = { ...car, id: car.canonicalId };
-        if (car.canonicalId && !car.canonicalId.startsWith('inv_')) {
-            // Assuming existing if it has a real ID. 
-            // Simplification: Try Create, if fail Update? Or just explicit Update route.
-            // Best practice: separate create/update.
-            // But 'Data.saveEntity' was generic upsert.
-            // Let's assume if it has an ID, it's an update.
-            const res = await ApiClient.put<CarListing>(`inventory/${car.canonicalId}`, payload);
-            return res.data as CarListing;
-        } else {
-            // New
-            const res = await ApiClient.post<CarListing>('inventory', payload);
-            return res.data as CarListing;
+        const isUpdate = !!car.canonicalId && !car.canonicalId.startsWith('imp_') && !car.canonicalId.startsWith('temp_');
+
+        const res = isUpdate
+            ? await ApiClient.put<CarListing>(`inventory/${car.canonicalId}`, payload)
+            : await ApiClient.post<CarListing>('inventory', payload);
+
+        if (!res.ok) {
+            throw new Error(res.message || 'Inventory save failed');
         }
+        return res.data as CarListing;
     },
 
     async deleteCar(id: string): Promise<void> {
