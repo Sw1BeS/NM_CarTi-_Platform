@@ -375,7 +375,7 @@ export class BotEngine {
                             yearMin: preset.year || 2015,
                             budgetMax: preset.budget || 0,
                             description: `Via MiniApp. Lead: ${lead.id || lead.name}`,
-                            status: RequestStatus.NEW,
+                            status: RequestStatus.DRAFT,
                             source: 'TG',
                             clientChatId: chatId
                         } as any);
@@ -861,7 +861,7 @@ export class BotEngine {
                             yearMin: parseInt(session.variables['year'] || '0'),
                             budgetMax: parseInt(session.variables['budget'] || '0'),
                             description: `Via Bot. User: ${session.variables['name']}`,
-                            status: RequestStatus.NEW,
+                            status: RequestStatus.DRAFT,
                             source: 'TG',
                             clientChatId: session.chatId
                         } as any);
@@ -1104,7 +1104,7 @@ export class BotEngine {
             sourceUrl: car.sourceUrl,
             source: car.source,
             specs: car.specs,
-            status: VariantStatus.PENDING
+            status: VariantStatus.SUBMITTED
         } as any);
 
         const msg = session.language === 'UK' ? "✅ Додано в запит." : "✅ Added to request.";

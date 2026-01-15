@@ -1,4 +1,4 @@
-import { LeadStatus as DbLeadStatus } from '@prisma/client';
+import { LeadStatus as DbLeadStatus, RequestStatus as DbRequestStatus, VariantStatus as DbVariantStatus } from '@prisma/client';
 
 const DEFAULT_CURRENCY = 'USD';
 
@@ -33,6 +33,37 @@ const LEAD_STATUS_TO_CLIENT: Record<string, string> = {
 };
 
 const DB_LEAD_STATUSES = new Set(['NEW', 'IN_PROGRESS', 'DONE', 'CONTACTED', 'WON', 'LOST']);
+
+const REQUEST_STATUS_MAP: Record<string, DbRequestStatus> = {
+  NEW: DbRequestStatus.DRAFT,
+  DRAFT: DbRequestStatus.DRAFT,
+  PUBLISHED: DbRequestStatus.PUBLISHED,
+  COLLECTING_VARIANTS: DbRequestStatus.COLLECTING_VARIANTS,
+  COLLECTING: DbRequestStatus.COLLECTING_VARIANTS,
+  IN_PROGRESS: DbRequestStatus.COLLECTING_VARIANTS,
+  OPEN: DbRequestStatus.COLLECTING_VARIANTS,
+  SHORTLIST: DbRequestStatus.SHORTLIST,
+  READY_FOR_REVIEW: DbRequestStatus.SHORTLIST,
+  CONTACT_SHARED: DbRequestStatus.CONTACT_SHARED,
+  CONTACT: DbRequestStatus.CONTACT_SHARED,
+  WON: DbRequestStatus.WON,
+  LOST: DbRequestStatus.LOST,
+  CLOSED: DbRequestStatus.LOST
+};
+
+const VARIANT_STATUS_MAP: Record<string, DbVariantStatus> = {
+  SUBMITTED: DbVariantStatus.SUBMITTED,
+  PENDING: DbVariantStatus.SUBMITTED,
+  OFFERED: DbVariantStatus.REVIEWED,
+  REVIEWED: DbVariantStatus.REVIEWED,
+  APPROVED: DbVariantStatus.APPROVED,
+  ACCEPTED: DbVariantStatus.APPROVED,
+  FIT: DbVariantStatus.APPROVED,
+  REJECTED: DbVariantStatus.REJECTED,
+  REJECT: DbVariantStatus.REJECTED,
+  SENT_TO_CLIENT: DbVariantStatus.SENT_TO_CLIENT,
+  SENT: DbVariantStatus.SENT_TO_CLIENT
+};
 
 export const generatePublicId = () =>
   `REQ-${Date.now().toString(36).toUpperCase()}${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
@@ -86,6 +117,12 @@ export const mapLeadStatusFilter = (status: any) => {
   const normalized = String(status).toUpperCase();
   if (DB_LEAD_STATUSES.has(normalized)) return normalized;
   return LEAD_STATUS_TO_DB[normalized] || undefined;
+};
+
+export const mapRequestStatusFilter = (status: any) => {
+  if (!status) return undefined;
+  const normalized = String(status).toUpperCase();
+  return REQUEST_STATUS_MAP[normalized] || undefined;
 };
 
 export const mapLeadCreateInput = (input: any) => {
@@ -160,7 +197,10 @@ export const mapVariantInput = (input: any) => {
   const price = extractPrice(input.price);
   const data: any = {};
 
-  if ('status' in input) data.status = input.status;
+  if ('status' in input) {
+    const norm = String(input.status || '').toUpperCase();
+    data.status = VARIANT_STATUS_MAP[norm] || DbVariantStatus.SUBMITTED;
+  }
   if ('source' in input) data.source = input.source;
   if ('sourceUrl' in input || 'url' in input) data.sourceUrl = input.sourceUrl ?? input.url;
   if ('title' in input) data.title = input.title;
@@ -212,7 +252,10 @@ export const mapRequestInput = (input: any) => {
   if (yearMax !== undefined) data.yearMax = yearMax;
   if ('city' in input) data.city = input.city ?? null;
   if ('language' in input) data.language = input.language ?? null;
-  if ('status' in input) data.status = input.status;
+  if ('status' in input) {
+    const norm = String(input.status || '').toUpperCase();
+    data.status = REQUEST_STATUS_MAP[norm] || DbRequestStatus.DRAFT;
+  }
   if ('priority' in input) data.priority = input.priority;
   const publicId = toString(input.publicId);
   if (publicId) data.publicId = publicId;
@@ -239,7 +282,7 @@ export const mapRequestOutput = (request: any) => ({
   yearMax: request.yearMax ?? 0,
   city: request.city ?? '',
   language: request.language ?? undefined,
-  status: request.status ?? 'NEW',
+  status: request.status ?? DbRequestStatus.DRAFT,
   priority: request.priority ?? 'NORMAL',
   assigneeId: request.assignedTo ?? undefined,
   internalNote: request.internalNotes ?? undefined,

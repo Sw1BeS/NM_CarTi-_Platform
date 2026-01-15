@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Data } from '../services/data';
 import { BotEngine } from '../services/botEngine';
 import { RequestsService } from '../services/requestsService';
-import { TelegramMessage, ChatMacro, User, B2BRequest } from '../types';
+import { TelegramMessage, ChatMacro, User, B2BRequest, RequestStatus } from '../types';
 import { Send, Inbox, Trash2, X, Zap, UserCheck, StickyNote, Filter } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
@@ -38,6 +38,17 @@ export const InboxPage = () => {
     const [internalNote, setInternalNote] = useState('');
     const [showNotePanel, setShowNotePanel] = useState(false);
     const [requestByChat, setRequestByChat] = useState<Record<string, B2BRequest>>({});
+    const [timeline, setTimeline] = useState<any[]>([]);
+    const [timelineLoading, setTimelineLoading] = useState(false);
+    const statusOptions = [
+        RequestStatus.DRAFT,
+        RequestStatus.PUBLISHED,
+        RequestStatus.COLLECTING_VARIANTS,
+        RequestStatus.SHORTLIST,
+        RequestStatus.CONTACT_SHARED,
+        RequestStatus.WON,
+        RequestStatus.LOST
+    ];
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const { user } = useAuth();
@@ -111,6 +122,14 @@ export const InboxPage = () => {
     useEffect(() => {
         if (activeChatId) {
             setInternalNote(requestByChat[activeChatId]?.internalNote || '');
+            // Load timeline from MessageLog
+            const req = requestByChat[activeChatId];
+            if (req) {
+                setTimelineLoading(true);
+                Data.getMessageLogs({ requestId: req.id, chatId: activeChatId, limit: 50 }).then(setTimeline).finally(() => setTimelineLoading(false));
+            } else {
+                setTimeline([]);
+            }
         }
     }, [activeChatId, requestByChat]);
 
@@ -136,6 +155,7 @@ export const InboxPage = () => {
         setChats(updated);
         setRequestByChat({ ...requestByChat, [chatId]: { ...req, assigneeId: userId || undefined } });
         showToast(`Assigned to ${managers.find(m => m.id === userId)?.name || 'manager'}`);
+        Data.getMessageLogs({ requestId: req.id, chatId, limit: 50 }).then(setTimeline);
     };
 
     const saveNote = async () => {
@@ -149,6 +169,7 @@ export const InboxPage = () => {
         setRequestByChat({ ...requestByChat, [activeChatId]: { ...req, internalNote } });
         showToast('Note saved', 'success');
         setShowNotePanel(false);
+        Data.getMessageLogs({ requestId: req.id, chatId: activeChatId, limit: 50 }).then(setTimeline);
     };
 
     const insertMacro = (text: string) => {
@@ -246,6 +267,22 @@ export const InboxPage = () => {
                                     <option value="">Unassigned</option>
                                     {managers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
                                 </select>
+                                {/* Request Status */}
+                                {activeRequest?.status && (
+                                    <select
+                                        className="input text-xs px-2 py-1"
+                                        value={activeRequest.status}
+                                        onChange={async e => {
+                                            const newStatus = e.target.value as RequestStatus;
+                                            await RequestsService.updateRequest(activeRequest.id, { status: newStatus });
+                                            setRequestByChat({ ...requestByChat, [activeChatId]: { ...activeRequest, status: newStatus } });
+                                            showToast('Status updated', 'success');
+                                            Data.getMessageLogs({ requestId: activeRequest.id, chatId: activeChatId, limit: 50 }).then(setTimeline);
+                                        }}
+                                    >
+                                        {statusOptions.map(s => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
+                                    </select>
+                                )}
 
                                 {/* Note Button */}
                                 <button
@@ -299,6 +336,22 @@ export const InboxPage = () => {
                                 );
                             })}
                             <div ref={messagesEndRef} />
+                            {timelineLoading && <div className="text-xs text-[var(--text-secondary)]">Loading timeline...</div>}
+                            {timeline.length > 0 && (
+                                <div className="mt-6 border-t border-[var(--border-color)] pt-4">
+                                    <div className="text-xs font-bold text-[var(--text-secondary)] mb-2">Timeline</div>
+                                    <div className="space-y-2 max-h-40 overflow-y-auto">
+                                        {timeline.map(item => (
+                                            <div key={item.id} className="text-xs text-[var(--text-secondary)]">
+                                                <span className="font-mono text-[var(--text-primary)]">{new Date(item.createdAt).toLocaleString()}</span>
+                                                {' — '}
+                                                <span className="text-[var(--text-primary)]">{item.text || item.payload?.type || 'Log'}</span>
+                                                {item.variantStatus && <span className="ml-2 text-[10px] text-[var(--text-muted)]">[{item.variantStatus}]</span>}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         {/* Input */}

@@ -33,7 +33,14 @@ export const authenticateToken = (req: Request, res: Response, next: NextFunctio
 export const requireRole = (roles: string[]) => {
   return (req: Request, res: Response, next: NextFunction) => {
     const authReq = req as AuthRequest;
-    if (!authReq.user || !roles.includes(authReq.user.role)) {
+    const userRole = authReq.user?.role;
+
+    // SUPER_ADMIN can access any role-protected route
+    if (userRole === 'SUPER_ADMIN') {
+      return next();
+    }
+
+    if (!userRole || !roles.includes(userRole)) {
       return (res as any).status(403).json({ error: 'Insufficient permissions' });
     }
     next();

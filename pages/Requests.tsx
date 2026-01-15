@@ -28,6 +28,7 @@ export const RequestList: React.FC = () => {
     const [broadcastReq, setBroadcastReq] = useState<B2BRequest | null>(null);
     const [broadcastDest, setBroadcastDest] = useState('');
     const [broadcastBotId, setBroadcastBotId] = useState('');
+    const [broadcastTemplate, setBroadcastTemplate] = useState<'RAW' | 'IN_STOCK' | 'IN_TRANSIT'>('RAW');
     const [broadcasting, setBroadcasting] = useState(false);
 
     useEffect(() => { loadRequests(); }, [page, search, statusFilter]);
@@ -80,26 +81,17 @@ export const RequestList: React.FC = () => {
             showToast('Select a channel', 'error');
             return;
         }
-        if (!bot.username) {
-            showToast('Bot username missing', 'error');
-            return;
-        }
-
         setBroadcasting(true);
         try {
-            const text = ContentGenerator.fromRequest(broadcastReq);
-            const link = buildDeepLink(bot.username, { type: 'request', requestId: broadcastReq.publicId });
-            const keyboard = createDeepLinkKeyboard([{ text: '💼 Подати пропозицію', link }]);
-            const res = await ApiClient.post('messages/send', {
-                chatId: broadcastDest,
-                text,
+            await RequestsService.publishToChannel(broadcastReq.id, {
                 botId: bot.id,
-                keyboard
+                channelId: broadcastDest,
+                template: broadcastTemplate
             });
-            if (!res.ok) throw new Error(res.message);
             showToast('Request sent to channel', 'success');
             setBroadcastReq(null);
             setBroadcastDest('');
+            setBroadcastTemplate('RAW');
         } catch (e: any) {
             showToast(e.message || 'Failed to send', 'error');
         } finally {
@@ -169,10 +161,16 @@ export const RequestList: React.FC = () => {
                                                 <div className="text-sm text-[var(--text-secondary)] mt-0.5">{r.yearMin}+</div>
                                             </td>
                                             <td>
-                                                <span className={`px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wider ${r.status === 'NEW' ? 'bg-blue-500/10 text-blue-500' :
-                                                        r.status === 'IN_PROGRESS' ? 'bg-gold-500/10 text-gold-500' : 'bg-[var(--bg-input)] text-[var(--text-secondary)]'
-                                                    }`}>
-                                                    {r.status.replace('_', ' ')}
+                                                <span className={`px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wider ${
+                                                    r.status === RequestStatus.DRAFT ? 'bg-blue-500/10 text-blue-500' :
+                                                    r.status === RequestStatus.COLLECTING_VARIANTS ? 'bg-amber-500/10 text-amber-400' :
+                                                    r.status === RequestStatus.SHORTLIST ? 'bg-purple-500/10 text-purple-400' :
+                                                    r.status === RequestStatus.CONTACT_SHARED ? 'bg-teal-500/10 text-teal-400' :
+                                                    r.status === RequestStatus.WON ? 'bg-green-500/10 text-green-500' :
+                                                    r.status === RequestStatus.LOST ? 'bg-red-500/10 text-red-500' :
+                                                    'bg-[var(--bg-input)] text-[var(--text-secondary)]'
+                                                }`}>
+                                                    {r.status.replace(/_/g, ' ')}
                                                 </span>
                                             </td>
                                             <td className="tabular-nums text-[var(--text-primary)] font-medium text-base">
@@ -210,7 +208,7 @@ export const RequestList: React.FC = () => {
                     </div>
                 ) : (
                     <div className="flex gap-6 h-full overflow-x-auto pb-4">
-                        {[RequestStatus.NEW, RequestStatus.IN_PROGRESS, RequestStatus.READY_FOR_REVIEW, RequestStatus.PUBLISHED].map(colStatus => (
+                        {[RequestStatus.DRAFT, RequestStatus.PUBLISHED, RequestStatus.COLLECTING_VARIANTS, RequestStatus.SHORTLIST, RequestStatus.CONTACT_SHARED].map(colStatus => (
                             <div key={colStatus} className="w-96 shrink-0 flex flex-col bg-[var(--bg-input)] rounded-2xl border border-[var(--border-color)] h-full backdrop-blur-sm">
                                 <div className="p-5 flex justify-between items-center border-b border-[var(--border-color)]">
                                     <span className="font-bold text-xs uppercase tracking-widest text-[var(--text-secondary)]">{colStatus.replace(/_/g, ' ')}</span>
@@ -288,6 +286,16 @@ export const RequestList: React.FC = () => {
                             <div className="bg-[var(--bg-input)] border border-[var(--border-color)] rounded-lg p-3 text-xs text-[var(--text-secondary)]">
                                 <div className="font-bold text-[var(--text-primary)] mb-2">Preview</div>
                                 <div dangerouslySetInnerHTML={{ __html: ContentGenerator.fromRequest(broadcastReq).replace(/\n/g, '<br/>') }} />
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div>
+                                    <label className="text-xs font-bold text-[var(--text-secondary)] uppercase block mb-2">Template</label>
+                                    <select className="input" value={broadcastTemplate} onChange={e => setBroadcastTemplate(e.target.value as any)}>
+                                        <option value="RAW">Raw Card</option>
+                                        <option value="IN_STOCK">В наявності</option>
+                                        <option value="IN_TRANSIT">В дорозі</option>
+                                    </select>
+                                </div>
                             </div>
                         </div>
                         <div className="mt-6 flex justify-end gap-2">

@@ -136,7 +136,7 @@ export const PublicRequest = () => {
                     yearMin: Number(data.yearMin),
                     city: data.city,
                     description: `Generated from Telegram Mini App\nLead ID: ${lead.id}`,
-                    status: RequestStatus.NEW,
+                    status: RequestStatus.COLLECTING_VARIANTS,
                     priority: 'HIGH',
                     clientChatId: userTgId,
                     language: lang

@@ -56,17 +56,21 @@ export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
 export type Language = 'EN' | 'RU' | 'UK';
 
 export enum RequestStatus {
-    NEW = 'NEW',
-    IN_PROGRESS = 'IN_PROGRESS',
-    READY_FOR_REVIEW = 'READY_FOR_REVIEW',
+    DRAFT = 'DRAFT',
     PUBLISHED = 'PUBLISHED',
-    CLOSED = 'CLOSED'
+    COLLECTING_VARIANTS = 'COLLECTING_VARIANTS',
+    SHORTLIST = 'SHORTLIST',
+    CONTACT_SHARED = 'CONTACT_SHARED',
+    WON = 'WON',
+    LOST = 'LOST'
 }
 
 export enum VariantStatus {
-    PENDING = 'PENDING',
-    FIT = 'FIT',
-    REJECT = 'REJECT'
+    SUBMITTED = 'SUBMITTED',
+    REVIEWED = 'REVIEWED',
+    APPROVED = 'APPROVED',
+    REJECTED = 'REJECTED',
+    SENT_TO_CLIENT = 'SENT_TO_CLIENT'
 }
 
 // UNIFIED CAR CARD DTO
@@ -108,6 +112,48 @@ export interface Variant extends Omit<CarCard, 'status'> {
 
 export type CarListing = CarCard;
 
+export interface ChannelPost {
+    id: string;
+    requestId: string;
+    botId?: string;
+    channelId: string;
+    messageId: number;
+    status: 'ACTIVE' | 'UPDATED' | 'CLOSED' | string;
+    payload?: Record<string, any>;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface MessageLog {
+    id: string;
+    requestId?: string;
+    variantId?: string;
+    botId?: string;
+    chatId: string;
+    direction: 'INCOMING' | 'OUTGOING';
+    text?: string;
+    payload?: Record<string, any>;
+    createdAt: string;
+}
+
+export interface PartnerCompany {
+    id: string;
+    name: string;
+    city?: string;
+    contact?: string;
+    notes?: string;
+    companyId?: string;
+}
+
+export interface PartnerUser {
+    id: string;
+    name: string;
+    telegramId?: string;
+    phone?: string;
+    partnerId?: string;
+    companyId?: string;
+}
+
 export interface B2BRequest {
     id: string;
     publicId: string;
@@ -128,6 +174,8 @@ export interface B2BRequest {
     createdAt: string;
     updatedAt?: string;
     variants: Variant[];
+    channelPosts?: ChannelPost[];
+    messages?: MessageLog[];
     language?: Language;
     clientChatId?: string;
 }

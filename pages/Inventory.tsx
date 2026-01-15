@@ -126,7 +126,7 @@ export const InventoryPage = () => {
             thumbnail: car.thumbnail,
             url: car.sourceUrl || '#internal',
             source: 'INTERNAL',
-            status: VariantStatus.PENDING
+            status: VariantStatus.SUBMITTED
         });
         showToast(`Attached ${car.title} to Request`);
         setAttachModal(null);

@@ -76,7 +76,7 @@ export const DealerPortal = () => {
         const payload = {
             ...data,
             source: 'MANUAL',
-            status: VariantStatus.PENDING,
+            status: VariantStatus.SUBMITTED,
             managerNotes: `Submitted by ${user?.username} (${company?.name || 'Partner'})`
         };
         await addPublicVariant(selectedReq.id, payload);

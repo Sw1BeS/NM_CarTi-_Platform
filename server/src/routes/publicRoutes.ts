@@ -1,6 +1,7 @@
 import { Router } from 'express';
 // @ts-ignore
 import { prisma } from '../services/prisma.js';
+import { RequestStatus } from '@prisma/client';
 import { generatePublicId, mapLeadCreateInput, mapLeadOutput, mapRequestInput, mapRequestOutput, mapVariantInput, mapVariantOutput } from '../services/dto.js';
 import { parseTelegramUser, verifyTelegramInitData } from '../services/telegramAuth.js';
 import { mapBotOutput } from '../services/botDto.js';
@@ -112,12 +113,13 @@ router.get('/requests', async (req, res) => {
     const limit = Math.min(50, Number(req.query.limit) || 20);
     const skip = (page - 1) * limit;
 
+    const publicStatuses = [RequestStatus.PUBLISHED, RequestStatus.COLLECTING_VARIANTS];
+    const where = { status: { in: publicStatuses } };
+
     const [total, requests] = await Promise.all([
-      prisma.b2bRequest.count({
-        where: { status: { in: ['NEW', 'IN_PROGRESS', 'OPEN'] } }
-      }),
+      prisma.b2bRequest.count({ where }),
       prisma.b2bRequest.findMany({
-        where: { status: { in: ['NEW', 'IN_PROGRESS', 'OPEN'] } },
+        where,
         include: { variants: true },
         orderBy: { createdAt: 'desc' },
         take: limit,

@@ -135,7 +135,7 @@ export const SearchPage = () => {
                 price: finalPrice,
                 sourceUrl: result.sourceUrl || result.url,
                 source: mode === 'DIRECT' ? 'Direct Parse' : result.source,
-                status: VariantStatus.PENDING
+                status: VariantStatus.SUBMITTED
             });
 
             const newSet = new Set(importedIds);

@@ -205,6 +205,38 @@ router.get('/messages', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), async (re
     }
 });
 
+// MessageLog timeline (Request-aware)
+router.get('/messages/logs', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
+    try {
+        const requestId = typeof req.query.requestId === 'string' ? req.query.requestId : undefined;
+        const chatId = typeof req.query.chatId === 'string' ? req.query.chatId : undefined;
+        const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 100));
+
+        const where: any = {};
+        if (requestId) where.requestId = requestId;
+        if (chatId) where.chatId = chatId;
+
+        const logs = await prisma.messageLog.findMany({
+            where,
+            orderBy: { createdAt: 'desc' },
+            take: limit
+        });
+        // Attach basic meta (variant status)
+        const variantIds = logs.map((l: any) => l.variantId).filter(Boolean) as string[];
+        const variants = variantIds.length ? await prisma.requestVariant.findMany({ where: { id: { in: variantIds } }, select: { id: true, status: true } }) : [];
+        const variantMap = new Map(variants.map(v => [v.id, v.status]));
+        const enriched = logs.map((l: any) => ({
+            ...l,
+            variantStatus: l.variantId ? variantMap.get(l.variantId) : undefined
+        }));
+
+        res.json(enriched);
+    } catch (e: any) {
+        console.error('[MessageLog] Fetch error:', e.message || e);
+        res.status(500).json({ error: 'Failed to fetch message logs' });
+  }
+});
+
 router.post('/messages', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
     try {
         const payload = req.body || {};

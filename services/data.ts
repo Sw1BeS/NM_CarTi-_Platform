@@ -1,6 +1,7 @@
 
 import { DataAdapter } from './dataAdapter';
 import { ServerAdapter } from './serverAdapter';
+import { ApiClient } from './apiClient';
 import type { CarListing, CarSearchFilter } from '../types';
 
 const serverAdapter = new ServerAdapter();
@@ -124,6 +125,16 @@ class DataService {
     async createSnapshot(name: string) { return this.adapter.createSnapshot(name); }
     async listSnapshots() { return this.adapter.listSnapshots(); }
     async restoreSnapshot(id: string) { return this.adapter.restoreSnapshot(id); }
+
+    async getMessageLogs(filter: { requestId?: string; chatId?: string; limit?: number }) {
+        const params = new URLSearchParams();
+        if (filter.requestId) params.append('requestId', filter.requestId);
+        if (filter.chatId) params.append('chatId', filter.chatId);
+        if (filter.limit) params.append('limit', String(filter.limit));
+        const res = await ApiClient.get<any[]>(`messages/logs?${params.toString()}`);
+        if (!res.ok) return [];
+        return Array.isArray(res.data) ? res.data : [];
+    }
 }
 
 export const Data = new DataService();

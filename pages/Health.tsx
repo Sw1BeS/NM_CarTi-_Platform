@@ -48,7 +48,7 @@ const SystemQA = () => {
             const req = await MockDb.createRequest({
                 title: "QA Test Car BMW",
                 budgetMax: 50000,
-                status: RequestStatus.NEW
+                status: RequestStatus.DRAFT
             });
             if (!req || !req.id) throw new Error("Request creation failed");
             setResults(prev => [...prev, { name: 'Create Request', status: 'PASS' }]);
@@ -77,7 +77,7 @@ const SystemQA = () => {
             await MockDb.addVariant(req.id, {
                 title: car.title,
                 price: car.price,
-                status: VariantStatus.FIT
+                status: VariantStatus.APPROVED
             });
             const updatedReq = Storage.getRequest(req.id);
             if (updatedReq?.variants.length !== 1) throw new Error("Variant attach failed");

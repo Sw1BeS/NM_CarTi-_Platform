@@ -61,5 +61,23 @@ export const RequestsService = {
         const res = await ApiClient.post<Variant>(`requests/${requestId}/variants`, variant);
         if (!res.ok) throw new Error(res.message);
         return res.data as Variant;
+    },
+
+    async publishToChannel(requestId: string, payload: { botId?: string; channelId: string; text?: string; template?: string }) {
+        const res = await ApiClient.post(`requests/${requestId}/publish-channel`, payload);
+        if (!res.ok) throw new Error(res.message);
+        return res.data;
+    },
+
+    async updateChannelPost(requestId: string, payload: { channelId?: string; text: string }) {
+        const res = await ApiClient.put(`requests/${requestId}/channel-post`, payload);
+        if (!res.ok) throw new Error(res.message);
+        return res.data;
+    },
+
+    async closeChannelPost(requestId: string, payload: { channelId?: string }) {
+        const res = await ApiClient.post(`requests/${requestId}/close-channel`, payload);
+        if (!res.ok) throw new Error(res.message);
+        return res.data;
     }
 };

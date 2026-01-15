@@ -4,6 +4,7 @@
  */
 
 import { prisma } from '../../services/prisma.js';
+import bcrypt from 'bcryptjs';
 
 export class SuperadminService {
     /**
@@ -115,6 +116,51 @@ export class SuperadminService {
     }
 
     /**
+     * Create a user in any company (SUPER_ADMIN only)
+     */
+    async createUser(data: {
+        email: string;
+        password: string;
+        role: string;
+        companyId: string;
+        name?: string;
+        isActive?: boolean;
+    }) {
+        const hashed = await bcrypt.hash(data.password, 10);
+        return prisma.user.create({
+            data: {
+                email: data.email,
+                name: data.name || data.email.split('@')[0],
+                password: hashed,
+                role: data.role as any,
+                companyId: data.companyId,
+                isActive: data.isActive ?? true
+            }
+        });
+    }
+
+    /**
+     * Update user (role, password, company, status)
+     */
+    async updateUser(userId: string, data: {
+        email?: string;
+        name?: string;
+        role?: string;
+        companyId?: string;
+        password?: string;
+        isActive?: boolean;
+    }) {
+        const updateData: any = { ...data };
+        if (data.password) {
+            updateData.password = await bcrypt.hash(data.password, 10);
+        }
+        return prisma.user.update({
+            where: { id: userId },
+            data: updateData
+        });
+    }
+
+    /**
      * Get all users across all companies
      */
     async getAllUsers(filters?: {
@@ -193,6 +239,21 @@ export class SuperadminService {
         return prisma.systemLog.findMany({
             orderBy: { createdAt: 'desc' },
             take: limit
+        });
+    }
+
+    /**
+     * Find user by id or email
+     */
+    async findUser(query: { id?: string; email?: string; companyId?: string }) {
+        return prisma.user.findFirst({
+            where: {
+                OR: [
+                    query.id ? { id: query.id } : undefined,
+                    query.email ? { email: query.email } : undefined
+                ].filter(Boolean) as any[],
+                companyId: query.companyId || undefined
+            }
         });
     }
 }

@@ -2,6 +2,8 @@ import axios from 'axios';
 import { prisma } from '../../services/prisma.js';
 import { generatePublicId, mapLeadCreateInput, mapRequestInput, mapRequestOutput, mapVariantInput } from '../../services/dto.js';
 import { createDeepLinkKeyboard, generateOfferLink, generateRequestLink, parseStartPayload } from '../../utils/deeplink.utils.js';
+import { TelegramSender } from '../../services/telegramSender.js';
+import { renderVariantCard, managerActionsKeyboard, renderRequestCard } from '../../services/cardRenderer.js';
 
 type BotRuntime = {
   id: string;
@@ -35,6 +37,25 @@ const normalizeTextCommand = (text: string) =>
   (text || '').trim().toLowerCase().replace(/\s+/g, ' ');
 
 const stripTags = (value: string) => value.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+
+const hasContactInfo = (text: string) => {
+  if (!text) return false;
+  const phoneRe = /(\+?\d[\d\-\s]{6,}\d)/g;
+  const linkRe = /(https?:\/\/|t\.me|wa\.me|@[\w_]+)/i;
+  return phoneRe.test(text) || linkRe.test(text);
+};
+
+const parseDealerDetails = (text: string) => {
+  const priceMatch = text.match(/(\d[\d\s]{2,})\s*(usd|\$|eur|uah)?/i);
+  const yearMatch = text.match(/\b(19|20)\d{2}\b/);
+  const vinMatch = text.match(/\b[A-HJ-NPR-Z0-9]{17}\b/i);
+  return {
+    price: priceMatch ? parseInt(priceMatch[1].replace(/\s/g, ''), 10) : undefined,
+    currency: priceMatch?.[2]?.toUpperCase()?.includes('EUR') ? 'EUR' : (priceMatch?.[2]?.includes('$') || priceMatch?.[2]?.includes('USD')) ? 'USD' : undefined,
+    year: yearMatch ? parseInt(yearMatch[0], 10) : undefined,
+    vin: vinMatch ? vinMatch[0].toUpperCase() : undefined
+  };
+};
 
 const getLanguage = (vars: Record<string, any>) => {
   const raw = vars.language || vars.lang || 'EN';
@@ -96,42 +117,23 @@ const logOutgoing = async (botId: string, chatId: string, text: string, messageI
 };
 
 const sendMessage = async (bot: BotRuntime, chatId: string, text: string, replyMarkup?: any) => {
-  const response = await axios.post(`${TELEGRAM_BASE(bot.token)}/sendMessage`, {
-    chat_id: chatId,
-    text,
-    parse_mode: 'HTML',
-    reply_markup: replyMarkup
-  });
-  const result = response.data?.result;
-  await logOutgoing(bot.id, chatId, text, result?.message_id, { markup: replyMarkup });
+  const result = await TelegramSender.sendMessage(bot.token, chatId, text, replyMarkup);
+  await logOutgoing(bot.id, chatId, text, (result as any)?.message_id, { markup: replyMarkup });
   return result;
 };
 
 const sendPhoto = async (bot: BotRuntime, chatId: string, photo: string, caption: string, replyMarkup?: any) => {
-  const response = await axios.post(`${TELEGRAM_BASE(bot.token)}/sendPhoto`, {
-    chat_id: chatId,
-    photo,
-    caption,
-    parse_mode: 'HTML',
-    reply_markup: replyMarkup
-  });
-  const result = response.data?.result;
-  await logOutgoing(bot.id, chatId, caption, result?.message_id, { markup: replyMarkup });
+  const result = await TelegramSender.sendPhoto(bot.token, chatId, photo, caption, replyMarkup);
+  await logOutgoing(bot.id, chatId, caption, (result as any)?.message_id, { markup: replyMarkup });
   return result;
 };
 
 const answerCallback = async (bot: BotRuntime, callbackId: string, text?: string) => {
-  await axios.post(`${TELEGRAM_BASE(bot.token)}/answerCallbackQuery`, {
-    callback_query_id: callbackId,
-    text
-  }).catch(() => {});
+  await TelegramSender.answerCallback(bot.token, callbackId, text);
 };
 
 const sendChatAction = async (bot: BotRuntime, chatId: string, action = 'typing') => {
-  await axios.post(`${TELEGRAM_BASE(bot.token)}/sendChatAction`, {
-    chat_id: chatId,
-    action
-  }).catch(() => {});
+  await TelegramSender.sendChatAction(bot.token, chatId, action);
 };
 
 const sendReplyKeyboard = async (bot: BotRuntime, chatId: string, text: string, keyboard: string[][]) => {
@@ -146,6 +148,12 @@ const sendContactRequest = async (bot: BotRuntime, chatId: string, text: string)
     keyboard: [[{ text: '📱 Share Contact', request_contact: true }]],
     resize_keyboard: true
   });
+};
+
+const notifyRequestAdmin = async (bot: BotRuntime, request: any) => {
+  if (!bot.adminChatId) return;
+  const text = `📄 Новий запит\n${renderRequestCard(request)}`;
+  await sendMessage(bot, bot.adminChatId, text);
 };
 
 const sendChoices = async (bot: BotRuntime, chatId: string, text: string, choices: any[], lang: string) => {
@@ -395,11 +403,12 @@ export class ScenarioEngine {
       : {};
     const history: string[] = Array.isArray(session.history) ? [...session.history] : [];
 
-    const inputRaw = update.message?.text || update.callback_query?.data || '';
-    const input = normalizeTextCommand(inputRaw);
-    const messageTextRaw = update.message?.text || '';
-    const chatId = String(update.message?.chat?.id || update.callback_query?.message?.chat?.id || session.chatId);
-    const lang = getLanguage(vars);
+  const inputRaw = update.message?.text || update.callback_query?.data || '';
+  const input = normalizeTextCommand(inputRaw);
+  const messageTextRaw = update.message?.text || '';
+  const chatId = String(update.message?.chat?.id || update.callback_query?.message?.chat?.id || session.chatId);
+  const lang = getLanguage(vars);
+  const isDealerFlow = vars.role === 'DEALER' || vars.dealer_invite_id || vars.ref_request_id;
 
     const scenarios: ScenarioRecord[] = bot.companyId
       ? await prisma.scenario.findMany({
@@ -409,6 +418,7 @@ export class ScenarioEngine {
       : [];
     const menuConfig = getMenuConfig(bot);
     const hasMenuButtons = Array.isArray(menuConfig.buttons) && menuConfig.buttons.length > 0;
+    const actionKeyboard = (variantId: string) => managerActionsKeyboard(variantId);
 
     const saveSession = async () => {
       await prisma.botSession.update({
@@ -508,7 +518,7 @@ export class ScenarioEngine {
               yearMin: preset.year || 2015,
               budgetMax: preset.budget || 0,
               description: `Via MiniApp. Lead: ${webData.name || 'Client'}`,
-              status: 'NEW',
+              status: 'COLLECTING_VARIANTS',
               source: 'TG',
               clientChatId: chatId,
               language: vars.language
@@ -522,6 +532,8 @@ export class ScenarioEngine {
             });
             vars.requestId = request.publicId;
             vars.requestPublicId = request.publicId;
+
+            await notifyRequestAdmin(bot, request);
           }
 
           const notifyText = [
@@ -554,10 +566,260 @@ export class ScenarioEngine {
       return false;
     }
 
+    const handleDealerFlow = async () => {
+      const dealerState = vars.dealer_state || 'INIT';
+      const requestId = await ScenarioEngine.resolveRequestId(vars);
+      const flow = vars.dealer_flow || {};
+
+      const summaryCard = (override?: any) => {
+        const variantData = {
+          title: flow.title || flow.details || 'Пропозиція',
+          price: flow.price,
+          currency: flow.currency || 'USD',
+          year: flow.year,
+          specs: { vin: flow.vin, note: flow.details },
+          location: flow.city,
+          sourceUrl: flow.url,
+          thumbnail: (vars.dealer_photos || [])[0],
+          ...(override || {})
+        };
+        const photoCount = (vars.dealer_photos || []).length || 0;
+        return `${renderVariantCard(variantData)}\n🖼 Фото: ${photoCount}`;
+      };
+
+      if (dealerState === 'INIT') {
+        vars.dealer_flow = {};
+        vars.dealer_state = 'AWAIT_CONTACT';
+        await saveSession();
+        await sendMessage(bot, chatId, '🤝 Вітаємо! Поділися контактом, щоб продовжити.', {
+          keyboard: [[{ text: "📱 Поділитися контактом", request_contact: true }], [{ text: "❌ Скасувати" }]],
+          resize_keyboard: true
+        });
+        return true;
+      }
+
+      if (!requestId) {
+        await sendMessage(bot, chatId, 'Не знайшли запит. Перевір посилання або звернись до менеджера.');
+        return true;
+      }
+
+      if (dealerState === 'AWAIT_CONTACT' && update.message?.contact) {
+        flow.contact = update.message.contact.phone_number;
+        vars.dealer_flow = flow;
+        vars.dealer_state = 'AWAIT_PHOTOS';
+        await saveSession();
+        await sendMessage(bot, chatId, 'Дякую! Надішли фото авто (можна кілька). Після фото перейдемо до деталей.');
+        return true;
+      }
+      if (dealerState === 'AWAIT_CONTACT' && messageTextRaw) {
+        await sendMessage(bot, chatId, 'Надішли контакт кнопкою, щоб продовжити.');
+        return true;
+      }
+
+      if (dealerState === 'AWAIT_PHOTOS') {
+        if (update.message?.photo) {
+          const photo = update.message.photo[update.message.photo.length - 1];
+          const list = Array.isArray(vars.dealer_photos) ? vars.dealer_photos : [];
+          list.push(photo.file_id);
+          vars.dealer_photos = list.slice(0, 10);
+          vars.dealer_state = 'AWAIT_PRICE';
+          await saveSession();
+          await sendMessage(bot, chatId, `Фото отримали (${list.length}). Вкажи ціну (USD):`);
+          return true;
+        }
+        await sendMessage(bot, chatId, 'Спочатку надішли хоча б одне фото.');
+        return true;
+      }
+
+      if (dealerState === 'AWAIT_PRICE' && messageTextRaw) {
+        const num = parseInt(messageTextRaw.replace(/[^\d]/g, ''), 10) || 0;
+        flow.price = num;
+        flow.currency = messageTextRaw.toUpperCase().includes('EUR') ? 'EUR' : 'USD';
+        vars.dealer_flow = flow;
+        vars.dealer_state = 'AWAIT_YEAR';
+        await saveSession();
+        await sendMessage(bot, chatId, 'Рік випуску? (наприклад, 2018)');
+        return true;
+      }
+
+      if (dealerState === 'AWAIT_YEAR' && messageTextRaw) {
+        const yr = parseInt(messageTextRaw.replace(/[^\d]/g, ''), 10);
+        if (yr && yr > 1900 && yr < 2050) flow.year = yr;
+        vars.dealer_flow = flow;
+        vars.dealer_state = 'AWAIT_VIN';
+        await saveSession();
+        await sendMessage(bot, chatId, 'VIN (або напиши "skip"):');
+        return true;
+      }
+
+      if (dealerState === 'AWAIT_VIN' && messageTextRaw) {
+        const vin = messageTextRaw.trim();
+        if (vin.toLowerCase() !== 'skip') {
+          if (vin.length >= 6) flow.vin = vin.toUpperCase();
+        }
+        vars.dealer_flow = flow;
+        vars.dealer_state = 'AWAIT_URL';
+        await saveSession();
+        await sendMessage(bot, chatId, 'URL лістингу (або "skip"):');
+        return true;
+      }
+
+      if (dealerState === 'AWAIT_URL' && messageTextRaw) {
+        const urlMatch = messageTextRaw.match(/https?:\/\/\S+/);
+        if (urlMatch) flow.url = urlMatch[0];
+        vars.dealer_flow = flow;
+        vars.dealer_state = 'AWAIT_DETAILS';
+        await saveSession();
+        await sendMessage(bot, chatId, 'Додай короткий опис (стан/комплектація). Без контактів.');
+        return true;
+      }
+
+      if (dealerState === 'AWAIT_DETAILS' && messageTextRaw) {
+        if (hasContactInfo(messageTextRaw)) {
+          await sendMessage(bot, chatId, 'Будь ласка, без телефонів/посилань на контакт. Додай лише інформацію про авто.');
+          return true;
+        }
+        flow.details = messageTextRaw;
+        vars.dealer_flow = flow;
+        vars.dealer_state = 'CONFIRM';
+        await saveSession();
+        await sendMessage(bot, chatId, summaryCard(), {
+          inline_keyboard: [
+            [{ text: '✅ Надіслати менеджеру', callback_data: 'DEALER_SEND' }],
+            [{ text: '🔄 Змінити опис', callback_data: 'DEALER_EDIT' }]
+          ]
+        });
+        return true;
+      }
+
+      if (dealerState === 'CONFIRM' && update.callback_query) {
+        const data = update.callback_query.data;
+        if (data === 'DEALER_EDIT') {
+          vars.dealer_state = 'AWAIT_DETAILS';
+          await saveSession();
+          await sendMessage(bot, chatId, 'Ок, надішли новий опис без контактів.');
+          return true;
+        }
+        if (data === 'DEALER_SEND') {
+          if (flow.url) {
+            const dupUrl = await prisma.requestVariant.findFirst({ where: { requestId, sourceUrl: flow.url } });
+            if (dupUrl) {
+              await sendMessage(bot, chatId, 'Таке посилання вже є у варіантах. Додай інший лот.');
+              return true;
+            }
+          }
+          if (flow.vin) {
+            const dupVin = await prisma.requestVariant.findFirst({
+              where: { requestId, specs: { path: ['vin'], equals: flow.vin } }
+            }).catch(() => null);
+            if (dupVin) {
+              await sendMessage(bot, chatId, 'Цей VIN вже є у варіантах. Додай інший лот.');
+              return true;
+            }
+          }
+
+          const mapped = mapVariantInput({
+            title: flow.details?.split('\n')[0]?.slice(0, 120) || 'Пропозиція',
+            url: flow.url,
+            sourceUrl: flow.url,
+            source: 'DEALER',
+            status: 'SUBMITTED',
+            specs: { note: flow.details, vin: flow.vin },
+            year: flow.year,
+            price: flow.price ? { amount: flow.price, currency: flow.currency } : undefined,
+            thumbnail: (vars.dealer_photos || [])[0]
+          });
+
+          const variant = await prisma.requestVariant.create({
+            data: {
+              ...mapped,
+              requestId
+            }
+          });
+
+          await prisma.messageLog.create({
+            data: {
+              requestId,
+              variantId: variant.id,
+              botId: bot.id,
+              chatId,
+              direction: 'INCOMING',
+              text: flow.details || '',
+              payload: {
+                photos: vars.dealer_photos || [],
+                price: flow.price,
+                currency: flow.currency,
+                year: flow.year,
+                vin: flow.vin,
+                url: flow.url
+              }
+            }
+          }).catch(() => {});
+
+          vars.dealer_state = 'DONE';
+          vars.dealer_flow = {};
+          await saveSession();
+          await sendMessage(bot, chatId, '✅ Надіслали менеджеру! Дякуємо.');
+
+          if (bot.adminChatId) {
+            const caption = `📨 Новий варіант по запиту ${requestId}\n${summaryCard({ specs: { vin: flow.vin, note: flow.details } })}`;
+            if (Array.isArray(vars.dealer_photos) && vars.dealer_photos.length) {
+              await TelegramSender.sendMediaGroup(bot.token, bot.adminChatId, vars.dealer_photos.map((p: string, idx: number) => ({
+                type: 'photo',
+                media: p,
+                caption: idx === 0 ? caption : undefined,
+                parse_mode: 'HTML'
+              })));
+              await sendMessage(bot, bot.adminChatId, 'Дії з варіантом:', managerActionsKeyboard(variant.id));
+            } else {
+              await sendMessage(bot, bot.adminChatId, caption, managerActionsKeyboard(variant.id));
+            }
+          }
+          return true;
+        }
+      }
+
+      return false;
+    };
+
+    // Dealer flow handling
+    if (isDealerFlow) {
+      const handledDealer = await handleDealerFlow();
+      if (handledDealer) return true;
+    }
+
     // CALLBACK QUERIES
     if (update.callback_query) {
       await answerCallback(bot, update.callback_query.id);
       const cbData = update.callback_query.data || '';
+      if (cbData.startsWith('VARIANT:')) {
+        const [, variantId, action] = cbData.split(':');
+        if (variantId && action) {
+          const target = await prisma.requestVariant.findUnique({ where: { id: variantId } });
+          if (target) {
+            let nextStatus = target.status;
+            if (action === 'APPROVE') nextStatus = 'APPROVED';
+            if (action === 'REJECT') nextStatus = 'REJECTED';
+            if (action === 'SEND_TO_CLIENT') nextStatus = 'SENT_TO_CLIENT';
+            await prisma.requestVariant.update({ where: { id: variantId }, data: { status: nextStatus } });
+            await prisma.messageLog.create({
+              data: {
+                requestId: target.requestId,
+                variantId: target.id,
+                botId: bot.id,
+                chatId,
+                direction: 'OUTGOING',
+                text: `Manager action: ${action}`,
+                payload: { status: nextStatus }
+              }
+            }).catch(() => {});
+            await sendMessage(bot, chatId, `✅ Статус оновлено: ${nextStatus}`);
+          } else {
+            await sendMessage(bot, chatId, 'Варіант не знайдено.');
+          }
+        }
+        return true;
+      }
       if (cbData.startsWith('SCN:CHOICE:')) {
         const choiceVal = cbData.split('SCN:CHOICE:')[1];
         const handled = await this.handleInput(bot, session, vars, history, choiceVal, true);
@@ -608,15 +870,17 @@ export class ScenarioEngine {
             vars.dealerId = payload.id;
             vars.dealer_invite_id = payload.id;
             if (payload.metadata?.requestId) vars.requestId = payload.metadata.requestId;
+            vars.dealer_state = 'INIT';
             deepLinkMsg = lang === 'UK'
-              ? '👋 Вітаємо! Вас запрошено приєднатися як Партнера.'
-              : '👋 Welcome! You have been invited as a Partner.';
+              ? '👋 Вітаємо! Вас запрошено як партнер. Залиш контакт і надішли варіант.'
+              : '👋 Welcome partner! Share contact and send your offer.';
           } else if (payload.type === 'request') {
             vars.role = 'DEALER';
             vars.requestId = payload.id;
             vars.requestPublicId = payload.id;
             vars.ref_request_id = payload.id;
-            deepLinkMsg = lang === 'UK' ? `📄 Ви переглядаєте запит #${payload.id}` : `📄 Viewing Request #${payload.id}`;
+            vars.dealer_state = 'INIT';
+            deepLinkMsg = lang === 'UK' ? `📄 Запит #${payload.id}. Надішли варіант.` : `📄 Request #${payload.id}. Send your offer.`;
           } else if (payload.type === 'offer') {
             vars.role = 'DEALER';
             vars.requestId = payload.id;
@@ -962,7 +1226,7 @@ export class ScenarioEngine {
             yearMin: Number(vars.year || 0),
             budgetMax: Number(vars.budget || 0),
             description: `Via Bot. User: ${vars.name || vars.first_name || ''}`.trim(),
-            status: 'NEW',
+            status: 'COLLECTING_VARIANTS',
             source: 'TG',
             clientChatId: session.chatId,
             language: vars.language
@@ -976,6 +1240,8 @@ export class ScenarioEngine {
           });
           vars.requestId = request.publicId;
           vars.requestPublicId = request.publicId;
+
+          await notifyRequestAdmin(bot, request);
         }
         if (actionType === 'NOTIFY_ADMIN' && bot.adminChatId) {
           await sendMessage(bot, bot.adminChatId, text || '🔔 Notification');

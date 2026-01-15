@@ -5,6 +5,8 @@ import { BotTemplate, LeadStatus } from '@prisma/client';
 import { prisma } from '../../services/prisma.js';
 import { parseStartPayload, type DeepLinkPayload } from '../../utils/deeplink.utils.js';
 import { ScenarioEngine } from './scenario.engine.js';
+import { TelegramSender } from '../../services/telegramSender.js';
+import { renderLeadCard, renderRequestCard } from '../../services/cardRenderer.js';
 
 
 
@@ -330,41 +332,173 @@ class BotInstance {
 
     // --- TEMPLATE LOGIC: CLIENT LEAD ---
     private async handleClientBot(msg: any, chatId: string, text: string, session: any) {
-        if (text === '/start' || text === 'reset') {
-            await this.sendMessage(chatId, `👋 <b>${this.config.name}</b>\nWelcome! How can we help?`, {
-                keyboard: [[{ text: "🚗 Buy Car" }, { text: "📞 Contact" }]], resize_keyboard: true
-            });
-            await this.updateState(session.id, 'START');
-        } else if (text === '/buy' || text === '🚗 Buy Car') {
-            await this.sendMessage(chatId, "🚗 What car are you looking for? (e.g. BMW X5 2020)", { remove_keyboard: true });
-            await this.updateState(session.id, 'ASK_CAR_PREFS');
-        } else if (session.state === 'ASK_CAR_PREFS') {
-            // Save preference
-            const leadCode = `L-${Math.floor(Math.random() * 10000)}`;
-            await prisma.lead.create({
-                data: {
-                    leadCode,
-                    clientName: msg.from.first_name || 'User',
-                    phone: session.variables?.phone || 'Not Provided',
-                    request: text,
-                    userTgId: chatId,
-                    status: LeadStatus.NEW,
-                    source: this.config.name,
-                    payload: { type: 'CAR_REQUEST', sessionHistory: session.history }
-                }
-            });
-            await this.sendMessage(chatId, `✅ Request <b>${leadCode}</b> received! We will contact you.`);
-            await this.sendMessage(chatId, `Anything else?`, {
-                keyboard: [[{ text: "🚗 Buy Car" }, { text: "📞 Contact" }]], resize_keyboard: true
-            });
-            await this.updateState(session.id, 'START'); // Reset
+        const backCmd = ['back', 'назад', '⬅️ back', '⬅️ назад'];
+        const cancelCmd = ['cancel', 'stop', 'відміна', 'отмена'];
+        const state = session.state;
+        const vars = (session.variables as any) || {};
 
-            // Notify Admin
-            if (this.config.adminChatId) {
-                await this.sendMessage(this.config.adminChatId, `🔥 <b>${this.config.name}</b>\nLead: ${leadCode}\n${text}\nFrom: ${msg.from.first_name}`, {
-                    inline_keyboard: [[{ text: "Take", callback_data: `lead_CONTACTED_${leadCode}` }]] // note: callback needs real ID usually
-                });
+        const resetToMenu = async (notice?: string) => {
+            if (notice) await this.sendMessage(chatId, notice);
+            await this.sendMessage(chatId, `👋 <b>${this.config.name || 'CarTie'}</b>\nОбери опцію:`, {
+                keyboard: [
+                    [{ text: "🚗 Залишити заявку" }],
+                    [{ text: "📞 Зв'язатися з менеджером" }]
+                ],
+                resize_keyboard: true
+            });
+            await this.updateState(session.id, 'LEAD_MENU', { leadFlow: {} });
+        };
+
+        if (text === '/start' || text === 'reset') {
+            return resetToMenu();
+        }
+
+        if (cancelCmd.includes(text.toLowerCase())) {
+            return resetToMenu('❌ Скасовано.');
+        }
+
+        if (text === '/buy' || text === '🚗 Залишити заявку' || state === 'LEAD_MENU') {
+            if (backCmd.includes(text.toLowerCase())) return resetToMenu();
+            await this.sendMessage(chatId, "Як тебе звати?", { remove_keyboard: true });
+            await this.updateState(session.id, 'LEAD_NAME', { leadFlow: { } });
+            return;
+        }
+
+        if (state === 'LEAD_NAME') {
+            if (!text || text.length < 2) {
+                await this.sendMessage(chatId, "Напиши ім'я, щоб знати як звертатись 🙌");
+                return;
             }
+            vars.leadFlow = { ...(vars.leadFlow || {}), name: text };
+            await this.updateState(session.id, 'LEAD_CAR', { ...vars });
+            await this.sendMessage(chatId, "Яке авто шукаєш? Напиши марку/модель/рік. Напр: BMW X5 2020.");
+            return;
+        }
+
+        if (state === 'LEAD_CAR') {
+            if (text.length < 3) {
+                await this.sendMessage(chatId, "Додай трохи деталей про авто 🙏");
+                return;
+            }
+            vars.leadFlow = { ...(vars.leadFlow || {}), car: text };
+            await this.updateState(session.id, 'LEAD_BUDGET', { ...vars });
+            await this.sendMessage(chatId, "Який бюджет (USD)?");
+            return;
+        }
+
+        if (state === 'LEAD_BUDGET') {
+            const budget = parseInt(text.replace(/[^\d]/g, ''), 10) || 0;
+            vars.leadFlow = { ...(vars.leadFlow || {}), budget };
+            await this.updateState(session.id, 'LEAD_CITY', { ...vars });
+            await this.sendMessage(chatId, "Вкажи місто або локацію:");
+            return;
+        }
+
+        if (state === 'LEAD_CITY') {
+            vars.leadFlow = { ...(vars.leadFlow || {}), city: text || '' };
+            await this.updateState(session.id, 'LEAD_CONTACT', { ...vars });
+            await this.sendMessage(chatId, "Надішли номер (кнопка) або впиши вручну:", {
+                keyboard: [[{ text: "📱 Поділитися контактом", request_contact: true }], [{ text: "⬅️ Назад" }]],
+                resize_keyboard: true
+            });
+            return;
+        }
+
+        if (state === 'LEAD_CONTACT') {
+            if (msg.contact?.phone_number) {
+                vars.leadFlow = { ...(vars.leadFlow || {}), phone: msg.contact.phone_number };
+            } else {
+                const phone = text.replace(/[^\d+]/g, '');
+                if (phone.length < 6) {
+                    await this.sendMessage(chatId, "Телефон виглядає некоректно, спробуй ще раз або натисни кнопку.");
+                    return;
+                }
+                vars.leadFlow = { ...(vars.leadFlow || {}), phone };
+            }
+            await this.updateState(session.id, 'LEAD_CONFIRM', { ...vars });
+            const lf = vars.leadFlow;
+            const summary = [
+                `🙋‍♂️ Ім'я: ${lf.name}`,
+                `🚗 Авто: ${lf.car}`,
+                `💰 Бюджет: ${lf.budget ? `$${lf.budget}` : 'не вказано'}`,
+                `📍 Місто: ${lf.city || 'не вказано'}`,
+                `📞 Контакт: ${lf.phone}`
+            ].join('\n');
+            await this.sendMessage(chatId, `Перевір, все вірно?\n\n${summary}`, {
+                inline_keyboard: [[
+                    { text: '✅ Надіслати', callback_data: 'LEAD_CONFIRM_SEND' },
+                    { text: '⬅️ Назад', callback_data: 'LEAD_CONFIRM_BACK' }
+                ]]
+            });
+            return;
+        }
+
+        if (state === 'LEAD_CONFIRM' && msg?.callback_query) {
+            const data = msg.callback_query.data;
+            if (data === 'LEAD_CONFIRM_BACK') {
+                await this.updateState(session.id, 'LEAD_CONTACT', { ...vars });
+                await this.sendMessage(chatId, "Онови контакт і підтверди ще раз.", {
+                    keyboard: [[{ text: "📱 Поділитися контактом", request_contact: true }], [{ text: "⬅️ Назад" }]],
+                    resize_keyboard: true
+                });
+                return;
+            }
+            if (data === 'LEAD_CONFIRM_SEND') {
+                const lf = vars.leadFlow || {};
+                const leadCode = `L-${Math.floor(Math.random() * 100000)}`;
+                const lead = await prisma.lead.create({
+                    data: {
+                        leadCode,
+                        clientName: lf.name || 'Клієнт',
+                        phone: lf.phone,
+                        request: lf.car,
+                        userTgId: chatId,
+                        status: LeadStatus.NEW,
+                        source: this.config.name || 'Telegram',
+                        payload: { type: 'CAR_REQUEST', budget: lf.budget, city: lf.city }
+                    }
+                });
+
+                // Create Request linked to Lead
+                await prisma.b2bRequest.create({
+                    data: {
+                        title: lf.car || 'Запит',
+                        budgetMax: lf.budget || null,
+                        city: lf.city || null,
+                        chatId,
+                        status: 'COLLECTING_VARIANTS',
+                        publicId: leadCode,
+                        description: `Lead ${leadCode} via bot`,
+                        content: lf.car,
+                        companyId: this.config.companyId || null
+                    }
+                });
+
+                await this.sendMessage(chatId, `✅ Заявку прийнято! Код: ${leadCode}\nМенеджер відповість найближчим часом.`, { remove_keyboard: true });
+                await this.updateState(session.id, 'LEAD_MENU', { leadFlow: {} });
+
+                if (this.config.adminChatId) {
+                    const leadCard = renderLeadCard({ clientName: lf.name, phone: lf.phone, request: lf.car, payload: { city: lf.city, budget: lf.budget } });
+                    const reqCard = renderRequestCard({ title: lf.car, budgetMax: lf.budget, city: lf.city, publicId: leadCode });
+                    await this.sendMessage(this.config.adminChatId, `🔥 Новий лід ${leadCode}\n\n${leadCard}\n\n${reqCard}`);
+                }
+                return;
+            }
+        }
+
+        // Fallback contact intent
+        if (text === '📞 Зв\'язатися з менеджером') {
+            await this.sendMessage(chatId, "Напиши своє питання, менеджер відповість найближчим часом.");
+            await this.updateState(session.id, 'LEAD_SUPPORT');
+            return;
+        }
+        if (state === 'LEAD_SUPPORT') {
+            await this.sendMessage(chatId, "✅ Дякую! Передали менеджеру.");
+            if (this.config.adminChatId) {
+                await this.sendMessage(this.config.adminChatId, `🆘 Запит підтримки від ${msg.from.first_name}: ${text}`);
+            }
+            await this.updateState(session.id, 'LEAD_MENU', { leadFlow: {} });
+            return;
         }
     }
 
@@ -415,12 +549,11 @@ class BotInstance {
     private async sendMessage(chatId: string, text: string, markup: any = {}) {
         if (!chatId) return; // Guard clause
         try {
-            const response = await axios.post(`https://api.telegram.org/bot${this.config.token}/sendMessage`, {
-                chat_id: chatId, text, parse_mode: 'HTML', reply_markup: markup
-            });
+            const response = await TelegramSender.sendMessage(this.config.token, chatId, text, markup);
+            const messageId = (response as any)?.message_id;
 
             // Log outgoing message to database
-            if (response.data?.result) {
+            if (messageId) {
                 try {
                     await prisma.$executeRaw`
                         INSERT INTO "BotMessage" (id, "botId", "chatId", direction, text, "messageId", payload, "createdAt")
@@ -430,7 +563,7 @@ class BotInstance {
                             ${chatId},
                             'OUTGOING',
                             ${text},
-                            ${response.data.result.message_id},
+                            ${messageId},
                             ${JSON.stringify({ markup })}::jsonb,
                             NOW()
                         )

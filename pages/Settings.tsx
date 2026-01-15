@@ -3,16 +3,17 @@ import React, { useState, useEffect, useRef } from 'react';
 import { VersionSnapshots, ConfigSnapshot } from '../services/versionSnapshots';
 import { User, UserRole, FeatureKey, SystemSettings } from '../types';
 import { useLang } from '../contexts/LanguageContext';
-import { User as UserIcon, Layers, Cpu, Terminal, Book, Plus, CheckCircle, X, ToggleLeft, ToggleRight, MessageCircle, Briefcase, Search, GitMerge, Megaphone, HardDrive, Download, Upload, RefreshCw, AlertTriangle, Clock, Trash2, RotateCcw, Globe, Server, Database, History, Info, Lock } from 'lucide-react';
+import { User as UserIcon, Layers, Cpu, Terminal, Book, Plus, CheckCircle, X, ToggleLeft, ToggleRight, MessageCircle, Briefcase, Search, GitMerge, Megaphone, HardDrive, Download, Upload, RefreshCw, AlertTriangle, Clock, Trash2, RotateCcw, Globe, Server, Database, History, Info, Lock, Shield, LogIn } from 'lucide-react';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
 import { TelegramAPI } from '../services/telegram';
 import { ApiClient } from '../services/apiClient';
 import { getApiBase, setApiBase } from '../services/apiConfig';
 import { Data } from '../services/data';
+import { SuperadminApi } from '../services/superadminApi';
 
 export const SettingsPage = () => {
-    const [activeTab, setActiveTab] = useState<'USERS' | 'INTEGRATIONS' | 'TG' | 'FEATURES' | 'DICT' | 'BACKUP' | 'API' | 'VERSIONS'>('USERS');
+    const [activeTab, setActiveTab] = useState<'USERS' | 'INTEGRATIONS' | 'TG' | 'FEATURES' | 'DICT' | 'BACKUP' | 'API' | 'VERSIONS' | 'SUPERADMIN'>('USERS');
     const { t } = useLang();
     const { user } = useAuth();
 
@@ -39,6 +40,9 @@ export const SettingsPage = () => {
                         <div className="space-y-1">
                             <NavButton active={activeTab === 'USERS'} onClick={() => setActiveTab('USERS')} icon={UserIcon} label={t('settings.users')} />
                             {user?.role === 'SUPER_ADMIN' && (
+                                <NavButton active={activeTab === 'SUPERADMIN'} onClick={() => setActiveTab('SUPERADMIN')} icon={Shield} label="Super Admin" />
+                            )}
+                            {user?.role === 'SUPER_ADMIN' && (
                                 <NavButton active={activeTab === 'FEATURES'} onClick={() => setActiveTab('FEATURES')} icon={Cpu} label="Features" />
                             )}
                         </div>
@@ -58,6 +62,7 @@ export const SettingsPage = () => {
                     {activeTab === 'USERS' && <UsersTab />}
                     {activeTab === 'INTEGRATIONS' && <IntegrationsTab />}
                     {activeTab === 'TG' && <TelegramDiagnosticsTab />}
+                    {activeTab === 'SUPERADMIN' && user?.role === 'SUPER_ADMIN' && <SuperAdminTab />}
                     {activeTab === 'FEATURES' && user?.role === 'SUPER_ADMIN' && <FeaturesTab />}
                     {activeTab === 'DICT' && <DictionariesTab />}
                     {activeTab === 'BACKUP' && <BackupTab />}
@@ -168,6 +173,174 @@ const UsersTab = () => {
                         <div className="flex justify-end gap-3 mt-6">
                             <button onClick={() => setIsModalOpen(false)} className="btn-ghost">Cancel</button>
                             <button onClick={handleCreate} className="btn-primary">Create</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+const SuperAdminTab = () => {
+    const { showToast } = useToast();
+    const { user } = useAuth();
+    const [companies, setCompanies] = useState<any[]>([]);
+    const [users, setUsers] = useState<User[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [filterCompany, setFilterCompany] = useState<string>('');
+    const [createModal, setCreateModal] = useState(false);
+    const [form, setForm] = useState({ email: '', password: '', role: 'ADMIN', companyId: '', name: '' });
+
+    useEffect(() => {
+        if (user?.role === 'SUPER_ADMIN') {
+            refresh();
+        }
+    }, [user]);
+
+    const refresh = async () => {
+        setLoading(true);
+        try {
+            const [c, u] = await Promise.all([
+                SuperadminApi.listCompanies(),
+                SuperadminApi.listUsers({})
+            ]);
+            setCompanies(c);
+            setUsers(u);
+        } catch (e: any) {
+            console.error(e);
+            showToast('Failed to load superadmin data', 'error');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const filteredUsers = users.filter(u => (filterCompany ? u.companyId === filterCompany : true));
+
+    const handleCreate = async () => {
+        if (!form.email || !form.password || !form.companyId) {
+            return showToast('email/password/company are required', 'error');
+        }
+        try {
+            await SuperadminApi.createUser({
+                email: form.email,
+                password: form.password,
+                role: form.role,
+                companyId: form.companyId,
+                name: form.name
+            });
+            showToast('User created');
+            setCreateModal(false);
+            setForm({ email: '', password: '', role: 'ADMIN', companyId: '', name: '' });
+            refresh();
+        } catch (e: any) {
+            showToast(e.message || 'Create user failed', 'error');
+        }
+    };
+
+    const handleImpersonate = async (u: User) => {
+        try {
+            const res = await SuperadminApi.impersonate({ userId: u.id, companyId: u.companyId });
+            if (res.token) {
+                localStorage.setItem('cartie_token', res.token);
+                showToast(`Impersonating ${u.email}`, 'success');
+                window.location.href = '/#/';
+            }
+        } catch (e: any) {
+            showToast(e.message || 'Impersonation failed', 'error');
+        }
+    };
+
+    return (
+        <div className="space-y-6 animate-slide-up">
+            <div className="flex items-center justify-between">
+                <div>
+                    <h3 className="text-xl font-medium text-[var(--text-primary)]">Super Admin Console</h3>
+                    <p className="text-sm text-[var(--text-secondary)] mt-1">Cross-company control: users, access, quick login.</p>
+                </div>
+                <div className="flex gap-2">
+                    <select value={filterCompany} onChange={e => setFilterCompany(e.target.value)} className="input">
+                        <option value="">All companies</option>
+                        {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                    <button onClick={() => setCreateModal(true)} className="btn-primary flex items-center gap-2"><Plus size={16}/> New User</button>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {companies.map(c => (
+                    <div key={c.id} className="panel p-4 flex justify-between items-center">
+                        <div>
+                            <div className="font-bold text-[var(--text-primary)]">{c.name}</div>
+                            <div className="text-xs text-[var(--text-secondary)]">{c.slug} · Plan {c.plan}</div>
+                        </div>
+                        <div className="text-xs text-[var(--text-secondary)] space-x-2">
+                            <span>Users: {c._count?.users ?? '-'}</span>
+                            <span>Bots: {c._count?.bots ?? '-'}</span>
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            <div className="panel p-4">
+                <div className="flex items-center justify-between mb-3">
+                    <div className="font-semibold text-[var(--text-primary)]">Users</div>
+                    {loading && <div className="text-xs text-[var(--text-secondary)]">Loading...</div>}
+                </div>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                        <thead className="text-[var(--text-secondary)]">
+                            <tr>
+                                <th className="text-left py-2">Email</th>
+                                <th className="text-left py-2">Role</th>
+                                <th className="text-left py-2">Company</th>
+                                <th className="text-right py-2">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-[var(--border-color)]">
+                            {filteredUsers.map(u => (
+                                <tr key={u.id}>
+                                    <td className="py-2">{u.email}</td>
+                                    <td className="py-2">{u.role}</td>
+                                    <td className="py-2 text-[var(--text-secondary)]">{u.companyId}</td>
+                                    <td className="py-2 text-right space-x-2">
+                                        <button onClick={() => handleImpersonate(u)} className="btn-ghost inline-flex items-center gap-1 text-xs"><LogIn size={14}/> Login</button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                    {filteredUsers.length === 0 && (
+                        <div className="text-center text-[var(--text-secondary)] text-sm py-6">No users found</div>
+                    )}
+                </div>
+            </div>
+
+            {createModal && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+                    <div className="panel p-6 w-full max-w-lg space-y-4">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <div className="font-bold text-lg text-[var(--text-primary)]">Create User</div>
+                                <div className="text-xs text-[var(--text-secondary)]">SUPER_ADMIN scope</div>
+                            </div>
+                            <button onClick={() => setCreateModal(false)}><X size={20}/></button>
+                        </div>
+                        <input className="input" placeholder="Email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
+                        <input className="input" type="password" placeholder="Password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} />
+                        <input className="input" placeholder="Name (optional)" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
+                        <select className="input" value={form.companyId} onChange={e => setForm({ ...form, companyId: e.target.value })}>
+                            <option value="">Select company</option>
+                            {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        </select>
+                        <select className="input" value={form.role} onChange={e => setForm({ ...form, role: e.target.value })}>
+                            <option value="OWNER">OWNER</option>
+                            <option value="ADMIN">ADMIN</option>
+                            <option value="MANAGER">MANAGER</option>
+                            <option value="VIEWER">VIEWER</option>
+                        </select>
+                        <div className="flex justify-end gap-2 pt-2">
+                            <button className="btn-ghost" onClick={() => setCreateModal(false)}>Cancel</button>
+                            <button className="btn-primary" onClick={handleCreate}>Create</button>
                         </div>
                     </div>
                 </div>

@@ -23,6 +23,7 @@ import { ContentCalendarPage } from './pages/ContentCalendar';
 import { CompanySettingsPage } from './pages/CompanySettings';
 import { MarketplacePage } from './pages/Marketplace';
 import { IntegrationsPage } from './pages/Integrations';
+import { QAStageA } from './pages/QAStageA';
 import { NotFound } from './components/NotFound';
 
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -71,6 +72,7 @@ export default function App() {
                     <Route path="/company" element={<ProtectedRoute><CompanySettingsPage /></ProtectedRoute>} />
                     <Route path="/marketplace" element={<ProtectedRoute><MarketplacePage /></ProtectedRoute>} />
                     <Route path="/integrations" element={<ProtectedRoute><IntegrationsPage /></ProtectedRoute>} />
+                    <Route path="/qa" element={<ProtectedRoute><QAStageA /></ProtectedRoute>} />
                     {/* <Route path="/health" element={<ProtectedRoute><HealthPage /></ProtectedRoute>} /> */}
 
                     <Route path="*" element={<NotFound />} />

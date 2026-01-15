@@ -22,6 +22,24 @@ enum LeadStatus {
   LOST
 }
 
+enum RequestStatus {
+  DRAFT
+  PUBLISHED
+  COLLECTING_VARIANTS
+  SHORTLIST
+  CONTACT_SHARED
+  WON
+  LOST
+}
+
+enum VariantStatus {
+  SUBMITTED
+  REVIEWED
+  APPROVED
+  REJECTED
+  SENT_TO_CLIENT
+}
+
 enum DraftSource {
   EXTENSION
   MANUAL
@@ -69,6 +87,8 @@ model Company {
   scenarios    Scenario[]
   templates    CompanyTemplate[]
   integrations Integration[]
+  partnerCompanies PartnerCompany[]
+  partnerUsers     PartnerUser[]
   
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
@@ -164,6 +184,7 @@ model BotConfig {
   sessions    BotSession[]
   campaigns   Campaign[]
   leads       Lead[]
+  channelPosts ChannelPost[]
   
   @@index([companyId])
 }
@@ -200,7 +221,7 @@ model B2bRequest {
   
   chatId      String?
   content     String?          // Original raw text
-  status      String           @default("NEW") // NEW, IN_PROGRESS, ...
+  status      RequestStatus    @default(DRAFT)
   priority    String           @default("NORMAL")
   
   companyId   String?
@@ -208,6 +229,8 @@ model B2bRequest {
   internalNotes String?        // Stage A: Private notes
 
   variants    RequestVariant[]
+  channelPosts ChannelPost[]
+  messages    MessageLog[]
   
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
@@ -220,7 +243,7 @@ model RequestVariant {
   requestId   String
   request     B2bRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
   
-  status      String     @default("PENDING") // PENDING, OFFERED, REJECTED, ACCEPTED
+  status      VariantStatus @default(SUBMITTED)
   source      String     @default("MANUAL")
   sourceUrl   String?
   
@@ -235,6 +258,8 @@ model RequestVariant {
   
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
+
+  messageLogs MessageLog[]
 }
 
 
@@ -285,6 +310,68 @@ model CarListing {
   @@index([year])
   @@index([status])
   @@index([companyId])
+}
+
+model ChannelPost {
+  id          String      @id @default(cuid())
+  requestId   String
+  request     B2bRequest  @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  botId       String?
+  bot         BotConfig?  @relation(fields: [botId], references: [id])
+  channelId   String
+  messageId   Int
+  status      String      @default("ACTIVE") // ACTIVE, UPDATED, CLOSED
+  payload     Json?       @db.JsonB
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@unique([requestId, channelId])
+  @@index([channelId])
+}
+
+model MessageLog {
+  id          String      @id @default(cuid())
+  requestId   String?
+  request     B2bRequest? @relation(fields: [requestId], references: [id], onDelete: SetNull)
+  variantId   String?
+  variant     RequestVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+  botId       String?
+  chatId      String
+  direction   String      @default("INCOMING")
+  text        String?
+  payload     Json?       @db.JsonB
+  createdAt   DateTime    @default(now())
+
+  @@index([requestId])
+  @@index([chatId])
+}
+
+model PartnerCompany {
+  id        String   @id @default(cuid())
+  name      String
+  city      String?
+  contact   String?
+  notes     String?
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+
+  users     PartnerUser[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model PartnerUser {
+  id         String         @id @default(cuid())
+  name       String
+  telegramId String?        @unique
+  phone      String?
+  partnerId  String?
+  partner    PartnerCompany? @relation(fields: [partnerId], references: [id], onDelete: SetNull)
+  companyId  String?
+  company    Company?       @relation(fields: [companyId], references: [id], onDelete: SetNull)
+
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
 }
 
 model BotSession {
