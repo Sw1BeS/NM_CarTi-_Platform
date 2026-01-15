@@ -51,6 +51,7 @@ enum IntegrationType {
   GOOGLE_SHEETS
   WEBHOOK
   ZAPIER
+  TELEGRAM_CHANNEL
 }
 
 enum CompanyPlan {

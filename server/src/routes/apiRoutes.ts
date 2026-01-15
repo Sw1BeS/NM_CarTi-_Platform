@@ -10,6 +10,9 @@ import { botManager } from '../modules/bots/bot.service.js';
 import { importDraft, searchAutoRia, sendMetaEvent } from '../services/integrationService.js';
 import { mapLeadCreateInput, mapLeadOutput, mapLeadStatusFilter, mapLeadUpdateInput } from '../services/dto.js';
 import { mapBotInput, mapBotOutput } from '../services/botDto.js';
+import { IntegrationService } from '../modules/integrations/integration.service.js';
+
+const integrationService = new IntegrationService();
 
 const router = Router();
 
@@ -234,7 +237,7 @@ router.get('/messages/logs', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), asyn
     } catch (e: any) {
         console.error('[MessageLog] Fetch error:', e.message || e);
         res.status(500).json({ error: 'Failed to fetch message logs' });
-  }
+    }
 });
 
 router.post('/messages', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
@@ -264,6 +267,85 @@ router.post('/messages', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), async (r
     }
 });
 
+// --- Scenarios (Missing Routes Implemented) ---
+router.get('/scenarios', requireRole(['ADMIN', 'MANAGER']), async (req, res) => {
+    try {
+        const scenarios = await prisma.scenario.findMany({
+            where: req.user?.companyId ? { companyId: req.user.companyId } : {},
+            orderBy: { updatedAt: 'desc' }
+        });
+        res.json(scenarios);
+    } catch (e: any) {
+        console.error('[Scenarios] List error:', e);
+        res.status(500).json({ error: 'Failed to list scenarios' });
+    }
+});
+
+router.post('/scenarios', requireRole(['ADMIN', 'MANAGER']), async (req, res) => {
+    try {
+        const { id, _recordId, ...data } = req.body || {};
+        const companyId = req.user?.companyId;
+
+        if (!companyId) return res.status(400).json({ error: 'Company context required' });
+        if (!data.name) return res.status(400).json({ error: 'Name is required' });
+
+        // Logic: upsert based on ID if it looks like a server ID (cuid) and exists?
+        // But the frontend usually sends `id` which might be temporary `scn_...`.
+        // If it sends a real ID, we update.
+
+        let existingId = id;
+        if (id && !id.startsWith('scn_')) {
+            const found = await prisma.scenario.findUnique({ where: { id } });
+            if (!found) existingId = null; // ID sent but not found, treat as new? or error?
+        } else {
+            existingId = null;
+        }
+
+        if (existingId) {
+            const updated = await prisma.scenario.update({
+                where: { id: existingId },
+                data: {
+                    name: data.name,
+                    triggerCommand: data.triggerCommand || null,
+                    keywords: data.keywords || [],
+                    isActive: data.isActive ?? false,
+                    entryNodeId: data.entryNodeId,
+                    nodes: data.nodes || [],
+                    companyId // Ensure ownership
+                }
+            });
+            res.json(updated);
+        } else {
+            const created = await prisma.scenario.create({
+                data: {
+                    name: data.name,
+                    triggerCommand: data.triggerCommand || null,
+                    keywords: data.keywords || [],
+                    isActive: data.isActive ?? false,
+                    entryNodeId: data.entryNodeId,
+                    nodes: data.nodes || [],
+                    companyId
+                }
+            });
+            res.json(created);
+        }
+    } catch (e: any) {
+        console.error('[Scenarios] Save error:', e);
+        res.status(500).json({ error: 'Failed to save scenario' });
+    }
+});
+
+router.delete('/scenarios/:id', requireRole(['ADMIN', 'MANAGER']), async (req, res) => {
+    try {
+        const { id } = req.params;
+        await prisma.scenario.delete({ where: { id } });
+        res.json({ success: true });
+    } catch (e: any) {
+        console.error('[Scenarios] Delete error:', e);
+        res.status(500).json({ error: 'Failed to delete scenario' });
+    }
+});
+
 router.post('/messages/send', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
     try {
         const { chatId, text, imageUrl, botId, keyboard } = req.body || {};
@@ -275,32 +357,17 @@ router.post('/messages/send', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), asy
             return res.status(400).json({ error: 'Bot token not found' });
         }
 
-        const method = imageUrl ? 'sendPhoto' : 'sendMessage';
-        const params = imageUrl
-            ? { chat_id: chatId, photo: imageUrl, caption: text, parse_mode: 'HTML', reply_markup: keyboard }
-            : { chat_id: chatId, text, parse_mode: 'HTML', reply_markup: keyboard };
+        const result = await integrationService.publishTelegramChannelPost({
+            companyId: req.user?.companyId || '', // Fallback or strict? Ideally from user ctx
+            botToken: resolved.token,
+            botId: resolved.botId,
+            destination: chatId,
+            text,
+            imageUrl,
+            keyboard
+        });
 
-        const result = await callTelegram(resolved.token, method, params);
-
-        try {
-            await prisma.$executeRaw`
-                INSERT INTO "BotMessage" (id, "botId", "chatId", direction, text, "messageId", payload, "createdAt")
-                VALUES (
-                    gen_random_uuid()::text,
-                    ${String(resolved.botId || '')},
-                    ${String(chatId)},
-                    'OUTGOING',
-                    ${String(text)},
-                    ${result?.message_id ?? null},
-                    ${JSON.stringify({ markup: keyboard || null })}::jsonb,
-                    NOW()
-                )
-            `;
-        } catch (e) {
-            console.error('[Messages] Failed to log outgoing message:', e);
-        }
-
-        res.json({ ok: true, result });
+        res.json({ ok: true, result: result.result });
     } catch (e: any) {
         console.error('[Messages] Send error:', e.message || e);
         res.status(500).json({ error: e.message || 'Failed to send message' });

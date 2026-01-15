@@ -18,7 +18,7 @@ export const ScenarioBuilder = () => {
 
     const loadScenarios = async () => setScenarios([...await Data.getScenarios()]);
 
-    useEffect(() => { 
+    useEffect(() => {
         loadScenarios();
         const unsub = Data.subscribe('UPDATE_SCENARIOS', loadScenarios);
         return unsub;
@@ -28,7 +28,7 @@ export const ScenarioBuilder = () => {
         const newScen: Scenario = {
             id: `scn_${Date.now()}`,
             name: 'New Flow',
-            triggerCommand: `flow_${Math.floor(Math.random()*1000)}`,
+            triggerCommand: `flow_${Math.floor(Math.random() * 1000)}`,
             keywords: [],
             isActive: false,
             entryNodeId: 'node_start',
@@ -42,12 +42,12 @@ export const ScenarioBuilder = () => {
     };
 
     const importTemplate = async (template: Scenario) => {
-        const newScen = { 
-            ...template, 
-            id: `scn_tpl_${Date.now()}`, 
+        const newScen = {
+            ...template,
+            id: `scn_tpl_${Date.now()}`,
             name: `${template.name} (Copy)`,
-            triggerCommand: `${template.triggerCommand}_${Math.floor(Math.random()*100)}`,
-            isActive: false 
+            triggerCommand: `${template.triggerCommand}_${Math.floor(Math.random() * 100)}`,
+            isActive: false
         };
         await Data.saveScenario(newScen);
         setSelectedId(newScen.id);
@@ -79,7 +79,7 @@ export const ScenarioBuilder = () => {
             try {
                 const json = JSON.parse(event.target?.result as string);
                 const importedList = Array.isArray(json) ? json : [json];
-                
+
                 let count = 0;
                 for (const s of importedList) {
                     if (s.nodes && s.triggerCommand) {
@@ -94,7 +94,7 @@ export const ScenarioBuilder = () => {
                         count++;
                     }
                 }
-                
+
                 loadScenarios();
                 showToast(`Successfully imported ${count} scenarios`);
             } catch (err) {
@@ -143,17 +143,17 @@ export const ScenarioBuilder = () => {
             {/* Sidebar Navigation */}
             <div className="w-72 bg-[var(--bg-panel)] border-r border-[var(--border-color)] flex flex-col shrink-0 z-10">
                 <div className="p-3 border-b border-[var(--border-color)] flex gap-2">
-                    <button 
-                        onClick={() => setView('FLOWS')} 
+                    <button
+                        onClick={() => setView('FLOWS')}
                         className={`flex-1 py-2.5 text-xs font-bold rounded-lg flex items-center justify-center gap-2 transition-all ${view === 'FLOWS' ? 'bg-gold-500 text-black shadow-lg shadow-gold-500/20' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-input)]'}`}
                     >
-                        <GitMerge size={16}/> Flows
+                        <GitMerge size={16} /> Flows
                     </button>
-                    <button 
-                        onClick={() => setView('MENU')} 
+                    <button
+                        onClick={() => setView('MENU')}
                         className={`flex-1 py-2.5 text-xs font-bold rounded-lg flex items-center justify-center gap-2 transition-all ${view === 'MENU' ? 'bg-gold-500 text-black shadow-lg shadow-gold-500/20' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-input)]'}`}
                     >
-                        <Menu size={16}/> Menu
+                        <Menu size={16} /> Menu
                     </button>
                 </div>
 
@@ -162,11 +162,11 @@ export const ScenarioBuilder = () => {
                         <div className="p-4 border-b border-[var(--border-color)] flex justify-between items-center bg-[var(--bg-input)]">
                             <h3 className="font-bold text-[var(--text-secondary)] text-xs uppercase tracking-wide">Scenarios</h3>
                             <div className="flex gap-1">
-                                <button onClick={handleImportClick} className="bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-gold-500 hover:text-gold-500 text-[var(--text-secondary)] p-1.5 rounded transition-all" title="Import JSON"><Upload size={14}/></button>
-                                <button onClick={handleExportAll} className="bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-gold-500 hover:text-gold-500 text-[var(--text-secondary)] p-1.5 rounded transition-all" title="Export JSON"><Download size={14}/></button>
+                                <button onClick={handleImportClick} className="bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-gold-500 hover:text-gold-500 text-[var(--text-secondary)] p-1.5 rounded transition-all" title="Import JSON"><Upload size={14} /></button>
+                                <button onClick={handleExportAll} className="bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-gold-500 hover:text-gold-500 text-[var(--text-secondary)] p-1.5 rounded transition-all" title="Export JSON"><Download size={14} /></button>
                                 <div className="w-px h-6 bg-[var(--border-color)] mx-1"></div>
-                                <button onClick={() => setTemplateModalOpen(true)} className="bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-gold-500 hover:text-gold-500 text-[var(--text-secondary)] p-1.5 rounded transition-all" title="Library"><FolderOpen size={14}/></button>
-                                <button onClick={createScenario} className="bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-gold-500 hover:text-gold-500 text-[var(--text-secondary)] p-1.5 rounded transition-all" title="New"><Plus size={14}/></button>
+                                <button onClick={() => setTemplateModalOpen(true)} className="bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-gold-500 hover:text-gold-500 text-[var(--text-secondary)] p-1.5 rounded transition-all" title="Library"><FolderOpen size={14} /></button>
+                                <button onClick={createScenario} className="bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-gold-500 hover:text-gold-500 text-[var(--text-secondary)] p-1.5 rounded transition-all" title="New"><Plus size={14} /></button>
                             </div>
                         </div>
                         <div className="flex-1 overflow-y-auto custom-scrollbar">
@@ -180,7 +180,7 @@ export const ScenarioBuilder = () => {
                                         </div>
                                     </div>
                                     <button onClick={(e) => { e.stopPropagation(); handleDeleteScenario(s.id); }} className="opacity-0 group-hover:opacity-100 text-red-500 hover:bg-red-500/10 p-2 rounded transition-all self-center ml-2">
-                                        <Trash2 size={14}/>
+                                        <Trash2 size={14} />
                                     </button>
                                 </div>
                             ))}
@@ -188,7 +188,7 @@ export const ScenarioBuilder = () => {
                     </div>
                 ) : (
                     <div className="p-8 text-center text-[var(--text-secondary)] text-sm leading-relaxed flex flex-col items-center justify-center h-full opacity-60">
-                        <Smartphone size={48} className="mx-auto mb-4 opacity-50"/>
+                        <Smartphone size={48} className="mx-auto mb-4 opacity-50" />
                         <p className="font-medium">Persistent Menu Config</p>
                         <p className="mt-2 text-xs">Configure the main keyboard menu that appears at the bottom of the Telegram chat.</p>
                     </div>
@@ -199,16 +199,16 @@ export const ScenarioBuilder = () => {
             <div className="flex-1 bg-[#050505] relative flex flex-col min-w-0">
                 {view === 'FLOWS' ? (
                     selectedScen ? (
-                        <ScenarioEditor 
-                            key={selectedScen.id} 
-                            scenario={selectedScen} 
-                            onSave={handleSave} 
-                            onDelete={() => handleDeleteScenario(selectedScen.id)} 
+                        <ScenarioEditor
+                            key={selectedScen.id}
+                            scenario={selectedScen}
+                            onSave={handleSave}
+                            onDelete={() => handleDeleteScenario(selectedScen.id)}
                             onTestRun={() => handleTestRun(selectedScen)}
                         />
                     ) : (
                         <div className="h-full flex flex-col items-center justify-center text-[var(--text-secondary)] bg-[var(--bg-app)]">
-                            <GitMerge size={64} className="mb-6 opacity-20"/>
+                            <GitMerge size={64} className="mb-6 opacity-20" />
                             <p className="text-lg font-medium">Select a flow or create new</p>
                             <button onClick={() => setTemplateModalOpen(true)} className="mt-6 text-sm text-gold-500 hover:text-gold-400 font-bold border border-gold-500/30 px-6 py-2 rounded-xl hover:bg-gold-500/10 transition-colors">Open Template Library</button>
                         </div>
@@ -220,29 +220,29 @@ export const ScenarioBuilder = () => {
 
             {/* MODALS */}
             {simulatorOpen && selectedScen && (
-                <SimulatorModal 
-                    onClose={() => setSimulatorOpen(false)} 
-                    startCommand={selectedScen.triggerCommand} 
+                <SimulatorModal
+                    onClose={() => setSimulatorOpen(false)}
+                    startCommand={selectedScen.triggerCommand}
                 />
             )}
-            
+
             {templateModalOpen && (
                 <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
                     <div className="panel w-full max-w-3xl animate-slide-up overflow-hidden border border-[var(--border-color)] shadow-2xl">
                         <div className="p-6 border-b border-[var(--border-color)] flex justify-between items-center bg-[var(--bg-panel)]">
                             <h3 className="font-bold text-xl text-[var(--text-primary)]">Scenario Library</h3>
-                            <button onClick={() => setTemplateModalOpen(false)}><X size={24} className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]"/></button>
+                            <button onClick={() => setTemplateModalOpen(false)}><X size={24} className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]" /></button>
                         </div>
                         <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[60vh] overflow-y-auto bg-[var(--bg-app)]">
                             {templates.map(tpl => (
                                 <div key={tpl.id} className="border border-[var(--border-color)] bg-[var(--bg-panel)] rounded-xl p-5 hover:border-gold-500/50 hover:shadow-[0_0_15px_rgba(212,175,55,0.1)] transition-all cursor-pointer group" onClick={() => { importTemplate(tpl); setTemplateModalOpen(false); }}>
                                     <div className="flex justify-between items-start mb-4">
                                         <div className="p-3 bg-[var(--bg-input)] rounded-lg shadow-inner group-hover:scale-110 transition-transform">
-                                            {tpl.triggerCommand === 'buy' ? <Search size={24} className="text-blue-500"/> :
-                                             tpl.triggerCommand === 'sell' ? <DollarSign size={24} className="text-green-500"/> :
-                                             <HelpCircle size={24} className="text-amber-500"/>}
+                                            {tpl.triggerCommand === 'buy' ? <Search size={24} className="text-blue-500" /> :
+                                                tpl.triggerCommand === 'sell' ? <DollarSign size={24} className="text-green-500" /> :
+                                                    <HelpCircle size={24} className="text-amber-500" />}
                                         </div>
-                                        <ArrowRight size={20} className="opacity-0 group-hover:opacity-100 text-gold-500 transition-opacity"/>
+                                        <ArrowRight size={20} className="opacity-0 group-hover:opacity-100 text-gold-500 transition-opacity" />
                                     </div>
                                     <h4 className="font-bold text-[var(--text-primary)] mb-1 text-lg">{tpl.name}</h4>
                                     <p className="text-sm text-[var(--text-secondary)]">{tpl.nodes.length} steps • Pre-configured logic</p>
@@ -264,14 +264,14 @@ const ScenarioEditor = ({ scenario, onSave, onDelete, onTestRun }: any) => {
     const [activeNodeId, setActiveNodeId] = useState<string | null>(null);
     const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 });
     const [isPanning, setIsPanning] = useState(false);
-    const [draggingNode, setDraggingNode] = useState<{id: string, startX: number, startY: number} | null>(null);
+    const [draggingNode, setDraggingNode] = useState<{ id: string, startX: number, startY: number } | null>(null);
     const canvasRef = useRef<HTMLDivElement>(null);
     const lastMousePos = useRef({ x: 0, y: 0 });
 
-    useEffect(() => { 
-        setScen(scenario); 
+    useEffect(() => {
+        setScen(scenario);
         const entry = scenario.nodes.find((n: any) => n.id === scenario.entryNodeId);
-        if(entry && entry.position) {
+        if (entry && entry.position) {
             setTransform({ x: -entry.position.x + 300, y: -entry.position.y + 300, scale: 1 });
         }
         setActiveNodeId(null);
@@ -349,25 +349,25 @@ const ScenarioEditor = ({ scenario, onSave, onDelete, onTestRun }: any) => {
     const renderConnections = () => {
         return scen.nodes.flatMap(source => {
             const links = [];
-            const sx = (source.position?.x || 0) + NODE_WIDTH - 20; 
-            const sy = (source.position?.y || 0) + 40; 
+            const sx = (source.position?.x || 0) + NODE_WIDTH - 20;
+            const sy = (source.position?.y || 0) + 40;
             if (source.nextNodeId) {
                 const target = scen.nodes.find(n => n.id === source.nextNodeId);
                 if (target) links.push({ sx, sy, tx: target.position?.x || 0, ty: (target.position?.y || 0) + 20, color: '#52525B' });
             }
             if (source.type === 'CONDITION') {
                 const trueNode = scen.nodes.find(n => n.id === source.content.trueNodeId);
-                if (trueNode) links.push({ sx, sy: sy + 40, tx: trueNode.position?.x || 0, ty: (trueNode.position?.y || 0) + 20, color: '#22c55e' }); 
+                if (trueNode) links.push({ sx, sy: sy + 40, tx: trueNode.position?.x || 0, ty: (trueNode.position?.y || 0) + 20, color: '#22c55e' });
                 const falseNode = scen.nodes.find(n => n.id === source.content.falseNodeId);
-                if (falseNode) links.push({ sx, sy: sy + 70, tx: falseNode.position?.x || 0, ty: (falseNode.position?.y || 0) + 20, color: '#ef4444' }); 
+                if (falseNode) links.push({ sx, sy: sy + 70, tx: falseNode.position?.x || 0, ty: (falseNode.position?.y || 0) + 20, color: '#ef4444' });
             }
             if (source.content.choices) {
                 source.content.choices.forEach((c, idx) => {
                     if (c.nextNodeId) {
                         const target = scen.nodes.find(n => n.id === c.nextNodeId);
                         if (target) {
-                            const btnY = sy + 60 + (idx * 32); 
-                            links.push({ sx, sy: btnY, tx: target.position?.x || 0, ty: (target.position?.y || 0) + 20, color: '#f59e0b' }); 
+                            const btnY = sy + 60 + (idx * 32);
+                            links.push({ sx, sy: btnY, tx: target.position?.x || 0, ty: (target.position?.y || 0) + 20, color: '#f59e0b' });
                         }
                     }
                 });
@@ -386,27 +386,27 @@ const ScenarioEditor = ({ scenario, onSave, onDelete, onTestRun }: any) => {
             {/* Canvas Header */}
             <div className="h-16 bg-[var(--bg-panel)] border-b border-[var(--border-color)] flex justify-between items-center px-6 shadow-sm z-20 shrink-0">
                 <div className="flex gap-4 items-center">
-                    <input className="font-bold text-lg text-[var(--text-primary)] bg-transparent border-b-2 border-transparent focus:border-gold-500 w-64 outline-none px-1 py-1 transition-colors" value={scen.name} onChange={e => setScen({...scen, name: e.target.value})} placeholder="Scenario Name" />
-                    
+                    <input className="font-bold text-lg text-[var(--text-primary)] bg-transparent border-b-2 border-transparent focus:border-gold-500 w-64 outline-none px-1 py-1 transition-colors" value={scen.name} onChange={e => setScen({ ...scen, name: e.target.value })} placeholder="Scenario Name" />
+
                     <div className="flex items-center gap-3 border-l border-[var(--border-color)] pl-4 ml-2 h-8">
                         <div className="flex items-center gap-1 font-mono text-xs text-[var(--text-secondary)] bg-[var(--bg-input)] px-2 py-1 rounded border border-[var(--border-color)]">
                             <span className="text-gold-500">/</span>
-                            <input className="bg-transparent outline-none w-20 text-[var(--text-primary)]" value={scen.triggerCommand} onChange={e => setScen({...scen, triggerCommand: e.target.value})} placeholder="cmd" />
+                            <input className="bg-transparent outline-none w-20 text-[var(--text-primary)]" value={scen.triggerCommand} onChange={e => setScen({ ...scen, triggerCommand: e.target.value })} placeholder="cmd" />
                         </div>
-                        
+
                         <div className="flex items-center gap-1 font-mono text-xs text-[var(--text-secondary)] bg-blue-900/10 px-2 py-1 rounded border border-blue-500/20">
-                            <Key size={10} className="text-blue-500"/>
-                            <input 
-                                className="bg-transparent outline-none w-32 text-blue-400 placeholder-blue-500/30" 
-                                value={scen.keywords?.join(', ') || ''} 
-                                onChange={e => setScen({...scen, keywords: e.target.value.split(',').map(s=>s.trim())})} 
-                                placeholder="Keywords" 
+                            <Key size={10} className="text-blue-500" />
+                            <input
+                                className="bg-transparent outline-none w-32 text-blue-400 placeholder-blue-500/30"
+                                value={scen.keywords?.join(', ') || ''}
+                                onChange={e => setScen({ ...scen, keywords: e.target.value.split(',').map(s => s.trim()) })}
+                                placeholder="Keywords"
                             />
                         </div>
                     </div>
 
                     <label className="flex items-center gap-2 cursor-pointer ml-4 select-none">
-                        <input type="checkbox" className="hidden" checked={scen.isActive} onChange={e => setScen({...scen, isActive: e.target.checked})} />
+                        <input type="checkbox" className="hidden" checked={scen.isActive} onChange={e => setScen({ ...scen, isActive: e.target.checked })} />
                         <div className={`w-9 h-5 rounded-full relative transition-colors ${scen.isActive ? 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.4)]' : 'bg-[#3F3F46]'}`}>
                             <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${scen.isActive ? 'left-5' : 'left-1'}`}></div>
                         </div>
@@ -414,8 +414,8 @@ const ScenarioEditor = ({ scenario, onSave, onDelete, onTestRun }: any) => {
                     </label>
                 </div>
                 <div className="flex gap-3">
-                    <button onClick={onTestRun} className="bg-[#27272A] border border-[#3F3F46] text-[var(--text-primary)] hover:text-white hover:border-gold-500 px-4 py-2 rounded-lg font-bold text-xs flex items-center gap-2 transition-colors"><Play size={14} className="fill-current"/> Test</button>
-                    <button onClick={() => onSave(scen)} className="btn-primary py-2 px-6 text-xs flex items-center gap-2 shadow-gold"><Save size={14}/> Save</button>
+                    <button onClick={onTestRun} className="bg-[#27272A] border border-[#3F3F46] text-[var(--text-primary)] hover:text-white hover:border-gold-500 px-4 py-2 rounded-lg font-bold text-xs flex items-center gap-2 transition-colors"><Play size={14} className="fill-current" /> Test</button>
+                    <button onClick={() => onSave(scen)} className="btn-primary py-2 px-6 text-xs flex items-center gap-2 shadow-gold"><Save size={14} /> Save</button>
                 </div>
             </div>
 
@@ -423,8 +423,8 @@ const ScenarioEditor = ({ scenario, onSave, onDelete, onTestRun }: any) => {
                 {/* CANVAS AREA */}
                 <div ref={canvasRef} className="flex-1 bg-[#050505] relative overflow-hidden canvas-bg cursor-grab active:cursor-grabbing" onMouseDown={handleMouseDown} onWheel={handleWheel}>
                     <div className="origin-top-left transition-transform duration-75 ease-linear pointer-events-none" style={{ transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})` }}>
-                        {/* Dot Pattern */}
-                        <div className="absolute top-[-5000px] left-[-5000px] w-[10000px] h-[10000px] pointer-events-none opacity-20" style={{ backgroundImage: 'radial-gradient(#52525B 1px, transparent 1px)', backgroundSize: '24px 24px' }}/>
+                        {/* Dot Pattern - Improved Contrast */}
+                        <div className="absolute top-[-5000px] left-[-5000px] w-[10000px] h-[10000px] pointer-events-none opacity-10" style={{ backgroundImage: 'radial-gradient(#A1A1AA 1.5px, transparent 1.5px)', backgroundSize: '32px 32px' }} />
                         <svg className="absolute top-0 left-0 w-[10000px] h-[10000px] overflow-visible z-0 pointer-events-none filter drop-shadow-lg">{renderConnections()}</svg>
                         <div className="pointer-events-auto">
                             {scen.nodes.map((node: any) => (
@@ -435,19 +435,35 @@ const ScenarioEditor = ({ scenario, onSave, onDelete, onTestRun }: any) => {
                 </div>
 
                 {/* Toolbar */}
-                <div className="absolute top-6 left-6 z-20 flex flex-col gap-2">
-                    <div className="bg-[var(--bg-panel)] shadow-2xl border border-[var(--border-color)] rounded-xl p-2 flex flex-col gap-2 backdrop-blur-md">
-                        <ToolBtn label="Message" onClick={() => addNode('MESSAGE')} icon={MessageSquare} color="text-blue-400 bg-blue-900/20 border-blue-500/30" />
-                        <ToolBtn label="Question" onClick={() => addNode('QUESTION_TEXT')} icon={HelpCircle} color="text-amber-400 bg-amber-900/20 border-amber-500/30" />
-                        <ToolBtn label="Choices" onClick={() => addNode('QUESTION_CHOICE')} icon={MousePointer2} color="text-orange-400 bg-orange-900/20 border-orange-500/30" />
-                        <ToolBtn label="Action" onClick={() => addNode('ACTION')} icon={Zap} color="text-pink-400 bg-pink-900/20 border-pink-500/30" />
-                        <ToolBtn label="Search" onClick={() => addNode('SEARCH_CARS')} icon={Search} color="text-purple-400 bg-purple-900/20 border-purple-500/30" />
-                        <ToolBtn label="Fallback" onClick={() => addNode('SEARCH_FALLBACK')} icon={Filter} color="text-violet-400 bg-violet-900/20 border-violet-500/30" />
-                        <ToolBtn label="Gallery" onClick={() => addNode('GALLERY')} icon={LayoutGrid} color="text-cyan-400 bg-cyan-900/20 border-cyan-500/30" />
-                        <ToolBtn label="Condition" onClick={() => addNode('CONDITION')} icon={GitMerge} color="text-emerald-400 bg-emerald-900/20 border-emerald-500/30" />
-                        <ToolBtn label="Channel Post" onClick={() => addNode('CHANNEL_POST')} icon={Megaphone} color="text-sky-400 bg-sky-900/20 border-sky-500/30" />
-                        <ToolBtn label="Broadcast" onClick={() => addNode('REQUEST_BROADCAST')} icon={Send} color="text-indigo-400 bg-indigo-900/20 border-indigo-500/30" />
-                        <ToolBtn label="Offer Collect" onClick={() => addNode('OFFER_COLLECT')} icon={UserCheck} color="text-rose-400 bg-rose-900/20 border-rose-500/30" />
+                <div className="absolute top-6 left-6 z-20 flex flex-col gap-4 pointer-events-none">
+                    <div className="bg-[var(--bg-panel)] shadow-2xl border border-[var(--border-color)] rounded-xl p-1.5 flex flex-col gap-1 backdrop-blur-md pointer-events-auto w-14 items-center transition-all hover:w-auto hover:items-start hover:p-3 group/toolbar">
+
+                        <div className="text-[9px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-1 hidden group-hover/toolbar:block px-1 w-full border-b border-[var(--border-color)] pb-1">Content</div>
+                        <div className="flex flex-col gap-1 group-hover/toolbar:grid group-hover/toolbar:grid-cols-2">
+                            <ToolBtn label="Message" onClick={() => addNode('MESSAGE')} icon={MessageSquare} color="text-blue-400 bg-blue-900/20 border-blue-500/30" />
+                            <ToolBtn label="Gallery" onClick={() => addNode('GALLERY')} icon={LayoutGrid} color="text-cyan-400 bg-cyan-900/20 border-cyan-500/30" />
+                        </div>
+
+                        <div className="text-[9px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-1 mt-2 hidden group-hover/toolbar:block px-1 w-full border-b border-[var(--border-color)] pb-1">Input</div>
+                        <div className="flex flex-col gap-1 group-hover/toolbar:grid group-hover/toolbar:grid-cols-2">
+                            <ToolBtn label="Question" onClick={() => addNode('QUESTION_TEXT')} icon={HelpCircle} color="text-amber-400 bg-amber-900/20 border-amber-500/30" />
+                            <ToolBtn label="Choices" onClick={() => addNode('QUESTION_CHOICE')} icon={MousePointer2} color="text-orange-400 bg-orange-900/20 border-orange-500/30" />
+                            <ToolBtn label="Offer Collect" onClick={() => addNode('OFFER_COLLECT')} icon={UserCheck} color="text-rose-400 bg-rose-900/20 border-rose-500/30" />
+                            <ToolBtn label="Search" onClick={() => addNode('SEARCH_CARS')} icon={Search} color="text-purple-400 bg-purple-900/20 border-purple-500/30" />
+                        </div>
+
+                        <div className="text-[9px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-1 mt-2 hidden group-hover/toolbar:block px-1 w-full border-b border-[var(--border-color)] pb-1">Logic</div>
+                        <div className="flex flex-col gap-1 group-hover/toolbar:grid group-hover/toolbar:grid-cols-2">
+                            <ToolBtn label="Condition" onClick={() => addNode('CONDITION')} icon={GitMerge} color="text-emerald-400 bg-emerald-900/20 border-emerald-500/30" />
+                            <ToolBtn label="Action" onClick={() => addNode('ACTION')} icon={Zap} color="text-pink-400 bg-pink-900/20 border-pink-500/30" />
+                            <ToolBtn label="Fallback" onClick={() => addNode('SEARCH_FALLBACK')} icon={Filter} color="text-violet-400 bg-violet-900/20 border-violet-500/30" />
+                        </div>
+
+                        <div className="text-[9px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-1 mt-2 hidden group-hover/toolbar:block px-1 w-full border-b border-[var(--border-color)] pb-1">Channel</div>
+                        <div className="flex flex-col gap-1 group-hover/toolbar:grid group-hover/toolbar:grid-cols-2">
+                            <ToolBtn label="Channel Post" onClick={() => addNode('CHANNEL_POST')} icon={Megaphone} color="text-sky-400 bg-sky-900/20 border-sky-500/30" />
+                            <ToolBtn label="Broadcast" onClick={() => addNode('REQUEST_BROADCAST')} icon={Send} color="text-indigo-400 bg-indigo-900/20 border-indigo-500/30" />
+                        </div>
                     </div>
                 </div>
 
@@ -462,7 +478,7 @@ const ScenarioEditor = ({ scenario, onSave, onDelete, onTestRun }: any) => {
 
 const NodeCard: React.FC<{ node: ScenarioNode, isActive: boolean, onMouseDown: (e: React.MouseEvent) => void }> = ({ node, isActive, onMouseDown }) => {
     const getStyle = () => {
-        switch(node.type) {
+        switch (node.type) {
             case 'START': return { border: 'border-gray-600', icon: Play, label: 'Start', color: 'text-gray-100', glow: 'shadow-gray-500/20' };
             case 'MESSAGE': return { border: 'border-blue-500', icon: MessageSquare, label: 'Message', color: 'text-blue-400', glow: 'shadow-blue-500/20' };
             case 'QUESTION_TEXT': return { border: 'border-amber-500', icon: Type, label: 'Text Input', color: 'text-amber-400', glow: 'shadow-amber-500/20' };
@@ -482,49 +498,49 @@ const NodeCard: React.FC<{ node: ScenarioNode, isActive: boolean, onMouseDown: (
     };
     const s = getStyle();
     const Icon = s.icon;
-    
+
     return (
-        <div 
-            onMouseDown={onMouseDown} 
+        <div
+            onMouseDown={onMouseDown}
             className={`absolute w-[280px] bg-[#18181B] rounded-xl shadow-lg transition-all group z-10 hover:z-20 
-            ${isActive ? `ring-2 ring-white ring-opacity-50 ${s.glow} shadow-2xl scale-105` : `border border-[#27272A] hover:border-gray-500`}`} 
+            ${isActive ? `ring-2 ring-white ring-opacity-50 ${s.glow} shadow-2xl scale-105` : `border border-[#27272A] hover:border-gray-500`}`}
             style={{ left: node.position?.x, top: node.position?.y }}
         >
             <div className={`h-10 px-4 rounded-t-xl flex items-center gap-3 select-none border-b border-[#27272A] bg-[#27272A]/50`}>
                 <div className={`p-1 rounded ${s.color} bg-white/5`}>
-                    <Icon size={14}/>
+                    <Icon size={14} />
                 </div>
                 <span className={`text-xs font-bold uppercase tracking-wider flex-1 ${s.color}`}>{s.label}</span>
                 <span className="text-[9px] text-[#52525B] font-mono">{node.id.slice(-4)}</span>
             </div>
-            
+
             <div className="p-4 space-y-3">
                 {node.content.text && <div className="text-sm text-[#E4E4E7] font-medium leading-relaxed line-clamp-3">{node.content.text}</div>}
-                
+
                 {node.content.variableName && (
                     <div className="flex items-center gap-2 bg-amber-900/20 border border-amber-500/20 px-2 py-1.5 rounded text-[10px] text-amber-400 font-mono">
-                        <DatabaseIcon size={12}/> {node.content.variableName}
+                        <DatabaseIcon size={12} /> {node.content.variableName}
                     </div>
                 )}
-                
+
                 {node.content.actionType && (
                     <div className="text-xs font-bold font-mono bg-pink-900/20 text-pink-400 p-2 rounded text-center border border-pink-500/20">
                         {node.content.actionType}
                     </div>
                 )}
-                
+
                 {node.content.choices && (
                     <div className="space-y-1.5">
                         {node.content.choices.map((c, i) => (
                             <div key={i} className="text-xs bg-[#27272A] border border-[#3F3F46] px-3 py-2 rounded flex justify-between items-center">
                                 <span className="font-bold text-white">{c.label}</span>
-                                <ArrowRight size={12} className="text-[#71717A]"/>
+                                <ArrowRight size={12} className="text-[#71717A]" />
                             </div>
                         ))}
                     </div>
                 )}
             </div>
-            
+
             {node.nextNodeId && node.type !== 'CONDITION' && !node.content.choices && (
                 <div className="h-3 bg-[#27272A] rounded-b-xl border-t border-[#3F3F46] flex items-center justify-center">
                     <div className="w-1.5 h-1.5 bg-[#71717A] rounded-full"></div>
@@ -540,20 +556,20 @@ const PropertiesPanel = ({ node, allNodes, onChange, onDelete, onClose }: any) =
             <div className="p-5 border-b border-[var(--border-color)] flex justify-between items-center">
                 <h3 className="font-bold text-[var(--text-primary)] text-sm uppercase tracking-wider">Properties</h3>
                 <div className="flex gap-2">
-                    {node.type !== 'START' && <button onClick={onDelete} className="text-red-500 hover:bg-red-500/10 p-2 rounded transition-colors"><Trash2 size={16}/></button>}
-                    <button onClick={onClose}><X size={18} className="text-[var(--text-secondary)] hover:text-white"/></button>
+                    {node.type !== 'START' && <button onClick={onDelete} className="text-red-500 hover:bg-red-500/10 p-2 rounded transition-colors"><Trash2 size={16} /></button>}
+                    <button onClick={onClose}><X size={18} className="text-[var(--text-secondary)] hover:text-white" /></button>
                 </div>
             </div>
-            
+
             <div className="flex-1 overflow-y-auto p-5 space-y-6 custom-scrollbar">
                 {(node.type === 'MESSAGE' || node.type.includes('QUESTION') || node.type === 'REQUEST_CONTACT' || node.type === 'MENU_REPLY' || node.type === 'GALLERY' || node.type === 'CHANNEL_POST' || node.type === 'REQUEST_BROADCAST' || node.type === 'OFFER_COLLECT') && (
                     <div className="space-y-4">
                         <div>
                             <label className="text-[10px] font-bold text-[var(--text-secondary)] uppercase mb-2 block">Message Text</label>
-                            <textarea 
-                                className="textarea min-h-[120px] font-medium" 
-                                placeholder="What the bot says..." 
-                                value={node.content.text || ''} 
+                            <textarea
+                                className="textarea min-h-[120px] font-medium"
+                                placeholder="What the bot says..."
+                                value={node.content.text || ''}
                                 onChange={e => onChange({ content: { ...node.content, text: e.target.value } })}
                             />
                         </div>
@@ -673,8 +689,8 @@ const PropertiesPanel = ({ node, allNodes, onChange, onDelete, onClose }: any) =
 
                 {(node.type === 'QUESTION_TEXT' || node.type === 'QUESTION_CHOICE') && (
                     <div className="bg-amber-900/10 p-3 rounded-xl border border-amber-500/20">
-                        <label className="text-[10px] font-bold text-amber-500 uppercase flex items-center gap-1 mb-2"><DatabaseIcon size={12}/> Save Input As</label>
-                        <input className="input font-mono text-xs border-amber-500/30 focus:border-amber-500" placeholder="e.g. user_phone" value={node.content.variableName || ''} onChange={e => onChange({ content: { ...node.content, variableName: e.target.value } })}/>
+                        <label className="text-[10px] font-bold text-amber-500 uppercase flex items-center gap-1 mb-2"><DatabaseIcon size={12} /> Save Input As</label>
+                        <input className="input font-mono text-xs border-amber-500/30 focus:border-amber-500" placeholder="e.g. user_phone" value={node.content.variableName || ''} onChange={e => onChange({ content: { ...node.content, variableName: e.target.value } })} />
                     </div>
                 )}
 
@@ -687,8 +703,8 @@ const PropertiesPanel = ({ node, allNodes, onChange, onDelete, onClose }: any) =
                                     <button onClick={() => {
                                         const newChoices = node.content.choices.filter((_: any, idx: number) => idx !== i);
                                         onChange({ content: { ...node.content, choices: newChoices } });
-                                    }} className="absolute top-2 right-2 text-red-500 hover:bg-red-500/10 p-1.5 rounded"><X size={12}/></button>
-                                    
+                                    }} className="absolute top-2 right-2 text-red-500 hover:bg-red-500/10 p-1.5 rounded"><X size={12} /></button>
+
                                     <div>
                                         <label className="text-[9px] text-[var(--text-muted)] uppercase mb-1 block">Button Label</label>
                                         <input className="input text-xs font-bold w-full mb-2" placeholder="Label (Default)" value={c.label} onChange={e => {
@@ -715,7 +731,7 @@ const PropertiesPanel = ({ node, allNodes, onChange, onDelete, onClose }: any) =
                                             const newChoices = [...node.content.choices];
                                             newChoices[i] = { ...c, nextNodeId: val };
                                             onChange({ content: { ...node.content, choices: newChoices } });
-                                        }} label="Target Node"/>
+                                        }} label="Target Node" />
                                     )}
                                 </div>
                             ))}
@@ -767,11 +783,11 @@ const PropertiesPanel = ({ node, allNodes, onChange, onDelete, onClose }: any) =
 
                 {!node.content.choices && node.type !== 'CONDITION' && node.type !== 'START' && (
                     <div className="pt-6 border-t border-[var(--border-color)]">
-                        <NodeSelector value={node.nextNodeId} nodes={allNodes} currentNodeId={node.id} onChange={(val: any) => onChange({ nextNodeId: val })} label="Next Step (Default)"/>
+                        <NodeSelector value={node.nextNodeId} nodes={allNodes} currentNodeId={node.id} onChange={(val: any) => onChange({ nextNodeId: val })} label="Next Step (Default)" />
                     </div>
                 )}
                 {node.type === 'START' && (
-                    <NodeSelector value={node.nextNodeId} nodes={allNodes} currentNodeId={node.id} onChange={(val: any) => onChange({ nextNodeId: val })} label="Start Flow With:"/>
+                    <NodeSelector value={node.nextNodeId} nodes={allNodes} currentNodeId={node.id} onChange={(val: any) => onChange({ nextNodeId: val })} label="Start Flow With:" />
                 )}
             </div>
         </div>
@@ -788,19 +804,20 @@ const NodeSelector = ({ value, nodes, currentNodeId, onChange, label }: any) => 
                     <option key={n.id} value={n.id}>[{n.type}] {n.content.text ? n.content.text.substring(0, 15) + '...' : n.id.slice(-4)}</option>
                 ))}
             </select>
-            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)] pointer-events-none" size={14}/>
+            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)] pointer-events-none" size={14} />
         </div>
     </div>
 );
 
 const ToolBtn = ({ label, onClick, color, icon: Icon }: any) => (
-    <button onClick={onClick} className={`w-10 h-10 rounded-lg flex items-center justify-center shadow-lg hover:scale-110 transition-transform relative group border ${color}`}>
-        <Icon size={18} className="fill-current"/>
-        <span className="absolute left-full ml-3 bg-black text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50 font-bold border border-gray-800">{label}</span>
+    <button onClick={onClick} className={`w-10 h-10 rounded-lg flex items-center justify-center shadow-lg hover:scale-105 transition-transform relative group ${color} hover:brightness-110`}>
+        <Icon size={18} className="fill-current" />
+        <span className="absolute left-full ml-3 bg-black text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50 font-bold border border-gray-800 group-hover/toolbar:hidden">{label}</span>
+        <span className="hidden group-hover/toolbar:block absolute -bottom-3 left-1/2 -translate-x-1/2 text-[8px] font-bold whitespace-nowrap opacity-60 pointer-events-none scale-75 leading-none">{label}</span>
     </button>
 );
 
-const DatabaseIcon = ({size}: any) => (
+const DatabaseIcon = ({ size }: any) => (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path></svg>
 );
 
@@ -814,7 +831,7 @@ const MenuDesigner = ({ scenarios }: { scenarios: Scenario[] }) => {
         const load = async () => {
             const list = await Data.getBots();
             setBots(list);
-            if(list.length > 0) setSelectedBotId(list[0].id);
+            if (list.length > 0) setSelectedBotId(list[0].id);
         };
         load();
     }, []);
@@ -828,7 +845,7 @@ const MenuDesigner = ({ scenarios }: { scenarios: Scenario[] }) => {
             const commands = scenarios.filter(s => s.isActive).map(s => ({ command: s.triggerCommand, description: s.name }));
             if (commands.length) await TelegramAPI.setMyCommands(bot.token, commands);
             showToast("Commands Published! Go to Telegram Hub to sync Menu URL.");
-        } catch(e: any) { showToast(e.message, 'error'); }
+        } catch (e: any) { showToast(e.message, 'error'); }
     };
 
     const handleExportConfig = () => {
@@ -875,7 +892,7 @@ const MenuDesigner = ({ scenarios }: { scenarios: Scenario[] }) => {
             type: 'SCENARIO',
             value: '',
             row: row,
-            col: 0 
+            col: 0
         };
         const updatedButtons = [...bot.menuConfig.buttons, newBtn];
         saveConfig(updatedButtons);
@@ -914,7 +931,7 @@ const MenuDesigner = ({ scenarios }: { scenarios: Scenario[] }) => {
             <div className="w-[350px] bg-[#0E1621] rounded-[40px] border-[8px] border-[#18181B] shadow-2xl flex flex-col overflow-hidden shrink-0 h-[700px] relative">
                 {/* Notch */}
                 <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-6 bg-[#18181B] rounded-b-xl z-20"></div>
-                
+
                 {/* Screen Content */}
                 <div className="bg-[url('https://telegram.org/file/464001088/1/bSWkX5Y-Q7Y/7680076a5933615174')] bg-cover flex-1 p-4 flex flex-col items-center justify-center text-white text-sm">
                     <div className="bg-[#182533] p-3 rounded-lg shadow-sm mt-4 text-xs w-full max-w-[80%] ml-auto text-left opacity-90">
@@ -922,7 +939,7 @@ const MenuDesigner = ({ scenarios }: { scenarios: Scenario[] }) => {
                         <div className="text-[9px] text-gray-400 text-right mt-1">10:00 AM</div>
                     </div>
                 </div>
-                
+
                 {/* Keyboard Area */}
                 <div className="bg-[#17212B] p-2 pb-8 grid gap-2 border-t border-[#000000]">
                     {rows.map(rowIdx => (
@@ -934,7 +951,7 @@ const MenuDesigner = ({ scenarios }: { scenarios: Scenario[] }) => {
                             ))}
                             {(!buttonsByRow[rowIdx] || buttonsByRow[rowIdx].length < 3) && (
                                 <button onClick={() => addButton(rowIdx)} className="w-8 flex items-center justify-center bg-[#242F3D] rounded text-[#6C7883] hover:bg-[#2B5278] hover:text-white border border-dashed border-[#6C7883] transition-colors">
-                                    <Plus size={14}/>
+                                    <Plus size={14} />
                                 </button>
                             )}
                         </div>
@@ -953,19 +970,19 @@ const MenuDesigner = ({ scenarios }: { scenarios: Scenario[] }) => {
                         <select className="input w-48 text-sm" value={selectedBotId} onChange={e => setSelectedBotId(e.target.value)}>
                             {bots.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                         </select>
-                        <button onClick={() => configInputRef.current?.click()} className="btn-secondary px-3" title="Import Config"><Upload size={16}/></button>
-                        <button onClick={handleExportConfig} className="btn-secondary px-3" title="Export Config"><Download size={16}/></button>
+                        <button onClick={() => configInputRef.current?.click()} className="btn-secondary px-3" title="Import Config"><Upload size={16} /></button>
+                        <button onClick={handleExportConfig} className="btn-secondary px-3" title="Export Config"><Download size={16} /></button>
                         <button onClick={handlePublish} className="btn-primary flex items-center gap-2 px-4">
-                            <UploadCloud size={16}/> Push Commands
+                            <UploadCloud size={16} /> Push Commands
                         </button>
                     </div>
                 </div>
 
                 <div className="mb-8">
                     <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2">Welcome Message</label>
-                    <textarea 
-                        className="textarea h-24" 
-                        value={bot.menuConfig?.welcomeMessage || ''} 
+                    <textarea
+                        className="textarea h-24"
+                        value={bot.menuConfig?.welcomeMessage || ''}
                         onChange={async e => {
                             const updated = { ...bot, menuConfig: { ...bot.menuConfig!, welcomeMessage: e.target.value } };
                             await Data.saveBot(updated);
@@ -976,26 +993,26 @@ const MenuDesigner = ({ scenarios }: { scenarios: Scenario[] }) => {
 
                 <div className="space-y-4">
                     <h4 className="text-sm font-bold text-[var(--text-primary)] uppercase border-b border-[var(--border-color)] pb-3 flex items-center gap-2">
-                        <Grid size={16}/> Button Actions
+                        <Grid size={16} /> Button Actions
                     </h4>
                     {bot.menuConfig?.buttons.map((btn, idx) => (
                         <div key={btn.id} className="bg-[var(--bg-input)] p-5 rounded-xl border border-[var(--border-color)] flex flex-col gap-4 group hover:border-gold-500/30 transition-all">
                             <div className="flex justify-between items-center">
                                 <span className="text-xs font-bold bg-[var(--bg-panel)] px-2 py-1 rounded text-[var(--text-secondary)] border border-[var(--border-color)]">Row {btn.row + 1}</span>
-                                <button onClick={() => deleteButton(btn.id)} className="text-red-500 hover:bg-red-500/10 p-2 rounded transition-colors"><Trash2 size={16}/></button>
+                                <button onClick={() => deleteButton(btn.id)} className="text-red-500 hover:bg-red-500/10 p-2 rounded transition-colors"><Trash2 size={16} /></button>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div>
                                     <label className="text-[10px] text-[var(--text-muted)] font-bold uppercase mb-1 block">Label</label>
-                                    <input className="input text-sm font-bold w-full mb-2" value={btn.label} onChange={e => updateButton(btn.id, {label: e.target.value})} placeholder="Default Label" />
+                                    <input className="input text-sm font-bold w-full mb-2" value={btn.label} onChange={e => updateButton(btn.id, { label: e.target.value })} placeholder="Default Label" />
                                     <div className="grid grid-cols-2 gap-2">
-                                        <input className="input text-xs" value={btn.label_uk || ''} onChange={e => updateButton(btn.id, {label_uk: e.target.value})} placeholder="UK Label" />
-                                        <input className="input text-xs" value={btn.label_ru || ''} onChange={e => updateButton(btn.id, {label_ru: e.target.value})} placeholder="RU Label" />
+                                        <input className="input text-xs" value={btn.label_uk || ''} onChange={e => updateButton(btn.id, { label_uk: e.target.value })} placeholder="UK Label" />
+                                        <input className="input text-xs" value={btn.label_ru || ''} onChange={e => updateButton(btn.id, { label_ru: e.target.value })} placeholder="RU Label" />
                                     </div>
                                 </div>
                                 <div>
                                     <label className="text-[10px] text-[var(--text-muted)] font-bold uppercase mb-1 block">Action Type</label>
-                                    <select className="input text-sm" value={btn.type} onChange={e => updateButton(btn.id, {type: e.target.value as any})}>
+                                    <select className="input text-sm" value={btn.type} onChange={e => updateButton(btn.id, { type: e.target.value as any })}>
                                         <option value="SCENARIO">Start Scenario</option>
                                         <option value="TEXT">Send Text Reply</option>
                                         <option value="LINK">Open URL</option>
@@ -1004,12 +1021,12 @@ const MenuDesigner = ({ scenarios }: { scenarios: Scenario[] }) => {
                                 <div>
                                     <label className="text-[10px] text-[var(--text-muted)] font-bold uppercase mb-1 block">Target</label>
                                     {btn.type === 'SCENARIO' ? (
-                                        <select className="input text-sm" value={btn.value} onChange={e => updateButton(btn.id, {value: e.target.value})}>
+                                        <select className="input text-sm" value={btn.value} onChange={e => updateButton(btn.id, { value: e.target.value })}>
                                             <option value="">Select Scenario...</option>
                                             {scenarios.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                                         </select>
                                     ) : (
-                                        <input className="input text-sm" placeholder={btn.type === 'LINK' ? 'https://...' : 'Reply text'} value={btn.value} onChange={e => updateButton(btn.id, {value: e.target.value})} />
+                                        <input className="input text-sm" placeholder={btn.type === 'LINK' ? 'https://...' : 'Reply text'} value={btn.value} onChange={e => updateButton(btn.id, { value: e.target.value })} />
                                     )}
                                 </div>
                             </div>
@@ -1036,7 +1053,7 @@ const SimulatorModal = ({ onClose, startCommand }: { onClose: () => void, startC
         BotEngine.processPlatformUpdate('TG', simChatId, `/${startCommand}`);
         const interval = setInterval(async () => {
             const all = await Data.getMessages();
-            setMessages(all.filter(m => m.chatId === simChatId).sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime()));
+            setMessages(all.filter(m => m.chatId === simChatId).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()));
         }, 500);
         return () => clearInterval(interval);
     }, []);
@@ -1044,7 +1061,7 @@ const SimulatorModal = ({ onClose, startCommand }: { onClose: () => void, startC
     useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
     const sendMessage = (text: string = input) => {
-        if(!text.trim()) return;
+        if (!text.trim()) return;
         BotEngine.processPlatformUpdate('TG', simChatId, text);
         setInput('');
     };
@@ -1053,8 +1070,8 @@ const SimulatorModal = ({ onClose, startCommand }: { onClose: () => void, startC
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
             <div className="bg-[#0E1621] w-full max-w-md h-[600px] rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-slide-up border border-[#18181B]">
                 <div className="bg-[#17212B] p-4 text-white flex justify-between items-center shrink-0 border-b border-black">
-                    <div className="font-bold flex items-center gap-2"><Smartphone size={18}/> Simulator</div>
-                    <button onClick={onClose}><X size={20}/></button>
+                    <div className="font-bold flex items-center gap-2"><Smartphone size={18} /> Simulator</div>
+                    <button onClick={onClose}><X size={20} /></button>
                 </div>
                 <div className="flex-1 bg-[#0E1621] p-4 overflow-y-auto space-y-3 custom-scrollbar">
                     {messages.map(m => (
@@ -1064,11 +1081,11 @@ const SimulatorModal = ({ onClose, startCommand }: { onClose: () => void, startC
                             </div>
                         </div>
                     ))}
-                    <div ref={bottomRef}/>
+                    <div ref={bottomRef} />
                 </div>
                 <div className="p-3 bg-[#17212B] border-t border-black flex gap-2 shrink-0">
                     <input className="flex-1 bg-[#242F3D] border-none rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 outline-none focus:ring-1 focus:ring-[#2B5278]" value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendMessage()} placeholder="Type..." />
-                    <button onClick={() => sendMessage()} className="bg-[#2B5278] text-white p-2 rounded-lg hover:bg-[#203e5c]"><Send size={18}/></button>
+                    <button onClick={() => sendMessage()} className="bg-[#2B5278] text-white p-2 rounded-lg hover:bg-[#203e5c]"><Send size={18} /></button>
                 </div>
             </div>
         </div>
