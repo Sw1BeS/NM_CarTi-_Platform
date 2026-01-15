@@ -7,6 +7,7 @@ import { useToast } from '../contexts/ToastContext';
 import { useNavigate } from 'react-router-dom';
 import { MatchingService } from '../services/matchingService';
 import { RequestsService } from '../services/requestsService';
+import { parseListingFromUrl } from '../services/parserClient';
 
 export const InventoryPage = () => {
     // Data State
@@ -29,6 +30,8 @@ export const InventoryPage = () => {
     const [editingCar, setEditingCar] = useState<CarListing | null>(null);
     const [attachModal, setAttachModal] = useState<CarListing | null>(null);
     const [quickLeadModal, setQuickLeadModal] = useState<CarListing | null>(null);
+    const [importing, setImporting] = useState(false);
+    const [importUrl, setImportUrl] = useState('');
 
     const { showToast } = useToast();
     const navigate = useNavigate();
@@ -153,9 +156,14 @@ export const InventoryPage = () => {
                         {totalItems} vehicles • Page {page} of {totalPages}
                     </p>
                 </div>
-                <button onClick={() => { setEditingCar(null); setIsModalOpen(true); }} className="btn-primary">
-                    <Plus size={20} /> Add Car
-                </button>
+                <div className="flex gap-2">
+                    <button onClick={() => setImporting(true)} className="btn-secondary">
+                        <Plus size={18}/> Import URL
+                    </button>
+                    <button onClick={() => { setEditingCar(null); setIsModalOpen(true); }} className="btn-primary">
+                        <Plus size={20} /> Add Car
+                    </button>
+                </div>
             </div>
 
             <div className="flex gap-4 shrink-0 items-center">
@@ -329,6 +337,62 @@ export const InventoryPage = () => {
                     </div>
                 </div>
             )}
+
+            {importing && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="panel w-full max-w-lg p-6 animate-slide-up">
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="font-bold text-[var(--text-primary)] text-lg">Import from URL</h3>
+                            <button onClick={() => setImporting(false)} className="btn-ghost"><X size={20} /></button>
+                        </div>
+                        <div className="space-y-3">
+                            <input className="input" placeholder="https://..." value={importUrl} onChange={e => setImportUrl(e.target.value)} />
+                            <p className="text-xs text-[var(--text-secondary)]">Парсинг подтянет заголовок, цену, год, фото и ссылку.</p>
+                        </div>
+                        <div className="flex justify-end gap-2 mt-4">
+                            <button onClick={() => setImporting(false)} className="btn-ghost">Cancel</button>
+                            <button
+                                className="btn-primary"
+                                onClick={async () => {
+                                    if (!importUrl.trim()) return showToast('URL required', 'error');
+                                    try {
+                                        const parsed = await parseListingFromUrl(importUrl.trim());
+                                        const now = new Date();
+                                        const car: any = {
+                                            canonicalId: `imp_${now.getTime()}`,
+                                            source: 'EXTERNAL',
+                                            sourceUrl: parsed.url || importUrl.trim(),
+                                            title: parsed.title || 'Imported Car',
+                                            price: { amount: parsed.price || 0, currency: (parsed.currency || 'USD') as any },
+                                            year: parsed.year || now.getFullYear(),
+                                            mileage: parsed.mileage || 0,
+                                            location: parsed.location || '',
+                                            thumbnail: parsed.thumbnail || '',
+                                            mediaUrls: parsed.raw?.images || [],
+                                            specs: {
+                                                engine: parsed.raw?.jsonLd?.engine || '',
+                                                fuel: parsed.currency ? '' : '',
+                                                vin: parsed.raw?.jsonLd?.vin || ''
+                                            },
+                                            status: 'AVAILABLE',
+                                            postedAt: now.toISOString()
+                                        };
+                                        setEditingCar(car);
+                                        setIsModalOpen(true);
+                                        setImporting(false);
+                                        setImportUrl('');
+                                        showToast('Parsed data loaded');
+                                    } catch (e: any) {
+                                        showToast(e.message || 'Parse failed', 'error');
+                                    }
+                                }}
+                            >
+                                Import
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
@@ -337,7 +401,7 @@ const CarEditor = ({ initialData, onSave, onClose }: any) => {
     // If opening Existing car, ensure ID is passed
     const [form, setForm] = useState<Partial<CarListing>>(initialData || {
         // No canonicalId init here, backend handles it or it's empty
-        source: 'INTERNAL', title: '', price: { amount: 0, currency: 'USD' },
+        source: 'INTERNAL', sourceUrl: '', title: '', price: { amount: 0, currency: 'USD' },
         year: new Date().getFullYear(), mileage: 0, location: 'Kyiv', thumbnail: '', specs: {}, status: 'AVAILABLE'
     });
 
@@ -352,9 +416,22 @@ const CarEditor = ({ initialData, onSave, onClose }: any) => {
                 </div>
 
                 <div className="space-y-6">
-                    <div>
-                        <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest mb-2">Title</label>
-                        <input className="input" placeholder="e.g. BMW X5 M50d" value={form.title} onChange={e => handleChange('title', e.target.value)} />
+                    <div className="grid grid-cols-2 gap-6">
+                        <div>
+                            <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest mb-2">Title</label>
+                            <input className="input" placeholder="e.g. BMW X5 M50d" value={form.title} onChange={e => handleChange('title', e.target.value)} />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest mb-2">Source</label>
+                            <select className="input" value={form.source || 'INTERNAL'} onChange={e => handleChange('source', e.target.value as any)}>
+                                <option value="INTERNAL">Internal</option>
+                                <option value="EXTERNAL">External</option>
+                                <option value="AUTORIA">AutoRia</option>
+                                <option value="OLX">OLX</option>
+                                <option value="REONO">Reono</option>
+                                <option value="MANUAL">Manual</option>
+                            </select>
+                        </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-6">
@@ -376,6 +453,37 @@ const CarEditor = ({ initialData, onSave, onClose }: any) => {
                         <div>
                             <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest mb-2">Location</label>
                             <input className="input" value={form.location} onChange={e => handleChange('location', e.target.value)} />
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest mb-2">Source URL</label>
+                        <input className="input" placeholder="https://..." value={form.sourceUrl || ''} onChange={e => handleChange('sourceUrl', e.target.value)} />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-6">
+                        <div>
+                            <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest mb-2">VIN</label>
+                            <input className="input" value={form.specs?.vin || ''} onChange={e => setForm(prev => ({ ...prev, specs: { ...(prev.specs || {}), vin: e.target.value } }))} />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest mb-2">Engine</label>
+                            <input className="input" value={form.specs?.engine || ''} onChange={e => setForm(prev => ({ ...prev, specs: { ...(prev.specs || {}), engine: e.target.value } }))} />
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-6">
+                        <div>
+                            <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest mb-2">Transmission</label>
+                            <input className="input" value={form.specs?.transmission || ''} onChange={e => setForm(prev => ({ ...prev, specs: { ...(prev.specs || {}), transmission: e.target.value } }))} />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest mb-2">Fuel</label>
+                            <input className="input" value={form.specs?.fuel || ''} onChange={e => setForm(prev => ({ ...prev, specs: { ...(prev.specs || {}), fuel: e.target.value } }))} />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest mb-2">Drive</label>
+                            <input className="input" value={form.specs?.drive || ''} onChange={e => setForm(prev => ({ ...prev, specs: { ...(prev.specs || {}), drive: e.target.value } }))} />
                         </div>
                     </div>
 
