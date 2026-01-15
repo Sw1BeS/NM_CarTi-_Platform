@@ -2,10 +2,11 @@ import { Router } from 'express';
 import { prisma } from '../services/prisma.js';
 import { parseListingFromUrl } from '../services/parser.js';
 import { generateRequestLink } from '../utils/deeplink.utils.js';
+import { authenticateToken, requireRole } from '../middleware/auth.js';
 
 const router = Router();
 
-router.get('/parse', async (req, res) => {
+router.get('/parse', authenticateToken, requireRole(['SUPER_ADMIN', 'ADMIN']), async (req, res) => {
   const url = req.query.url as string;
   if (!url) return res.status(400).json({ error: 'url required' });
   try {
@@ -16,7 +17,7 @@ router.get('/parse', async (req, res) => {
   }
 });
 
-router.get('/simulate/start', async (req, res) => {
+router.get('/simulate/start', authenticateToken, requireRole(['SUPER_ADMIN', 'ADMIN']), async (req, res) => {
   const type = req.query.type as string;
   const requestId = req.query.requestId as string;
   const dealerId = req.query.dealerId as string;

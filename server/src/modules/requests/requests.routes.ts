@@ -210,7 +210,9 @@ router.post('/:id/publish-channel', authenticateToken, requireRole(['ADMIN', 'MA
                 text: text || reqCard,
                 payload: { type: 'CHANNEL_PUBLISH', messageId }
             }
-        }).catch(() => {});
+        }).catch((e) => {
+            console.error('[CHANNEL_PUBLISH] MessageLog failed:', e.message || e);
+        });
 
         res.json({ ok: true, channelPost });
     } catch (e: any) {
@@ -243,7 +245,9 @@ router.put('/:id/channel-post', authenticateToken, requireRole(['ADMIN', 'MANAGE
                 text: nextText,
                 payload: { type: 'CHANNEL_UPDATE', messageId: cp.messageId }
             }
-        }).catch(() => {});
+        }).catch((e) => {
+            console.error('[CHANNEL_UPDATE] MessageLog failed:', e.message || e);
+        });
         res.json({ ok: true, channelPost: updated });
     } catch (e: any) {
         console.error(e);
@@ -275,7 +279,9 @@ router.post('/:id/close-channel', authenticateToken, requireRole(['ADMIN', 'MANA
                 text: closedText,
                 payload: { type: 'CHANNEL_CLOSE', messageId: cp.messageId }
             }
-        }).catch(() => {});
+        }).catch((e) => {
+            console.error('[CHANNEL_CLOSE] MessageLog failed:', e.message || e);
+        });
         res.json({ ok: true, channelPost: updated });
     } catch (e: any) {
         console.error(e);
