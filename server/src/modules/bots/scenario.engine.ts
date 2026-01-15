@@ -155,7 +155,13 @@ const answerCallback = async (bot: BotRuntime, callbackId: string, text?: string
 };
 
 const sendChatAction = async (bot: BotRuntime, chatId: string, action = 'typing') => {
-  await telegramOutbox.sendChatAction({ token: bot.token, chatId, action });
+  await telegramOutbox.sendChatAction({
+    botId: bot.id,
+    token: bot.token,
+    chatId,
+    action,
+    companyId: bot.companyId || null
+  });
 };
 
 const sendReplyKeyboard = async (bot: BotRuntime, chatId: string, text: string, keyboard: string[][]) => {
