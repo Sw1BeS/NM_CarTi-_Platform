@@ -19,6 +19,7 @@ export const TelegramHub = () => {
     const [bots, setBots] = useState<Bot[]>([]);
     const [selectedBotId, setSelectedBotId] = useState<string | null>(null);
     const [isAddBotOpen, setIsAddBotOpen] = useState(false);
+    const { showToast } = useToast();
     
     useEffect(() => {
         const load = async () => {
@@ -62,6 +63,7 @@ export const TelegramHub = () => {
                                     <span className={`w-1.5 h-1.5 rounded-full ${bot.active ? 'bg-green-500' : 'bg-red-500'}`}></span>
                                     {bot.active ? 'Active' : 'Stopped'}
                                 </div>
+                                {!bot.active && <div className="text-[10px] text-red-500 mt-1">Bot is stopped</div>}
                             </div>
                         </button>
                     ))}
@@ -134,10 +136,12 @@ const BotOverview = ({ bot }: { bot: Bot }) => {
     const stats = bot.stats || { processed: 0, ignored: 0, errors: 0, lastRun: '' };
     const [destinations, setDestinations] = useState<TelegramDestination[]>([]);
     const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+    const [messages, setMessages] = useState<TelegramMessage[]>([]);
 
     useEffect(() => {
         Data.getDestinations().then(setDestinations);
         Data.getCampaigns().then(all => setCampaigns(all.filter(c => c.botId === bot.id)));
+        Data.getMessages().then(setMessages);
     }, [bot.id]);
     
     return (
@@ -146,7 +150,7 @@ const BotOverview = ({ bot }: { bot: Bot }) => {
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                 <StatCard title="Total Subscribers" value={destinations.length} icon={Users} color="text-blue-500" />
-                <StatCard title="Messages Processed" value={stats.processed} icon={MessageSquare} color="text-green-500" />
+                <StatCard title="Messages Processed" value={messages.length} icon={MessageSquare} color="text-green-500" />
                 <StatCard title="Active Campaigns" value={campaigns.filter(c => c.status === 'RUNNING').length} icon={Megaphone} color="text-gold-500" />
                 <StatCard title="Errors" value={stats.errors} icon={AlertTriangle} color="text-red-500" />
             </div>
@@ -210,6 +214,15 @@ const CampaignManager = ({ bot }: { bot: Bot }) => {
         let targets = allDestinations;
         if (data.tag && data.tag !== 'ALL') {
             targets = allDestinations.filter(d => d.tags.includes(data.tag));
+        }
+
+        if (!targets.length) {
+            showToast("No destinations found for this audience", "error");
+            return;
+        }
+        if (!data.message?.trim()) {
+            showToast("Message is required", "error");
+            return;
         }
 
         const content = await Data.saveContent({

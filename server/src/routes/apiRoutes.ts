@@ -184,6 +184,7 @@ router.get('/messages', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), async (re
 
             return {
                 id: row.id,
+                botId: row.botId,
                 messageId: row.messageId || 0,
                 chatId: row.chatId,
                 platform: 'TG',
@@ -271,7 +272,7 @@ router.post('/messages', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), async (r
 router.get('/scenarios', requireRole(['ADMIN', 'MANAGER']), async (req, res) => {
     try {
         const scenarios = await prisma.scenario.findMany({
-            where: req.user?.companyId ? { companyId: req.user.companyId } : {},
+            where: (req as any).user?.companyId ? { companyId: (req as any).user.companyId } : {},
             orderBy: { updatedAt: 'desc' }
         });
         res.json(scenarios);
@@ -284,10 +285,37 @@ router.get('/scenarios', requireRole(['ADMIN', 'MANAGER']), async (req, res) => 
 router.post('/scenarios', requireRole(['ADMIN', 'MANAGER']), async (req, res) => {
     try {
         const { id, _recordId, ...data } = req.body || {};
-        const companyId = req.user?.companyId;
+        const companyId = (req as any).user?.companyId;
 
         if (!companyId) return res.status(400).json({ error: 'Company context required' });
         if (!data.name) return res.status(400).json({ error: 'Name is required' });
+        if (!Array.isArray(data.nodes) || data.nodes.length === 0) {
+            return res.status(400).json({ error: 'Scenario must contain at least one node' });
+        }
+        if (!data.entryNodeId) {
+            return res.status(400).json({ error: 'Entry node is required' });
+        }
+
+        // Basic graph validation
+        const ids = new Set((data.nodes || []).map((n: any) => n.id));
+        if (!ids.has(data.entryNodeId)) {
+            return res.status(400).json({ error: 'Entry node does not exist in nodes list' });
+        }
+        for (const n of data.nodes) {
+            if (!n.id) return res.status(400).json({ error: 'Each node must have an id' });
+            const refs: string[] = [];
+            if (n.nextNodeId) refs.push(n.nextNodeId);
+            if (n.content?.trueNodeId) refs.push(n.content.trueNodeId);
+            if (n.content?.falseNodeId) refs.push(n.content.falseNodeId);
+            if (Array.isArray(n.content?.choices)) {
+                n.content.choices.forEach((c: any) => c.nextNodeId && refs.push(c.nextNodeId));
+            }
+            for (const r of refs) {
+                if (r && !ids.has(r)) {
+                    return res.status(400).json({ error: `Broken link from ${n.id} to ${r}` });
+                }
+            }
+        }
 
         // Logic: upsert based on ID if it looks like a server ID (cuid) and exists?
         // But the frontend usually sends `id` which might be temporary `scn_...`.
@@ -338,7 +366,8 @@ router.post('/scenarios', requireRole(['ADMIN', 'MANAGER']), async (req, res) =>
 router.delete('/scenarios/:id', requireRole(['ADMIN', 'MANAGER']), async (req, res) => {
     try {
         const { id } = req.params;
-        await prisma.scenario.delete({ where: { id } });
+        const companyId = (req as any).user?.companyId;
+        await prisma.scenario.delete({ where: { id, companyId } });
         res.json({ success: true });
     } catch (e: any) {
         console.error('[Scenarios] Delete error:', e);
@@ -358,7 +387,7 @@ router.post('/messages/send', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), asy
         }
 
         const result = await integrationService.publishTelegramChannelPost({
-            companyId: req.user?.companyId || '', // Fallback or strict? Ideally from user ctx
+            companyId: (req as any).user?.companyId || '', // Fallback or strict? Ideally from user ctx
             botToken: resolved.token,
             botId: resolved.botId,
             destination: chatId,
@@ -367,7 +396,7 @@ router.post('/messages/send', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), asy
             keyboard
         });
 
-        res.json({ ok: true, result: result.result });
+        res.json({ ok: true, result: result.result || result });
     } catch (e: any) {
         console.error('[Messages] Send error:', e.message || e);
         res.status(500).json({ error: e.message || 'Failed to send message' });

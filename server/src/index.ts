@@ -15,9 +15,9 @@ import templateRoutes from './modules/templates/template.routes.js';
 import integrationRoutes from './modules/integrations/integration.routes.js';
 import superadminRoutes from './modules/superadmin/superadmin.routes.js';
 import qaRoutes from './routes/qaRoutes.js';
-import { BotManager } from './modules/bots/bot.service.js';
+import { botManager } from './modules/bots/bot.service.js';
 import { seedAdmin } from './modules/users/user.service.js';
-import { startContentWorker, stopContentWorker } from './workers/content.worker.js';
+import { startContentWorker, stopContentWorker, getWorkerStatus } from './workers/content.worker.js';
 import process from 'process';
 
 dotenv.config();
@@ -66,7 +66,13 @@ app.use('/api/qa', qaRoutes);
 
 // Health Check
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date(), uptime: process.uptime() });
+  res.json({
+    status: 'ok',
+    timestamp: new Date(),
+    uptime: process.uptime(),
+    bots: botManager.getStatus(),
+    worker: getWorkerStatus()
+  });
 });
 
 // Start Server
@@ -79,7 +85,6 @@ const startServer = async () => {
     await seedAdmin();
 
     // Start Multi-Bot Engine
-    const botManager = new BotManager();
     botManager.startAll();
 
     // Start Content Worker for scheduled posts

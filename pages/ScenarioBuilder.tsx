@@ -4,8 +4,8 @@ import { Data } from '../services/data';
 import { Scenario, ScenarioNode, NodeType, Bot, BotMenuButtonConfig } from '../types';
 import { Plus, Save, Trash2, ArrowRight, MessageSquare, HelpCircle, Search, UserCheck, X, GitMerge, MousePointer2, Move, LayoutGrid, Smartphone, Filter, Play, Send, Menu, Smartphone as PhoneIcon, Link as LinkIcon, Type, Zap, Globe, UploadCloud, Loader, Grid, Box, Crosshair, ChevronDown, Check, FolderOpen, DollarSign, Key, Settings, Download, Upload, Megaphone } from 'lucide-react';
 import { useToast } from '../contexts/ToastContext';
-import { BotEngine } from '../services/botEngine';
 import { TelegramAPI } from '../services/telegram';
+import { ApiClient } from '../services/apiClient';
 
 const NODE_WIDTH = 280;
 
@@ -1050,7 +1050,7 @@ const SimulatorModal = ({ onClose, startCommand }: { onClose: () => void, startC
     const bottomRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        BotEngine.processPlatformUpdate('TG', simChatId, `/${startCommand}`);
+        ApiClient.post('qa/simulate/message', { chatId: simChatId, text: `/${startCommand}` }).catch(() => {});
         const interval = setInterval(async () => {
             const all = await Data.getMessages();
             setMessages(all.filter(m => m.chatId === simChatId).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()));
@@ -1060,9 +1060,9 @@ const SimulatorModal = ({ onClose, startCommand }: { onClose: () => void, startC
 
     useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
-    const sendMessage = (text: string = input) => {
+    const sendMessage = async (text: string = input) => {
         if (!text.trim()) return;
-        BotEngine.processPlatformUpdate('TG', simChatId, text);
+        await ApiClient.post('qa/simulate/message', { chatId: simChatId, text }).catch(() => {});
         setInput('');
     };
 

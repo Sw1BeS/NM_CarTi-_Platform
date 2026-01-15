@@ -1155,10 +1155,15 @@ export class BotEngine {
         await this.processUpdate(bot, update);
     }
 
-    static async sendUnifiedMessage(platform: 'TG' | 'WA' | 'IG', chatId: string, text: string, imageUrl?: string) {
+    static async sendUnifiedMessage(platform: 'TG' | 'WA' | 'IG', chatId: string, text: string, imageUrl?: string, botId?: string) {
         if (platform === 'TG') {
-            const res = await ApiClient.post('messages/send', { chatId, text, imageUrl });
+            const bots = await Data.getBots();
+            const active = botId ? bots.find(b => b.id === botId) : bots.find(b => b.active) || bots[0];
+            if (!active) throw new Error('No active bot configured');
+            const res = await ApiClient.post('messages/send', { chatId, text, imageUrl, botId: active.id });
             if (!res.ok) throw new Error(res.message || 'Failed to send message');
+            // Refresh messages to reflect outgoing message
+            Data.getMessages().then(() => Data._notify('UPDATE_MESSAGES')).catch(() => {});
         } else if (platform === 'WA') {
             await WhatsAppAPI.sendMessage(chatId, text);
         } else if (platform === 'IG') {

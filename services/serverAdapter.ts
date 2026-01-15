@@ -212,8 +212,13 @@ export class ServerAdapter implements DataAdapter {
     async getCampaigns() { return this.listEntities<Campaign>(SLUGS.CAMPAIGN); }
     async saveCampaign(c: Campaign) { return this.saveEntity(SLUGS.CAMPAIGN, c); }
 
-    async getMessages() {
-        const res = await ApiClient.get<TelegramMessage[]>('messages?limit=200');
+    async getMessages(filter?: { chatId?: string; botId?: string; limit?: number }) {
+        const params = new URLSearchParams();
+        if (filter?.limit) params.append('limit', String(filter.limit));
+        if (filter?.chatId) params.append('chatId', filter.chatId);
+        if (filter?.botId) params.append('botId', filter.botId);
+        const query = params.toString();
+        const res = await ApiClient.get<TelegramMessage[]>(`messages?${query || 'limit=200'}`);
         return res.ok ? (res.data || []) : [];
     }
     async saveMessage(m: TelegramMessage) {

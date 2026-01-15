@@ -40,6 +40,8 @@ export const InboxPage = () => {
     const [requestByChat, setRequestByChat] = useState<Record<string, B2BRequest>>({});
     const [timeline, setTimeline] = useState<any[]>([]);
     const [timelineLoading, setTimelineLoading] = useState(false);
+    const [bots, setBots] = useState<any[]>([]);
+    const [selectedBotId, setSelectedBotId] = useState<string | undefined>(undefined);
     const statusOptions = [
         RequestStatus.DRAFT,
         RequestStatus.PUBLISHED,
@@ -58,10 +60,16 @@ export const InboxPage = () => {
     // Load messages and managers
     useEffect(() => {
         const load = async () => {
-            const [messages, requestRes] = await Promise.all([
-                Data.getMessages(),
-                RequestsService.getRequests({ status: 'ALL', limit: 200 })
+            const [messages, requestRes, botList] = await Promise.all([
+                Data.getMessages({ botId: selectedBotId }),
+                RequestsService.getRequests({ status: 'ALL', limit: 200 }),
+                Data.getBots()
             ]);
+            setBots(botList);
+            if (!selectedBotId && botList.length > 0) {
+                const active = botList.find((b: any) => b.active);
+                setSelectedBotId(active ? active.id : botList[0].id);
+            }
             setMsgs(messages);
 
             // Build chat list with metadata
@@ -109,7 +117,7 @@ export const InboxPage = () => {
         if (target) setActiveChatId(target);
 
         return unsub;
-    }, [searchParams]);
+    }, [searchParams, selectedBotId]);
 
     // Load managers for assignment
     useEffect(() => {
@@ -140,8 +148,19 @@ export const InboxPage = () => {
 
     const handleReply = async () => {
         if (!activeChatId || !replyText.trim()) return;
-        await BotEngine.sendUnifiedMessage('TG', activeChatId, replyText);
-        setReplyText('');
+        if (!selectedBotId) {
+            showToast('Select a bot', 'error');
+            return;
+        }
+        try {
+            await BotEngine.sendUnifiedMessage('TG', activeChatId, replyText, undefined, selectedBotId);
+            setReplyText('');
+            const updatedMessages = await Data.getMessages({ botId: selectedBotId });
+            setMsgs(updatedMessages);
+            Data._notify('UPDATE_MESSAGES');
+        } catch (e: any) {
+            showToast(e.message || 'Failed to send', 'error');
+        }
     };
 
     const assignChat = async (chatId: string, userId: string) => {
@@ -194,29 +213,20 @@ export const InboxPage = () => {
         <div className="h-[calc(100vh-100px)] flex gap-6">
             {/* Sidebar List */}
             <div className="w-80 panel flex flex-col overflow-hidden shrink-0">
-                <div className="p-4 border-b border-[var(--border-color)] bg-[var(--bg-panel)] backdrop-blur">
-                    <div className="flex justify-between items-center mb-3">
+                <div className="p-4 border-b border-[var(--border-color)] bg-[var(--bg-panel)] backdrop-blur space-y-3">
+                    <div className="flex justify-between items-center">
                         <h2 className="font-bold text-[var(--text-primary)]">Inbox</h2>
                         <div className="flex gap-1">
-                            <button
-                                onClick={() => setFilter('ALL')}
-                                className={`px-2 py-1 text-[10px] rounded ${filter === 'ALL' ? 'bg-gold-500 text-black' : 'bg-[var(--bg-input)] text-[var(--text-secondary)]'}`}
-                            >
-                                All
-                            </button>
-                            <button
-                                onClick={() => setFilter('MY')}
-                                className={`px-2 py-1 text-[10px] rounded ${filter === 'MY' ? 'bg-gold-500 text-black' : 'bg-[var(--bg-input)] text-[var(--text-secondary)]'}`}
-                            >
-                                My
-                            </button>
-                            <button
-                                onClick={() => setFilter('UNASSIGNED')}
-                                className={`px-2 py-1 text-[10px] rounded ${filter === 'UNASSIGNED' ? 'bg-gold-500 text-black' : 'bg-[var(--bg-input)] text-[var(--text-secondary)]'}`}
-                            >
-                                Unassigned
-                            </button>
+                            <button onClick={() => setFilter('ALL')} className={`px-2 py-1 text-[10px] rounded ${filter === 'ALL' ? 'bg-gold-500 text-black' : 'bg-[var(--bg-input)] text-[var(--text-secondary)]'}`}>All</button>
+                            <button onClick={() => setFilter('MY')} className={`px-2 py-1 text-[10px] rounded ${filter === 'MY' ? 'bg-gold-500 text-black' : 'bg-[var(--bg-input)] text-[var(--text-secondary)]'}`}>My</button>
+                            <button onClick={() => setFilter('UNASSIGNED')} className={`px-2 py-1 text-[10px] rounded ${filter === 'UNASSIGNED' ? 'bg-gold-500 text-black' : 'bg-[var(--bg-input)] text-[var(--text-secondary)]'}`}>Unassigned</button>
                         </div>
+                    </div>
+                    <div>
+                        <label className="text-[10px] uppercase text-[var(--text-secondary)] font-bold">Bot</label>
+                        <select className="input mt-1 text-sm" value={selectedBotId} onChange={e => setSelectedBotId(e.target.value || undefined)}>
+                            {bots.map(b => <option key={b.id} value={b.id}>{b.name || b.username || b.id}</option>)}
+                        </select>
                     </div>
                     <p className="text-xs text-[var(--text-secondary)]">{filteredChats.length} conversations</p>
                 </div>

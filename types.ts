@@ -3,6 +3,7 @@ export interface TelegramMessage {
     id: string;
     messageId: number;
     chatId: string;
+    botId?: string;
     platform?: 'TG' | 'WA' | 'IG';
     direction: 'INCOMING' | 'OUTGOING';
     from: string;

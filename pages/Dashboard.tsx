@@ -44,21 +44,35 @@ export const Dashboard: React.FC = () => {
     }, []);
 
     const refreshData = async () => {
-        // TODO: Implement real stats API
-        const dbStats = {
-            requestsNew: 0,
-            requestsProgress: 0,
-            inventoryValue: 0,
-            inventoryCount: 0,
-            inboxNew: 0,
-            campaignsActive: 0
-        };
+        const [
+            leads,
+            msgs,
+            companies,
+            users,
+            activityLogs,
+            requests,
+            inventory,
+            campaigns
+        ] = await Promise.all([
+            Data.getLeads(),
+            Data.getMessages(),
+            Data.getCompanies(),
+            Data.getUsers(),
+            Data.getActivity(),
+            Data.getRequests?.() || [],
+            Data.getInventory?.() || [],
+            Data.getCampaigns?.() || []
+        ]);
 
-        const leads = await Data.getLeads();
-        const msgs = await Data.getMessages();
-        const companies = await Data.getCompanies();
-        const users = await Data.getUsers();
-        const activityLogs = await Data.getActivity();
+        const requestsProgress = requests.filter((r: any) => !['WON', 'LOST', 'DRAFT'].includes(r.status)).length;
+        const dbStats = {
+            requestsNew: requests.length,
+            requestsProgress,
+            inventoryValue: inventory.reduce((sum: number, car: any) => sum + (car.price?.amount || 0), 0),
+            inventoryCount: inventory.length,
+            inboxNew: msgs.filter(m => m.direction === 'INCOMING').length,
+            campaignsActive: campaigns.filter((c: any) => c.status === 'RUNNING').length
+        };
 
         setFunnelData([
             { name: 'Incoming', value: msgs.length, fill: '#3F3F46' }, // Dark Grey

@@ -71,7 +71,17 @@ export class BotManager {
             this.activeBots.delete(id);
         }
     }
+
+    public getStatus() {
+        return {
+            activeCount: this.activeBots.size,
+            activeBotIds: Array.from(this.activeBots.keys())
+        };
+    }
 }
+
+// Shared instance used across server routes and bootstrap
+// (Singleton export defined above)
 
 // --- Individual Bot Instance ---
 class BotInstance {

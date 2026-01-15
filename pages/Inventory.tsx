@@ -101,6 +101,18 @@ export const InventoryPage = () => {
     };
 
     const handleSave = async (car: CarListing) => {
+        if (!car.title || !car.title.trim()) {
+            showToast('Title is required', 'error');
+            return;
+        }
+        if (!car.price?.amount || car.price.amount <= 0) {
+            showToast('Price must be greater than 0', 'error');
+            return;
+        }
+        if (!car.year || car.year < 1980 || car.year > new Date().getFullYear() + 1) {
+            showToast('Year looks invalid', 'error');
+            return;
+        }
         await InventoryService.saveCar(car);
         if (car.status === 'AVAILABLE') {
             const found = MatchingService.notifyIfMatch(car);

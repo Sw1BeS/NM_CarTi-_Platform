@@ -26,6 +26,8 @@ class DataService {
     private notify(event: string) {
         if (this.listeners[event]) this.listeners[event].forEach(cb => cb());
     }
+    // Expose notify for internal refresh triggers
+    public _notify(event: string) { this.notify(event); }
 
     // --- GENERIC ENTITY ACCESS ---
     async listEntities<T>(slug: string) { return this.adapter.listEntities<T>(slug); }
@@ -64,7 +66,7 @@ class DataService {
     async saveCampaign(c: any) { const res = await this.adapter.saveCampaign(c); this.notify('UPDATE_CAMPAIGNS'); return res; }
     async createCampaign(c: any) { return this.saveCampaign(c); }
 
-    async getMessages() { return this.adapter.getMessages(); }
+    async getMessages(filter?: { chatId?: string; botId?: string; limit?: number }) { return this.adapter.getMessages(filter); }
     async addMessage(m: any) { const res = await this.adapter.saveMessage(m); this.notify('UPDATE_MESSAGES'); return res; }
 
     async getDestinations() { return this.adapter.getDestinations(); }

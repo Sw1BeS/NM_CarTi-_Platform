@@ -30,6 +30,18 @@ export const RequestList: React.FC = () => {
     const [broadcastBotId, setBroadcastBotId] = useState('');
     const [broadcastTemplate, setBroadcastTemplate] = useState<'RAW' | 'IN_STOCK' | 'IN_TRANSIT'>('RAW');
     const [broadcasting, setBroadcasting] = useState(false);
+    const [isCreateOpen, setIsCreateOpen] = useState(false);
+    const [createForm, setCreateForm] = useState({
+        title: '',
+        budgetMin: 0,
+        budgetMax: 0,
+        yearMin: new Date().getFullYear() - 3,
+        yearMax: new Date().getFullYear(),
+        city: 'Kyiv',
+        description: '',
+        priority: 'MEDIUM' as B2BRequest['priority']
+    });
+    const [creating, setCreating] = useState(false);
 
     useEffect(() => { loadRequests(); }, [page, search, statusFilter]);
     useEffect(() => {
@@ -99,6 +111,41 @@ export const RequestList: React.FC = () => {
         }
     };
 
+    const handleCreateRequest = async () => {
+        if (!createForm.title.trim()) {
+            showToast('Title is required', 'error');
+            return;
+        }
+        if (!createForm.budgetMax || createForm.budgetMax <= 0) {
+            showToast('Budget must be greater than 0', 'error');
+            return;
+        }
+        setCreating(true);
+        try {
+            await RequestsService.createRequest({
+                ...createForm,
+                status: RequestStatus.DRAFT
+            } as any);
+            setIsCreateOpen(false);
+            setCreateForm({
+                title: '',
+                budgetMin: 0,
+                budgetMax: 0,
+                yearMin: new Date().getFullYear() - 3,
+                yearMax: new Date().getFullYear(),
+                city: 'Kyiv',
+                description: '',
+                priority: 'MEDIUM'
+            });
+            loadRequests();
+            showToast('Request created', 'success');
+        } catch (e: any) {
+            showToast(e.message || 'Failed to create request', 'error');
+        } finally {
+            setCreating(false);
+        }
+    };
+
     return (
         <div className="space-y-8 h-[calc(100vh-140px)] flex flex-col">
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 shrink-0">
@@ -113,7 +160,7 @@ export const RequestList: React.FC = () => {
                         <button onClick={() => setViewMode('LIST')} className={`p-2.5 rounded-lg transition-all ${viewMode === 'LIST' ? 'bg-[var(--bg-panel)] text-gold-500 shadow-sm' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}><ListIcon size={20} /></button>
                         <button onClick={() => setViewMode('BOARD')} className={`p-2.5 rounded-lg transition-all ${viewMode === 'BOARD' ? 'bg-[var(--bg-panel)] text-gold-500 shadow-sm' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}><LayoutGrid size={20} /></button>
                     </div>
-                    <button className="btn-primary">
+                    <button className="btn-primary" onClick={() => setIsCreateOpen(true)}>
                         <Plus size={20} /> New Request
                     </button>
                 </div>
@@ -250,6 +297,67 @@ export const RequestList: React.FC = () => {
                 )}
             </div>
 
+            {isCreateOpen && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="panel w-full max-w-xl p-8 animate-slide-up">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="font-bold text-[var(--text-primary)] text-xl">New Request</h3>
+                            <button onClick={() => setIsCreateOpen(false)} className="btn-ghost"><X size={20} /></button>
+                        </div>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="text-xs font-bold text-[var(--text-secondary)] uppercase block mb-1">Title</label>
+                                <input className="input" value={createForm.title} onChange={e => setCreateForm({ ...createForm, title: e.target.value })} placeholder="e.g. BMW X5 2021+" />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="text-xs font-bold text-[var(--text-secondary)] uppercase block mb-1">Budget Min</label>
+                                    <input type="number" className="input" value={createForm.budgetMin} onChange={e => setCreateForm({ ...createForm, budgetMin: +e.target.value })} />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-bold text-[var(--text-secondary)] uppercase block mb-1">Budget Max</label>
+                                    <input type="number" className="input" value={createForm.budgetMax} onChange={e => setCreateForm({ ...createForm, budgetMax: +e.target.value })} />
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="text-xs font-bold text-[var(--text-secondary)] uppercase block mb-1">Year Min</label>
+                                    <input type="number" className="input" value={createForm.yearMin} onChange={e => setCreateForm({ ...createForm, yearMin: +e.target.value })} />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-bold text-[var(--text-secondary)] uppercase block mb-1">Year Max</label>
+                                    <input type="number" className="input" value={createForm.yearMax} onChange={e => setCreateForm({ ...createForm, yearMax: +e.target.value })} />
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="text-xs font-bold text-[var(--text-secondary)] uppercase block mb-1">City</label>
+                                    <input className="input" value={createForm.city} onChange={e => setCreateForm({ ...createForm, city: e.target.value })} />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-bold text-[var(--text-secondary)] uppercase block mb-1">Priority</label>
+                                    <select className="input" value={createForm.priority} onChange={e => setCreateForm({ ...createForm, priority: e.target.value as any })}>
+                                        <option value="HIGH">High</option>
+                                        <option value="MEDIUM">Medium</option>
+                                        <option value="LOW">Low</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div>
+                                <label className="text-xs font-bold text-[var(--text-secondary)] uppercase block mb-1">Description</label>
+                                <textarea className="textarea h-24" value={createForm.description} onChange={e => setCreateForm({ ...createForm, description: e.target.value })} />
+                            </div>
+                        </div>
+                        <div className="flex justify-end gap-3 mt-6">
+                            <button onClick={() => setIsCreateOpen(false)} className="btn-ghost">Cancel</button>
+                            <button onClick={handleCreateRequest} disabled={creating} className="btn-primary">
+                                {creating ? 'Saving...' : 'Create'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {broadcastReq && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                     <div className="panel w-full max-w-lg p-6 animate-slide-up">
@@ -300,7 +408,7 @@ export const RequestList: React.FC = () => {
                         </div>
                         <div className="mt-6 flex justify-end gap-2">
                             <button onClick={() => setBroadcastReq(null)} className="btn-ghost">Cancel</button>
-                            <button onClick={handleBroadcast} disabled={broadcasting} className="btn-primary">
+                            <button onClick={handleBroadcast} disabled={broadcasting || !broadcastDest || !broadcastBotId} className="btn-primary">
                                 {broadcasting ? 'Sending...' : 'Send to Channel'}
                             </button>
                         </div>

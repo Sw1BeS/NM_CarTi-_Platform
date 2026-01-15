@@ -45,7 +45,7 @@ export interface DataAdapter {
     getCampaigns(): Promise<Campaign[]>;
     saveCampaign(camp: Campaign): Promise<Campaign>;
 
-    getMessages(): Promise<TelegramMessage[]>;
+    getMessages(filter?: { chatId?: string; botId?: string; limit?: number }): Promise<TelegramMessage[]>;
     saveMessage(msg: TelegramMessage): Promise<TelegramMessage>;
 
     getDestinations(): Promise<TelegramDestination[]>;

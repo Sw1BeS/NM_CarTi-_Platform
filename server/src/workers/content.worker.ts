@@ -185,8 +185,10 @@ export function stopContentWorker(): void {
  * Get worker status
  */
 export function getWorkerStatus() {
+    const next = (cronTask as any)?.nextDates?.();
     return {
         running: cronTask !== null,
-        processing: isRunning
+        processing: isRunning,
+        nextRun: next && typeof next.toISOString === 'function' ? next.toISOString() : null
     };
 }
