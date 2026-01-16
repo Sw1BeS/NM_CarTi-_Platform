@@ -193,13 +193,19 @@ const sendChoices = async (bot: BotRuntime, chatId: string, text: string, choice
   return sendMessage(bot, chatId, text, { inline_keyboard });
 };
 
-const emitScenarioCompleted = async (bot: BotRuntime, chatId: string, scenarioId?: string, payload?: Record<string, any>) => {
+const emitScenarioCompleted = async (
+  bot: BotRuntime,
+  chatId: string,
+  scenarioId?: string,
+  payload?: Record<string, any>,
+  userId?: string
+) => {
   if (!scenarioId) return;
   await emitPlatformEvent({
     companyId: bot.companyId || null,
     botId: bot.id,
     eventType: 'scenario.completed',
-    userId: chatId,
+    userId: userId || chatId,
     chatId,
     payload: { scenarioId, ...(payload || {}) }
   });
@@ -447,6 +453,9 @@ export class ScenarioEngine {
   const input = normalizeTextCommand(inputRaw);
   const messageTextRaw = update.message?.text || '';
   const chatId = String(update.message?.chat?.id || update.callback_query?.message?.chat?.id || session.chatId);
+  const userIdRaw = update.message?.from?.id || update.callback_query?.from?.id || update.inline_query?.from?.id;
+  const userId = userIdRaw ? String(userIdRaw) : undefined;
+  if (userId) vars.__telegramUserId = userId;
   const lang = getLanguage(vars);
   const startPayloadRaw = messageTextRaw.startsWith('/start') ? messageTextRaw.split(' ')[1] : '';
   const hasStartPayload = !!(startPayloadRaw && parseStartPayload(startPayloadRaw));
@@ -466,7 +475,7 @@ export class ScenarioEngine {
         companyId: bot.companyId || null,
         botId: bot.id,
         eventType,
-        userId: chatId,
+        userId: userId || chatId,
         chatId,
         payload
       });
@@ -558,7 +567,7 @@ export class ScenarioEngine {
             botId: bot.id,
             companyId: bot.companyId || null,
             chatId,
-            userId: chatId,
+            userId: userId,
             name: webData.name || vars.name || 'Client',
             phone: webData.phone || vars.phone,
             request: requestTitle || undefined,
@@ -581,8 +590,9 @@ export class ScenarioEngine {
             await notifyRequestAdmin(bot, leadResult.request);
           }
 
+          const notifyHeader = leadResult.isDuplicate ? '♻️ Duplicate lead merged' : '📥 <b>MiniApp Lead</b>';
           const notifyText = [
-            '📥 <b>MiniApp Lead</b>',
+            notifyHeader,
             webData.name ? `👤 ${webData.name}` : undefined,
             preset.brand || preset.model ? `🚗 ${requestTitle}` : undefined,
             preset.budget ? `💰 Budget: ${preset.budget}` : undefined,
@@ -601,7 +611,7 @@ export class ScenarioEngine {
             companyId: bot.companyId || null,
             botId: bot.id,
             eventType: 'miniapp.submitted',
-            userId: chatId,
+            userId: userId || chatId,
             chatId,
             payload: { legacy: true, type: 'LEAD', duplicate: leadResult.isDuplicate }
           });
@@ -891,7 +901,7 @@ export class ScenarioEngine {
         return true;
       }
       if (cbData.startsWith('CAR:SELECT:')) {
-        await this.handleCarSelection(bot, chatId, vars, cbData.split('CAR:SELECT:')[1]);
+        await this.handleCarSelection(bot, chatId, vars, cbData.split('CAR:SELECT:')[1], userId);
         await saveSession();
         return true;
       }
@@ -1098,7 +1108,7 @@ export class ScenarioEngine {
     if (scenario && prevNodeId) {
       await this.executeNode(bot, session, vars, history, scenario as any, prevNodeId, true);
     } else {
-      await emitScenarioCompleted(bot, session.chatId, vars.__activeScenarioId, { reason: 'back_reset' });
+      await emitScenarioCompleted(bot, session.chatId, vars.__activeScenarioId, { reason: 'back_reset' }, vars.__telegramUserId);
       delete vars.__activeScenarioId;
       delete vars.__currentNodeId;
       history.length = 0;
@@ -1154,7 +1164,7 @@ export class ScenarioEngine {
       return true;
     }
 
-    await emitScenarioCompleted(bot, session.chatId, scenario.id, { reason: 'end' });
+    await emitScenarioCompleted(bot, session.chatId, scenario.id, { reason: 'end' }, vars.__telegramUserId);
     delete vars.__activeScenarioId;
     delete vars.__currentNodeId;
     history.length = 0;
@@ -1167,7 +1177,7 @@ export class ScenarioEngine {
     const node: ScenarioNode | undefined = nodes.find((n: ScenarioNode) => n.id === nodeId);
     const lang = getLanguage(vars);
     if (!node) {
-      await emitScenarioCompleted(bot, session.chatId, vars.__activeScenarioId || scenario.id, { reason: 'missing_node' });
+      await emitScenarioCompleted(bot, session.chatId, vars.__activeScenarioId || scenario.id, { reason: 'missing_node' }, vars.__telegramUserId);
       delete vars.__activeScenarioId;
       delete vars.__currentNodeId;
       history.length = 0;
@@ -1187,7 +1197,7 @@ export class ScenarioEngine {
       companyId: bot.companyId || null,
       botId: bot.id,
       eventType: 'scenario.step',
-      userId: session.chatId,
+      userId: vars.__telegramUserId || session.chatId,
       chatId: session.chatId,
       payload: {
         scenarioId: scenario.id,
@@ -1217,7 +1227,7 @@ export class ScenarioEngine {
         await sendMessage(bot, session.chatId, text);
         if (node.nextNodeId) await this.executeNode(bot, session, vars, history, scenario, node.nextNodeId, isBack);
         else {
-          await emitScenarioCompleted(bot, session.chatId, scenario.id, { reason: 'end' });
+          await emitScenarioCompleted(bot, session.chatId, scenario.id, { reason: 'end' }, vars.__telegramUserId);
           delete vars.__activeScenarioId;
           delete vars.__currentNodeId;
           history.length = 0;
@@ -1269,7 +1279,7 @@ export class ScenarioEngine {
         const nextId = result ? node.content?.trueNodeId : node.content?.falseNodeId;
         if (nextId) await this.executeNode(bot, session, vars, history, scenario, nextId, isBack);
         else {
-          await emitScenarioCompleted(bot, session.chatId, scenario.id, { reason: 'end' });
+          await emitScenarioCompleted(bot, session.chatId, scenario.id, { reason: 'end' }, vars.__telegramUserId);
           delete vars.__activeScenarioId;
           delete vars.__currentNodeId;
           history.length = 0;
@@ -1301,7 +1311,7 @@ export class ScenarioEngine {
         }
         if (node.nextNodeId) await this.executeNode(bot, session, vars, history, scenario, node.nextNodeId, isBack);
         else {
-          await emitScenarioCompleted(bot, session.chatId, scenario.id, { reason: 'end' });
+          await emitScenarioCompleted(bot, session.chatId, scenario.id, { reason: 'end' }, vars.__telegramUserId);
           delete vars.__activeScenarioId;
           delete vars.__currentNodeId;
           history.length = 0;
@@ -1330,7 +1340,7 @@ export class ScenarioEngine {
             botId: bot.id,
             companyId: bot.companyId || null,
             chatId: session.chatId,
-            userId: session.chatId,
+            userId: vars.__telegramUserId || undefined,
             name: vars.name || vars.first_name || 'Client',
             phone: vars.phone,
             source: 'TELEGRAM',
@@ -1368,7 +1378,7 @@ export class ScenarioEngine {
 
         if (node.nextNodeId) await this.executeNode(bot, session, vars, history, scenario, node.nextNodeId, isBack);
         else {
-          await emitScenarioCompleted(bot, session.chatId, scenario.id, { reason: 'end' });
+          await emitScenarioCompleted(bot, session.chatId, scenario.id, { reason: 'end' }, vars.__telegramUserId);
           delete vars.__activeScenarioId;
           delete vars.__currentNodeId;
           history.length = 0;
@@ -1416,7 +1426,7 @@ export class ScenarioEngine {
 
         if (node.nextNodeId) await this.executeNode(bot, session, vars, history, scenario, node.nextNodeId, isBack);
         else {
-          await emitScenarioCompleted(bot, session.chatId, scenario.id, { reason: 'end' });
+          await emitScenarioCompleted(bot, session.chatId, scenario.id, { reason: 'end' }, vars.__telegramUserId);
           delete vars.__activeScenarioId;
           delete vars.__currentNodeId;
           history.length = 0;
@@ -1438,7 +1448,7 @@ export class ScenarioEngine {
 
         if (node.nextNodeId) await this.executeNode(bot, session, vars, history, scenario, node.nextNodeId, isBack);
         else {
-          await emitScenarioCompleted(bot, session.chatId, scenario.id, { reason: 'end' });
+          await emitScenarioCompleted(bot, session.chatId, scenario.id, { reason: 'end' }, vars.__telegramUserId);
           delete vars.__activeScenarioId;
           delete vars.__currentNodeId;
           history.length = 0;
@@ -1500,7 +1510,7 @@ export class ScenarioEngine {
 
         if (node.nextNodeId) await this.executeNode(bot, session, vars, history, scenario, node.nextNodeId, isBack);
         else {
-          await emitScenarioCompleted(bot, session.chatId, scenario.id, { reason: 'end' });
+          await emitScenarioCompleted(bot, session.chatId, scenario.id, { reason: 'end' }, vars.__telegramUserId);
           delete vars.__activeScenarioId;
           delete vars.__currentNodeId;
           history.length = 0;
@@ -1538,7 +1548,7 @@ export class ScenarioEngine {
 
         if (node.nextNodeId) await this.executeNode(bot, session, vars, history, scenario, node.nextNodeId, isBack);
         else {
-          await emitScenarioCompleted(bot, session.chatId, scenario.id, { reason: 'end' });
+          await emitScenarioCompleted(bot, session.chatId, scenario.id, { reason: 'end' }, vars.__telegramUserId);
           delete vars.__activeScenarioId;
           delete vars.__currentNodeId;
           history.length = 0;
@@ -1576,7 +1586,7 @@ export class ScenarioEngine {
 
         if (node.nextNodeId) await this.executeNode(bot, session, vars, history, scenario, node.nextNodeId, isBack);
         else {
-          await emitScenarioCompleted(bot, session.chatId, scenario.id, { reason: 'end' });
+          await emitScenarioCompleted(bot, session.chatId, scenario.id, { reason: 'end' }, vars.__telegramUserId);
           delete vars.__activeScenarioId;
           delete vars.__currentNodeId;
           history.length = 0;
@@ -1587,14 +1597,14 @@ export class ScenarioEngine {
     }
   }
 
-  static async handleCarSelection(bot: BotRuntime, chatId: string, vars: Record<string, any>, carId: string) {
+  static async handleCarSelection(bot: BotRuntime, chatId: string, vars: Record<string, any>, carId: string, userId?: string) {
     const inventory = await prisma.carListing.findMany({ where: { id: carId } });
     const car = inventory[0];
     await createOrMergeLead({
       botId: bot.id,
       companyId: bot.companyId || null,
       chatId,
-      userId: chatId,
+      userId,
       name: vars.name || vars.first_name || `User ${chatId}`,
       phone: vars.phone,
       request: car?.title || carId,

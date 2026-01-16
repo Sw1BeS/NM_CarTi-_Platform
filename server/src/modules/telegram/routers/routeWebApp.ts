@@ -150,7 +150,9 @@ export const routeWebApp = async (ctx: PipelineContext) => {
       payload: { brand, model, city }
     });
     const reqCard = leadResult.request ? renderRequestCard(leadResult.request) : '';
-    const header = payload.type === 'sell_submit' ? '💵 MiniApp Sell' : '📥 MiniApp Lead';
+    const header = leadResult.isDuplicate
+      ? '♻️ Duplicate lead merged'
+      : (payload.type === 'sell_submit' ? '💵 MiniApp Sell' : '📥 MiniApp Lead');
     await sendMessage(ctx, `${header}\n\n${leadCard}${reqCard ? `\n\n${reqCard}` : ''}`, undefined, String(ctx.bot.adminChatId));
   }
 

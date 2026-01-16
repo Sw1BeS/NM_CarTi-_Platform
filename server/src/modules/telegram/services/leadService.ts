@@ -37,12 +37,31 @@ const getDedupWindowDays = (botConfig?: any) => {
 
 const buildLeadCode = () => `L-${Math.floor(Math.random() * 900000 + 100000)}`;
 
-const findDuplicateLead = async (botId: string, phone?: string | null, userId?: string | null, name?: string | null, days = 14) => {
+const resolveTelegramUserId = (input: LeadCreateInput) => {
+  if (input.userId) return String(input.userId);
+  const chatId = input.chatId ? String(input.chatId) : '';
+  if (!chatId) return undefined;
+  if (chatId.startsWith('-')) return undefined;
+  return chatId;
+};
+
+const buildScope = (botId: string, companyId?: string | null) => {
+  if (companyId) return { bot: { companyId } };
+  return { botId };
+};
+
+const findDuplicateLead = async (
+  scope: Record<string, any>,
+  phone?: string | null,
+  userId?: string | null,
+  name?: string | null,
+  days = 14
+) => {
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
   if (phone) {
     const byPhone = await prisma.lead.findFirst({
       where: {
-        botId,
+        ...scope,
         phone,
         createdAt: { gte: since }
       },
@@ -53,7 +72,7 @@ const findDuplicateLead = async (botId: string, phone?: string | null, userId?: 
   if (userId) {
     const byUser = await prisma.lead.findFirst({
       where: {
-        botId,
+        ...scope,
         userTgId: userId,
         createdAt: { gte: since }
       },
@@ -64,7 +83,7 @@ const findDuplicateLead = async (botId: string, phone?: string | null, userId?: 
   if (name && phone) {
     return prisma.lead.findFirst({
       where: {
-        botId,
+        ...scope,
         phone,
         clientName: name,
         createdAt: { gte: since }
@@ -78,9 +97,18 @@ const findDuplicateLead = async (botId: string, phone?: string | null, userId?: 
 export const createOrMergeLead = async (input: LeadCreateInput, botConfig?: any) => {
   const normalizedPhone = normalizePhone(input.phone || undefined);
   const dedupDays = getDedupWindowDays(botConfig);
-  const dup = await findDuplicateLead(input.botId, normalizedPhone, input.userId || input.chatId || undefined, input.name, dedupDays);
+  const telegramUserId = resolveTelegramUserId(input);
+  const scope = buildScope(input.botId, input.companyId);
+  const dup = await findDuplicateLead(scope, normalizedPhone, telegramUserId, input.name, dedupDays);
 
   if (dup) {
+    const nextPayload = {
+      ...(dup.payload as any || {}),
+      lastInteractionAt: new Date().toISOString(),
+      telegramChatId: input.chatId || (dup.payload as any)?.telegramChatId,
+      telegramUserId: telegramUserId || (dup.payload as any)?.telegramUserId
+    };
+
     await prisma.leadActivity.create({
       data: {
         leadId: dup.id,
@@ -98,10 +126,7 @@ export const createOrMergeLead = async (input: LeadCreateInput, botConfig?: any)
     await prisma.lead.update({
       where: { id: dup.id },
       data: {
-        payload: {
-          ...(dup.payload as any || {}),
-          lastInteractionAt: new Date().toISOString()
-        }
+        payload: nextPayload
       }
     }).catch(() => null);
 
@@ -109,7 +134,7 @@ export const createOrMergeLead = async (input: LeadCreateInput, botConfig?: any)
       companyId: input.companyId,
       botId: input.botId,
       eventType: 'lead.duplicate_merged',
-      userId: input.userId || input.chatId || undefined,
+      userId: telegramUserId || undefined,
       chatId: input.chatId || undefined,
       payload: {
         leadId: dup.id,
@@ -126,14 +151,16 @@ export const createOrMergeLead = async (input: LeadCreateInput, botConfig?: any)
       clientName: input.name,
       phone: normalizedPhone || undefined,
       request: input.request || undefined,
-      userTgId: input.chatId || undefined,
+      userTgId: telegramUserId || undefined,
       status: LeadStatus.NEW,
       source: input.source || undefined,
       botId: input.botId,
       payload: {
         ...(input.payload || {}),
         leadType: input.leadType || undefined,
-        phone: normalizedPhone || undefined
+        phone: normalizedPhone || undefined,
+        telegramChatId: input.chatId || undefined,
+        telegramUserId: telegramUserId || undefined
       }
     }
   });
@@ -176,7 +203,7 @@ export const createOrMergeLead = async (input: LeadCreateInput, botConfig?: any)
     companyId: input.companyId,
     botId: input.botId,
     eventType: 'lead.created',
-    userId: input.userId || input.chatId || undefined,
+    userId: telegramUserId || undefined,
     chatId: input.chatId || undefined,
     payload: {
       leadId: lead.id,

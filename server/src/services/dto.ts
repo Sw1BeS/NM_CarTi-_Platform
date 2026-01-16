@@ -180,7 +180,7 @@ export const mapLeadOutput = (lead: any) => {
     name: lead.clientName || payload.name || '',
     status: mapLeadStatusToClient(lead.status, payload),
     source: lead.source || payload.source || 'MANUAL',
-    telegramChatId: lead.userTgId || payload.telegramChatId,
+    telegramChatId: payload.telegramChatId || lead.userTgId,
     telegramUsername: payload.telegramUsername,
     phone: lead.phone || payload.phone,
     email: payload.email,

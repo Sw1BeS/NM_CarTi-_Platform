@@ -64,7 +64,9 @@ export const deleteWebhookForBot = async (botId: string) => {
   const config = (bot.config || {}) as any;
   const nextConfig = {
     ...config,
-    deliveryMode: 'polling'
+    deliveryMode: 'polling',
+    webhookUrl: undefined,
+    webhookSecret: undefined
   };
 
   await prisma.botConfig.update({

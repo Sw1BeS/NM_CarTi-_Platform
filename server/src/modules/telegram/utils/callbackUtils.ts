@@ -1,4 +1,17 @@
 const BASE64_RE = /^[A-Za-z0-9+/=]+$/;
+const MAX_CALLBACK_BYTES = 64;
+
+const sanitize = (value: string, max: number) =>
+  value.replace(/[^a-zA-Z0-9_\-]/g, '').slice(0, max);
+
+const buildV1 = (action: string, id?: string) =>
+  (id ? `v1:act:${action}:${id}` : `v1:act:${action}`);
+
+const buildBase64 = (action: string, id?: string) => {
+  const payload: Record<string, any> = { v: 1, act: action };
+  if (id) payload.id = id;
+  return Buffer.from(JSON.stringify(payload), 'utf8').toString('base64');
+};
 
 export type ParsedCallback = {
   ok: boolean;
@@ -11,9 +24,22 @@ export type ParsedCallback = {
 };
 
 export const buildCallbackData = (action: string, id?: string) => {
-  const safeAction = action.replace(/[^a-zA-Z0-9_\-]/g, '').slice(0, 32);
-  const safeId = id ? id.replace(/[^a-zA-Z0-9_\-]/g, '').slice(0, 32) : undefined;
-  return safeId ? `v1:act:${safeAction}:${safeId}` : `v1:act:${safeAction}`;
+  const safeAction = sanitize(action, 24);
+  const safeId = id ? sanitize(id, 24) : undefined;
+  let data = buildV1(safeAction, safeId);
+
+  if (Buffer.byteLength(data, 'utf8') <= MAX_CALLBACK_BYTES) return data;
+
+  const base64 = buildBase64(safeAction, safeId);
+  if (Buffer.byteLength(base64, 'utf8') <= MAX_CALLBACK_BYTES) return base64;
+
+  const shorterAction = sanitize(action, 12);
+  const shorterId = id ? sanitize(id, 16) : undefined;
+  data = buildV1(shorterAction, shorterId);
+
+  if (Buffer.byteLength(data, 'utf8') <= MAX_CALLBACK_BYTES) return data;
+
+  return buildV1(shorterAction, shorterId ? shorterId.slice(0, 8) : undefined);
 };
 
 const parseV1 = (raw: string): ParsedCallback => {
