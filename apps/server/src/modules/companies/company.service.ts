@@ -3,34 +3,38 @@
  */
 
 import { prisma } from '../../services/prisma.js';
+import { getWorkspaceById, getWorkspaceBySlug, getAllUsers } from '../../services/v41/readService.js';
+import { writeService } from '../../services/v41/writeService.js';
 
 export class CompanyService {
     /**
      * Get company by ID
      */
     async getById(companyId: string) {
-        return prisma.company.findUnique({
-            where: { id: companyId },
-            include: {
-                _count: {
-                    select: {
-                        users: true,
-                        bots: true,
-                        scenarios: true,
-                        integrations: true
-                    }
-                }
-            }
-        });
+        // Use read abstraction (reads from v4.1 or legacy)
+        const workspace = await getWorkspaceById(companyId);
+
+        // For now, return legacy format for backward compatibility
+        // TODO: Migrate callers to use UnifiedWorkspace type
+        if (!workspace) return null;
+
+        return {
+            id: workspace.id,
+            name: workspace.name,
+            slug: workspace.slug,
+            primaryColor: workspace.primaryColor,
+            plan: workspace.plan,
+            domain: workspace.domain,
+            isActive: workspace.isActive
+        };
     }
 
     /**
      * Get company by slug (for subdomain routing)
      */
     async getBySlug(slug: string) {
-        return prisma.company.findUnique({
-            where: { slug }
-        });
+        // Use read abstraction
+        return await getWorkspaceBySlug(slug);
     }
 
     /**
@@ -49,17 +53,18 @@ export class CompanyService {
             throw new Error('Slug must be lowercase alphanumeric with hyphens');
         }
 
-        return prisma.company.create({
-            data: {
-                name: data.name,
-                slug: data.slug,
-                logo: data.logo,
-                primaryColor: data.primaryColor || '#D4AF37',
-                plan: data.plan as any || 'FREE'
-            }
+        // Use Dual-Write service
+        return writeService.createCompanyDual({
+            name: data.name,
+            slug: data.slug,
+            plan: data.plan,
+            primaryColor: data.primaryColor
         });
     }
 
+    /**
+     * Update company branding
+     */
     /**
      * Update company branding
      */
@@ -69,9 +74,22 @@ export class CompanyService {
         primaryColor?: string;
         domain?: string;
     }) {
-        return prisma.company.update({
+        // Map to Workspace settings
+        const workspace = await prisma.workspace.findUnique({ where: { id: companyId } });
+        if (!workspace) throw new Error('Workspace not found');
+
+        const currentSettings = workspace.settings as any || {};
+
+        return prisma.workspace.update({
             where: { id: companyId },
-            data
+            data: {
+                name: data.name,
+                settings: {
+                    ...currentSettings,
+                    ...(data.primaryColor ? { primaryColor: data.primaryColor } : {}),
+                    ...(data.domain ? { domain: data.domain } : {})
+                }
+            }
         });
     }
 
@@ -79,18 +97,18 @@ export class CompanyService {
      * Get company users with roles
      */
     async getUsers(companyId: string) {
-        return prisma.user.findMany({
-            where: { companyId },
-            select: {
-                id: true,
-                email: true,
-                name: true,
-                role: true,
-                isActive: true,
-                createdAt: true
-            },
-            orderBy: { createdAt: 'desc' }
-        });
+        // Use read abstraction
+        const users = await getAllUsers(companyId);
+
+        // Return in legacy format for backward compatibility
+        return users.map(u => ({
+            id: u.globalUserId || u.id,
+            email: u.email,
+            name: u.name,
+            role: u.role,
+            isActive: u.isActive,
+            createdAt: new Date()
+        }));
     }
 
     /**
@@ -101,29 +119,30 @@ export class CompanyService {
         name?: string;
         role: string;
     }) {
-        // Check if user already exists in this company
-        const existing = await prisma.user.findFirst({
+        // Check if user already exists in this company (check Membership)
+        const membership = await prisma.membership.findFirst({
             where: {
-                email: data.email,
-                companyId
+                workspace_id: companyId,
+                deleted_at: null,
+                user: {
+                    email: data.email
+                }
             }
         });
 
-        if (existing) {
+        if (membership) {
             throw new Error('User already exists in this company');
         }
 
         // Generate temporary password (should send email in production)
         const tempPassword = Math.random().toString(36).slice(-8);
 
-        return prisma.user.create({
-            data: {
-                email: data.email,
-                name: data.name || data.email.split('@')[0],
-                password: tempPassword, // TODO: Hash this
-                role: data.role as any,
-                companyId
-            }
+        return writeService.createUserDual({
+            email: data.email,
+            passwordHash: tempPassword, // In real app, hash this token
+            name: data.name || data.email.split('@')[0],
+            role: data.role,
+            companyId
         });
     }
 
@@ -131,18 +150,23 @@ export class CompanyService {
      * Update user role
      */
     async updateUserRole(companyId: string, userId: string, role: string) {
-        // Verify user belongs to company
-        const user = await prisma.user.findFirst({
-            where: { id: userId, companyId }
+        // Verify user belongs to company (Membership)
+        // Note: userId here might be GlobalUser ID
+        const membership = await prisma.membership.findFirst({
+            where: {
+                user_id: userId,
+                workspace_id: companyId,
+                deleted_at: null
+            }
         });
 
-        if (!user) {
+        if (!membership) {
             throw new Error('User not found in this company');
         }
 
-        return prisma.user.update({
-            where: { id: userId },
-            data: { role: role as any }
+        return prisma.membership.update({
+            where: { id: membership.id },
+            data: { role_id: role.toLowerCase() }
         });
     }
 
@@ -150,18 +174,26 @@ export class CompanyService {
      * Remove user from company
      */
     async removeUser(companyId: string, userId: string) {
-        const user = await prisma.user.findFirst({
-            where: { id: userId, companyId }
+        const membership = await prisma.membership.findFirst({
+            where: {
+                user_id: userId,
+                workspace_id: companyId,
+                deleted_at: null
+            }
         });
 
-        if (!user) {
+        if (!membership) {
             throw new Error('User not found');
         }
 
-        if (user.role === 'OWNER') {
+        if (membership.role_id?.toUpperCase() === 'OWNER') {
             // Check if there are other owners
-            const ownerCount = await prisma.user.count({
-                where: { companyId, role: 'OWNER' }
+            const ownerCount = await prisma.membership.count({
+                where: {
+                    workspace_id: companyId,
+                    role_id: 'owner',
+                    deleted_at: null
+                }
             });
 
             if (ownerCount <= 1) {
@@ -169,8 +201,10 @@ export class CompanyService {
             }
         }
 
-        return prisma.user.delete({
-            where: { id: userId }
+        // Soft delete membership
+        return prisma.membership.update({
+            where: { id: membership.id },
+            data: { deleted_at: new Date() }
         });
     }
 
@@ -179,7 +213,7 @@ export class CompanyService {
      */
     async getStats(companyId: string) {
         const [users, bots, scenarios, leads, requests] = await Promise.all([
-            prisma.user.count({ where: { companyId } }),
+            prisma.membership.count({ where: { workspace_id: companyId, deleted_at: null } }),
             prisma.botConfig.count({ where: { companyId } }),
             prisma.scenario.count({ where: { companyId } }),
             prisma.lead.count({

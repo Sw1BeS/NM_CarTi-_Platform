@@ -1,1 +1,0 @@
-ALTER TABLE "BotConfig" ADD COLUMN IF NOT EXISTS "config" JSONB;

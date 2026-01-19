@@ -1,7 +1,8 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 // @ts-ignore
 import { prisma } from '../services/prisma.js';
 import { RequestStatus } from '@prisma/client';
+import { getUserByTelegramId } from '../services/v41/readService.js';
 import { generatePublicId, mapLeadCreateInput, mapLeadOutput, mapRequestInput, mapRequestOutput, mapVariantInput, mapVariantOutput } from '../services/dto.js';
 import { parseTelegramUser, verifyTelegramInitData } from '../services/telegramAuth.js';
 import { mapBotOutput } from '../services/botDto.js';
@@ -74,8 +75,9 @@ router.post('/dealer/session', async (req, res) => {
   const tgUser = parseTelegramUser(initData);
   if (!tgUser?.id) return res.status(400).json({ error: 'Invalid Telegram user payload' });
 
-  const telegramUserId = String(tgUser.id);
-  const user = await prisma.user.findFirst({ where: { telegramUserId } });
+  const telegramUserId = Number(tgUser.id);
+  // Use read abstraction
+  const user = await getUserByTelegramId(telegramUserId);
   if (!user || !user.isActive) return res.status(403).json({ error: 'Access denied' });
 
   if (!['DEALER', 'ADMIN', 'SUPER_ADMIN'].includes(user.role)) {

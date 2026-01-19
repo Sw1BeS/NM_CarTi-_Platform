@@ -15,6 +15,8 @@ export interface AuthRequest extends Request {
     role: string;
     email: string;
     companyId?: string;
+    workspaceId?: string;
+    workspaceSlug?: string;
   };
 }
 

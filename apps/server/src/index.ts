@@ -19,6 +19,7 @@ import telegramRoutes from './modules/telegram/telegram.routes.js';
 import { botManager } from './modules/bots/bot.service.js';
 import { seedAdmin } from './modules/users/user.service.js';
 import { startContentWorker, stopContentWorker, getWorkerStatus } from './workers/content.worker.js';
+import { workspaceContext } from './middleware/workspaceContext.js';
 import process from 'process';
 
 dotenv.config();
@@ -50,6 +51,9 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 app.use(express.json() as any);
+
+// v4.1 Workspace Context Middleware (extracts workspace from headers/domain/token)
+app.use(workspaceContext);
 
 // Routes
 app.use('/api/public', publicRoutes);

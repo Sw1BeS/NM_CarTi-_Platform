@@ -13,6 +13,11 @@ enum BotTemplate {
   B2B
 }
 
+enum BotDeliveryMode {
+  POLLING
+  WEBHOOK
+}
+
 enum LeadStatus {
   NEW
   IN_PROGRESS
@@ -20,6 +25,11 @@ enum LeadStatus {
   CONTACTED
   WON
   LOST
+}
+
+enum MessageDirection {
+  INCOMING
+  OUTGOING
 }
 
 enum RequestStatus {
@@ -72,10 +82,11 @@ enum CompanyPlan {
 }
 
 enum UserRole {
-  SUPER_ADMIN  // Hidden system admin with full access to all companies
+  SUPER_ADMIN // Hidden system admin with full access to all companies
   OWNER
   ADMIN
   MANAGER
+  DEALER
   VIEWER
 }
 
@@ -83,146 +94,116 @@ enum UserRole {
 // Stage C: Multi-Tenancy Models
 // ========================================
 
-model Company {
-  id           String      @id @default(cuid())
-  name         String
-  slug         String      @unique
-  logo         String?
-  primaryColor String      @default("#D4AF37")
-  domain       String?     @unique
-  plan         CompanyPlan @default(FREE)
-  isActive     Boolean     @default(true)
-  
-  // Relations
-  users        User[]
-  bots         BotConfig[]
-  scenarios    Scenario[]
-  templates    CompanyTemplate[]
-  integrations Integration[]
-  partnerCompanies PartnerCompany[]
-  partnerUsers     PartnerUser[]
-  normalizationAliases NormalizationAlias[]
-  platformEvents PlatformEvent[]
-  
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
-}
+// ============================================================================
+// Stage C: Multi-Tenancy Models
+// ============================================================================
+// Legacy 'Company' is now 'Workspace' (see below)
+// Legacy 'User' is now 'GlobalUser' (see below)
 
 model ScenarioTemplate {
-  id          String   @id @default(cuid())
+  id          String  @id @default(cuid())
   name        String
-  category    String   // LEAD_GEN, E_COMMERCE, B2B, SUPPORT
+  category    String // LEAD_GEN, E_COMMERCE, B2B, SUPPORT
   description String
   thumbnail   String?
-  isPublic    Boolean  @default(true)
-  isPremium   Boolean  @default(false)
-  
+  isPublic    Boolean @default(true)
+  isPremium   Boolean @default(false)
+
   // Template structure (nodes, settings)
-  structure   Json     @db.JsonB
-  
+  structure Json @db.JsonB
+
   // Marketplace metadata
-  installs    Int      @default(0)
-  rating      Float?
-  
+  installs Int    @default(0)
+  rating   Float?
+
   // Relations
   installations CompanyTemplate[]
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model CompanyTemplate {
-  id          String           @id @default(cuid())
-  companyId   String
-  company     Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  
-  templateId  String
-  template    ScenarioTemplate @relation(fields: [templateId], references: [id])
-  
-  installedAt DateTime         @default(now())
-  
+  id        String    @id @default(cuid())
+  companyId String
+  workspace Workspace @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  templateId String
+  template   ScenarioTemplate @relation(fields: [templateId], references: [id])
+
+  installedAt DateTime @default(now())
+
   @@unique([companyId, templateId])
+  @@map("company_templates")
 }
 
 model Integration {
-  id        String          @id @default(cuid())
+  id        String @id @default(cuid())
   companyId String
-  company   Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  
-  type      IntegrationType
-  isActive  Boolean         @default(true)
-  
+  // company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  type     IntegrationType
+  isActive Boolean         @default(true)
+
+  workspace Workspace @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
   // Credentials & config
-  config    Json            @db.JsonB
-  
-  createdAt DateTime        @default(now())
-  updatedAt DateTime        @updatedAt
-  
+  config Json @db.JsonB
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@unique([companyId, type])
 }
 
-model User {
-  id             String   @id @default(cuid())
-  email          String   @unique
-  password       String
-  username       String?
-  name           String?
-  role           UserRole @default(MANAGER)
-  companyId      String
-  company        Company  @relation(fields: [companyId], references: [id])
-  telegramUserId String?  @unique
-  isActive       Boolean  @default(true)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  
-  @@index([companyId])
-}
-
-
 model BotConfig {
-  id          String      @id @default(cuid())
-  name        String?
-  template    BotTemplate
-  token       String      @unique
-  channelId   String?
-  adminChatId String?
-  isEnabled   Boolean     @default(true)
-  config      Json?       @db.JsonB
-  
-  companyId   String
-  company     Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  id           String          @id @default(cuid())
+  name         String?
+  template     BotTemplate
+  token        String          @unique
+  channelId    String?
+  adminChatId  String?
+  isEnabled    Boolean         @default(true)
+  deliveryMode BotDeliveryMode @default(POLLING)
+  config       Json?           @db.JsonB
 
-  sessions    BotSession[]
-  campaigns   Campaign[]
-  leads       Lead[]
-  channelPosts ChannelPost[]
-  platformEvents PlatformEvent[]
+  companyId String
+  workspace Workspace @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sessions        BotSession[]
+  campaigns       Campaign[]
+  leads           Lead[]
+  channelPosts    ChannelPost[]
+  platformEvents  PlatformEvent[]
   telegramUpdates TelegramUpdate[]
-  
+  messages        BotMessage[]
+
   @@index([companyId])
 }
 
 model Lead {
-  id         String     @id @default(cuid())
-  leadCode   String?    @unique
-  source     String?    // e.g. "BotName" or "Website"
-  botId      String?
-  bot        BotConfig? @relation(fields: [botId], references: [id])
-  
+  id       String     @id @default(cuid())
+  leadCode String?    @unique
+  source   String? // e.g. "BotName" or "Website"
+  botId    String?
+  bot      BotConfig? @relation(fields: [botId], references: [id])
+
   userTgId   String?
   clientName String
   phone      String?
   request    String?
   status     LeadStatus @default(NEW)
   payload    Json?
-  
-  createdAt  DateTime   @default(now())
-  updatedAt  DateTime   @updatedAt
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   activities LeadActivity[]
+
+  @@index([botId])
 }
 
 model LeadActivity {
@@ -236,10 +217,25 @@ model LeadActivity {
   @@index([leadId, createdAt])
 }
 
+model BotMessage {
+  id        String           @id @default(cuid())
+  botId     String
+  bot       BotConfig        @relation(fields: [botId], references: [id], onDelete: Cascade)
+  chatId    String
+  direction MessageDirection
+  text      String?
+  messageId Int?
+  payload   Json?            @db.JsonB
+  createdAt DateTime         @default(now())
+
+  @@index([botId, chatId, createdAt])
+  @@index([chatId, createdAt])
+}
+
 model B2bRequest {
-  id          String           @id @default(cuid())
-  publicId    String?          @unique
-  title       String           // Extracted from content or manual
+  id          String  @id @default(cuid())
+  publicId    String? @unique
+  title       String // Extracted from content or manual
   description String?
   budgetMin   Int?
   budgetMax   Int?
@@ -247,50 +243,53 @@ model B2bRequest {
   yearMax     Int?
   city        String?
   language    String?
-  
-  chatId      String?
-  content     String?          // Original raw text
-  status      RequestStatus    @default(DRAFT)
-  priority    String           @default("NORMAL")
-  
-  companyId   String?
-  assignedTo  String?          // Stage A: Manager assignment
-  internalNotes String?        // Stage A: Private notes
 
-  variants    RequestVariant[]
+  chatId   String?
+  content  String? // Original raw text
+  status   RequestStatus @default(DRAFT)
+  priority String        @default("NORMAL")
+
+  companyId     String?
+  assignedTo    String? // Stage A: Manager assignment
+  internalNotes String? // Stage A: Private notes
+
+  variants     RequestVariant[]
   channelPosts ChannelPost[]
-  messages    MessageLog[]
-  
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
-  
+  messages     MessageLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([companyId])
+  @@index([status])
+  @@index([companyId, status])
 }
 
 model RequestVariant {
-  id          String     @id @default(cuid())
-  requestId   String
-  request     B2bRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
-  
-  status      VariantStatus @default(SUBMITTED)
-  source      String     @default("MANUAL")
-  sourceUrl   String?
-  
-  title       String?
-  price       Int?
-  currency    String?    @default("USD")
-  year        Int?
-  mileage     Int?
-  location    String?
-  thumbnail   String?
-  specs       Json?
-  
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  id        String     @id @default(cuid())
+  requestId String
+  request   B2bRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  status    VariantStatus @default(SUBMITTED)
+  source    String        @default("MANUAL")
+  sourceUrl String?
+
+  title     String?
+  price     Int?
+  currency  String? @default("USD")
+  year      Int?
+  mileage   Int?
+  location  String?
+  thumbnail String?
+  specs     Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   messageLogs MessageLog[]
-}
 
+  @@index([requestId])
+}
 
 model Draft {
   id          Int         @id @default(autoincrement())
@@ -300,23 +299,23 @@ model Draft {
   url         String?
   description String?
   status      String      @default("PENDING")
-  
+
   // Stage B: Content Calendar fields
   scheduledAt DateTime?
   postedAt    DateTime?
-  destination String?     // 'channel' or 'group'
+  destination String? // 'channel' or 'group'
   botId       String?
-  metadata    Json?       @db.JsonB
-  
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-  
+  metadata    Json?     @db.JsonB
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([scheduledAt, status])
   @@index([postedAt])
 }
 
 model CarListing {
-  id          String   @id 
+  id          String   @id
   source      String   @default("MANUAL")
   sourceUrl   String?
   title       String
@@ -342,82 +341,82 @@ model CarListing {
 }
 
 model ChannelPost {
-  id          String      @id @default(cuid())
-  requestId   String
-  request     B2bRequest  @relation(fields: [requestId], references: [id], onDelete: Cascade)
-  botId       String?
-  bot         BotConfig?  @relation(fields: [botId], references: [id])
-  channelId   String
-  messageId   Int
-  status      String      @default("ACTIVE") // ACTIVE, UPDATED, CLOSED
-  payload     Json?       @db.JsonB
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  id        String     @id @default(cuid())
+  requestId String
+  request   B2bRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  botId     String?
+  bot       BotConfig? @relation(fields: [botId], references: [id])
+  channelId String
+  messageId Int
+  status    String     @default("ACTIVE") // ACTIVE, UPDATED, CLOSED
+  payload   Json?      @db.JsonB
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
 
   @@unique([requestId, channelId])
   @@index([channelId])
 }
 
 model MessageLog {
-  id          String      @id @default(cuid())
-  requestId   String?
-  request     B2bRequest? @relation(fields: [requestId], references: [id], onDelete: SetNull)
-  variantId   String?
-  variant     RequestVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
-  botId       String?
-  chatId      String
-  direction   String      @default("INCOMING")
-  text        String?
-  payload     Json?       @db.JsonB
-  createdAt   DateTime    @default(now())
+  id        String          @id @default(cuid())
+  requestId String?
+  request   B2bRequest?     @relation(fields: [requestId], references: [id], onDelete: SetNull)
+  variantId String?
+  variant   RequestVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+  botId     String?
+  chatId    String
+  direction String          @default("INCOMING")
+  text      String?
+  payload   Json?           @db.JsonB
+  createdAt DateTime        @default(now())
 
   @@index([requestId])
   @@index([chatId])
 }
 
 model PartnerCompany {
-  id        String   @id @default(cuid())
+  id        String     @id @default(cuid())
   name      String
   city      String?
   contact   String?
   notes     String?
   companyId String?
-  company   Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  workspace Workspace? @relation(fields: [companyId], references: [id], onDelete: SetNull)
 
   users     PartnerUser[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
 }
 
 model PartnerUser {
-  id         String         @id @default(cuid())
+  id         String          @id @default(cuid())
   name       String
-  telegramId String?        @unique
+  telegramId String?         @unique
   phone      String?
   partnerId  String?
   partner    PartnerCompany? @relation(fields: [partnerId], references: [id], onDelete: SetNull)
   companyId  String?
-  company    Company?       @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  workspace  Workspace?      @relation(fields: [companyId], references: [id], onDelete: SetNull)
 
-  createdAt  DateTime       @default(now())
-  updatedAt  DateTime       @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model BotSession {
-  id          String     @id @default(cuid())
-  chatId      String
-  botId       String
-  bot         BotConfig  @relation(fields: [botId], references: [id], onDelete: Cascade)
-  
-  platform    String     @default("TG")
-  state       String     @default("START")
-  variables   Json?
-  history     Json?
-  lastActive  DateTime   @default(now())
-  
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
-  
+  id     String    @id @default(cuid())
+  chatId String
+  botId  String
+  bot    BotConfig @relation(fields: [botId], references: [id], onDelete: Cascade)
+
+  platform   String   @default("TG")
+  state      String   @default("START")
+  variables  Json?
+  history    Json?
+  lastActive DateTime @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@unique([botId, chatId])
   @@index([lastActive])
 }
@@ -428,7 +427,7 @@ model NormalizationAlias {
   alias     String
   canonical String
   companyId String?
-  company   Company?          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  workspace Workspace?        @relation(fields: [companyId], references: [id], onDelete: Cascade)
   createdAt DateTime          @default(now())
 
   @@unique([type, alias, companyId])
@@ -439,7 +438,7 @@ model NormalizationAlias {
 model PlatformEvent {
   id        String     @id @default(cuid())
   companyId String?
-  company   Company?   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  workspace Workspace? @relation(fields: [companyId], references: [id], onDelete: Cascade)
   botId     String?
   bot       BotConfig? @relation(fields: [botId], references: [id], onDelete: SetNull)
   eventType String
@@ -466,41 +465,41 @@ model TelegramUpdate {
 }
 
 model Scenario {
-  id             String   @id @default(cuid())
+  id             String         @id @default(cuid())
   name           String
   triggerCommand String?
   keywords       String[]
-  isActive       Boolean  @default(true)
+  isActive       Boolean        @default(true)
   status         ScenarioStatus @default(PUBLISHED)
   entryNodeId    String?
   nodes          Json
-  
-  companyId      String
-  company        Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  
+
+  companyId String
+  workspace Workspace @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([companyId])
 }
 
 model Campaign {
-  id             String     @id @default(cuid())
-  name           String
-  botId          String
-  bot            BotConfig  @relation(fields: [botId], references: [id], onDelete: Cascade)
-  
+  id    String    @id @default(cuid())
+  name  String
+  botId String
+  bot   BotConfig @relation(fields: [botId], references: [id], onDelete: Cascade)
+
   content        Json
-  status         String     @default("DRAFT")
+  status         String    @default("DRAFT")
   scheduledAt    DateTime?
   stats          Json?
   targetAudience Json?
-  createdAt      DateTime   @default(now())
-  updatedAt      DateTime   @updatedAt
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 }
 
 model SystemSettings {
-  id           Int      @default(autoincrement()) @id
+  id            Int      @id @default(autoincrement())
   autoriaApiKey String?
   metaPixelId   String?
   metaToken     String?
@@ -537,50 +536,757 @@ enum FieldType {
 }
 
 model EntityDefinition {
-  id          String       @id @default(cuid())
-  slug        String       @unique
+  id          String  @id @default(cuid())
+  slug        String  @unique
   name        String
   description String?
-  status      String       @default("ACTIVE") // ACTIVE | ARCHIVED
+  status      String  @default("ACTIVE") // ACTIVE | ARCHIVED
 
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  fields      EntityField[]
-  records     EntityRecord[]
+  fields  EntityField[]
+  records EntityRecord[]
 }
 
 model EntityField {
-  id          String           @id @default(cuid())
-  entityId    String
-  entity      EntityDefinition @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  id       String           @id @default(cuid())
+  entityId String
+  entity   EntityDefinition @relation(fields: [entityId], references: [id], onDelete: Cascade)
 
-  key         String
-  label       String
-  type        FieldType
-  required    Boolean          @default(false)
-  order       Int              @default(0)
+  key      String
+  label    String
+  type     FieldType
+  required Boolean   @default(false)
+  order    Int       @default(0)
 
   // optional config (select options, UI hints, validation rules)
-  config      Json?            @db.JsonB
+  config Json? @db.JsonB
 
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([entityId, key])
   @@index([entityId, order])
 }
 
 model EntityRecord {
-  id          String           @id @default(cuid())
-  entityId    String
-  entity      EntityDefinition @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  id       String           @id @default(cuid())
+  entityId String
+  entity   EntityDefinition @relation(fields: [entityId], references: [id], onDelete: Cascade)
 
   // main payload
-  data        Json             @db.JsonB
+  data Json @db.JsonB
 
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([entityId, createdAt])
+}
+
+// ========================================
+// v4.1 Data Foundation (DB-first, tenant-safe)
+// ========================================
+
+model Workspace {
+  id         String    @id @db.Char(26)
+  slug       String    @unique @db.Citext
+  name       String    @db.VarChar(255)
+  settings   Json      @default(dbgenerated("'{}'::jsonb")) @db.JsonB
+  created_at DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at DateTime  @default(now()) @db.Timestamptz(6)
+  deleted_at DateTime? @db.Timestamptz(6)
+
+  accounts          Account[]
+  memberships       Membership[]
+  entity_types      EntityType[]
+  relation_types    RelationType[]
+  dictionary_sets   DictionarySet[]
+  pipelines         Pipeline[]
+  contacts          Contact[]
+  ingestion_sources IngestionSource[]
+
+  // Legacy Relations (Repointed)
+  bots                 BotConfig[]
+  scenarios            Scenario[]
+  templates            CompanyTemplate[]
+  integrations         Integration[]
+  partnerCompanies     PartnerCompany[]
+  partnerUsers         PartnerUser[]
+  normalizationAliases NormalizationAlias[]
+  platformEvents       PlatformEvent[]
+
+  @@index([deleted_at])
+  @@map("workspaces")
+}
+
+model GlobalUser {
+  id            String   @id @db.Char(26)
+  email         String   @unique @db.Citext
+  name          String?  @db.VarChar(255)
+  password_hash String?  @db.VarChar(255)
+  global_status String   @default("active") @db.VarChar(32)
+  created_at    DateTime @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime @default(now()) @db.Timestamptz(6)
+
+  telegram_user_id String? @unique
+
+  memberships Membership[]
+
+  deleted_at DateTime? @db.Timestamptz(6)
+
+  @@index([deleted_at])
+  @@index([global_status])
+  @@map("users")
+}
+
+model Account {
+  id           String    @id @db.Char(26)
+  workspace_id String    @db.Char(26)
+  slug         String    @db.Citext
+  name         String    @db.VarChar(255)
+  config       Json      @default(dbgenerated("'{}'::jsonb")) @db.JsonB
+  created_at   DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime  @default(now()) @db.Timestamptz(6)
+  deleted_at   DateTime? @db.Timestamptz(6)
+  created_by   String?   @db.Char(26)
+  updated_by   String?   @db.Char(26)
+
+  workspace Workspace @relation(fields: [workspace_id], references: [id])
+
+  memberships         Membership[]
+  records             Record[]
+  record_search_index RecordSearchIndex[]
+  pipelines           Pipeline[]
+  channels            Channel[]
+
+  @@unique([workspace_id, id])
+  @@index([workspace_id])
+  @@map("accounts")
+}
+
+model Membership {
+  id           String    @id @db.Char(26)
+  user_id      String    @db.Char(26)
+  workspace_id String    @db.Char(26)
+  account_id   String?   @db.Char(26)
+  role_id      String    @db.VarChar(64)
+  permissions  Json      @default(dbgenerated("'{}'::jsonb")) @db.JsonB
+  created_at   DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime  @default(now()) @db.Timestamptz(6)
+  deleted_at   DateTime? @db.Timestamptz(6)
+  created_by   String?   @db.Char(26)
+  updated_by   String?   @db.Char(26)
+
+  user      GlobalUser @relation(fields: [user_id], references: [id])
+  workspace Workspace  @relation(fields: [workspace_id], references: [id])
+  account   Account?   @relation(fields: [workspace_id, account_id], references: [workspace_id, id])
+
+  @@unique([workspace_id, id])
+  @@index([workspace_id])
+  @@index([user_id])
+  @@index([deleted_at])
+  @@map("memberships")
+}
+
+model EntityType {
+  id           String    @id @db.Char(26)
+  workspace_id String    @db.Char(26)
+  slug         String    @db.Citext
+  name         String    @db.VarChar(255)
+  capabilities Json      @default(dbgenerated("'{}'::jsonb")) @db.JsonB
+  created_at   DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime  @default(now()) @db.Timestamptz(6)
+  deleted_at   DateTime? @db.Timestamptz(6)
+  created_by   String?   @db.Char(26)
+  updated_by   String?   @db.Char(26)
+
+  workspace Workspace @relation(fields: [workspace_id], references: [id])
+
+  field_definitions    FieldDefinition[]
+  records              Record[]
+  record_external_keys RecordExternalKey[]
+  parser_definitions   ParserDefinition[]
+  extracted_entities   ExtractedEntity[]
+  form_definitions     FormDefinition[]
+  view_definitions     ViewDefinition[]
+
+  @@unique([workspace_id, id])
+  @@index([workspace_id])
+  @@map("entity_types")
+}
+
+model FieldDefinition {
+  id             String    @id @db.Char(26)
+  workspace_id   String    @db.Char(26)
+  entity_type_id String    @db.Char(26)
+  slug           String    @db.Citext
+  type           String    @db.VarChar(64)
+  config         Json      @default(dbgenerated("'{}'::jsonb")) @db.JsonB
+  is_pii         Boolean   @default(false)
+  is_searchable  Boolean   @default(false)
+  created_at     DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime  @default(now()) @db.Timestamptz(6)
+  deleted_at     DateTime? @db.Timestamptz(6)
+  created_by     String?   @db.Char(26)
+  updated_by     String?   @db.Char(26)
+
+  entity_type EntityType @relation(fields: [workspace_id, entity_type_id], references: [workspace_id, id])
+
+  @@unique([workspace_id, id])
+  @@index([workspace_id, entity_type_id])
+  @@map("field_definitions")
+}
+
+model Record {
+  id             String    @id @db.Char(26)
+  workspace_id   String    @db.Char(26)
+  account_id     String?   @db.Char(26)
+  entity_type_id String    @db.Char(26)
+  status         String    @default("active") @db.VarChar(32)
+  attributes     Json      @default(dbgenerated("'{}'::jsonb")) @db.JsonB
+  created_at     DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime  @default(now()) @db.Timestamptz(6)
+  deleted_at     DateTime? @db.Timestamptz(6)
+  created_by     String?   @db.Char(26)
+  updated_by     String?   @db.Char(26)
+
+  entity_type EntityType @relation(fields: [workspace_id, entity_type_id], references: [workspace_id, id])
+  account     Account?   @relation(fields: [workspace_id, account_id], references: [workspace_id, id])
+
+  record_search_index     RecordSearchIndex?
+  record_relations_source RecordRelation[]    @relation("record_relations_source")
+  record_relations_target RecordRelation[]    @relation("record_relations_target")
+  record_external_keys    RecordExternalKey[]
+
+  @@unique([workspace_id, id])
+  @@index([workspace_id])
+  @@index([workspace_id, entity_type_id])
+  @@map("records")
+}
+
+model RecordSearchIndex {
+  id            String                  @id @db.Char(26)
+  workspace_id  String                  @db.Char(26)
+  record_id     String                  @db.Char(26)
+  account_id    String?                 @db.Char(26)
+  search_vector Unsupported("tsvector")
+  promoted      Json                    @default(dbgenerated("'{}'::jsonb")) @db.JsonB
+  updated_at    DateTime                @default(now()) @db.Timestamptz(6)
+
+  record  Record   @relation(fields: [workspace_id, record_id], references: [workspace_id, id])
+  account Account? @relation(fields: [workspace_id, account_id], references: [workspace_id, id])
+
+  @@unique([workspace_id, record_id])
+  @@index([workspace_id, record_id])
+  @@map("record_search_index")
+}
+
+model RelationType {
+  id            String    @id @db.Char(26)
+  workspace_id  String    @db.Char(26)
+  slug          String    @db.Citext
+  bidirectional Boolean   @default(false)
+  created_at    DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime  @default(now()) @db.Timestamptz(6)
+  deleted_at    DateTime? @db.Timestamptz(6)
+  created_by    String?   @db.Char(26)
+  updated_by    String?   @db.Char(26)
+
+  workspace Workspace @relation(fields: [workspace_id], references: [id])
+
+  record_relations RecordRelation[]
+
+  @@unique([workspace_id, id])
+  @@index([workspace_id])
+  @@map("relation_types")
+}
+
+model RecordRelation {
+  id               String    @id @db.Char(26)
+  workspace_id     String    @db.Char(26)
+  relation_type_id String    @db.Char(26)
+  source_record_id String    @db.Char(26)
+  target_record_id String    @db.Char(26)
+  meta             Json      @default(dbgenerated("'{}'::jsonb")) @db.JsonB
+  created_at       DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime  @default(now()) @db.Timestamptz(6)
+  deleted_at       DateTime? @db.Timestamptz(6)
+  created_by       String?   @db.Char(26)
+  updated_by       String?   @db.Char(26)
+
+  relation_type RelationType @relation(fields: [workspace_id, relation_type_id], references: [workspace_id, id])
+  source_record Record       @relation("record_relations_source", fields: [workspace_id, source_record_id], references: [workspace_id, id])
+  target_record Record       @relation("record_relations_target", fields: [workspace_id, target_record_id], references: [workspace_id, id])
+
+  @@unique([workspace_id, id])
+  @@index([workspace_id, source_record_id])
+  @@index([workspace_id, target_record_id])
+  @@map("record_relations")
+}
+
+model RecordExternalKey {
+  id             String   @id @db.Char(26)
+  workspace_id   String   @db.Char(26)
+  record_id      String   @db.Char(26)
+  entity_type_id String   @db.Char(26)
+  source_id      String   @db.Char(26)
+  key_name       String   @db.VarChar(64)
+  key_hash       String   @db.VarChar(128)
+  key_value      String?  @db.VarChar(255)
+  created_at     DateTime @default(now()) @db.Timestamptz(6)
+
+  record      Record          @relation(fields: [workspace_id, record_id], references: [workspace_id, id])
+  entity_type EntityType      @relation(fields: [workspace_id, entity_type_id], references: [workspace_id, id])
+  source      IngestionSource @relation(fields: [workspace_id, source_id], references: [workspace_id, id])
+
+  @@unique([workspace_id, id])
+  @@index([workspace_id, record_id])
+  @@map("record_external_keys")
+}
+
+model DictionarySet {
+  id           String    @id @db.Char(26)
+  workspace_id String    @db.Char(26)
+  slug         String    @db.Citext
+  name         String    @db.VarChar(255)
+  created_at   DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime  @default(now()) @db.Timestamptz(6)
+  deleted_at   DateTime? @db.Timestamptz(6)
+  created_by   String?   @db.Char(26)
+  updated_by   String?   @db.Char(26)
+
+  workspace Workspace @relation(fields: [workspace_id], references: [id])
+
+  dictionary_entries DictionaryEntry[]
+
+  @@unique([workspace_id, id])
+  @@index([workspace_id])
+  @@map("dictionary_sets")
+}
+
+model DictionaryEntry {
+  id           String    @id @db.Char(26)
+  workspace_id String    @db.Char(26)
+  set_id       String    @db.Char(26)
+  canonical    String    @db.VarChar(255)
+  meta         Json      @default(dbgenerated("'{}'::jsonb")) @db.JsonB
+  created_at   DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime  @default(now()) @db.Timestamptz(6)
+  deleted_at   DateTime? @db.Timestamptz(6)
+  created_by   String?   @db.Char(26)
+  updated_by   String?   @db.Char(26)
+
+  dictionary_set DictionarySet @relation(fields: [workspace_id, set_id], references: [workspace_id, id])
+
+  dictionary_aliases DictionaryAlias[]
+
+  @@unique([workspace_id, id])
+  @@index([workspace_id, set_id])
+  @@map("dictionary_entries")
+}
+
+model DictionaryAlias {
+  id           String    @id @db.Char(26)
+  workspace_id String    @db.Char(26)
+  entry_id     String    @db.Char(26)
+  alias        String    @db.Citext
+  rule         String    @default("exact") @db.VarChar(32)
+  created_at   DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime  @default(now()) @db.Timestamptz(6)
+  deleted_at   DateTime? @db.Timestamptz(6)
+  created_by   String?   @db.Char(26)
+  updated_by   String?   @db.Char(26)
+
+  dictionary_entry DictionaryEntry @relation(fields: [workspace_id, entry_id], references: [workspace_id, id])
+
+  @@unique([workspace_id, id])
+  @@index([workspace_id, entry_id])
+  @@map("dictionary_aliases")
+}
+
+model Pipeline {
+  id           String    @id @db.Char(26)
+  workspace_id String    @db.Char(26)
+  account_id   String?   @db.Char(26)
+  slug         String    @db.Citext
+  name         String    @db.VarChar(255)
+  created_at   DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime  @default(now()) @db.Timestamptz(6)
+  deleted_at   DateTime? @db.Timestamptz(6)
+  created_by   String?   @db.Char(26)
+  updated_by   String?   @db.Char(26)
+
+  workspace Workspace @relation(fields: [workspace_id], references: [id])
+  account   Account?  @relation(fields: [workspace_id, account_id], references: [workspace_id, id])
+
+  pipeline_stages PipelineStage[]
+  cases           Case[]
+
+  @@unique([workspace_id, id])
+  @@index([workspace_id])
+  @@map("pipelines")
+}
+
+model PipelineStage {
+  id           String    @id @db.Char(26)
+  workspace_id String    @db.Char(26)
+  pipeline_id  String    @db.Char(26)
+  slug         String    @db.Citext
+  type         String    @db.VarChar(32)
+  created_at   DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime  @default(now()) @db.Timestamptz(6)
+  deleted_at   DateTime? @db.Timestamptz(6)
+  created_by   String?   @db.Char(26)
+  updated_by   String?   @db.Char(26)
+
+  pipeline Pipeline @relation(fields: [workspace_id, pipeline_id], references: [workspace_id, id])
+
+  cases Case[]
+
+  @@unique([workspace_id, id])
+  @@unique([workspace_id, pipeline_id, id])
+  @@index([workspace_id, pipeline_id])
+  @@map("pipeline_stages")
+}
+
+model Contact {
+  id           String    @id @db.Char(26)
+  workspace_id String    @db.Char(26)
+  name         String    @db.VarChar(255)
+  email        String?   @db.Citext
+  phone_e164   String?   @db.VarChar(32)
+  created_at   DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime  @default(now()) @db.Timestamptz(6)
+  deleted_at   DateTime? @db.Timestamptz(6)
+  created_by   String?   @db.Char(26)
+  updated_by   String?   @db.Char(26)
+
+  workspace Workspace @relation(fields: [workspace_id], references: [id])
+
+  case_contact_links CaseContactLink[]
+
+  @@unique([workspace_id, id])
+  @@index([workspace_id])
+  @@map("contacts")
+}
+
+model Case {
+  id           String    @id @db.Char(26)
+  workspace_id String    @db.Char(26)
+  pipeline_id  String    @db.Char(26)
+  stage_id     String    @db.Char(26)
+  assignee_id  String?   @db.Char(26)
+  created_at   DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime  @default(now()) @db.Timestamptz(6)
+  deleted_at   DateTime? @db.Timestamptz(6)
+  created_by   String?   @db.Char(26)
+  updated_by   String?   @db.Char(26)
+
+  pipeline Pipeline      @relation(fields: [workspace_id, pipeline_id], references: [workspace_id, id])
+  stage    PipelineStage @relation(fields: [workspace_id, pipeline_id, stage_id], references: [workspace_id, pipeline_id, id])
+
+  case_contact_links CaseContactLink[]
+
+  @@unique([workspace_id, id])
+  @@index([workspace_id, pipeline_id])
+  @@map("cases")
+}
+
+model CaseContactLink {
+  id           String    @id @db.Char(26)
+  workspace_id String    @db.Char(26)
+  case_id      String    @db.Char(26)
+  contact_id   String    @db.Char(26)
+  role         String    @db.VarChar(64)
+  created_at   DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime  @default(now()) @db.Timestamptz(6)
+  deleted_at   DateTime? @db.Timestamptz(6)
+  created_by   String?   @db.Char(26)
+  updated_by   String?   @db.Char(26)
+
+  case    Case    @relation(fields: [workspace_id, case_id], references: [workspace_id, id])
+  contact Contact @relation(fields: [workspace_id, contact_id], references: [workspace_id, id])
+
+  @@unique([workspace_id, id])
+  @@index([workspace_id, case_id])
+  @@index([workspace_id, contact_id])
+  @@map("case_contact_links")
+}
+
+model Channel {
+  id           String    @id @db.Char(26)
+  workspace_id String    @db.Char(26)
+  account_id   String?   @db.Char(26)
+  type         String    @db.VarChar(64)
+  name         String    @db.VarChar(255)
+  is_active    Boolean   @default(true)
+  config_enc   String    @db.Text
+  created_at   DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime  @default(now()) @db.Timestamptz(6)
+  deleted_at   DateTime? @db.Timestamptz(6)
+  created_by   String?   @db.Char(26)
+  updated_by   String?   @db.Char(26)
+
+  account Account? @relation(fields: [workspace_id, account_id], references: [workspace_id, id])
+
+  identities    Identity[]
+  conversations Conversation[]
+
+  @@unique([workspace_id, id])
+  @@index([workspace_id])
+  @@map("channels")
+}
+
+model Identity {
+  id           String    @id @db.Char(26)
+  workspace_id String    @db.Char(26)
+  channel_id   String    @db.Char(26)
+  external_id  String    @db.VarChar(255)
+  created_at   DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime  @default(now()) @db.Timestamptz(6)
+  deleted_at   DateTime? @db.Timestamptz(6)
+  created_by   String?   @db.Char(26)
+  updated_by   String?   @db.Char(26)
+
+  channel Channel @relation(fields: [workspace_id, channel_id], references: [workspace_id, id])
+
+  @@unique([workspace_id, id])
+  @@index([workspace_id, channel_id])
+  @@map("identities")
+}
+
+model Conversation {
+  id            String    @id @db.Char(26)
+  workspace_id  String    @db.Char(26)
+  channel_id    String    @db.Char(26)
+  ext_thread_id String?   @db.VarChar(255)
+  last_msg_at   DateTime? @db.Timestamptz(6)
+  created_at    DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime  @default(now()) @db.Timestamptz(6)
+  deleted_at    DateTime? @db.Timestamptz(6)
+  created_by    String?   @db.Char(26)
+  updated_by    String?   @db.Char(26)
+
+  channel Channel @relation(fields: [workspace_id, channel_id], references: [workspace_id, id])
+
+  messages Message[]
+
+  @@unique([workspace_id, id])
+  @@index([workspace_id, channel_id])
+  @@map("conversations")
+}
+
+model Message {
+  id              String    @id @db.Char(26)
+  workspace_id    String    @db.Char(26)
+  conversation_id String    @db.Char(26)
+  type            String    @db.VarChar(64)
+  content         Json      @db.JsonB
+  external_id     String?   @db.VarChar(255)
+  direction       String    @db.VarChar(16)
+  created_at      DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime  @default(now()) @db.Timestamptz(6)
+  deleted_at      DateTime? @db.Timestamptz(6)
+  created_by      String?   @db.Char(26)
+  updated_by      String?   @db.Char(26)
+
+  conversation Conversation @relation(fields: [workspace_id, conversation_id], references: [workspace_id, id])
+
+  message_delivery MessageDelivery[]
+
+  @@unique([workspace_id, id])
+  @@index([workspace_id, conversation_id])
+  @@map("messages")
+}
+
+model MessageDelivery {
+  id           String    @id @db.Char(26)
+  workspace_id String    @db.Char(26)
+  message_id   String    @db.Char(26)
+  status       String    @db.VarChar(64)
+  provider_id  String?   @db.VarChar(255)
+  created_at   DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime  @default(now()) @db.Timestamptz(6)
+  deleted_at   DateTime? @db.Timestamptz(6)
+  created_by   String?   @db.Char(26)
+  updated_by   String?   @db.Char(26)
+
+  message Message @relation(fields: [workspace_id, message_id], references: [workspace_id, id])
+
+  @@unique([workspace_id, id])
+  @@index([workspace_id, message_id])
+  @@map("message_delivery")
+}
+
+model IngestionSource {
+  id           String    @id @db.Char(26)
+  workspace_id String    @db.Char(26)
+  type         String    @db.VarChar(64)
+  config       Json      @default(dbgenerated("'{}'::jsonb")) @db.JsonB
+  created_at   DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime  @default(now()) @db.Timestamptz(6)
+  deleted_at   DateTime? @db.Timestamptz(6)
+  created_by   String?   @db.Char(26)
+  updated_by   String?   @db.Char(26)
+
+  workspace Workspace @relation(fields: [workspace_id], references: [id])
+
+  record_external_keys RecordExternalKey[]
+  ingestion_jobs       IngestionJob[]
+
+  @@unique([workspace_id, id])
+  @@index([workspace_id])
+  @@map("ingestion_sources")
+}
+
+model ParserDefinition {
+  id                    String    @id @db.Char(26)
+  workspace_id          String    @db.Char(26)
+  target_entity_type_id String    @db.Char(26)
+  slug                  String    @db.Citext
+  created_at            DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime  @default(now()) @db.Timestamptz(6)
+  deleted_at            DateTime? @db.Timestamptz(6)
+  created_by            String?   @db.Char(26)
+  updated_by            String?   @db.Char(26)
+
+  entity_type EntityType @relation(fields: [workspace_id, target_entity_type_id], references: [workspace_id, id])
+
+  parser_versions ParserVersion[]
+
+  @@unique([workspace_id, id])
+  @@index([workspace_id, target_entity_type_id])
+  @@map("parser_definitions")
+}
+
+model ParserVersion {
+  id            String    @id @db.Char(26)
+  workspace_id  String    @db.Char(26)
+  definition_id String    @db.Char(26)
+  version       Int
+  schema        Json      @db.JsonB
+  created_at    DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime  @default(now()) @db.Timestamptz(6)
+  deleted_at    DateTime? @db.Timestamptz(6)
+  created_by    String?   @db.Char(26)
+  updated_by    String?   @db.Char(26)
+
+  definition ParserDefinition @relation(fields: [workspace_id, definition_id], references: [workspace_id, id])
+
+  ingestion_jobs IngestionJob[]
+
+  @@unique([workspace_id, id])
+  @@index([workspace_id, definition_id])
+  @@map("parser_versions")
+}
+
+model IngestionJob {
+  id                String    @id @db.Char(26)
+  workspace_id      String    @db.Char(26)
+  source_id         String    @db.Char(26)
+  parser_version_id String    @db.Char(26)
+  created_at        DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime  @default(now()) @db.Timestamptz(6)
+  deleted_at        DateTime? @db.Timestamptz(6)
+  created_by        String?   @db.Char(26)
+  updated_by        String?   @db.Char(26)
+
+  source         IngestionSource @relation(fields: [workspace_id, source_id], references: [workspace_id, id])
+  parser_version ParserVersion   @relation(fields: [workspace_id, parser_version_id], references: [workspace_id, id])
+
+  raw_documents      RawDocument[]
+  extracted_entities ExtractedEntity[]
+
+  @@unique([workspace_id, id])
+  @@index([workspace_id, source_id])
+  @@index([workspace_id, parser_version_id])
+  @@map("ingestion_jobs")
+}
+
+model RawDocument {
+  id           String    @id @db.Char(26)
+  workspace_id String    @db.Char(26)
+  job_id       String    @db.Char(26)
+  url          String?   @db.VarChar(2048)
+  doc_hash     String?   @db.VarChar(128)
+  payload_ref  String?   @db.VarChar(2048)
+  created_at   DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime  @default(now()) @db.Timestamptz(6)
+  deleted_at   DateTime? @db.Timestamptz(6)
+  created_by   String?   @db.Char(26)
+  updated_by   String?   @db.Char(26)
+
+  job IngestionJob @relation(fields: [workspace_id, job_id], references: [workspace_id, id])
+
+  extracted_entities ExtractedEntity[]
+
+  @@unique([workspace_id, id])
+  @@index([workspace_id, job_id])
+  @@map("raw_documents")
+}
+
+model ExtractedEntity {
+  id              String    @id @db.Char(26)
+  workspace_id    String    @db.Char(26)
+  job_id          String    @db.Char(26)
+  raw_document_id String    @db.Char(26)
+  entity_type_id  String    @db.Char(26)
+  data            Json      @db.JsonB
+  dedupe_key      String?   @db.VarChar(255)
+  dedupe_hash     String?   @db.VarChar(128)
+  created_at      DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime  @default(now()) @db.Timestamptz(6)
+  deleted_at      DateTime? @db.Timestamptz(6)
+  created_by      String?   @db.Char(26)
+  updated_by      String?   @db.Char(26)
+
+  job          IngestionJob @relation(fields: [workspace_id, job_id], references: [workspace_id, id])
+  raw_document RawDocument  @relation(fields: [workspace_id, raw_document_id], references: [workspace_id, id])
+  entity_type  EntityType   @relation(fields: [workspace_id, entity_type_id], references: [workspace_id, id])
+
+  @@unique([workspace_id, id])
+  @@index([workspace_id, job_id])
+  @@index([workspace_id, raw_document_id])
+  @@map("extracted_entities")
+}
+
+model FormDefinition {
+  id             String    @id @db.Char(26)
+  workspace_id   String    @db.Char(26)
+  entity_type_id String    @db.Char(26)
+  code           String    @db.VarChar(64)
+  version        Int
+  layout         Json      @db.JsonB
+  created_at     DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime  @default(now()) @db.Timestamptz(6)
+  deleted_at     DateTime? @db.Timestamptz(6)
+  created_by     String?   @db.Char(26)
+  updated_by     String?   @db.Char(26)
+
+  entity_type EntityType @relation(fields: [workspace_id, entity_type_id], references: [workspace_id, id])
+
+  @@unique([workspace_id, id])
+  @@index([workspace_id, entity_type_id])
+  @@map("form_definitions")
+}
+
+model ViewDefinition {
+  id             String    @id @db.Char(26)
+  workspace_id   String    @db.Char(26)
+  entity_type_id String    @db.Char(26)
+  name           String    @db.VarChar(128)
+  version        Int
+  columns        Json      @db.JsonB
+  created_at     DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime  @default(now()) @db.Timestamptz(6)
+  deleted_at     DateTime? @db.Timestamptz(6)
+  created_by     String?   @db.Char(26)
+  updated_by     String?   @db.Char(26)
+
+  entity_type EntityType @relation(fields: [workspace_id, entity_type_id], references: [workspace_id, id])
+
+  @@unique([workspace_id, id])
+  @@index([workspace_id, entity_type_id])
+  @@map("view_definitions")
 }

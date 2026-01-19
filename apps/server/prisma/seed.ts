@@ -1,11 +1,128 @@
 // @ts-ignore
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import { createWorkspaceDualWrite } from '../src/services/v41/workspaceService.js';
+import { createUserDualWrite } from '../src/services/v41/userService.js';
+import { FEATURE_FLAGS } from '../src/utils/constants.js';
 
 const prisma = new PrismaClient();
 
+async function ensureSystemCompany() {
+  const existing = await prisma.company.findUnique({ where: { id: 'company_system' } })
+    ?? await prisma.company.findUnique({ where: { slug: 'system' } });
+
+  if (existing) {
+    console.log('ℹ️ System company already exists');
+    return existing;
+  }
+
+  // Use dual-write service
+  const result = await createWorkspaceDualWrite({
+    name: 'System',
+    slug: 'system',
+    plan: 'ENTERPRISE',
+    settings: {}
+  });
+
+  console.log(FEATURE_FLAGS.USE_V4_DUAL_WRITE
+    ? `✅ System company + workspace created (Company: ${result.companyId}, Workspace: ${result.workspaceId})`
+    : `✅ System company created (Company: ${result.companyId})`
+  );
+
+  // Return the legacy company for backward compatibility
+  return await prisma.company.findUnique({ where: { id: result.companyId } })!;
+}
+
+async function ensureDemoCompany() {
+  const existing = await prisma.company.findUnique({ where: { slug: 'demo' } });
+  if (existing) {
+    console.log('ℹ️ Demo company already exists');
+    return existing;
+  }
+
+  // Use dual-write service
+  const result = await createWorkspaceDualWrite({
+    name: 'Demo Motors',
+    slug: 'demo',
+    primaryColor: '#0F62FE',
+    plan: 'PRO',
+    settings: {
+      domain: 'demo.cartie.local'
+    }
+  });
+
+  console.log(FEATURE_FLAGS.USE_V4_DUAL_WRITE
+    ? `✅ Demo company + workspace created (Company: ${result.companyId}, Workspace: ${result.workspaceId})`
+    : `✅ Demo company created (Company: ${result.companyId})`
+  );
+
+  // Return the legacy company for backward compatibility
+  return await prisma.company.findUnique({ where: { id: result.companyId } })!;
+}
+
+async function createUserIfMissing(
+  email: string,
+  role: string,
+  companyId: string,
+  password: string,
+  name?: string,
+  workspaceId?: string,
+  accountId?: string
+) {
+  const existing = await prisma.user.findUnique({ where: { email } });
+  if (existing) return existing;
+
+  // Use dual-write service
+  const result = await createUserDualWrite({
+    email,
+    password,
+    name: name || email,
+    role,
+    companyId,
+    workspaceId,
+    accountId
+  });
+
+  console.log(FEATURE_FLAGS.USE_V4_DUAL_WRITE && workspaceId
+    ? `✅ User ${email} created (legacy: ${result.userId}, v4.1: ${result.globalUserId})`
+    : `✅ User ${email} created (legacy: ${result.userId})`
+  );
+
+  // Return the legacy user for backward compatibility
+  return await prisma.user.findUnique({ where: { id: result.userId } })!;
+}
+
 async function main() {
   console.log('🌱 Starting seed...');
+
+  const systemCompany = await ensureSystemCompany();
+  const demoCompany = await ensureDemoCompany();
+
+  // Get v4.1 workspace and account IDs if dual-write enabled
+  let systemWorkspace: any = null;
+  let systemAccount: any = null;
+  let demoWorkspace: any = null;
+  let demoAccount: any = null;
+
+  if (FEATURE_FLAGS.USE_V4_DUAL_WRITE) {
+    // Find workspaces by slug (matches company slug)
+    systemWorkspace = await (prisma as any).workspace.findUnique({
+      where: { slug: 'system' },
+      include: { accounts: { where: { deleted_at: null }, take: 1 } }
+    });
+    demoWorkspace = await (prisma as any).workspace.findUnique({
+      where: { slug: 'demo' },
+      include: { accounts: { where: { deleted_at: null }, take: 1 } }
+    });
+
+    systemAccount = systemWorkspace?.accounts[0];
+    demoAccount = demoWorkspace?.accounts[0];
+
+    console.log('ℹ️ v4.1 workspaces found:', {
+      system: systemWorkspace?.id,
+      demo: demoWorkspace?.id
+    });
+  }
 
   // 1. Create Admin
   const adminEmail = process.env.SEED_ADMIN_EMAIL || 'admin@cartie.com';
@@ -13,29 +130,100 @@ async function main() {
   const existingAdmin = await prisma.user.findUnique({ where: { email: adminEmail } });
 
   if (!existingAdmin) {
-    const hash = await bcrypt.hash(adminPassword, 10);
-    await prisma.user.create({
-      data: {
-        email: adminEmail,
-        password: hash,
-        name: 'Super Admin',
-        role: 'ADMIN',
-      },
-    });
+    await createUserIfMissing(
+      adminEmail,
+      'ADMIN',
+      systemCompany.id,
+      adminPassword,
+      'Super Admin',
+      systemWorkspace?.id,
+      systemAccount?.id
+    );
     console.log('✅ Admin user created');
   } else {
     console.log('ℹ️ Admin user already exists');
   }
 
+  // 1.1 Create Super Admin (global)
+  const superEmail = process.env.SEED_SUPERADMIN_EMAIL || 'superadmin@cartie.com';
+  const superPassword = process.env.SEED_SUPERADMIN_PASSWORD || 'superadmin123';
+  if (process.env.NODE_ENV === 'production' && !process.env.SEED_SUPERADMIN_PASSWORD) {
+    throw new Error('SEED_SUPERADMIN_PASSWORD is required in production for SUPER_ADMIN seeding');
+  }
+  const existingSuper = await prisma.user.findUnique({ where: { email: superEmail } });
+  if (!existingSuper) {
+    await createUserIfMissing(
+      superEmail,
+      'SUPER_ADMIN',
+      systemCompany.id,
+      superPassword,
+      'Root Super Admin',
+      systemWorkspace?.id,
+      systemAccount?.id
+    );
+    console.log('✅ SUPER_ADMIN user created');
+  } else {
+    console.log('ℹ️ SUPER_ADMIN already exists');
+  }
+
   // 2. Init System Settings
   const settingsCount = await prisma.systemSettings.count();
   if (settingsCount === 0) {
-    await prisma.systemSettings.create({ data: {} });
+    await prisma.systemSettings.create({
+      data: {
+        navigation: {
+          primary: [
+            { key: 'dashboard', label: 'Dashboard', href: '/' },
+            { key: 'requests', label: 'Requests', href: '/requests' },
+            { key: 'inventory', label: 'Inventory', href: '/inventory' }
+          ]
+        },
+        features: {
+          analytics: true,
+          bots: true,
+          inventory: true,
+          b2bRequests: true
+        }
+      } as any
+    });
     console.log('✅ System Settings initialized');
+  } else {
+    await prisma.systemSettings.update({
+      where: { id: 1 },
+      data: {
+        navigation: {
+          primary: [
+            { key: 'dashboard', label: 'Dashboard', href: '/' },
+            { key: 'requests', label: 'Requests', href: '/requests' },
+            { key: 'inventory', label: 'Inventory', href: '/inventory' },
+            { key: 'bots', label: 'Bots', href: '/bots' }
+          ]
+        },
+        features: {
+          analytics: true,
+          bots: true,
+          inventory: true,
+          b2bRequests: true,
+          templates: true
+        }
+      } as any
+    }).catch(() => null);
   }
+
+  // 3. Demo company users
+  await createUserIfMissing('owner@demo.com', 'OWNER', demoCompany.id, 'demo123', 'Demo Owner');
+  await createUserIfMissing('admin@demo.com', 'ADMIN', demoCompany.id, 'demo123', 'Demo Admin');
+  await createUserIfMissing('manager@demo.com', 'MANAGER', demoCompany.id, 'demo123', 'Demo Manager');
+  await createUserIfMissing('dealer@demo.com', 'DEALER', demoCompany.id, 'demo123', 'Demo Dealer');
 
   // 3. Init Generic Entities (Stage D/E)
   await seedEntities();
+  await seedTemplates(demoCompany.id);
+  await seedBots(demoCompany.id);
+  await seedNormalization(demoCompany.id);
+  await seedInventory(demoCompany.id);
+  await seedRequestsAndLeads(demoCompany.id);
+  await seedIntegrationsAndDrafts(demoCompany.id);
 
   console.log('🏁 Seed finished.');
 }
@@ -148,6 +336,385 @@ async function seedEntities() {
       console.log(`   + Created ${def.slug}`);
     }
   }
+}
+
+async function seedTemplates(companyId: string) {
+  console.log('🎭 Seeding templates...');
+  const templates = [
+    {
+      id: 'template_lead_capture',
+      name: 'Lead Capture Bot',
+      category: 'LEAD_GEN',
+      description: 'Collects contact info and request details',
+      isPremium: false,
+      structure: {
+        nodes: [
+          { id: 'greet', type: 'MESSAGE', text: 'Hi! I will collect your request.', nextNode: 'ask_name' },
+          { id: 'ask_name', type: 'ASK_INPUT', text: 'Your name?', variable: 'name', nextNode: 'ask_phone' },
+          { id: 'ask_phone', type: 'ASK_INPUT', text: 'Phone?', variable: 'phone', nextNode: 'ask_need' },
+          { id: 'ask_need', type: 'ASK_INPUT', text: 'Describe what you need', variable: 'need', nextNode: 'confirm' },
+          { id: 'confirm', type: 'MESSAGE', text: 'Thanks, we will contact you soon.', actions: ['SAVE_LEAD'] }
+        ]
+      }
+    },
+    {
+      id: 'template_catalog',
+      name: 'Car Catalog',
+      category: 'E_COMMERCE',
+      description: 'Browse inventory and request contact',
+      isPremium: false,
+      structure: {
+        nodes: [
+          { id: 'menu', type: 'MENU', text: 'Choose action', buttons: [{ text: 'Browse', action: 'show_cars' }, { text: 'Search', action: 'search_cars' }] },
+          { id: 'search_cars', type: 'SEARCH_CARS', text: 'Enter brand or model', nextNode: 'show_results' },
+          { id: 'show_results', type: 'SHOW_CARS', text: 'Results', actions: ['SHOW_DETAILS', 'IM_INTERESTED'] }
+        ]
+      }
+    },
+    {
+      id: 'template_b2b',
+      name: 'B2B Request Handler',
+      category: 'B2B',
+      description: 'Collects dealer intent and saves request',
+      isPremium: true,
+      structure: {
+        nodes: [
+          { id: 'ask_need', type: 'ASK_INPUT', text: 'Send your request (budget, specs)', variable: 'raw', nextNode: 'confirm' },
+          { id: 'confirm', type: 'MESSAGE', text: 'We are processing your request', actions: ['SAVE_REQUEST'] }
+        ]
+      }
+    }
+  ];
+
+  for (const tpl of templates) {
+    await prisma.scenarioTemplate.upsert({
+      where: { id: tpl.id },
+      create: tpl as any,
+      update: {
+        name: tpl.name,
+        category: tpl.category,
+        description: tpl.description,
+        structure: tpl.structure,
+        isPremium: tpl.isPremium
+      }
+    });
+  }
+
+  // attach templates to company
+  for (const tpl of templates) {
+    const existing = await prisma.companyTemplate.findFirst({
+      where: { companyId: companyId, templateId: tpl.id }
+    });
+    if (!existing) {
+      await prisma.companyTemplate.create({
+        data: {
+          companyId: companyId,
+          templateId: tpl.id
+        }
+      });
+    }
+  }
+  console.log('✅ Templates seeded');
+}
+
+async function seedBots(companyId: string) {
+  console.log('🤖 Seeding bots...');
+  const bots = [
+    {
+      id: 'bot_demo_polling',
+      name: 'Demo Polling Bot',
+      template: 'CLIENT_LEAD',
+      token: 'demo-bot-token-1',
+      deliveryMode: 'POLLING',
+      isEnabled: true,
+      config: {
+        username: 'demo_polling_bot',
+        role: 'CLIENT',
+        menuConfig: { enabled: true },
+        deliveryMode: 'polling'
+      }
+    },
+    {
+      id: 'bot_demo_webhook',
+      name: 'Demo Webhook Bot',
+      template: 'CATALOG',
+      token: 'demo-bot-token-2',
+      deliveryMode: 'WEBHOOK',
+      isEnabled: true,
+      config: {
+        username: 'demo_webhook_bot',
+        role: 'CHANNEL',
+        publicBaseUrl: 'https://demo.cartie.local/bot',
+        webhookSecret: 'demo-secret',
+        deliveryMode: 'webhook'
+      }
+    }
+  ];
+
+  for (const bot of bots) {
+    await prisma.botConfig.upsert({
+      where: { id: bot.id },
+      create: { ...bot, companyId },
+      update: {
+        name: bot.name,
+        template: bot.template as any,
+        token: bot.token,
+        deliveryMode: bot.deliveryMode as any,
+        isEnabled: bot.isEnabled,
+        config: bot.config as any
+      }
+    });
+  }
+  console.log('✅ Bots seeded');
+}
+
+async function seedNormalization(companyId: string) {
+  console.log('🧭 Seeding normalization aliases...');
+  const aliases = [
+    { type: 'brand', alias: 'БМВ', canonical: 'BMW' },
+    { type: 'brand', alias: 'Мерседес', canonical: 'Mercedes-Benz' },
+    { type: 'brand', alias: 'мерседес', canonical: 'Mercedes-Benz' },
+    { type: 'brand', alias: 'БМВ ', canonical: 'BMW' },
+    { type: 'city', alias: 'Киев', canonical: 'Kyiv' },
+    { type: 'city', alias: 'Київ', canonical: 'Kyiv' },
+    { type: 'city', alias: 'Lviv', canonical: 'Lviv' }
+  ];
+
+  for (const entry of aliases) {
+    await prisma.normalizationAlias.upsert({
+      where: { type_alias_companyId: { type: entry.type as any, alias: entry.alias, companyId } },
+      create: { ...entry, companyId } as any,
+      update: { canonical: entry.canonical }
+    });
+  }
+  console.log('✅ Normalization seeded');
+}
+
+async function seedInventory(companyId: string) {
+  console.log('🚗 Seeding inventory...');
+  const cars = [
+    {
+      id: 'car_demo_1',
+      title: 'BMW 320d xDrive',
+      price: 18000,
+      currency: 'USD',
+      year: 2018,
+      mileage: 85000,
+      location: 'Kyiv',
+      status: 'AVAILABLE',
+      mediaUrls: ['https://picsum.photos/seed/bmw1/600/400'],
+      specs: { fuel: 'diesel', transmission: 'automatic' }
+    },
+    {
+      id: 'car_demo_2',
+      title: 'Mercedes C200',
+      price: 21000,
+      currency: 'USD',
+      year: 2019,
+      mileage: 65000,
+      location: 'Lviv',
+      status: 'AVAILABLE',
+      mediaUrls: ['https://picsum.photos/seed/merc1/600/400'],
+      specs: { fuel: 'petrol', transmission: 'automatic' }
+    },
+    {
+      id: 'car_demo_3',
+      title: 'VW Golf 7',
+      price: 12000,
+      currency: 'USD',
+      year: 2016,
+      mileage: 110000,
+      location: 'Kyiv',
+      status: 'AVAILABLE',
+      mediaUrls: ['https://picsum.photos/seed/vwgolf/600/400'],
+      specs: { fuel: 'petrol', transmission: 'manual' }
+    }
+  ];
+
+  for (const car of cars) {
+    await prisma.carListing.upsert({
+      where: { id: car.id },
+      create: { ...car, companyId, source: 'MANUAL' },
+      update: {
+        title: car.title,
+        price: car.price,
+        mileage: car.mileage,
+        status: car.status,
+        location: car.location
+      }
+    });
+  }
+  console.log('✅ Inventory seeded');
+}
+
+async function seedRequestsAndLeads(companyId: string) {
+  console.log('📨 Seeding requests, variants, leads...');
+  const requests = [
+    {
+      id: 'req_demo_1',
+      title: 'Нужен BMW 3-series 2018+',
+      description: 'Бюджет до 20k, автомат, дизель',
+      status: 'COLLECTING_VARIANTS',
+      priority: 'HIGH',
+      companyId,
+      variants: [
+        {
+          id: 'var_demo_1',
+          title: 'BMW 320d xDrive',
+          price: 18000,
+          currency: 'USD',
+          status: 'REVIEWED',
+          year: 2018,
+          mileage: 85000,
+          source: 'INVENTORY'
+        },
+        {
+          id: 'var_demo_2',
+          title: 'BMW 318d',
+          price: 16500,
+          currency: 'USD',
+          status: 'SUBMITTED',
+          year: 2017,
+          mileage: 120000,
+          source: 'DEALER'
+        }
+      ]
+    },
+    {
+      id: 'req_demo_2',
+      title: 'Ищу Mercedes C-class 2019+',
+      description: 'Бензин, автомат, до 23k',
+      status: 'SHORTLIST',
+      priority: 'NORMAL',
+      companyId,
+      variants: [
+        {
+          id: 'var_demo_3',
+          title: 'Mercedes C200',
+          price: 21000,
+          currency: 'USD',
+          status: 'APPROVED',
+          year: 2019,
+          mileage: 65000,
+          source: 'INVENTORY'
+        }
+      ]
+    }
+  ];
+
+  for (const req of requests) {
+    await prisma.b2bRequest.upsert({
+      where: { id: req.id },
+      create: {
+        ...req,
+        variants: {
+          create: req.variants as any
+        }
+      } as any,
+      update: {
+        title: req.title,
+        description: req.description,
+        status: req.status as any
+      }
+    });
+  }
+
+  const leads = [
+    {
+      id: 'lead_demo_1',
+      clientName: 'Ivan Client',
+      phone: '+380501112233',
+      botId: 'bot_demo_polling',
+      status: 'NEW',
+      source: 'demo_polling',
+      payload: { note: 'Interested in BMW' }
+    },
+    {
+      id: 'lead_demo_2',
+      clientName: 'Olena Dealer',
+      phone: '+380671234567',
+      botId: 'bot_demo_webhook',
+      status: 'CONTACTED',
+      source: 'demo_webhook',
+      payload: { note: 'Dealer request' }
+    }
+  ];
+
+  for (const lead of leads) {
+    await prisma.lead.upsert({
+      where: { id: lead.id },
+      create: { ...lead },
+      update: {
+        clientName: lead.clientName,
+        status: lead.status as any,
+        payload: lead.payload as any
+      }
+    });
+  }
+
+  console.log('✅ Requests and leads seeded');
+}
+
+async function seedIntegrationsAndDrafts(companyId: string) {
+  console.log('🔌 Seeding integrations and drafts...');
+
+  const integrations = [
+    {
+      id: 'int_demo_webhook',
+      type: 'WEBHOOK',
+      isActive: true,
+      config: { url: 'https://demo.cartie.local/hooks/lead', secret: 'demo-webhook' }
+    },
+    {
+      id: 'int_demo_telegram',
+      type: 'TELEGRAM_CHANNEL',
+      isActive: true,
+      config: { channelId: '@demo_channel', adminChatId: '@demo_admins' }
+    }
+  ];
+
+  for (const integ of integrations) {
+    await prisma.integration.upsert({
+      where: { id: integ.id },
+      create: { ...integ, companyId } as any,
+      update: { isActive: integ.isActive, config: integ.config as any }
+    });
+  }
+
+  const drafts = [
+    {
+      id: 10001,
+      title: 'BMW 320d пост',
+      source: 'MANUAL',
+      status: 'SCHEDULED',
+      botId: 'bot_demo_polling',
+      scheduledAt: new Date(Date.now() + 3600 * 1000),
+      metadata: { images: ['https://picsum.photos/seed/bmwpost/400/300'] }
+    },
+    {
+      id: 10002,
+      title: 'Mercedes C200 пост',
+      source: 'MANUAL',
+      status: 'POSTED',
+      botId: 'bot_demo_webhook',
+      postedAt: new Date(),
+      metadata: { channel: '@demo_channel' }
+    }
+  ];
+
+  for (const draft of drafts) {
+    await prisma.draft.upsert({
+      where: { id: draft.id },
+      create: draft as any,
+      update: {
+        title: draft.title,
+        status: draft.status,
+        botId: draft.botId
+      }
+    });
+  }
+
+  console.log('✅ Integrations and drafts seeded');
 }
 
 main()
