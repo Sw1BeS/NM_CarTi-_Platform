@@ -20,6 +20,25 @@ const router = Router();
 
 router.use(authenticateToken);
 
+const resolveCompanyId = async (requestedCompanyId?: string | null, userCompanyId?: string | null) => {
+    if (requestedCompanyId) return requestedCompanyId;
+    if (userCompanyId) return userCompanyId;
+
+    const systemById = await prisma.company.findUnique({ where: { id: 'company_system' } });
+    if (systemById) return systemById.id;
+
+    const systemBySlug = await prisma.company.findUnique({ where: { slug: 'system' } });
+    if (systemBySlug) return systemBySlug.id;
+
+    const existing = await prisma.company.findFirst({ orderBy: { createdAt: 'asc' } });
+    if (existing) return existing.id;
+
+    const created = await prisma.company.create({
+        data: { id: 'company_system', name: 'System', slug: 'system', isActive: true }
+    });
+    return created.id;
+};
+
 // --- Bot Management (CRUD) ---
 router.get('/bots', requireRole(['ADMIN']), async (req, res) => {
     const bots = await prisma.botConfig.findMany({ orderBy: { id: 'asc' } });
@@ -35,9 +54,11 @@ router.post('/bots', requireRole(['ADMIN']), async (req, res) => {
     const cleanAdminChatId = data.adminChatId && String(data.adminChatId).trim() !== '' ? String(data.adminChatId).trim() : null;
 
     try {
+        const companyId = await resolveCompanyId(data.companyId, (req as any).user?.companyId || null);
         const newBot = await prisma.botConfig.create({
             data: {
                 ...data,
+                companyId,
                 token: data.token.trim(),
                 channelId: cleanChannelId,
                 adminChatId: cleanAdminChatId,

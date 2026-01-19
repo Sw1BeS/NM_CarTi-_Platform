@@ -45,6 +45,7 @@ export const mapBotInput = (input: any, existingConfig: any = {}) => {
   if ('adminChatId' in input || 'adminChannelId' in input) {
     data.adminChatId = input.adminChatId ?? input.adminChannelId ?? null;
   }
+  if ('companyId' in input) data.companyId = input.companyId || null;
   if ('active' in input) data.isEnabled = !!input.active;
   if ('isEnabled' in input) data.isEnabled = !!input.isEnabled;
 

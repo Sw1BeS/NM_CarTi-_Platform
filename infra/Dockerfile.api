@@ -3,10 +3,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-cert
   && rm -rf /var/lib/apt/lists/*
 WORKDIR /app/server
 
-COPY server/package*.json ./
+COPY apps/server/package*.json ./
 RUN npm install
 
-COPY server ./
+COPY apps/server ./
 
 # IMPORTANT: prisma generate is safe ONLY after schema has models
 RUN npx prisma generate --schema ./prisma/schema.prisma

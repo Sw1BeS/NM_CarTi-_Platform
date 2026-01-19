@@ -1,5 +1,10 @@
 # Cartie2 Deployment Checklist
 
+## Layout
+- `apps/web` — Vite React frontend (build outputs to `apps/web/dist`)
+- `apps/server` — Express/Prisma backend
+- `infra` — docker-compose (prod), Dockerfiles, Caddy
+
 ## Pre-Deployment
 
 ### 1. Environment Setup
@@ -12,12 +17,12 @@
 ### 2. Database
 - [ ] Run migrations: `npx prisma db push`
 - [ ] Verify schema: `npx prisma db pull`
-- [ ] Seed templates: `cd server/prisma/seeds && npm run seed`
+- [ ] Seed templates: `cd apps/server/prisma/seeds && npm run seed`
 - [ ] Update SUPER_ADMIN password (see below)
 
 ### 3. Build
-- [ ] Frontend: `npm run build`
-- [ ] Backend: `cd server && npm run build`
+- [ ] Frontend: `cd apps/web && npm run build`
+- [ ] Backend: `cd apps/server && npm run build`
 - [ ] No TypeScript errors
 - [ ] No ESLint critical warnings
 
@@ -38,12 +43,12 @@ psql -d cartie2 -c "UPDATE \"User\" SET password = '\$2a\$10...' WHERE email = '
 ### Step 2: Start Server
 
 ```bash
-# Production mode
-cd server
-NODE_ENV=production npm start
+# Production mode (after build)
+cd apps/server
+NODE_ENV=production node dist/index.js
 
-# With PM2 (recommended)
-pm2 start server/src/index.js --name cartie2-server
+# With PM2 (recommended, after build)
+pm2 start apps/server/dist/index.js --name cartie2-server
 pm2 save
 pm2 startup
 ```

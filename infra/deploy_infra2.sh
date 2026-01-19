@@ -5,8 +5,8 @@ REPO_DIR="${REPO_DIR:-/srv/cartie/apps/cartie2_repo}"
 PROJECT="${PROJECT:-infra2}"
 BRANCH="${BRANCH:-main}"
 
-# Use label-derived compose if available; fallback to prod symlink path
-COMPOSE_FALLBACK="${COMPOSE_FALLBACK:-/srv/cartie/infra/docker-compose.cartie2.prod.yml}"
+# Use label-derived compose if available; fallback to repo prod compose
+COMPOSE_FALLBACK="${COMPOSE_FALLBACK:-/srv/cartie/apps/cartie2_repo/infra/docker-compose.cartie2.prod.yml}"
 
 ts_utc() { date -u +%Y-%m-%dT%H:%M:%SZ; }
 die() { echo "[DEPLOY] ERROR: $*" >&2; exit 2; }
