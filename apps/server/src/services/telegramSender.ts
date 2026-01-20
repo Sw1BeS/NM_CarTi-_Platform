@@ -35,12 +35,15 @@ class Sender {
       const desc = e?.response?.data?.description || e.message;
       const retryAfter = e?.response?.data?.parameters?.retry_after;
 
-      if (status === 429 && retryAfter && attempt < 3) {
-        await wait((retryAfter * 1000) + 200);
-        return this.call<T>(token, method, payload, attempt + 1);
+      if (status === 429) {
+        const delay = retryAfter ? (retryAfter * 1000) + 500 : 5000;
+        if (attempt < 5) {
+          await wait(delay);
+          return this.call<T>(token, method, payload, attempt + 1);
+        }
       }
-      if (attempt < 2) {
-        await wait(500 * (attempt + 1));
+      if (attempt < 3) {
+        await wait(1000 * (attempt + 1));
         return this.call<T>(token, method, payload, attempt + 1);
       }
       throw new Error(desc || 'Telegram send failed');

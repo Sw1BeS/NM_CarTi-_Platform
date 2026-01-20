@@ -331,6 +331,13 @@ model CarListing {
   status      String   @default("AVAILABLE") // AVAILABLE, RESERVED, SOLD, PENDING, HIDDEN
   companyId   String?
   postedAt    DateTime @default(now())
+  
+  // MTProto Sync Fields
+  sourceChatId    String?
+  sourceMessageId Int?
+  mediaGroupKey   String?
+  originalRaw     Json?     @db.JsonB // Store original raw message for debug/re-parse
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -338,6 +345,66 @@ model CarListing {
   @@index([year])
   @@index([status])
   @@index([companyId])
+  @@unique([sourceChatId, sourceMessageId]) // Dedup by source
+}
+
+model MTProtoConnector {
+  id            String   @id @default(cuid())
+  name          String
+  status        String   @default("DISCONNECTED") // DISCONNECTED, CONNECTING, READY, ERROR
+  
+  // Credentials (optional overrides)
+  workspaceApiId   Int?
+  workspaceApiHash String?
+  
+  // Session
+  sessionString String?  // Store securely
+  phone         String?
+  
+  // Ownership
+  companyId     String
+  workspace     Workspace @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  // Meta
+  connectedAt       DateTime?
+  lastHealthCheckAt DateTime?
+  lastError         String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  channelSources ChannelSource[]
+
+  @@index([companyId])
+}
+
+model ChannelSource {
+  id          String   @id @default(cuid())
+  connectorId String
+  connector   MTProtoConnector @relation(fields: [connectorId], references: [id], onDelete: Cascade)
+
+  channelId   String   // Telegram Channel ID
+  username    String?
+  title       String
+
+  // Import Config
+  // { 
+  //   autoPublish: boolean, 
+  //   filterKeywords: string[], 
+  //   minYear: number, 
+  //   mapTo: { brand: 'BMW' } 
+  // }
+  importRules Json?    @db.JsonB 
+  
+  status      String   @default("ACTIVE") // ACTIVE, PAUSED, ERROR
+  lastSyncedAt DateTime?
+  lastMessageId Int?   // Checkpoint for backfill/sync
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([connectorId, channelId])
+  @@index([status])
 }
 
 model ChannelPost {
@@ -506,6 +573,8 @@ model SystemSettings {
   metaTestCode  String?
   navigation    Json?
   features      Json?
+  branding      Json?
+  modules       Json?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 }
@@ -615,6 +684,7 @@ model Workspace {
   partnerUsers         PartnerUser[]
   normalizationAliases NormalizationAlias[]
   platformEvents       PlatformEvent[]
+  mtProtoConnectors    MTProtoConnector[]
 
   @@index([deleted_at])
   @@map("workspaces")

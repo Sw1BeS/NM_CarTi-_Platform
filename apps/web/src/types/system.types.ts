@@ -1,97 +1,54 @@
 
-import { Language } from './entities.types';
-
-export type FeatureKey = 'MODULE_SCENARIOS' | 'MODULE_SEARCH' | 'MODULE_CAMPAIGNS' | 'MODULE_WHATSAPP' | 'MODULE_INSTAGRAM' | 'MODULE_COMPANIES';
-
-export interface NavItemConfig {
-    id: string;
-    labelKey: string;
-    path: string;
-    iconName: string;
-    visible: boolean;
-    order: number;
-    roles: string[];
-    featureKey?: FeatureKey;
+export interface SystemBranding {
+    primaryColor?: string;
+    logoUrl?: string;
+    faviconUrl?: string;
 }
 
-export interface IntegrationConfig {
-    platform: 'WA' | 'IG';
-    isEnabled: boolean;
-    credentials: {
-        accessToken: string;
-        accountId: string;
-        verifyToken?: string;
-        webhookSecret?: string;
-    };
+export interface SystemModules {
+    scenarios?: boolean;
+    inventory?: boolean;
+    analytics?: boolean;
+    bots?: boolean;
+}
+
+export interface NavigationItem {
+    key: string;
+    label: string;
+    href: string;
+    icon?: string;
+    roles?: string[];
+}
+
+export interface SystemNavigation {
+    primary?: NavigationItem[];
+    secondary?: NavigationItem[];
 }
 
 export interface SystemSettings {
-    adminDestinationId?: string;
-    features?: Partial<Record<FeatureKey, boolean>>;
-    navigation?: NavItemConfig[];
-    integrations?: {
-        wa: IntegrationConfig;
-        ig: IntegrationConfig;
-    };
-    theme?: {
-        primaryColor?: string;
-    };
+    id?: number;
+    branding?: SystemBranding;
+    modules?: SystemModules;
+    navigation?: SystemNavigation;
+    features?: any; // legacy
+    autoriaApiKey?: string;
+    metaPixelId?: string;
+    metaToken?: string;
+    metaTestCode?: string;
+}
+
+export interface DictionaryCollection {
+    id: string;
+    brands: string[];
+    cities: string[];
 }
 
 export interface SystemNotification {
     id: string;
-    type: 'INFO' | 'SUCCESS' | 'ERROR';
-    title: string;
+    type: string;
     message: string;
     read: boolean;
     createdAt: string;
-    link?: string;
-}
-
-export interface DictionaryEntry {
-    key: string;
-    values: string[];
-    metadata?: any;
-}
-
-export interface DictionaryCollection {
-    brands: DictionaryEntry[];
-    cities: DictionaryEntry[];
-}
-
-export interface ChatMacro {
-    id: string;
-    shortcut: string;
-    text: string;
-    category?: string;
-}
-
-export interface Company {
-    id: string;
-    name: string;
-    status: 'ACTIVE' | 'BLOCKED' | 'PENDING';
-    notes?: string;
-    inviteCode?: string;
-    createdAt: string;
-    members?: string[];
-}
-
-export interface PartnerCompany {
-    id: string;
-    name: string;
-    city?: string;
-    contact?: string;
-    notes?: string;
-    companyId?: string;
-}
-
-export interface PartnerUser {
-    id: string;
-    name: string;
-    telegramId?: string;
-    phone?: string;
-    partnerId?: string;
-    companyId?: string;
 }
 
 export interface ActivityLog {
@@ -99,7 +56,6 @@ export interface ActivityLog {
     userId: string;
     action: string;
     details: string;
-    timestamp: string;
     entityType: string;
-    entityId?: string;
+    timestamp: string;
 }

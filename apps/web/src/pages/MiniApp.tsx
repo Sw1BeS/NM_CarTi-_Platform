@@ -7,8 +7,10 @@ import {
     Search, LayoutGrid, User, Plus, Filter, ArrowRight, DollarSign,
     MessageSquare, Zap, List as ListIcon, Star, Phone, Home,
     ChevronRight, MapPin, Calendar, CheckCircle, AlertTriangle, SlidersHorizontal,
-    X, ChevronLeft, ChevronRight as ChevronRightIcon
+    X, ChevronLeft, ChevronRight as ChevronRightIcon, Image as ImageIcon
 } from 'lucide-react';
+
+const PLACEHOLDER_IMAGE = 'https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?auto=format&fit=crop&q=80&w=1000';
 
 type InventoryTab = 'IN_STOCK' | 'IN_TRANSIT';
 
@@ -121,19 +123,17 @@ export const MiniApp = () => {
 
         const titleParts = (car.title || '').split(' ');
         const payload = {
-            type: 'lead',
-            name: tgUser?.first_name || 'User',
+            v: 1,
+            type: 'interest_click',
             carId: car.canonicalId,
-            requestPreset: {
-                brand: titleParts[0] || car.title,
-                model: titleParts.slice(1).join(' ').trim(),
-                year: car.year,
-                budget: car.price?.amount
-            },
-            lang: detectLang()
+            meta: {
+                userId: tgUser?.id,
+                name: tgUser?.first_name,
+                username: tgUser?.username,
+                lang: detectLang()
+            }
         };
 
-        if (tg?.initDataUnsafe?.user?.id) payload.telegramUserId = String(tg.initDataUnsafe.user.id);
         sendLeadPayload(payload);
     };
 
@@ -238,7 +238,13 @@ export const MiniApp = () => {
                     {cars.slice(0, 5).map(car => (
                         <div key={car.canonicalId} className="min-w-[220px] bg-[#1c1c1e] rounded-xl overflow-hidden border border-white/5 shadow-lg">
                             <div className="h-32 bg-gray-800 relative cursor-pointer" onClick={() => { setLightboxCar(car); setLightboxImageIndex(0); }}>
-                                <img src={car.thumbnail} className="w-full h-full object-cover opacity-90" />
+                                {car.thumbnail ? (
+                                    <img src={car.thumbnail} className="w-full h-full object-cover opacity-90" />
+                                ) : (
+                                    <div className="w-full h-full flex items-center justify-center bg-[#2c2c2e] text-white/20">
+                                        <ImageIcon size={32} />
+                                    </div>
+                                )}
                                 <div className="absolute top-2 right-2 bg-black/60 backdrop-blur px-2 py-1 rounded text-[10px] font-bold text-white">
                                     {car.year}
                                 </div>
@@ -270,8 +276,8 @@ export const MiniApp = () => {
                         <button
                             onClick={() => setTab('IN_STOCK')}
                             className={`flex-1 py-2.5 px-4 rounded-lg font-bold text-sm transition-all ${tab === 'IN_STOCK'
-                                    ? 'text-black shadow-lg'
-                                    : 'bg-[#1c1c1e] text-white/50'
+                                ? 'text-black shadow-lg'
+                                : 'bg-[#1c1c1e] text-white/50'
                                 }`}
                             style={tab === 'IN_STOCK' ? { backgroundColor: primaryColor } : {}}
                         >
@@ -280,8 +286,8 @@ export const MiniApp = () => {
                         <button
                             onClick={() => setTab('IN_TRANSIT')}
                             className={`flex-1 py-2.5 px-4 rounded-lg font-bold text-sm transition-all ${tab === 'IN_TRANSIT'
-                                    ? 'text-black shadow-lg'
-                                    : 'bg-[#1c1c1e] text-white/50'
+                                ? 'text-black shadow-lg'
+                                : 'bg-[#1c1c1e] text-white/50'
                                 }`}
                             style={tab === 'IN_TRANSIT' ? { backgroundColor: primaryColor } : {}}
                         >
@@ -399,7 +405,13 @@ export const MiniApp = () => {
                     {filteredCars.map(car => (
                         <div key={car.canonicalId} className="bg-[#1c1c1e] rounded-2xl overflow-hidden border border-white/5 flex flex-col shadow-lg">
                             <div className="h-48 bg-gray-800 relative cursor-pointer" onClick={() => { setLightboxCar(car); setLightboxImageIndex(0); }}>
-                                <img src={car.thumbnail} className="w-full h-full object-cover" />
+                                {car.thumbnail ? (
+                                    <img src={car.thumbnail} className="w-full h-full object-cover" />
+                                ) : (
+                                    <div className="w-full h-full flex items-center justify-center bg-[#2c2c2e] text-white/20">
+                                        <ImageIcon size={48} />
+                                    </div>
+                                )}
                                 <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-4 pt-12">
                                     <h3 className="text-lg font-bold text-white">{car.title}</h3>
                                 </div>
@@ -442,25 +454,29 @@ export const MiniApp = () => {
         } else {
             const tg = (window as any).Telegram?.WebApp;
 
-                    const reqParts = (reqData.brand || '').split(' ');
-                    const payload = {
-                        type: 'lead',
-                        name: tgUser?.first_name || 'User',
-                        requestPreset: {
-                            brand: reqParts[0] || reqData.brand,
-                            model: reqParts.slice(1).join(' ').trim(),
-                            budget: Number(reqData.budget),
-                            year: Number(reqData.year)
-                        },
-                        lang: detectLang()
-                    };
-                    if (tg?.initDataUnsafe?.user?.id) payload.telegramUserId = String(tg.initDataUnsafe.user.id);
-                    if (tg && tg.initData) {
-                        sendLeadPayload(payload);
-                    } else {
-                        alert("[PREVIEW MODE] Data that would be sent to bot:\n" + JSON.stringify(payload, null, 2));
-                        setReqStep(3);
-                    }
+            const reqParts = (reqData.brand || '').split(' ');
+            const payload = {
+                v: 1,
+                type: 'lead_submit',
+                fields: {
+                    name: tgUser?.first_name || 'User',
+                    brand: reqParts[0] || reqData.brand,
+                    model: reqParts.slice(1).join(' ').trim(),
+                    budget: Number(reqData.budget),
+                    year: Number(reqData.year),
+                    lang: detectLang()
+                },
+                meta: {
+                    userId: tgUser?.id,
+                    username: tgUser?.username
+                }
+            };
+            if (tg && tg.initData) {
+                sendLeadPayload(payload);
+            } else {
+                alert("[PREVIEW MODE] Data that would be sent to bot:\n" + JSON.stringify(payload, null, 2));
+                setReqStep(3);
+            }
         }
     };
 
@@ -571,7 +587,7 @@ export const MiniApp = () => {
                     </div>
                     <div className="flex-1 relative flex items-center justify-center">
                         <img
-                            src={(lightboxCar.mediaUrls && lightboxCar.mediaUrls[lightboxImageIndex]) || lightboxCar.thumbnail}
+                            src={(lightboxCar.mediaUrls && lightboxCar.mediaUrls[lightboxImageIndex]) || lightboxCar.thumbnail || PLACEHOLDER_IMAGE}
                             className="max-w-full max-h-full object-contain"
                         />
                         {lightboxCar.mediaUrls && lightboxCar.mediaUrls.length > 1 && (

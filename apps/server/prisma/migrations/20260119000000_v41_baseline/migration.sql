@@ -1,3 +1,6 @@
+-- CreateExtension
+CREATE EXTENSION IF NOT EXISTS "citext";
+
 -- CreateEnum
 CREATE TYPE "BotTemplate" AS ENUM ('CLIENT_LEAD', 'CATALOG', 'B2B');
 

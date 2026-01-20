@@ -1,14 +1,14 @@
 
-import { 
-    User, B2BRequest, Lead, Bot, Scenario, TelegramContent, Campaign, 
-    TelegramMessage, TelegramDestination, CarListing, Company, 
-    SystemSettings, DictionaryCollection, SystemNotification, ActivityLog, Proposal, BotSession 
+import {
+    User, B2BRequest, Lead, Bot, Scenario, TelegramContent, Campaign,
+    TelegramMessage, TelegramDestination, CarListing, Company,
+    SystemSettings, DictionaryCollection, SystemNotification, ActivityLog, Proposal, BotSession
 } from '../types';
 
 export interface DataAdapter {
     // Initialization
     init(): Promise<void>;
-    
+
     // Generic
     getEntity<T>(slug: string, id: string): Promise<T | null>;
     listEntities<T>(slug: string): Promise<T[]>;
@@ -18,7 +18,7 @@ export interface DataAdapter {
     // Domain Specific
     getUsers(): Promise<User[]>;
     saveUser(user: User): Promise<User>;
-    
+
     getRequests(): Promise<B2BRequest[]>;
     saveRequest(req: B2BRequest): Promise<B2BRequest>;
     deleteRequest(id: string): Promise<void>;
@@ -67,7 +67,7 @@ export interface DataAdapter {
 
     getNotifications(): Promise<SystemNotification[]>;
     saveNotification(notif: SystemNotification): Promise<SystemNotification>;
-    
+
     getActivityLogs(): Promise<ActivityLog[]>;
     logActivity(log: ActivityLog): Promise<void>;
 
@@ -79,4 +79,17 @@ export interface DataAdapter {
     createSnapshot(name: string): Promise<any>;
     listSnapshots(): Promise<any[]>;
     restoreSnapshot(id: string): Promise<void>;
+
+    // MTProto
+    getMTProtoConnectors(): Promise<any[]>;
+    createMTProtoConnector(data: any): Promise<any>;
+    deleteMTProtoConnector(id: string): Promise<void>;
+    sendMTProtoCode(connectorId: string, phone: string): Promise<any>;
+    signInMTProto(data: any): Promise<void>;
+
+    getMTProtoChannels(connectorId: string): Promise<any[]>;
+    resolveMTProtoChannel(connectorId: string, query: string): Promise<any>;
+    addMTProtoChannel(connectorId: string, channel: any, importRules: any): Promise<any>;
+    deleteMTProtoChannel(id: string): Promise<void>;
+    syncMTProto(connectorId: string): Promise<void>;
 }

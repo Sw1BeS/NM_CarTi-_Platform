@@ -4,3 +4,4 @@ export * from './entities.types';
 export * from './bot.types';
 export * from './system.types';
 export * from './entities/destination.types';
+export * from './mtproto.types';

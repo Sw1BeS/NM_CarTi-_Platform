@@ -1,14 +1,15 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Data } from '../services/data';
+import { MTProtoConnector } from '../types/mtproto.types';
 import { TelegramAPI } from '../services/telegram';
 import { useToast } from '../contexts/ToastContext';
 import { Bot, Scenario, BotMenuButtonConfig, MiniAppConfig, Campaign, TelegramDestination, ContentStatus } from '../types';
-import { 
-    GitMerge, LayoutGrid, Smartphone, Plus, Trash2, Save, UploadCloud, 
-    Settings, Activity, MessageSquare, Bot as BotIcon, X, Check, Eye, 
+import {
+    GitMerge, LayoutGrid, Smartphone, Plus, Trash2, Save, UploadCloud,
+    Settings, Activity, MessageSquare, Bot as BotIcon, X, Check, Eye,
     Link, Command, Menu, Grid, List as ListIcon, Palette, Image as ImageIcon,
-    Download, Upload, Play, Terminal, ArrowRight, Zap, RefreshCw, Search, 
+    Download, Upload, Play, Terminal, ArrowRight, Zap, RefreshCw, Search,
     ExternalLink, Edit3, Wifi, AlertTriangle, Users, Megaphone, Tag, Filter,
     BarChart3, PieChart, Send, Globe, Radio
 } from 'lucide-react';
@@ -40,7 +41,7 @@ export const TelegramHub = () => {
     const [selectedBotId, setSelectedBotId] = useState<string | null>(null);
     const [isAddBotOpen, setIsAddBotOpen] = useState(false);
     const { showToast } = useToast();
-    
+
     useEffect(() => {
         const load = async () => {
             const list = await Data.getBots();
@@ -64,18 +65,18 @@ export const TelegramHub = () => {
                 <div className="p-5 border-b border-[var(--border-color)] bg-[var(--bg-input)] flex justify-between items-center">
                     <h3 className="font-bold text-[var(--text-primary)]">My Bots</h3>
                     <button onClick={() => setIsAddBotOpen(true)} className="p-1.5 rounded hover:bg-[var(--bg-app)] text-[var(--text-secondary)] hover:text-gold-500 transition-colors">
-                        <Plus size={18}/>
+                        <Plus size={18} />
                     </button>
                 </div>
                 <div className="flex-1 overflow-y-auto p-3 space-y-2">
                     {bots.map(bot => (
-                        <button 
-                            key={bot.id} 
+                        <button
+                            key={bot.id}
                             onClick={() => setSelectedBotId(bot.id)}
                             className={`w-full text-left p-3 rounded-xl flex items-center gap-3 transition-all group ${selectedBotId === bot.id ? 'bg-gold-500/10 border border-gold-500/30' : 'hover:bg-[var(--bg-input)] border border-transparent'}`}
                         >
                             <div className={`w-10 h-10 rounded-full flex items-center justify-center border ${selectedBotId === bot.id ? 'bg-gold-500 text-black border-gold-500' : 'bg-[var(--bg-app)] text-[var(--text-secondary)] border-[var(--border-color)]'}`}>
-                                <BotIcon size={20}/>
+                                <BotIcon size={20} />
                             </div>
                             <div className="flex-1 min-w-0">
                                 <div className={`font-bold text-sm truncate ${selectedBotId === bot.id ? 'text-gold-500' : 'text-[var(--text-primary)]'}`}>{bot.name}</div>
@@ -101,7 +102,7 @@ export const TelegramHub = () => {
                     <BotDashboard bot={selectedBot} />
                 ) : (
                     <div className="flex-1 flex flex-col items-center justify-center text-[var(--text-secondary)] panel opacity-50">
-                        <BotIcon size={64} className="mb-4"/>
+                        <BotIcon size={64} className="mb-4" />
                         <p>Select or add a bot to manage</p>
                     </div>
                 )}
@@ -113,13 +114,14 @@ export const TelegramHub = () => {
 };
 
 const BotDashboard = ({ bot }: { bot: Bot }) => {
-    const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'CAMPAIGNS' | 'AUDIENCE' | 'AUTOMATION' | 'SETTINGS'>('OVERVIEW');
-    
+    const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'CAMPAIGNS' | 'AUDIENCE' | 'AUTOMATION' | 'SETTINGS' | 'SOURCES'>('OVERVIEW');
+
     return (
         <div className="flex flex-col h-full gap-4">
             <div className="panel p-2 flex items-center justify-between shrink-0">
                 <div className="flex gap-1 overflow-x-auto hide-scrollbar">
                     <TabBtn active={activeTab === 'OVERVIEW'} onClick={() => setActiveTab('OVERVIEW')} icon={Activity} label="Overview" />
+                    <TabBtn active={activeTab === 'SOURCES'} onClick={() => setActiveTab('SOURCES')} icon={Wifi} label="Sources" />
                     <TabBtn active={activeTab === 'CAMPAIGNS'} onClick={() => setActiveTab('CAMPAIGNS')} icon={Megaphone} label="Broadcasts" />
                     <TabBtn active={activeTab === 'AUDIENCE'} onClick={() => setActiveTab('AUDIENCE')} icon={Users} label="Audience" />
                     <div className="w-px h-6 bg-[var(--border-color)] mx-2 self-center"></div>
@@ -133,6 +135,7 @@ const BotDashboard = ({ bot }: { bot: Bot }) => {
 
             <div className="flex-1 panel overflow-hidden p-0 relative bg-[var(--bg-app)] border border-[var(--border-color)]">
                 {activeTab === 'OVERVIEW' && <BotOverview bot={bot} />}
+                {activeTab === 'SOURCES' && <MTProtoManager bot={bot} />}
                 {activeTab === 'CAMPAIGNS' && <CampaignManager bot={bot} />}
                 {activeTab === 'AUDIENCE' && <AudienceManager bot={bot} />}
                 {activeTab === 'AUTOMATION' && <AutomationSuite bot={bot} />}
@@ -143,11 +146,11 @@ const BotDashboard = ({ bot }: { bot: Bot }) => {
 };
 
 const TabBtn = ({ active, onClick, icon: Icon, label }: any) => (
-    <button 
+    <button
         onClick={onClick}
         className={`px-4 py-2.5 rounded-lg text-sm font-bold flex items-center gap-2 transition-all whitespace-nowrap ${active ? 'bg-[var(--bg-input)] text-[var(--text-primary)] shadow-sm border border-[var(--border-color)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-input)]'}`}
     >
-        <Icon size={16} className={active ? 'text-gold-500' : ''}/> {label}
+        <Icon size={16} className={active ? 'text-gold-500' : ''} /> {label}
     </button>
 );
 
@@ -163,11 +166,11 @@ const BotOverview = ({ bot }: { bot: Bot }) => {
         Data.getCampaigns().then(all => setCampaigns(all.filter(c => c.botId === bot.id)));
         Data.getMessages().then(setMessages);
     }, [bot.id]);
-    
+
     return (
         <div className="p-8 overflow-y-auto h-full">
             <h2 className="text-2xl font-bold text-[var(--text-primary)] mb-6">Performance Overview</h2>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                 <StatCard title="Total Subscribers" value={destinations.length} icon={Users} color="text-blue-500" />
                 <StatCard title="Messages Processed" value={messages.length} icon={MessageSquare} color="text-green-500" />
@@ -187,10 +190,9 @@ const BotOverview = ({ bot }: { bot: Bot }) => {
                                         Sent: {c.progress.sent} / {c.progress.total}
                                     </div>
                                 </div>
-                                <span className={`text-[10px] font-bold px-2 py-1 rounded uppercase ${
-                                    c.status === 'RUNNING' ? 'bg-blue-500/20 text-blue-500' :
+                                <span className={`text-[10px] font-bold px-2 py-1 rounded uppercase ${c.status === 'RUNNING' ? 'bg-blue-500/20 text-blue-500' :
                                     c.status === 'COMPLETED' ? 'bg-green-500/20 text-green-500' : 'bg-gray-500/20 text-gray-500'
-                                }`}>{c.status}</span>
+                                    }`}>{c.status}</span>
                             </div>
                         ))}
                         {campaigns.length === 0 && <div className="text-center text-[var(--text-secondary)] text-sm py-4">No campaigns yet</div>}
@@ -222,7 +224,7 @@ const CampaignManager = ({ bot }: { bot: Bot }) => {
     useEffect(() => {
         const load = async () => {
             const all = await Data.getCampaigns();
-            setCampaigns(all.filter(c => c.botId === bot.id).sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+            setCampaigns(all.filter(c => c.botId === bot.id).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
         };
         load();
         const sub = Data.subscribe('UPDATE_CAMPAIGNS', load);
@@ -274,7 +276,7 @@ const CampaignManager = ({ bot }: { bot: Bot }) => {
                     <p className="text-xs text-[var(--text-secondary)]">Manage bulk messaging</p>
                 </div>
                 <button onClick={() => setIsCreateOpen(true)} className="btn-primary text-sm px-4 py-2 flex items-center gap-2">
-                    <Plus size={16}/> New Campaign
+                    <Plus size={16} /> New Campaign
                 </button>
             </div>
 
@@ -301,9 +303,9 @@ const CampaignManager = ({ bot }: { bot: Bot }) => {
                             <div className={`h-full transition-all duration-500 ${camp.status === 'FAILED' ? 'bg-red-500' : 'bg-gold-500'}`} style={{ width: `${(camp.progress.sent / (camp.progress.total || 1)) * 100}%` }}></div>
                         </div>
                         <div className="flex gap-4 text-xs text-[var(--text-secondary)]">
-                            <div className="flex items-center gap-1"><Check size={14} className="text-green-500"/> {camp.progress.sent} Sent</div>
-                            <div className="flex items-center gap-1"><AlertTriangle size={14} className="text-red-500"/> {camp.progress.failed} Failed</div>
-                            <div className="flex items-center gap-1"><Users size={14} className="text-blue-500"/> {camp.progress.total} Total</div>
+                            <div className="flex items-center gap-1"><Check size={14} className="text-green-500" /> {camp.progress.sent} Sent</div>
+                            <div className="flex items-center gap-1"><AlertTriangle size={14} className="text-red-500" /> {camp.progress.failed} Failed</div>
+                            <div className="flex items-center gap-1"><Users size={14} className="text-blue-500" /> {camp.progress.total} Total</div>
                         </div>
                     </div>
                 ))}
@@ -330,7 +332,7 @@ const CreateCampaignModal = ({ onClose, onCreate }: any) => {
             <div className="panel w-full max-w-lg p-8 animate-slide-up shadow-2xl">
                 <div className="flex justify-between items-center mb-6">
                     <h3 className="font-bold text-xl text-[var(--text-primary)]">New Broadcast</h3>
-                    <button onClick={onClose}><X size={20} className="text-[var(--text-secondary)]"/></button>
+                    <button onClick={onClose}><X size={20} className="text-[var(--text-secondary)]" /></button>
                 </div>
                 <div className="space-y-4">
                     <div>
@@ -352,8 +354,8 @@ const CreateCampaignModal = ({ onClose, onCreate }: any) => {
                 </div>
                 <div className="flex justify-end gap-3 mt-8">
                     <button onClick={onClose} className="btn-ghost">Cancel</button>
-                    <button onClick={() => onCreate({name, message, tag})} disabled={!name || !message} className="btn-primary px-6 flex items-center gap-2">
-                        <Send size={16}/> Launch
+                    <button onClick={() => onCreate({ name, message, tag })} disabled={!name || !message} className="btn-primary px-6 flex items-center gap-2">
+                        <Send size={16} /> Launch
                     </button>
                 </div>
             </div>
@@ -397,7 +399,7 @@ const AudienceManager = ({ bot }: { bot: Bot }) => {
         <div className="h-full flex flex-col">
             <div className="p-4 border-b border-[var(--border-color)] flex gap-4 bg-[var(--bg-panel)]">
                 <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)]" size={18}/>
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)]" size={18} />
                     <input className="input pl-10" placeholder="Search users..." value={search} onChange={e => setSearch(e.target.value)} />
                 </div>
             </div>
@@ -434,7 +436,7 @@ const AudienceManager = ({ bot }: { bot: Bot }) => {
                     <div className="w-80 border-l border-[var(--border-color)] bg-[var(--bg-panel)] p-6 overflow-y-auto shadow-xl z-10 animate-slide-up">
                         <div className="flex justify-between items-center mb-6">
                             <h3 className="font-bold text-[var(--text-primary)]">User Details</h3>
-                            <button onClick={() => setEditingUser(null)}><X size={18} className="text-[var(--text-secondary)]"/></button>
+                            <button onClick={() => setEditingUser(null)}><X size={18} className="text-[var(--text-secondary)]" /></button>
                         </div>
                         <div className="mb-6 text-center">
                             <div className="w-16 h-16 bg-[var(--bg-input)] rounded-full mx-auto flex items-center justify-center text-2xl font-bold text-[var(--text-secondary)] mb-2 border border-[var(--border-color)]">{editingUser.name?.[0]}</div>
@@ -448,7 +450,7 @@ const AudienceManager = ({ bot }: { bot: Bot }) => {
                                     {editingUser.tags.map(t => (
                                         <span key={t} className="bg-gold-500/10 text-gold-500 px-2 py-1 rounded text-xs border border-gold-500/30 flex items-center gap-1">
                                             {t}
-                                            <button onClick={() => removeTag(t)}><X size={12}/></button>
+                                            <button onClick={() => removeTag(t)}><X size={12} /></button>
                                         </span>
                                     ))}
                                 </div>
@@ -481,7 +483,7 @@ const AutomationSuite = ({ bot }: { bot: Bot }) => {
                 <button onClick={() => setSubTab('FLOWS')} className={`px-6 py-3 text-sm font-bold border-b-2 transition-colors ${subTab === 'FLOWS' ? 'border-gold-500 text-[var(--text-primary)]' : 'border-transparent text-[var(--text-secondary)]'}`}>Scenario Builder</button>
                 <button onClick={() => setSubTab('APP')} className={`px-6 py-3 text-sm font-bold border-b-2 transition-colors ${subTab === 'APP' ? 'border-gold-500 text-[var(--text-primary)]' : 'border-transparent text-[var(--text-secondary)]'}`}>Mini App</button>
             </div>
-            
+
             <div className="flex-1 overflow-hidden relative">
                 {subTab === 'MENU' && <UnifiedMenuManager bot={bot} onEditFlow={handleQuickEdit} />}
                 {subTab === 'FLOWS' && <ScenarioBuilder />}
@@ -518,16 +520,16 @@ const UnifiedMenuManager = ({ bot, onEditFlow }: { bot: Bot, onEditFlow: (id: st
             // Respect publicBaseUrl if set, otherwise use current origin (for localhost fallback)
             const baseUrl = bot.publicBaseUrl || window.location.origin;
             const appUrl = `${baseUrl}/#/p/app`;
-            
+
             await TelegramAPI.setChatMenuButton(bot.token, "Open App", appUrl);
-            
+
             const commands = scenarios.filter(s => s.isActive && s.triggerCommand).map(s => ({ command: s.triggerCommand, description: s.name }));
             commands.push({ command: 'start', description: 'Restart Bot' });
             commands.push({ command: 'menu', description: 'Open Menu' });
-            
+
             await TelegramAPI.setMyCommands(bot.token, commands);
             showToast("Menu & Commands Synced to Telegram!");
-        } catch(e: any) {
+        } catch (e: any) {
             showToast(e.message, 'error');
         } finally {
             setIsSyncing(false);
@@ -581,33 +583,33 @@ const UnifiedMenuManager = ({ bot, onEditFlow }: { bot: Bot, onEditFlow: (id: st
                                     <button key={btn.id} className="flex-1 bg-[#2B5278] rounded text-[10px] font-bold text-white px-1 py-2 truncate shadow-sm border-b border-[#1c3a57] relative group">
                                         {btn.label}
                                         <div className="absolute inset-0 bg-black/50 hidden group-hover:flex items-center justify-center gap-2 backdrop-blur-[1px] rounded">
-                                            <Settings size={12} className="cursor-pointer"/>
+                                            <Settings size={12} className="cursor-pointer" />
                                         </div>
                                     </button>
                                 ))}
                                 {(!buttonsByRow[rowIdx] || buttonsByRow[rowIdx].length < 3) && (
                                     <button onClick={() => addButton(rowIdx)} className="w-8 flex items-center justify-center bg-[#242F3D] rounded text-white/30 hover:text-white border border-dashed border-white/10 hover:border-white/30">
-                                        <Plus size={14}/>
+                                        <Plus size={14} />
                                     </button>
                                 )}
                             </div>
                         ))}
                     </div>
                 </div>
-                
+
                 <div className="w-full max-w-xl pb-10">
                     <div className="flex justify-between items-center mb-4">
                         <h3 className="font-bold text-[var(--text-primary)]">Configuration</h3>
                         <button onClick={handleSync} disabled={isSyncing} className="btn-primary py-2 px-4 text-xs flex items-center gap-2">
-                            {isSyncing ? <RefreshCw size={14} className="animate-spin"/> : <UploadCloud size={14}/>} Push to Telegram
+                            {isSyncing ? <RefreshCw size={14} className="animate-spin" /> : <UploadCloud size={14} />} Push to Telegram
                         </button>
                     </div>
                     <div className="space-y-4">
                         <div>
                             <label className="text-xs font-bold text-[var(--text-secondary)] uppercase mb-2 block">Welcome Message</label>
-                            <textarea className="textarea h-20" value={menuConfig.welcomeMessage} onChange={e => save({...menuConfig, welcomeMessage: e.target.value})} />
+                            <textarea className="textarea h-20" value={menuConfig.welcomeMessage} onChange={e => save({ ...menuConfig, welcomeMessage: e.target.value })} />
                         </div>
-                        
+
                         <div className="space-y-3">
                             <label className="text-xs font-bold text-[var(--text-secondary)] uppercase block">Button Actions</label>
                             {menuConfig.buttons.map(btn => (
@@ -615,11 +617,11 @@ const UnifiedMenuManager = ({ bot, onEditFlow }: { bot: Bot, onEditFlow: (id: st
                                     <div className="flex-1 grid grid-cols-3 gap-3">
                                         <div>
                                             <label className="text-[9px] text-[var(--text-muted)] uppercase block mb-1">Label</label>
-                                            <input className="input text-xs py-1.5" value={btn.label} onChange={e => updateButton(btn.id, {label: e.target.value})} />
+                                            <input className="input text-xs py-1.5" value={btn.label} onChange={e => updateButton(btn.id, { label: e.target.value })} />
                                         </div>
                                         <div>
                                             <label className="text-[9px] text-[var(--text-muted)] uppercase block mb-1">Type</label>
-                                            <select className="input text-xs py-1.5" value={btn.type} onChange={e => updateButton(btn.id, {type: e.target.value as any})}>
+                                            <select className="input text-xs py-1.5" value={btn.type} onChange={e => updateButton(btn.id, { type: e.target.value as any })}>
                                                 <option value="SCENARIO">Run Scenario</option>
                                                 <option value="LINK">Open Link</option>
                                                 <option value="TEXT">Send Text</option>
@@ -628,16 +630,16 @@ const UnifiedMenuManager = ({ bot, onEditFlow }: { bot: Bot, onEditFlow: (id: st
                                         <div>
                                             <label className="text-[9px] text-[var(--text-muted)] uppercase block mb-1">Target</label>
                                             {btn.type === 'SCENARIO' ? (
-                                                <select className="input text-xs py-1.5" value={btn.value} onChange={e => updateButton(btn.id, {value: e.target.value})}>
+                                                <select className="input text-xs py-1.5" value={btn.value} onChange={e => updateButton(btn.id, { value: e.target.value })}>
                                                     <option value="">Select Flow...</option>
                                                     {scenarios.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                                                 </select>
                                             ) : (
-                                                <input className="input text-xs py-1.5" value={btn.value} onChange={e => updateButton(btn.id, {value: e.target.value})} placeholder={btn.type === 'LINK' ? 'https://' : 'Message'} />
+                                                <input className="input text-xs py-1.5" value={btn.value} onChange={e => updateButton(btn.id, { value: e.target.value })} placeholder={btn.type === 'LINK' ? 'https://' : 'Message'} />
                                             )}
                                         </div>
                                     </div>
-                                    <button onClick={() => deleteButton(btn.id)} className="text-red-500 p-2 hover:bg-red-500/10 rounded mt-4"><Trash2 size={14}/></button>
+                                    <button onClick={() => deleteButton(btn.id)} className="text-red-500 p-2 hover:bg-red-500/10 rounded mt-4"><Trash2 size={14} /></button>
                                 </div>
                             ))}
                         </div>
@@ -686,33 +688,33 @@ const MiniAppManager = ({ bot }: { bot: Bot }) => {
             {/* Config Form */}
             <div className="w-[400px] border-r border-[var(--border-color)] overflow-y-auto p-6 bg-[var(--bg-panel)]">
                 <h3 className="font-bold text-lg text-[var(--text-primary)] mb-6 flex items-center gap-2">
-                    <Smartphone size={20} className="text-gold-500"/> App Configuration
+                    <Smartphone size={20} className="text-gold-500" /> App Configuration
                 </h3>
-                
+
                 <div className="space-y-6">
                     <div className="space-y-3">
                         <label className="text-xs font-bold text-[var(--text-secondary)] uppercase">Appearance</label>
                         <div>
                             <span className="text-[10px] text-[var(--text-muted)] block mb-1">App Title</span>
-                            <input className="input" value={config.title} onChange={e => save({...config, title: e.target.value})} />
+                            <input className="input" value={config.title} onChange={e => save({ ...config, title: e.target.value })} />
                         </div>
                         <div>
                             <span className="text-[10px] text-[var(--text-muted)] block mb-1">Welcome Text</span>
-                            <textarea className="textarea h-16" value={config.welcomeText} onChange={e => save({...config, welcomeText: e.target.value})} />
+                            <textarea className="textarea h-16" value={config.welcomeText} onChange={e => save({ ...config, welcomeText: e.target.value })} />
                         </div>
                         <div className="grid grid-cols-2 gap-3">
                             <div>
                                 <span className="text-[10px] text-[var(--text-muted)] block mb-1">Theme Color</span>
                                 <div className="flex gap-2">
-                                    <input type="color" className="h-9 w-9 rounded cursor-pointer bg-transparent border-0" value={config.primaryColor} onChange={e => save({...config, primaryColor: e.target.value})} />
-                                    <input className="input flex-1 font-mono text-xs" value={config.primaryColor} onChange={e => save({...config, primaryColor: e.target.value})} />
+                                    <input type="color" className="h-9 w-9 rounded cursor-pointer bg-transparent border-0" value={config.primaryColor} onChange={e => save({ ...config, primaryColor: e.target.value })} />
+                                    <input className="input flex-1 font-mono text-xs" value={config.primaryColor} onChange={e => save({ ...config, primaryColor: e.target.value })} />
                                 </div>
                             </div>
                             <div>
                                 <span className="text-[10px] text-[var(--text-muted)] block mb-1">Layout</span>
                                 <div className="flex bg-[var(--bg-input)] p-1 rounded-lg border border-[var(--border-color)]">
-                                    <button onClick={() => save({...config, layout: 'GRID'})} className={`flex-1 py-1 rounded text-xs font-bold flex justify-center ${config.layout === 'GRID' ? 'bg-[var(--bg-panel)] text-gold-500 shadow' : 'text-[var(--text-muted)]'}`}><Grid size={14}/></button>
-                                    <button onClick={() => save({...config, layout: 'LIST'})} className={`flex-1 py-1 rounded text-xs font-bold flex justify-center ${config.layout === 'LIST' ? 'bg-[var(--bg-panel)] text-gold-500 shadow' : 'text-[var(--text-muted)]'}`}><ListIcon size={14}/></button>
+                                    <button onClick={() => save({ ...config, layout: 'GRID' })} className={`flex-1 py-1 rounded text-xs font-bold flex justify-center ${config.layout === 'GRID' ? 'bg-[var(--bg-panel)] text-gold-500 shadow' : 'text-[var(--text-muted)]'}`}><Grid size={14} /></button>
+                                    <button onClick={() => save({ ...config, layout: 'LIST' })} className={`flex-1 py-1 rounded text-xs font-bold flex justify-center ${config.layout === 'LIST' ? 'bg-[var(--bg-panel)] text-gold-500 shadow' : 'text-[var(--text-muted)]'}`}><ListIcon size={14} /></button>
                                 </div>
                             </div>
                         </div>
@@ -721,39 +723,39 @@ const MiniAppManager = ({ bot }: { bot: Bot }) => {
                     <div className="space-y-3">
                         <div className="flex justify-between items-center">
                             <label className="text-xs font-bold text-[var(--text-secondary)] uppercase">Home Actions</label>
-                            <button onClick={addAction} className="text-gold-500 hover:bg-gold-500/10 p-1 rounded"><Plus size={16}/></button>
+                            <button onClick={addAction} className="text-gold-500 hover:bg-gold-500/10 p-1 rounded"><Plus size={16} /></button>
                         </div>
-                        
+
                         {config.actions.map((act, idx) => (
                             <div key={act.id} className="bg-[var(--bg-input)] p-3 rounded-xl border border-[var(--border-color)] space-y-3">
                                 <div className="flex justify-between items-center">
                                     <span className="text-[10px] font-bold bg-[var(--bg-panel)] px-2 py-0.5 rounded text-[var(--text-secondary)]">Action {idx + 1}</span>
-                                    <button onClick={() => removeAction(act.id)} className="text-red-500 hover:text-red-400"><Trash2 size={12}/></button>
+                                    <button onClick={() => removeAction(act.id)} className="text-red-500 hover:text-red-400"><Trash2 size={12} /></button>
                                 </div>
                                 <div className="grid grid-cols-2 gap-2">
-                                    <input className="input text-xs" placeholder="Label" value={act.label} onChange={e => updateAction(act.id, {label: e.target.value})} />
-                                    <select className="input text-xs" value={act.icon} onChange={e => updateAction(act.id, {icon: e.target.value})}>
+                                    <input className="input text-xs" placeholder="Label" value={act.label} onChange={e => updateAction(act.id, { label: e.target.value })} />
+                                    <select className="input text-xs" value={act.icon} onChange={e => updateAction(act.id, { icon: e.target.value })}>
                                         {ICONS.map(i => <option key={i} value={i}>{i}</option>)}
                                     </select>
                                 </div>
                                 <div className="flex gap-2">
-                                    <select className="input text-xs w-24 shrink-0" value={act.actionType} onChange={e => updateAction(act.id, {actionType: e.target.value})}>
+                                    <select className="input text-xs w-24 shrink-0" value={act.actionType} onChange={e => updateAction(act.id, { actionType: e.target.value })}>
                                         <option value="SCENARIO">Flow</option>
                                         <option value="VIEW">View</option>
                                         <option value="LINK">Link</option>
                                     </select>
                                     {act.actionType === 'SCENARIO' ? (
-                                        <select className="input text-xs flex-1" value={act.value} onChange={e => updateAction(act.id, {value: e.target.value})}>
+                                        <select className="input text-xs flex-1" value={act.value} onChange={e => updateAction(act.id, { value: e.target.value })}>
                                             <option value="">Select Flow...</option>
                                             {scenarios.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                                         </select>
                                     ) : act.actionType === 'VIEW' ? (
-                                        <select className="input text-xs flex-1" value={act.value} onChange={e => updateAction(act.id, {value: e.target.value})}>
+                                        <select className="input text-xs flex-1" value={act.value} onChange={e => updateAction(act.id, { value: e.target.value })}>
                                             <option value="REQUEST">Request Form</option>
                                             <option value="INVENTORY">Inventory</option>
                                         </select>
                                     ) : (
-                                        <input className="input text-xs flex-1" placeholder="URL" value={act.value} onChange={e => updateAction(act.id, {value: e.target.value})} />
+                                        <input className="input text-xs flex-1" placeholder="URL" value={act.value} onChange={e => updateAction(act.id, { value: e.target.value })} />
                                     )}
                                 </div>
                             </div>
@@ -767,7 +769,7 @@ const MiniAppManager = ({ bot }: { bot: Bot }) => {
                 <div className="w-[320px] h-[640px] bg-[#0E1621] rounded-[40px] border-[8px] border-[#18181B] shadow-2xl overflow-hidden relative flex flex-col">
                     {/* ... (Visual preview same as before, no state/logic needed) */}
                     <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-6 bg-[#18181B] rounded-b-xl z-20"></div>
-                    
+
                     {/* App Header */}
                     <div className="pt-10 px-6 pb-6" style={{ background: `linear-gradient(to bottom, ${config.primaryColor}20, transparent)` }}>
                         <h2 className="text-xl font-bold text-white">{config.title}</h2>
@@ -779,7 +781,7 @@ const MiniAppManager = ({ bot }: { bot: Bot }) => {
                         <div className={`grid gap-3 ${config.layout === 'GRID' ? 'grid-cols-2' : 'grid-cols-1'}`}>
                             {config.actions.map(act => (
                                 <div key={act.id} className="bg-[#182533] p-4 rounded-xl border border-white/5 flex flex-col items-center justify-center gap-2 text-center group cursor-pointer hover:bg-[#202f40] transition-colors">
-                                    <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-white/80 group-hover:text-white group-hover:scale-110 transition-all" style={{color: config.primaryColor}}>
+                                    <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-white/80 group-hover:text-white group-hover:scale-110 transition-all" style={{ color: config.primaryColor }}>
                                         <AppIcon name={act.icon} />
                                     </div>
                                     <span className="text-xs font-bold text-white/90">{act.label}</span>
@@ -791,15 +793,15 @@ const MiniAppManager = ({ bot }: { bot: Bot }) => {
                     {/* Bottom Nav */}
                     <div className="h-16 bg-[#17212B] absolute bottom-0 w-full flex items-center justify-around border-t border-black px-4">
                         <div className="flex flex-col items-center gap-1 opacity-100 text-blue-400">
-                            <LayoutGrid size={20}/>
+                            <LayoutGrid size={20} />
                             <span className="text-[9px]">Home</span>
                         </div>
                         <div className="flex flex-col items-center gap-1 text-white/40">
-                            <Search size={20}/>
+                            <Search size={20} />
                             <span className="text-[9px]">Search</span>
                         </div>
                         <div className="flex flex-col items-center gap-1 text-white/40">
-                            <BotIcon size={20}/>
+                            <BotIcon size={20} />
                             <span className="text-[9px]">Profile</span>
                         </div>
                     </div>
@@ -810,22 +812,22 @@ const MiniAppManager = ({ bot }: { bot: Bot }) => {
 };
 
 const AppIcon = ({ name }: { name: string }) => {
-    switch(name) {
-        case 'Search': return <Search size={20}/>;
-        case 'Zap': return <Zap size={20}/>;
-        case 'DollarSign': return <Command size={20}/>;
-        case 'MessageCircle': return <MessageSquare size={20}/>;
-        case 'Grid': return <LayoutGrid size={20}/>;
-        case 'List': return <ListIcon size={20}/>;
-        case 'Phone': return <Command size={20}/>;
-        default: return <Zap size={20}/>;
+    switch (name) {
+        case 'Search': return <Search size={20} />;
+        case 'Zap': return <Zap size={20} />;
+        case 'DollarSign': return <Command size={20} />;
+        case 'MessageCircle': return <MessageSquare size={20} />;
+        case 'Grid': return <LayoutGrid size={20} />;
+        case 'List': return <ListIcon size={20} />;
+        case 'Phone': return <Command size={20} />;
+        default: return <Zap size={20} />;
     }
 };
 
 const BotSettings = ({ bot }: { bot: Bot }) => {
     const { showToast } = useToast();
     const [form, setForm] = useState(bot);
-    
+
     // Diagnostic stats
     const stats = bot.stats || { processed: 0, ignored: 0, errors: 0, lastRun: '' };
     const lastError = TelegramAPI.lastError;
@@ -867,29 +869,29 @@ const BotSettings = ({ bot }: { bot: Bot }) => {
                 <div className="grid grid-cols-2 gap-6">
                     <div>
                         <label className="text-xs font-bold text-[var(--text-secondary)] uppercase mb-2 block">Bot Name</label>
-                        <input className="input" value={form.name} onChange={e => setForm({...form, name: e.target.value})} />
+                        <input className="input" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
                     </div>
                     <div>
                         <label className="text-xs font-bold text-[var(--text-secondary)] uppercase mb-2 block">Username</label>
-                        <input className="input" value={form.username} onChange={e => setForm({...form, username: e.target.value})} />
+                        <input className="input" value={form.username} onChange={e => setForm({ ...form, username: e.target.value })} />
                     </div>
                 </div>
                 <div>
                     <label className="text-xs font-bold text-[var(--text-secondary)] uppercase mb-2 block">API Token</label>
-                    <input className="input font-mono text-sm" type="password" value={form.token} onChange={e => setForm({...form, token: e.target.value})} />
+                    <input className="input font-mono text-sm" type="password" value={form.token} onChange={e => setForm({ ...form, token: e.target.value })} />
                 </div>
                 <div>
                     <label className="text-xs font-bold text-[var(--text-secondary)] uppercase mb-2 block">Public App Base URL</label>
-                    <input className="input font-mono text-sm" placeholder="https://your-domain.com" value={form.publicBaseUrl || ''} onChange={e => setForm({...form, publicBaseUrl: e.target.value})} />
+                    <input className="input font-mono text-sm" placeholder="https://your-domain.com" value={form.publicBaseUrl || ''} onChange={e => setForm({ ...form, publicBaseUrl: e.target.value })} />
                     {!form.publicBaseUrl && (
                         <div className="text-[10px] text-amber-500 mt-1 flex items-center gap-1">
-                            <AlertTriangle size={10}/> Using current origin. Mini App may not open if local/private.
+                            <AlertTriangle size={10} /> Using current origin. Mini App may not open if local/private.
                         </div>
                     )}
                 </div>
                 <div className="flex items-center justify-between bg-[var(--bg-input)] p-4 rounded-xl">
                     <span className="font-bold text-[var(--text-primary)]">Auto-Sync</span>
-                    <button onClick={() => setForm({...form, active: !form.active})} className={`w-12 h-6 rounded-full relative transition-colors ${form.active ? 'bg-green-500' : 'bg-gray-600'}`}>
+                    <button onClick={() => setForm({ ...form, active: !form.active })} className={`w-12 h-6 rounded-full relative transition-colors ${form.active ? 'bg-green-500' : 'bg-gray-600'}`}>
                         <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${form.active ? 'left-7' : 'left-1'}`}></div>
                     </button>
                 </div>
@@ -901,7 +903,7 @@ const BotSettings = ({ bot }: { bot: Bot }) => {
             {/* DIAGNOSTICS PANEL */}
             <div className="panel p-6 border-blue-500/20 bg-blue-500/5">
                 <div className="flex items-center gap-2 mb-4">
-                    <Activity size={20} className="text-blue-500"/>
+                    <Activity size={20} className="text-blue-500" />
                     <h3 className="font-bold text-blue-500">Diagnostics & Network</h3>
                 </div>
                 <div className="grid grid-cols-2 gap-4 mb-4">
@@ -915,21 +917,21 @@ const BotSettings = ({ bot }: { bot: Bot }) => {
                     </div>
                     {/* ... other stats ... */}
                 </div>
-                
+
                 <div className="grid grid-cols-2 gap-2 mb-4">
                     <button onClick={async () => {
                         try {
                             await TelegramAPI.getMe(form.token);
                             showToast("Connection OK");
-                        } catch(e: any) { showToast(e.message, 'error'); }
+                        } catch (e: any) { showToast(e.message, 'error'); }
                     }} className="btn-secondary text-xs py-1.5">Test Connection</button>
-                    
+
                     <button onClick={() => {
                         form.lastUpdateId = 0;
                         save();
                         showToast("Offset Reset to 0");
                     }} className="btn-secondary text-xs py-1.5">Reset Offset</button>
-                    
+
                     <button onClick={() => {
                         form.processedUpdateIds = [];
                         save();
@@ -937,17 +939,17 @@ const BotSettings = ({ bot }: { bot: Bot }) => {
                     }} className="btn-secondary text-xs py-1.5">Clear Buffer</button>
 
                     <button onClick={handleSyncMenu} className="btn-secondary text-xs py-1.5 flex items-center justify-center gap-1">
-                        <Globe size={12}/> Sync Menu URL
+                        <Globe size={12} /> Sync Menu URL
                     </button>
 
                     <button onClick={handleSyncCommands} className="btn-secondary text-xs py-1.5 flex items-center justify-center gap-1">
-                        <Terminal size={12}/> Sync Commands
+                        <Terminal size={12} /> Sync Commands
                     </button>
                 </div>
 
                 {lastError && (
                     <div className="bg-red-500/10 border border-red-500/20 p-3 rounded-lg flex items-start gap-2">
-                        <AlertTriangle size={16} className="text-red-500 shrink-0 mt-0.5"/>
+                        <AlertTriangle size={16} className="text-red-500 shrink-0 mt-0.5" />
                         <div>
                             <div className="text-xs font-bold text-red-500">Last Network Error</div>
                             <div className="text-xs text-red-400 font-mono mt-1 break-all">{lastError}</div>
@@ -955,11 +957,11 @@ const BotSettings = ({ bot }: { bot: Bot }) => {
                     </div>
                 )}
             </div>
-            
+
             <div className="panel p-6 border-red-500/20 bg-red-500/5">
                 <h3 className="font-bold text-red-500 mb-2">Danger Zone</h3>
                 <p className="text-sm text-[var(--text-secondary)] mb-4">Disconnecting the bot will stop all automation.</p>
-                <button onClick={async () => { if(confirm("Disconnect bot?")) { await Data.deleteBot(bot.id); window.location.reload(); } }} className="btn-secondary text-red-500 border-red-500/30 hover:bg-red-500/10">Disconnect Bot</button>
+                <button onClick={async () => { if (confirm("Disconnect bot?")) { await Data.deleteBot(bot.id); window.location.reload(); } }} className="btn-secondary text-red-500 border-red-500/30 hover:bg-red-500/10">Disconnect Bot</button>
             </div>
         </div>
     );
@@ -1000,6 +1002,421 @@ const AddBotModal = ({ onClose }: any) => {
                         <button onClick={handleAdd} className="btn-primary px-6">Connect</button>
                     </div>
                 </div>
+            </div>
+        </div>
+    );
+};
+
+// --- 5. MTPROTO MANAGER ---
+const MTProtoManager = ({ bot }: { bot: Bot }) => {
+    const [connectors, setConnectors] = useState<MTProtoConnector[]>([]);
+    const [isWizardOpen, setIsWizardOpen] = useState(false);
+    const [managingConnector, setManagingConnector] = useState<MTProtoConnector | null>(null);
+    const { showToast } = useToast();
+
+    const load = async () => setConnectors(await Data.getMTProtoConnectors());
+
+    useEffect(() => {
+        load();
+        const sub = Data.subscribe('UPDATE_MTPROTO', load);
+        return sub;
+    }, []);
+
+    const handleDelete = async (id: string) => {
+        if (!confirm('Are you sure you want to disconnect? Session will be terminated.')) return;
+        try {
+            await Data.deleteMTProtoConnector(id);
+            showToast('Disconnected successfully');
+        } catch (e: any) {
+            showToast(e.message, 'error');
+        }
+    };
+
+    return (
+        <div className="h-full flex flex-col">
+            <div className="p-6 border-b border-[var(--border-color)] flex justify-between items-center bg-[var(--bg-panel)]">
+                <div>
+                    <h3 className="font-bold text-lg text-[var(--text-primary)]">Channel Sources</h3>
+                    <p className="text-xs text-[var(--text-secondary)]">Connect Telegram accounts to import content</p>
+                </div>
+                <button onClick={() => setIsWizardOpen(true)} className="btn-primary text-sm px-4 py-2 flex items-center gap-2">
+                    <Plus size={16} /> Connect Account
+                </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                {connectors.map(conn => (
+                    <div key={conn.id} className="panel p-5 flex flex-col gap-4 border-l-4 border-l-blue-500 relative overflow-hidden">
+                        <div className="flex justify-between items-start z-10">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-500">
+                                    <Send size={20} />
+                                </div>
+                                <div>
+                                    <h4 className="font-bold text-[var(--text-primary)]">{conn.name}</h4>
+                                    <div className="text-xs text-[var(--text-secondary)] font-mono">{conn.phone}</div>
+                                </div>
+                            </div>
+                            <div className={`px-2 py-1 rounded text-[10px] font-bold ${conn.status === 'READY' ? 'bg-green-500/10 text-green-500' :
+                                conn.status === 'ERROR' ? 'bg-red-500/10 text-red-500' : 'bg-yellow-500/10 text-yellow-500'
+                                }`}>
+                                {conn.status}
+                            </div>
+                        </div>
+
+                        <div className="flex gap-4 text-xs text-[var(--text-secondary)] z-10">
+                            <div className="flex items-center gap-1"><Activity size={12} /> {conn.workspaceApiId || 'Default API'}</div>
+                            <div className="flex items-center gap-1"><Wifi size={12} /> {conn.sessionString ? 'Active Session' : 'No Session'}</div>
+                        </div>
+
+                        {conn.lastError && (
+                            <div className="bg-red-500/10 p-2 rounded text-xs text-red-500 z-10 break-all">
+                                Error: {conn.lastError}
+                            </div>
+                        )}
+
+                        <div className="pt-2 border-t border-[var(--border-color)] flex justify-end gap-2 z-10">
+                            <button onClick={() => Data.syncMTProto(conn.id)} className="btn-secondary px-3 py-1.5 text-xs flex items-center gap-1">
+                                <RefreshCw size={12} /> Sync
+                            </button>
+                            <button onClick={() => setManagingConnector(conn)} className="btn-secondary px-3 py-1.5 text-xs flex items-center gap-1">
+                                <ListIcon size={12} /> Manage Channels
+                            </button>
+                            <button onClick={() => handleDelete(conn.id)} className="text-red-500 hover:bg-red-500/10 p-1.5 rounded text-xs flex items-center gap-1 transition-colors">
+                                <Trash2 size={12} />
+                            </button>
+                        </div>
+                    </div>
+                ))}
+
+                {connectors.length === 0 && (
+                    <div className="col-span-full py-12 flex flex-col items-center justify-center text-[var(--text-secondary)] opacity-50 border-2 border-dashed border-[var(--border-color)] rounded-xl">
+                        <Wifi size={48} className="mb-4" />
+                        <p>No accounts connected yet.</p>
+                        <button onClick={() => setIsWizardOpen(true)} className="mt-4 text-gold-500 hover:underline">Connect one now</button>
+                    </div>
+                )}
+            </div>
+
+            {isWizardOpen && <MTProtoWizard onResult={load} onClose={() => setIsWizardOpen(false)} />}
+            {managingConnector && <ChannelManagerModal connector={managingConnector} onClose={() => setManagingConnector(null)} />}
+        </div>
+    );
+};
+
+const MTProtoWizard = ({ onResult, onClose }: any) => {
+    const [step, setStep] = useState<'PHONE' | 'CODE' | 'PASSWORD' | 'SUCCESS'>('PHONE');
+    const [loading, setLoading] = useState(false);
+    const { showToast } = useToast();
+
+    // Form Data
+    const [name, setName] = useState('');
+    const [phone, setPhone] = useState('');
+    const [apiId, setApiId] = useState('');
+    const [apiHash, setApiHash] = useState('');
+    const [code, setCode] = useState('');
+    const [password, setPassword] = useState('');
+
+    // State from backend
+    const [connectorId, setConnectorId] = useState<string | null>(null);
+    const [phoneCodeHash, setPhoneCodeHash] = useState<string | null>(null);
+
+    const handleSendCode = async () => {
+        if (!phone) return showToast('Phone required', 'error');
+        setLoading(true);
+        try {
+            // 1. Create Connector
+            const conn = await Data.createMTProtoConnector({ name: name || phone, apiId, apiHash });
+            setConnectorId(conn.id);
+
+            // 2. Send Code
+            const res = await Data.sendMTProtoCode(conn.id, phone);
+            setPhoneCodeHash(res.phoneCodeHash);
+
+            setStep('CODE');
+            showToast('Code sent to Telegram app!');
+        } catch (e: any) {
+            showToast(e.message, 'error');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleSignIn = async () => {
+        if (!code) return showToast('Code required', 'error');
+        setLoading(true);
+        try {
+            await Data.signInMTProto({
+                connectorId,
+                phone,
+                code,
+                phoneCodeHash,
+                password: password || undefined
+            });
+            setStep('SUCCESS');
+            onResult();
+        } catch (e: any) {
+            if (e.message.includes('PASSWORD_NEEDED') || e.message.includes('SESSION_PASSWORD_NEEDED')) {
+                setStep('PASSWORD');
+                showToast('2FA Password required');
+            } else {
+                showToast(e.message, 'error');
+            }
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handlePasswordSignIn = async () => {
+        setLoading(true);
+        try {
+            await Data.signInMTProto({
+                connectorId,
+                phone,
+                code,
+                phoneCodeHash,
+                password
+            });
+            setStep('SUCCESS');
+            onResult();
+        } catch (e: any) {
+            showToast(e.message, 'error');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="panel w-full max-w-md p-8 animate-slide-up shadow-2xl relative overflow-hidden">
+                <div className="flex justify-between items-center mb-6 z-10 relative">
+                    <h3 className="font-bold text-xl text-[var(--text-primary)]">Connect Telegram</h3>
+                    <button onClick={onClose}><X size={20} className="text-[var(--text-secondary)]" /></button>
+                </div>
+
+                {step === 'PHONE' && (
+                    <div className="space-y-4 animate-fade-in">
+                        <div className="bg-blue-500/10 p-3 rounded text-xs text-blue-400 mb-4">
+                            We recommend using a dedicated Telegram account for automations.
+                        </div>
+                        <div>
+                            <label className="text-xs font-bold text-[var(--text-secondary)] uppercase block mb-1">Account Name</label>
+                            <input className="input" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Content Bot" autoFocus />
+                        </div>
+                        <div>
+                            <label className="text-xs font-bold text-[var(--text-secondary)] uppercase block mb-1">Phone Number</label>
+                            <input className="input font-mono" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+1234567890" />
+                        </div>
+                        <div className="pt-2">
+                            <details className="text-xs text-[var(--text-secondary)] cursor-pointer">
+                                <summary>Advanced: Custom API ID/Hash</summary>
+                                <div className="mt-2 space-y-2 p-2 bg-[var(--bg-input)] rounded">
+                                    <input className="input text-xs" value={apiId} onChange={e => setApiId(e.target.value)} placeholder="API ID" />
+                                    <input className="input text-xs" value={apiHash} onChange={e => setApiHash(e.target.value)} placeholder="API Hash" />
+                                </div>
+                            </details>
+                        </div>
+                        <button onClick={handleSendCode} disabled={loading || !phone} className="btn-primary w-full mt-4 flex justify-center items-center gap-2">
+                            {loading ? <RefreshCw className="animate-spin" size={16} /> : <Send size={16} />} Send Code
+                        </button>
+                    </div>
+                )}
+
+                {step === 'CODE' && (
+                    <div className="space-y-4 animate-fade-in">
+                        <div className="text-center mb-4">
+                            <div className="text-sm text-[var(--text-secondary)]">Enter code sent to</div>
+                            <div className="font-bold text-lg font-mono">{phone}</div>
+                        </div>
+                        <input
+                            className="input text-center text-2xl tracking-widest font-mono py-3"
+                            value={code}
+                            onChange={e => setCode(e.target.value)}
+                            placeholder="12345"
+                            maxLength={5}
+                            autoFocus
+                        />
+                        <button onClick={handleSignIn} disabled={loading || !code} className="btn-primary w-full mt-4 flex justify-center items-center gap-2">
+                            {loading ? <RefreshCw className="animate-spin" size={16} /> : <Check size={16} />} Sign In
+                        </button>
+                    </div>
+                )}
+
+                {step === 'PASSWORD' && (
+                    <div className="space-y-4 animate-fade-in">
+                        <div className="text-center mb-4 text-sm text-[var(--text-secondary)]">
+                            Two-Step Verification is enabled.<br />Please enter your cloud password.
+                        </div>
+                        <input
+                            type="password"
+                            className="input"
+                            value={password}
+                            onChange={e => setPassword(e.target.value)}
+                            placeholder="Password"
+                            autoFocus
+                        />
+                        <button onClick={handlePasswordSignIn} disabled={loading || !password} className="btn-primary w-full mt-4 flex justify-center items-center gap-2">
+                            {loading ? <RefreshCw className="animate-spin" size={16} /> : <Check size={16} />} Confirm Password
+                        </button>
+                    </div>
+                )}
+
+                {step === 'SUCCESS' && (
+                    <div className="text-center py-8 animate-fade-in">
+                        <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-4 text-black shadow-lg shadow-green-500/50">
+                            <Check size={32} strokeWidth={3} />
+                        </div>
+                        <h3 className="text-xl font-bold text-green-500 mb-2">Connected!</h3>
+                        <p className="text-sm text-[var(--text-secondary)] mb-6">Your Telegram account is now ready to use.</p>
+                        <button onClick={onClose} className="btn-primary w-full">Done</button>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
+const ChannelManagerModal = ({ connector, onClose }: { connector: MTProtoConnector, onClose: () => void }) => {
+    const [channels, setChannels] = useState<any[]>([]);
+    const [isAddOpen, setIsAddOpen] = useState(false);
+    const { showToast } = useToast();
+
+    const load = async () => setChannels(await Data.getMTProtoChannels(connector.id));
+
+    useEffect(() => {
+        load();
+        return Data.subscribe('UPDATE_CHANNELS', load);
+    }, [connector.id]);
+
+    const handleDelete = async (id: string) => {
+        if (!confirm('Stop syncing this channel?')) return;
+        try {
+            await Data.deleteMTProtoChannel(id);
+            showToast('Channel removed');
+        } catch (e: any) {
+            showToast(e.message, 'error');
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="panel w-full max-w-2xl p-6 h-[80vh] flex flex-col shadow-2xl relative overflow-hidden">
+                <div className="flex justify-between items-center mb-6 border-b border-[var(--border-color)] pb-4">
+                    <div>
+                        <h3 className="font-bold text-xl text-[var(--text-primary)]">Manage Channels</h3>
+                        <p className="text-xs text-[var(--text-secondary)]">Source channels for {connector.name}</p>
+                    </div>
+                    <div className="flex gap-2">
+                        <button onClick={() => setIsAddOpen(true)} className="btn-primary text-sm px-3 flex items-center gap-2">
+                            <Plus size={16} /> Add Channel
+                        </button>
+                        <button onClick={onClose}><X size={20} className="text-[var(--text-secondary)]" /></button>
+                    </div>
+                </div>
+
+                <div className="flex-1 overflow-y-auto space-y-2">
+                    {channels.length === 0 && (
+                        <div className="text-center py-12 text-[var(--text-secondary)] opacity-50">
+                            No channels added yet.
+                        </div>
+                    )}
+                    {channels.map(ch => (
+                        <div key={ch.id} className="p-4 bg-[var(--bg-input)] rounded flex justify-between items-center group hover:bg-[var(--bg-hover)] transition-colors">
+                            <div>
+                                <div className="font-bold text-[var(--text-primary)]">{ch.title}</div>
+                                <div className="text-xs text-[var(--text-secondary)]">@{ch.username || 'private'} • {ch.status}</div>
+                                {ch.lastSyncedAt && <div className="text-[10px] text-[var(--text-modifier)] mt-1">Last synced: {new Date(ch.lastSyncedAt).toLocaleString()}</div>}
+                            </div>
+                            <button onClick={() => handleDelete(ch.id)} className="text-red-500 opacity-0 group-hover:opacity-100 p-2 hover:bg-red-500/10 rounded">
+                                <Trash2 size={16} />
+                            </button>
+                        </div>
+                    ))}
+                </div>
+
+                {isAddOpen && <AddChannelSourceModal connectorId={connector.id} onClose={() => setIsAddOpen(false)} />}
+            </div>
+        </div>
+    );
+};
+
+const AddChannelSourceModal = ({ connectorId, onClose }: { connectorId: string, onClose: () => void }) => {
+    const [query, setQuery] = useState('');
+    const [preview, setPreview] = useState<any>(null);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const { showToast } = useToast();
+
+    const handleSearch = async () => {
+        if (!query) return;
+        setLoading(true);
+        setError(null);
+        try {
+            const res = await Data.resolveMTProtoChannel(connectorId, query);
+            setPreview(res);
+        } catch (e: any) {
+            setError(e.message || 'Channel not found');
+            setPreview(null);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleAdd = async () => {
+        if (!preview) return;
+        setLoading(true);
+        try {
+            await Data.addMTProtoChannel(connectorId, preview, { autoPublish: false });
+            showToast('Channel added successfully');
+            onClose();
+        } catch (e: any) {
+            setError(e.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/80 z-[60] flex items-center justify-center p-4">
+            <div className="panel w-full max-w-md p-6 animate-slide-up shadow-2xl relative">
+                <div className="flex justify-between items-center mb-4">
+                    <h3 className="font-bold text-lg text-[var(--text-primary)]">Add Channel Source</h3>
+                    <button onClick={onClose}><X size={20} className="text-[var(--text-secondary)]" /></button>
+                </div>
+
+                <div className="flex gap-2 mb-4">
+                    <input
+                        className="input flex-1"
+                        placeholder="@username or t.me/link"
+                        value={query}
+                        onChange={e => setQuery(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && handleSearch()}
+                        autoFocus
+                    />
+                    <button onClick={handleSearch} disabled={loading} className="btn-secondary px-3">
+                        {loading ? <RefreshCw className="animate-spin" size={16} /> : <Search size={16} />}
+                    </button>
+                </div>
+
+                {error && (
+                    <div className="bg-red-500/10 text-red-500 p-3 rounded text-sm mb-4 flex items-center gap-2">
+                        <AlertTriangle size={16} /> {error}
+                    </div>
+                )}
+
+                {preview && (
+                    <div className="bg-[var(--bg-input)] p-4 rounded mb-4 animate-fade-in">
+                        <div className="font-bold text-[var(--text-primary)] text-lg">{preview.title}</div>
+                        <div className="text-sm text-[var(--text-secondary)]">@{preview.username}</div>
+                        <div className="text-xs text-[var(--text-modifier)] mt-1">{preview.participantsCount?.toLocaleString()} subscribers</div>
+
+                        <div className="mt-4 pt-4 border-t border-[var(--border-color)]">
+                            <button onClick={handleAdd} disabled={loading} className="btn-primary w-full flex justify-center items-center gap-2">
+                                <Plus size={16} /> Add Source
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );

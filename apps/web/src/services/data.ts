@@ -185,6 +185,27 @@ class DataService {
         if (!res.ok) return [];
         return Array.isArray(res.data) ? res.data : [];
     }
+
+    // --- MTPROTO ---
+    async getMTProtoConnectors() { return this.adapter.getMTProtoConnectors(); }
+    async createMTProtoConnector(data: any) { const r = await this.adapter.createMTProtoConnector(data); this.notify('UPDATE_MTPROTO'); return r; }
+    async deleteMTProtoConnector(id: string) { await this.adapter.deleteMTProtoConnector(id); this.notify('UPDATE_MTPROTO'); }
+    async sendMTProtoCode(cid: string, phone: string) { return this.adapter.sendMTProtoCode(cid, phone); }
+    async signInMTProto(data: any) { await this.adapter.signInMTProto(data); this.notify('UPDATE_MTPROTO'); }
+
+    async getMTProtoChannels(connectorId: string) { return this.adapter.getMTProtoChannels(connectorId); }
+    async resolveMTProtoChannel(connectorId: string, query: string) { return this.adapter.resolveMTProtoChannel(connectorId, query); }
+    async addMTProtoChannel(connectorId: string, channel: any, importRules: any) {
+        const res = await this.adapter.addMTProtoChannel(connectorId, channel, importRules);
+        this.notify('UPDATE_CHANNELS');
+        return res;
+    }
+    async deleteMTProtoChannel(id: string) {
+        await this.adapter.deleteMTProtoChannel(id);
+        this.notify('UPDATE_CHANNELS');
+    }
+
+    async syncMTProto(connectorId: string) { return this.adapter.syncMTProto(connectorId); }
 }
 
 export const Data = new DataService();

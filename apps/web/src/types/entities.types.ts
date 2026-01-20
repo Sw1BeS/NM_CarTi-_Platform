@@ -154,3 +154,11 @@ export interface CarSearchFilter {
     priceMax?: number;
     city?: string;
 }
+
+export interface Company {
+    id: string;
+    name: string;
+    plan: 'FREE' | 'PRO' | 'ENTERPRISE';
+    status: 'ACTIVE' | 'INACTIVE';
+    createdAt: string;
+}

@@ -715,6 +715,18 @@ export const finalizeClientLead = async (ctx: PipelineContext) => {
   if (result.isDuplicate) {
     await sendMessage(ctx, t(lang, 'leadDuplicate'), { remove_keyboard: true });
   } else {
+    // A2: Write to MessageLog if request created
+    if (result.request) {
+      await prisma.messageLog.create({
+        data: {
+          requestId: result.request.id,
+          chatId: ctx.chatId || '',
+          direction: 'INCOMING',
+          text: `[Client Lead] ${flow.car}`,
+          payload: { flow: vars.leadFlow }
+        }
+      });
+    }
     await sendMessage(ctx, t(lang, 'leadReceived'), { remove_keyboard: true });
   }
 
@@ -791,15 +803,27 @@ export const finalizeB2BRequest = async (ctx: PipelineContext) => {
     city: flow.city,
     description: flow.description,
     status: 'COLLECTING_VARIANTS',
-    language: lang
+    language: lang,
+    clientChatId: ctx.chatId,
+    source: 'TELEGRAM'
   });
 
   const request = await prisma.b2bRequest.create({
     data: {
       ...mapped,
       publicId: generatePublicId(),
-      companyId: ctx.companyId || null,
-      chatId: ctx.chatId || undefined
+      companyId: ctx.companyId || null
+    }
+  });
+
+  // A2: Write to MessageLog
+  await prisma.messageLog.create({
+    data: {
+      requestId: request.id,
+      chatId: ctx.chatId || '',
+      direction: 'INCOMING',
+      text: `[B2B Request] ${request.title}`,
+      payload: { flow: vars.b2bFlow }
     }
   });
 

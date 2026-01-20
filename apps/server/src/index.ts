@@ -16,9 +16,11 @@ import integrationRoutes from './modules/integrations/integration.routes.js';
 import superadminRoutes from './modules/superadmin/superadmin.routes.js';
 import qaRoutes from './routes/qaRoutes.js';
 import telegramRoutes from './modules/telegram/telegram.routes.js';
+import systemRoutes from './modules/system/system.routes.js';
 import { botManager } from './modules/bots/bot.service.js';
 import { seedAdmin } from './modules/users/user.service.js';
 import { startContentWorker, stopContentWorker, getWorkerStatus } from './workers/content.worker.js';
+import { mtprotoWorker } from './modules/integrations/mtproto/mtproto.worker.js';
 import { workspaceContext } from './middleware/workspaceContext.js';
 import process from 'process';
 
@@ -56,6 +58,7 @@ app.use(express.json() as any);
 app.use(workspaceContext);
 
 // Routes
+app.use('/api/system', systemRoutes);
 app.use('/api/public', publicRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/entities', entityRoutes); // Generic fallback for other entities
@@ -116,6 +119,9 @@ const startServer = async () => {
 
     // Start Content Worker for scheduled posts
     startContentWorker();
+
+    // Start MTProto Live Sync
+    mtprotoWorker.startLiveSync();
 
     const server = app.listen(PORT, () => {
       console.log(`🚀 Server running on http://localhost:${PORT}`);

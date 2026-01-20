@@ -7,6 +7,8 @@ import { RequestList } from './pages/Requests';
 import { TelegramHub } from './pages/TelegramHub';
 import { ScenarioBuilder } from './pages/ScenarioBuilder';
 import { InboxPage } from './pages/Inbox';
+import { AutomationBuilder } from './pages/AutomationBuilder';
+
 import { Leads } from './pages/Leads';
 import { Login } from './pages/Login';
 import { SearchPage } from './pages/Search';
@@ -32,7 +34,7 @@ import { CompanyProvider } from './contexts/CompanyContext';
 import { LangProvider } from './contexts/LanguageContext';
 import { WorkerProvider } from './contexts/WorkerContext';
 import { ToastProvider } from './contexts/ToastContext';
-import { ThemeProvider } from './contexts/ThemeContext';
+import { ThemeProvider } from './providers/ThemeProvider';
 import { Data } from './services/data';
 
 const ProtectedRoute = ({ children }: React.PropsWithChildren) => {
@@ -42,21 +44,7 @@ const ProtectedRoute = ({ children }: React.PropsWithChildren) => {
 };
 
 export default function App() {
-  // Theme Engine
-  React.useEffect(() => {
-    const updateTheme = async () => {
-      try {
-        const settings = await Data.getSettings();
-        if (settings?.theme?.primaryColor) {
-          document.documentElement.style.setProperty('--color-primary', settings.theme.primaryColor);
-        }
-      } catch (e) {
-        console.error("Theme load failed", e);
-      }
-    };
-    updateTheme();
-    return Data.subscribe('UPDATE_SETTINGS', updateTheme);
-  }, []);
+
 
   return (
     <ThemeProvider>
@@ -81,6 +69,7 @@ export default function App() {
                     <Route path="/telegram" element={<ProtectedRoute><TelegramHub /></ProtectedRoute>} />
                     <Route path="/scenarios" element={<ProtectedRoute><ScenarioBuilder /></ProtectedRoute>} />
                     <Route path="/leads" element={<ProtectedRoute><Leads /></ProtectedRoute>} />
+                    <Route path="/automation" element={<ProtectedRoute><AutomationBuilder /></ProtectedRoute>} />
                     <Route path="/search" element={<ProtectedRoute><SearchPage /></ProtectedRoute>} />
                     <Route path="/inventory" element={<ProtectedRoute><InventoryPage /></ProtectedRoute>} />
                     <Route path="/companies" element={<ProtectedRoute><CompaniesPage /></ProtectedRoute>} />

@@ -1,51 +1,85 @@
-import axios from 'axios';
 import { prisma } from '../../services/prisma.js';
-import { generatePublicId, mapRequestInput, mapRequestOutput, mapVariantInput } from '../../services/dto.js';
-import { createDeepLinkKeyboard, generateOfferLink, generateRequestLink, parseStartPayload } from '../../utils/deeplink.utils.js';
+import { RequestStatus, LeadStatus } from '@prisma/client';
 import { telegramOutbox } from '../telegram/outbox/telegramOutbox.js';
 import { emitPlatformEvent } from '../telegram/events/eventEmitter.js';
-import { renderVariantCard, managerActionsKeyboard, renderRequestCard } from '../../services/cardRenderer.js';
+// @ts-ignore
 import { createOrMergeLead } from '../telegram/services/leadService.js';
+import {
+  renderCarListingCard,
+  renderRequestCard,
+  renderLeadCard,
+  renderVariantCard,
+  managerActionsKeyboard
+} from '../../services/cardRenderer.js';
+import {
+  parseStartPayload,
+  generateRequestLink,
+  generateOfferLink,
+  createDeepLinkKeyboard
+} from '../../utils/deeplink.utils.js';
+// @ts-ignore
+import { searchAutoRia } from '../../services/integrationService.js';
+import { ulid } from 'ulid';
 
-type BotRuntime = {
+// Types & Interfaces
+export interface BotRuntime {
   id: string;
-  name?: string | null;
   token: string;
-  channelId?: string | null;
-  adminChatId?: string | null;
   companyId?: string | null;
   config?: any;
-  template?: string | null;
-};
+  channelId?: string | null;
+  adminChatId?: string | null;
+}
 
-type ScenarioNode = {
+export interface ScenarioRecord {
+  id: string;
+  trigger: string;
+  flow: ScenarioNode[];
+}
+
+export interface ScenarioNode {
   id: string;
   type: string;
-  content?: any;
-  nextNodeId?: string | null;
-};
+  text?: string;
+  buttons?: any[];
+  next?: string | Record<string, string>;
+}
 
-type ScenarioRecord = {
-  id: string;
-  name: string;
-  triggerCommand?: string | null;
-  keywords?: string[] | null;
-  isActive: boolean;
-  entryNodeId?: string | null;
-  nodes?: any;
-};
+// Helpers
+const normalizeTextCommand = (cmd: string) => cmd?.trim().toLowerCase() || '';
+const generatePublicId = () => ulid();
+const formatCarCaption = (car: any, lang: string) => renderCarListingCard(car, lang);
 
-const normalizeTextCommand = (text: string) =>
-  (text || '').trim().toLowerCase().replace(/\s+/g, ' ');
+const mapRequestInput = (vars: any) => ({
+  title: vars.title || 'Car Request',
+  budgetMin: Number(vars.budgetMin) || 0,
+  budgetMax: Number(vars.budgetMax || vars.budget) || 0,
+  yearMin: Number(vars.yearMin || vars.year) || 0,
+  yearMax: Number(vars.yearMax) || 0,
+  city: vars.city
+});
 
-const stripTags = (value: string) => value.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+const mapVariantInput = (vars: any) => ({
+  price: Number(vars.price) || 0,
+  currency: vars.currency || 'USD',
+  year: Number(vars.year) || 0,
+  mileage: Number(vars.mileage) || 0,
+  description: vars.description,
+  title: vars.title || 'Offer'
+});
 
-const hasContactInfo = (text: string) => {
+const mapRequestOutput = (req: any) => ({
+  ...req,
+  budget: req.budgetMax, // simplified view
+  year: req.yearMin
+}); const hasContactInfo = (text: string) => {
   if (!text) return false;
   const phoneRe = /(\+?\d[\d\-\s]{6,}\d)/g;
   const linkRe = /(https?:\/\/|t\.me|wa\.me|@[\w_]+)/i;
   return phoneRe.test(text) || linkRe.test(text);
 };
+
+
 
 const parseDealerDetails = (text: string) => {
   const priceMatch = text.match(/(\d[\d\s]{2,})\s*(usd|\$|eur|uah)?/i);
@@ -181,7 +215,14 @@ const sendContactRequest = async (bot: BotRuntime, chatId: string, text: string)
 const notifyRequestAdmin = async (bot: BotRuntime, request: any) => {
   if (!bot.adminChatId) return;
   const text = `📄 Новий запит\n${renderRequestCard(request)}`;
-  await sendMessage(bot, bot.adminChatId, text);
+  const keyboard = {
+    inline_keyboard: [
+      [{ text: '🔍 Znayty Variant', callback_data: `REQ:${request.id}:FIND` }],
+      [{ text: '📢 Post to Channel', callback_data: `REQ:${request.id}:POST` }],
+      [{ text: '❌ Close', callback_data: `REQ:${request.id}:CLOSE` }]
+    ]
+  };
+  await sendMessage(bot, bot.adminChatId, text, keyboard);
 };
 
 const sendChoices = async (bot: BotRuntime, chatId: string, text: string, choices: any[], lang: string) => {
@@ -211,29 +252,7 @@ const emitScenarioCompleted = async (
   });
 };
 
-const formatCarCaption = (car: any, lang: string) => {
-  const t = {
-    EN: { mileage: 'km', price: 'Price', vin: 'VIN' },
-    UK: { mileage: 'км', price: 'Ціна', vin: 'VIN' },
-    RU: { mileage: 'км', price: 'Цена', vin: 'VIN' }
-  } as const;
-
-  const loc = t[lang as keyof typeof t] || t.EN;
-  const rawTitle = car.title || '';
-  const yearStr = car.year ? String(car.year) : '';
-  const titleNoYear = rawTitle.replace(/\b(19|20)\d{2}\b/g, '').replace(/\s+/g, ' ').trim();
-  const header = [titleNoYear, yearStr].filter(Boolean).join(' ').trim();
-
-  const parts: string[] = [`🚗 <b>${(header || rawTitle).toUpperCase()}</b>`];
-  if (car.mileage) parts.push(`🛣 ${Math.round(car.mileage / 1000)} ${loc.mileage}`);
-  if (car.specs?.engine) parts.push(`⚙️ ${car.specs.engine}`);
-  if (car.specs?.drive) parts.push(`🛞 ${car.specs.drive}`);
-  if (car.specs?.transmission) parts.push(`🕹 ${car.specs.transmission}`);
-  if (car.specs?.vin) parts.push(`🔑 ${loc.vin}: ${car.specs.vin}`);
-  if (car.price?.amount) parts.push(`💰 ${car.price.amount.toLocaleString()} ${car.price.currency}`);
-
-  return parts.join('\n').trim();
-};
+// formatCarCaption removed. Using renderCarListingCard from cardRenderer.ts
 
 const createCarCardKeyboard = (car: any, lang: string) => {
   const t = {
@@ -271,169 +290,7 @@ const mapDbCar = (car: any) => ({
   postedAt: car.postedAt?.toISOString?.() || car.createdAt?.toISOString?.() || new Date().toISOString()
 });
 
-const AUTORIA_BRAND_MAP: Record<string, number> = {
-  'acura': 1, 'audi': 6, 'bmw': 9, 'bentley': 8, 'buick': 10, 'byd': 2623,
-  'cadillac': 11, 'chevrolet': 13, 'chrysler': 14, 'citroen': 15,
-  'dodge': 19, 'fiat': 23, 'ferrari': 22, 'ford': 24, 'gmc': 25,
-  'honda': 28, 'hummer': 30, 'hyundai': 29, 'infiniti': 32,
-  'jaguar': 31, 'jeep': 32, 'kia': 33, 'lamborghini': 35,
-  'land rover': 36, 'lexus': 38, 'lincoln': 39, 'mazda': 43,
-  'mercedes-benz': 48, 'mercedes': 48, 'mitsubishi': 52, 'mini': 51,
-  'nissan': 55, 'opel': 56, 'peugeot': 58, 'porsche': 60,
-  'renault': 62, 'rolls-royce': 64, 'skoda': 70, 'subaru': 75,
-  'suzuki': 76, 'tesla': 5608, 'toyota': 79, 'volkswagen': 84, 'volvo': 85
-};
-
-const AUTORIA_CACHE = new Map<string, { ts: number; data: any[] }>();
-const AUTORIA_CACHE_TTL = 15 * 60 * 1000;
-
-const normalizeUrl = (value: string) => {
-  try {
-    const u = new URL(value);
-    u.hash = '';
-    return u.toString().replace(/\/$/, '');
-  } catch {
-    return (value || '').split('#')[0].replace(/\/$/, '');
-  }
-};
-
-const extractJsonLdObjects = (input: any): any[] => {
-  if (!input) return [];
-  if (Array.isArray(input)) return input.flatMap(extractJsonLdObjects);
-  if (typeof input === 'object') {
-    if (Array.isArray(input['@graph'])) return input['@graph'].flatMap(extractJsonLdObjects);
-    return [input];
-  }
-  return [];
-};
-
-const isTargetJsonLdType = (obj: any) => {
-  const rawType = obj?.['@type'];
-  const types = Array.isArray(rawType) ? rawType : rawType ? [rawType] : [];
-  return types.some((t: string) => ['Product', 'Vehicle', 'Car'].includes(String(t)));
-};
-
-const extractCandidateUrl = (obj: any) => obj?.url || obj?.offers?.url || obj?.['@id'] || '';
-const extractCandidateSourceId = (obj: any) => {
-  const candidates = [obj?.sku, obj?.productID, obj?.identifier, obj?.mpn, obj?.['@id']];
-  return candidates.find(v => typeof v === 'string' && v.trim().length > 0) || '';
-};
-
-const fetchHtml = async (url: string) => {
-  const response = await axios.get(url, {
-    timeout: 15000,
-    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; CartieBot/1.0)' }
-  });
-  return typeof response.data === 'string' ? response.data : String(response.data || '');
-};
-
-const parseAutoRiaListing = async (url: string): Promise<any | null> => {
-  if (!url.includes('auto.ria.com')) return null;
-  const html = await fetchHtml(url);
-  const normalizedTarget = normalizeUrl(url);
-
-  const idMatch = url.match(/auto_.*?(\d+)\.html/);
-  const sourceId = idMatch ? idMatch[1] : undefined;
-
-  const scriptMatches = html.match(/<script[^>]+type=["']application\/ld\+json["'][^>]*>[\s\S]*?<\/script>/gi) || [];
-  const candidates: any[] = [];
-  for (const block of scriptMatches) {
-    const content = block.replace(/<script[^>]*>/i, '').replace(/<\/script>/i, '');
-    try {
-      const json = JSON.parse(content);
-      candidates.push(...extractJsonLdObjects(json));
-    } catch {
-      continue;
-    }
-  }
-
-  const productCandidates = candidates.filter(isTargetJsonLdType);
-  let data = productCandidates[0] || {};
-  if (productCandidates.length > 0) {
-    const scored = productCandidates.map(candidate => {
-      const candidateUrl = extractCandidateUrl(candidate);
-      const urlMatch = candidateUrl ? normalizeUrl(candidateUrl) === normalizedTarget : false;
-      const sourceMatch = sourceId
-        ? (candidateUrl && candidateUrl.includes(sourceId)) || extractCandidateSourceId(candidate) === sourceId
-        : false;
-      const score = (urlMatch ? 2 : 0) + (sourceMatch ? 1 : 0);
-      return { candidate, score, urlMatch, sourceMatch };
-    });
-    scored.sort((a, b) => {
-      if (b.score !== a.score) return b.score - a.score;
-      if (b.urlMatch !== a.urlMatch) return b.urlMatch ? 1 : -1;
-      if (b.sourceMatch !== a.sourceMatch) return b.sourceMatch ? 1 : -1;
-      return 0;
-    });
-    data = scored[0]?.candidate || {};
-  }
-
-  const titleMatch = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
-  const title = data.name || (titleMatch ? stripTags(titleMatch[1]) : 'AutoRia Listing');
-  const price = Number(data.offers?.price || 0);
-  const currency = data.offers?.priceCurrency || 'USD';
-  const images = Array.isArray(data.image) ? data.image : data.image ? [data.image] : [];
-  const yearRaw = data.productionDate || data.vehicleModelDate || data.modelDate;
-  const year = yearRaw ? Number(String(yearRaw).slice(0, 4)) : 0;
-  const odo = data.mileageFromOdometer?.value || data.mileageFromOdometer;
-  const mileage = odo ? Number(String(odo).replace(/\D/g, '')) * 1000 : 0;
-
-  return {
-    canonicalId: `autoria_${sourceId || Date.now()}`,
-    sourceId,
-    source: 'AUTORIA',
-    sourceUrl: url,
-    title,
-    price: { amount: price || 0, currency },
-    year,
-    mileage,
-    location: '',
-    thumbnail: images[0] || '',
-    mediaUrls: images,
-    specs: {},
-    status: 'AVAILABLE',
-    postedAt: new Date().toISOString()
-  };
-};
-
-const searchAutoRia = async (filter: any): Promise<any[]> => {
-  if (!filter.brand) return [];
-  const cacheKey = `${filter.brand || ''}|${filter.model || ''}|${filter.yearMin || ''}|${filter.yearMax || ''}|${filter.priceMin || ''}|${filter.priceMax || ''}`;
-  const cached = AUTORIA_CACHE.get(cacheKey);
-  if (cached && Date.now() - cached.ts < AUTORIA_CACHE_TTL) return cached.data;
-
-  const brandId = AUTORIA_BRAND_MAP[String(filter.brand).toLowerCase()];
-  let searchUrl = 'https://auto.ria.com/uk/search/?categories.main.id=1&price.currency=1';
-  if (brandId) searchUrl += `&brand.id[0]=${brandId}`;
-  if (filter.priceMin) searchUrl += `&price.USD.gte=${filter.priceMin}`;
-  if (filter.priceMax) searchUrl += `&price.USD.lte=${filter.priceMax}`;
-  if (filter.yearMin) searchUrl += `&year.gte=${filter.yearMin}`;
-  if (filter.yearMax) searchUrl += `&year.lte=${filter.yearMax}`;
-
-  const html = await fetchHtml(searchUrl);
-  const linkMatches = Array.from(html.matchAll(/href="([^"]+auto_.*?\.html)"/gi)).map(m => m[1]);
-  const links = Array.from(new Set(linkMatches.map(link => link.startsWith('http') ? link : `https://auto.ria.com${link}`)))
-    .filter(link => link.includes('auto.ria.com'))
-    .slice(0, 10);
-
-  const results: any[] = [];
-  for (const link of links) {
-    try {
-      const car = await parseAutoRiaListing(link);
-      if (car) results.push(car);
-    } catch {
-      continue;
-    }
-  }
-
-  const modelKey = filter.model ? String(filter.model).toLowerCase() : '';
-  const finalResults = modelKey
-    ? results.filter(r => r.title.toLowerCase().includes(modelKey))
-    : results;
-
-  AUTORIA_CACHE.set(cacheKey, { ts: Date.now(), data: finalResults });
-  return finalResults;
-};
+// AutoRia logic moved to urlParser.ts
 
 const mapRequestForMessage = (req: any) => {
   const data = mapRequestOutput(req);
@@ -449,23 +306,29 @@ export class ScenarioEngine {
       : {};
     const history: string[] = Array.isArray(session.history) ? [...session.history] : [];
 
-  const inputRaw = update.message?.text || update.callback_query?.data || '';
-  const input = normalizeTextCommand(inputRaw);
-  const messageTextRaw = update.message?.text || '';
-  const chatId = String(update.message?.chat?.id || update.callback_query?.message?.chat?.id || session.chatId);
-  const userIdRaw = update.message?.from?.id || update.callback_query?.from?.id || update.inline_query?.from?.id;
-  const userId = userIdRaw ? String(userIdRaw) : undefined;
-  if (userId) vars.__telegramUserId = userId;
-  const lang = getLanguage(vars);
-  const startPayloadRaw = messageTextRaw.startsWith('/start') ? messageTextRaw.split(' ')[1] : '';
-  const hasStartPayload = !!(startPayloadRaw && parseStartPayload(startPayloadRaw));
-  const isDealerFlow = vars.role === 'DEALER' || vars.dealer_invite_id || vars.ref_request_id;
+    const inputRaw = update.message?.text || update.callback_query?.data || '';
+    const input = normalizeTextCommand(inputRaw);
+    const messageTextRaw = update.message?.text || '';
+    const chatId = String(update.message?.chat?.id || update.callback_query?.message?.chat?.id || session.chatId);
+    const userIdRaw = update.message?.from?.id || update.callback_query?.from?.id || update.inline_query?.from?.id;
+    const userId = userIdRaw ? String(userIdRaw) : undefined;
+    if (userId) vars.__telegramUserId = userId;
+    const lang = getLanguage(vars);
+    const startPayloadRaw = messageTextRaw.startsWith('/start') ? messageTextRaw.split(' ')[1] : '';
+    const hasStartPayload = !!(startPayloadRaw && parseStartPayload(startPayloadRaw));
+    const isDealerFlow = vars.role === 'DEALER' || vars.dealer_invite_id || vars.ref_request_id;
+
+    // Manager Actions
+    if (inputRaw.startsWith('REQ:')) {
+      await this.handleManagerRequestAction(bot, session, inputRaw, userId);
+      return true;
+    }
 
     const scenarios: ScenarioRecord[] = bot.companyId
       ? await prisma.scenario.findMany({
-          where: { companyId: bot.companyId, status: 'PUBLISHED', isActive: true },
-          orderBy: { createdAt: 'desc' }
-        })
+        where: { companyId: bot.companyId, status: 'PUBLISHED', isActive: true },
+        orderBy: { createdAt: 'desc' }
+      })
       : [];
     const menuConfig = getMenuConfig(bot);
     const hasMenuButtons = Array.isArray(menuConfig.buttons) && menuConfig.buttons.length > 0;
@@ -817,7 +680,7 @@ export class ScenarioEngine {
                 url: flow.url
               }
             }
-          }).catch(() => {});
+          }).catch(() => { });
 
           vars.dealer_state = 'DONE';
           vars.dealer_flow = {};
@@ -881,7 +744,7 @@ export class ScenarioEngine {
                 text: `Manager action: ${action}`,
                 payload: { status: nextStatus }
               }
-            }).catch(() => {});
+            }).catch(() => { });
             await sendMessage(bot, chatId, `✅ Статус оновлено: ${nextStatus}`);
           } else {
             await sendMessage(bot, chatId, 'Варіант не знайдено.');
@@ -1468,7 +1331,7 @@ export class ScenarioEngine {
           || (node.content?.scheduledAtVar ? vars[node.content.scheduledAtVar] : undefined);
 
         const fallbackCar = Array.isArray(vars.__tempResults) ? vars.__tempResults[0] : null;
-        const postText = text || (fallbackCar ? formatCarCaption(fallbackCar, lang) : '');
+        const postText = text || (fallbackCar ? renderCarListingCard(fallbackCar, lang) : '');
 
         if (!destination || !postText) {
           await sendMessage(bot, session.chatId, '⚠️ Channel post missing destination or text.');
@@ -1706,5 +1569,62 @@ export class ScenarioEngine {
 
     const msg = lang === 'UK' ? '✅ Додано в каталог.' : '✅ Added to catalog.';
     await sendMessage(bot, chatId, msg);
+  }
+
+  static async handleManagerRequestAction(bot: BotRuntime, session: any, data: string, userId?: string) {
+    const [_, reqId, action] = data.split(':');
+    const chatId = session.chatId;
+
+    if (action === 'CLOSE') {
+      await prisma.b2bRequest.update({
+        where: { id: reqId },
+        data: { status: 'CLOSED' }
+      });
+      await sendMessage(bot, chatId, '✅ Request closed.');
+      return;
+    }
+
+    if (action === 'POST') {
+      const req = await prisma.b2bRequest.findUnique({ where: { id: reqId } });
+      if (!req) return;
+
+      const text = mapRequestForMessage(req);
+      if (bot.channelId) {
+        const link = generateRequestLink(bot.config?.username || 'CarTieBot', req.publicId);
+        const keyboard = createDeepLinkKeyboard([{ text: '💼 Створити пропозицію', link }]);
+        await sendMessage(bot, bot.channelId, text, keyboard);
+        await sendMessage(bot, chatId, '✅ Posted to channel.');
+      } else {
+        await sendMessage(bot, chatId, '⚠️ Channel ID not configured.');
+      }
+      return;
+    }
+
+    if (action === 'FIND') {
+      const req = await prisma.b2bRequest.findUnique({ where: { id: reqId } });
+      if (!req) return;
+
+      await sendMessage(bot, chatId, '🔍 Searching AutoRia...');
+      const results = await searchAutoRia({
+        brand: req.title.split(' ')[0], // Simple heuristic
+        yearMin: req.yearMin,
+        priceMax: req.budgetMax
+      });
+
+      if (results.length === 0) {
+        await sendMessage(bot, chatId, '⚠️ No results found.');
+        return;
+      }
+
+      for (const car of results.slice(0, 3)) {
+        const caption = renderCarListingCard(car, 'UK'); // Admin usually sees UK/RU
+        const keyboard = createCarCardKeyboard(car, 'UK');
+        if (car.thumbnail) {
+          await sendPhoto(bot, chatId, car.thumbnail, caption, keyboard);
+        } else {
+          await sendMessage(bot, chatId, caption, keyboard);
+        }
+      }
+    }
   }
 }

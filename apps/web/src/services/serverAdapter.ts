@@ -107,13 +107,13 @@ export class ServerAdapter implements DataAdapter {
 
     async saveUser(u: User) {
         if (u.id && !`${u.id}`.startsWith('u_')) { // Check if server ID (Int)
-            const res = await ApiClient.put(`users/${u.id}`, u);
-            if (res.ok) return res.data;
+            const res = await ApiClient.put<User>(`users/${u.id}`, u);
+            if (res.ok) return res.data as User;
         }
         const { id, ...data } = u;
-        const res = await ApiClient.post('users', data);
+        const res = await ApiClient.post<User>('users', data);
         if (!res.ok) throw new Error(res.message);
-        return res.data;
+        return res.data as User;
     }
 
     // --- REQUESTS (Relational) ---
@@ -130,13 +130,13 @@ export class ServerAdapter implements DataAdapter {
         // Local adapter generates 'req_...' IDs. We should strip those for creation on server?
         // Or if we trust the ID handling:
         if (r.id && !r.id.startsWith('req_')) {
-            const res = await ApiClient.put(`requests/${r.id}`, r);
-            if (res.ok) return res.data;
+            const res = await ApiClient.put<B2BRequest>(`requests/${r.id}`, r);
+            if (res.ok) return res.data as B2BRequest;
         }
         const { id, ...payload } = r; // Strip local ID
-        const res = await ApiClient.post('requests', payload);
+        const res = await ApiClient.post<B2BRequest>('requests', payload);
         if (!res.ok) throw new Error(res.message);
-        return res.data;
+        return res.data as B2BRequest;
     }
     async deleteRequest(id: string) {
         await ApiClient.delete(`requests/${id}`);
@@ -151,13 +151,13 @@ export class ServerAdapter implements DataAdapter {
     }
     async saveLead(l: Lead) {
         if (l.id && !l.id.startsWith('lead_')) {
-            const res = await ApiClient.put(`leads/${l.id}`, l);
-            if (res.ok) return res.data;
+            const res = await ApiClient.put<Lead>(`leads/${l.id}`, l);
+            if (res.ok) return res.data as Lead;
         }
         const { id, ...payload } = l;
-        const res = await ApiClient.post('leads', payload);
+        const res = await ApiClient.post<Lead>('leads', payload);
         if (!res.ok) throw new Error(res.message);
-        return res.data;
+        return res.data as Lead;
     }
 
     // --- BOTS (Relational) ---
@@ -167,12 +167,12 @@ export class ServerAdapter implements DataAdapter {
     }
     async saveBot(b: Bot) {
         if (b.id) {
-            const res = await ApiClient.put(`bots/${b.id}`, b);
-            if (res.ok) return res.data;
+            const res = await ApiClient.put<Bot>(`bots/${b.id}`, b);
+            if (res.ok) return res.data as Bot;
         }
-        const res = await ApiClient.post('bots', b);
+        const res = await ApiClient.post<Bot>('bots', b);
         if (!res.ok) throw new Error(res.message);
-        return res.data;
+        return res.data as Bot;
     }
     async deleteBot(id: string) {
         await ApiClient.delete(`bots/${id}`);
@@ -359,5 +359,55 @@ export class ServerAdapter implements DataAdapter {
                 ApiClient.post(`entities/${slug}/records`, { data: this.wrap(r) })
             ));
         }
+    }
+
+    // --- MTPROTO ---
+    async getMTProtoConnectors() {
+        const res = await ApiClient.get<any[]>('integrations/mtproto/connectors');
+        return res.ok ? res.data : [];
+    }
+    async createMTProtoConnector(data: any) {
+        const res = await ApiClient.post('integrations/mtproto/connectors', data);
+        if (!res.ok) throw new Error(res.message);
+        return res.data;
+    }
+    async deleteMTProtoConnector(id: string) {
+        await ApiClient.delete(`integrations/mtproto/connectors/${id}`);
+    }
+    async sendMTProtoCode(connectorId: string, phone: string) {
+        const res = await ApiClient.post('integrations/mtproto/auth/send-code', { connectorId, phone });
+        if (!res.ok) throw new Error(res.message);
+        return res.data;
+    }
+    async signInMTProto(data: any) {
+        const res = await ApiClient.post('integrations/mtproto/auth/sign-in', data);
+        if (!res.ok) throw new Error(res.message);
+    }
+
+    async getMTProtoChannels(connectorId: string) {
+        const res = await ApiClient.get<any[]>(`integrations/mtproto/${connectorId}/channels`);
+        return res.ok ? res.data : [];
+    }
+
+    async resolveMTProtoChannel(connectorId: string, query: string) {
+        const res = await ApiClient.get<any>(`integrations/mtproto/${connectorId}/resolve?query=${encodeURIComponent(query)}`);
+        if (!res.ok) throw new Error(res.message);
+        return res.data;
+    }
+
+    async addMTProtoChannel(connectorId: string, channel: any, importRules: any) {
+        const res = await ApiClient.post(`integrations/mtproto/${connectorId}/channels`, { channel, importRules });
+        if (!res.ok) throw new Error(res.message);
+        return res.data;
+    }
+
+    async deleteMTProtoChannel(id: string) {
+        const res = await ApiClient.delete(`integrations/mtproto/channels/${id}`);
+        if (!res.ok) throw new Error(res.message);
+    }
+
+    async syncMTProto(connectorId: string) {
+        const res = await ApiClient.post(`integrations/mtproto/${connectorId}/sync`, {});
+        if (!res.ok) throw new Error(res.message);
     }
 }

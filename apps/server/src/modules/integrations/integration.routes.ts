@@ -12,6 +12,9 @@ const integrationService = new IntegrationService();
 // All routes require authentication
 router.use(companyMiddleware);
 
+import mtprotoRoutes from './mtproto/mtproto.routes.js';
+router.use('/mtproto', mtprotoRoutes as any);
+
 /**
  * GET /api/integrations
  * Get all integrations for company

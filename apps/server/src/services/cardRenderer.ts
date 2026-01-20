@@ -42,6 +42,33 @@ export const renderLeadCard = (lead: any) => {
   return parts.join('\n');
 };
 
+
+export const renderCarListingCard = (car: any, lang: string = 'EN') => {
+  const t = {
+    EN: { mileage: 'km', price: 'Price', vin: 'VIN' },
+    UK: { mileage: 'км', price: 'Ціна', vin: 'VIN' },
+    RU: { mileage: 'км', price: 'Цена', vin: 'VIN' }
+  } as const;
+
+  const loc = t[lang as keyof typeof t] || t.EN;
+  const rawTitle = car.title || '';
+  const yearStr = car.year ? String(car.year) : '';
+  const titleNoYear = rawTitle.replace(/\b(19|20)\d{2}\b/g, '').replace(/\s+/g, ' ').trim();
+  const header = [titleNoYear, yearStr].filter(Boolean).join(' ').trim();
+
+  const parts: string[] = [`🚗 <b>${(header || rawTitle).toUpperCase()}</b>`];
+  if (car.mileage) parts.push(`🛣 ${Math.round(car.mileage / 1000)} ${loc.mileage}`);
+  if (car.specs?.engine) parts.push(`⚙️ ${car.specs.engine}`);
+  if (car.specs?.drive) parts.push(`🛞 ${car.specs.drive}`);
+  if (car.specs?.transmission) parts.push(`🕹 ${car.specs.transmission}`);
+  if (car.specs?.vin) parts.push(`🔑 ${loc.vin}: ${car.specs.vin}`);
+
+  const priceObj = car.price && typeof car.price === 'object' ? car.price : { amount: car.price };
+  if (priceObj?.amount) parts.push(`💰 ${priceObj.amount.toLocaleString()} ${priceObj.currency || 'USD'}`);
+
+  return parts.join('\n').trim();
+};
+
 export const managerActionsKeyboard = (variantId: string) => ({
   inline_keyboard: [
     [
@@ -54,3 +81,4 @@ export const managerActionsKeyboard = (variantId: string) => ({
     ]
   ]
 });
+
