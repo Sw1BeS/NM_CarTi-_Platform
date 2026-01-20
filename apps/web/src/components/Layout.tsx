@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, FileText, Search, Users,
-  Send, LogOut, Menu, Settings as SettingsIcon, X, Plus, Radio, MessageCircle, Bell, Car, Sparkles, Briefcase, Database
+  Send, LogOut, Menu, Settings as SettingsIcon, X, Plus, Radio, MessageCircle, Bell, Car, Sparkles, Briefcase, Database, Calendar, Library
 } from 'lucide-react';
 import { User, NavItemConfig } from '../types';
 import { useLang } from '../contexts/LanguageContext';
@@ -26,7 +26,9 @@ const ICON_MAP: Record<string, any> = {
   'Settings': SettingsIcon,
   'Car': Car,
   'Briefcase': Briefcase,
-  'Database': Database
+  'Database': Database,
+  'Calendar': Calendar,
+  'Library': Library
 };
 
 const ALL_ROLES = ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OPERATOR', 'USER', 'OWNER', 'DEALER'];
@@ -37,7 +39,10 @@ const DEFAULT_NAV: NavItemConfig[] = [
   { id: 'nav_req', labelKey: 'nav.requests', path: '/requests', iconName: 'FileText', roles: ALL_ROLES, order: 2, visible: true },
   { id: 'nav_inv', labelKey: 'nav.inventory', path: '/inventory', iconName: 'Car', roles: ALL_ROLES, order: 3, visible: true },
   { id: 'nav_tele', labelKey: 'nav.telegram', path: '/telegram', iconName: 'Send', roles: ALL_ROLES, order: 4, visible: true },
-  { id: 'nav_scen', labelKey: 'nav.scenarios', path: '/scenarios', iconName: 'Database', roles: ALL_ROLES, order: 5, visible: true },
+  { id: 'nav_cal', labelKey: 'nav.calendar', path: '/calendar', iconName: 'Calendar', roles: ALL_ROLES, order: 5, visible: true },
+  { id: 'nav_cont', labelKey: 'nav.content', path: '/content', iconName: 'Library', roles: ALL_ROLES, order: 6, visible: true },
+  { id: 'nav_scen', labelKey: 'nav.scenarios', path: '/scenarios', iconName: 'Database', roles: ALL_ROLES, order: 7, visible: true },
+  // { id: 'nav_bots', labelKey: 'nav.bots', path: '/bots', iconName: 'Users', roles: ALL_ROLES, order: 8, visible: true }, // Merged into Scenarios/Communication
   { id: 'nav_sets', labelKey: 'nav.settings', path: '/settings', iconName: 'Settings', roles: ALL_ROLES, order: 99, visible: true }
 ];
 
@@ -91,17 +96,14 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout }) => {
   const isActive = (path: string) => location.pathname === path;
 
   const visibleNavItems = navItems.filter(item => {
-    // During deployment setup, we ensure all features are available to all roles
     if (!item.visible) return false;
-    // Allow all authenticated users to see items if roles include their role or ALL_ROLES used
     return true;
   });
 
-  // Safe name extraction
   const displayName = user.name || user.username || user.email || 'User';
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[var(--bg-app)]">
+    <div className="flex h-screen overflow-hidden bg-background text-foreground">
       {/* Mobile Overlay */}
       {isMobileMenuOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden" onClick={() => setIsMobileMenuOpen(false)}></div>
@@ -109,23 +111,23 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout }) => {
 
       {/* Sidebar */}
       <aside className={`
-        fixed lg:static inset-y-0 left-0 z-50 w-72 bg-[#09090B] text-[#9CA3AF] flex flex-col shrink-0 transition-transform duration-300 border-r border-[#1F2937]
+        fixed lg:static inset-y-0 left-0 z-50 w-72 bg-card/95 backdrop-blur-xl flex flex-col shrink-0 transition-transform duration-300 border-r border-border
         ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
       `}>
         <div className="p-7 flex justify-between items-center">
           <div>
-            <h1 className="text-2xl font-medium tracking-tight text-white font-sans">
+            <h1 className="text-2xl font-bold tracking-tight text-foreground font-sans bg-clip-text text-transparent bg-gradient-to-r from-metallic-200 via-white to-metallic-400">
               CarTié<span className="text-gold-500">.</span>
             </h1>
-            <p className="text-xs text-[#6B7280] mt-1 uppercase tracking-widest font-medium">{user.role}</p>
+            <p className="text-xs text-muted-foreground mt-1 uppercase tracking-widest font-medium">{user.role}</p>
           </div>
-          <button className="lg:hidden text-white" onClick={() => setIsMobileMenuOpen(false)}><X size={24} /></button>
+          <button className="lg:hidden text-foreground" onClick={() => setIsMobileMenuOpen(false)}><X size={24} /></button>
         </div>
 
         <div className="px-5 mb-6">
-          <button onClick={() => setIsCmdOpen(true)} className="w-full bg-[#1F2937] hover:bg-[#374151] text-[#D1D5DB] text-sm py-3 px-4 rounded-xl flex justify-between items-center transition-colors border border-transparent">
+          <button onClick={() => setIsCmdOpen(true)} className="w-full bg-secondary/50 hover:bg-secondary text-muted-foreground text-sm py-3 px-4 rounded-xl flex justify-between items-center transition-colors border border-transparent hover:border-border">
             <span className="flex items-center gap-3"><Search size={16} /> Search...</span>
-            <span className="bg-[#111827] px-2 py-0.5 rounded text-[10px] font-mono text-[#9CA3AF]">⌘K</span>
+            <span className="bg-background px-2 py-0.5 rounded text-[10px] font-mono text-muted-foreground">⌘K</span>
           </button>
         </div>
 
@@ -138,24 +140,24 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout }) => {
                 key={item.id}
                 onClick={() => { navigate(item.path); setIsMobileMenuOpen(false); }}
                 className={`w-full flex items-center gap-3 px-4 py-3.5 text-[15px] font-medium transition-all rounded-xl relative overflow-hidden group ${active
-                  ? 'text-white bg-[#1F2937]'
-                  : 'text-[#9CA3AF] hover:text-white hover:bg-[#111827]'
+                  ? 'text-foreground bg-secondary shadow-lg shadow-black/20'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50'
                   }`}
               >
-                {active && <div className="absolute left-0 top-3 bottom-3 w-1 bg-gold-500 rounded-r-full shadow-[0_0_10px_rgba(212,175,55,0.5)]"></div>}
-                <Icon size={20} className={active ? 'text-gold-500' : 'text-[#6B7280] group-hover:text-white transition-colors'} />
+                {active && <div className="absolute left-0 top-3 bottom-3 w-1 bg-gradient-to-b from-metallic-300 to-metallic-500 rounded-r-full shadow-[0_0_15px_rgba(255,255,255,0.3)]"></div>}
+                <Icon size={20} className={active ? 'text-metallic-200 drop-shadow-md' : 'text-muted-foreground group-hover:text-foreground transition-colors'} />
                 {t(item.labelKey)}
               </button>
             );
           })}
         </nav>
 
-        <div className="p-5 border-t border-[#1F2937] space-y-3">
-          <div className="flex items-center gap-2 text-xs text-[#6B7280] px-2 opacity-60">
+        <div className="p-5 border-t border-border space-y-3 bg-secondary/20">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground px-2 opacity-60">
             <Sparkles size={12} className="text-gold-500" />
-            <span>Quiet Luxury v5.0</span>
+            <span>Pro Max v5.1</span>
           </div>
-          <button onClick={onLogout} className="flex items-center gap-3 text-[#9CA3AF] hover:text-white text-sm w-full px-3 py-3 rounded-xl hover:bg-[#1F2937] transition-colors font-medium">
+          <button onClick={onLogout} className="flex items-center gap-3 text-muted-foreground hover:text-foreground text-sm w-full px-3 py-3 rounded-xl hover:bg-red-500/10 hover:text-red-500 transition-colors font-medium">
             <LogOut size={18} /> Logout
           </button>
         </div>

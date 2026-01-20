@@ -1,0 +1,49 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
+    
+    --radius: 0.5rem;
+  }
+}
+
+@layer utilities {
+    .glass-card {
+        @apply bg-cartie-glass backdrop-blur-md border border-white/10 shadow-xl;
+    }
+    .text-metallic {
+        @apply bg-clip-text text-transparent bg-gradient-to-r from-metallic-200 via-white to-metallic-400;
+    }
+    .btn-premium {
+        @apply relative overflow-hidden bg-white text-black font-semibold px-4 py-2 rounded-lg hover:shadow-lg hover:shadow-white/20 transition-all duration-300;
+    }
+}

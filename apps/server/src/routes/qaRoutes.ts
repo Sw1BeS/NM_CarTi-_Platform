@@ -3,7 +3,7 @@ import { prisma } from '../services/prisma.js';
 import { parseListingFromUrl } from '../services/parser.js';
 import { generateRequestLink } from '../utils/deeplink.utils.js';
 import { authenticateToken, requireRole } from '../middleware/auth.js';
-import { ScenarioEngine } from '../modules/bots/scenario.engine.js';
+import { ScenarioEngine } from '../modules/Communication/bots/scenario.engine.js';
 
 const router = Router();
 

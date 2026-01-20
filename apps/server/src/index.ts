@@ -3,24 +3,26 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 // @ts-ignore
 import { prisma } from './services/prisma.js';
-import authRoutes from './modules/auth/auth.routes.js';
+import authRoutes from './modules/Core/auth/auth.routes.js';
 import apiRoutes from './routes/apiRoutes.js';
 import entityRoutes from './routes/entityRoutes.js';
-import inventoryRoutes from './modules/inventory/inventory.routes.js';
-import requestsRoutes from './modules/requests/requests.routes.js';
-import botRoutes from './modules/bots/bot.routes.js';
+import inventoryRoutes from './modules/Inventory/inventory/inventory.routes.js';
+import requestsRoutes from './modules/Sales/requests/requests.routes.js';
+import botRoutes from './modules/Communication/bots/bot.routes.js';
 import publicRoutes from './routes/publicRoutes.js';
-import companyRoutes from './modules/companies/company.routes.js';
-import templateRoutes from './modules/templates/template.routes.js';
-import integrationRoutes from './modules/integrations/integration.routes.js';
-import superadminRoutes from './modules/superadmin/superadmin.routes.js';
+import companyRoutes from './modules/Core/companies/company.routes.js';
+import templateRoutes from './modules/Core/templates/template.routes.js';
+import integrationRoutes from './modules/Integrations/integration.routes.js';
+import superadminRoutes from './modules/Core/superadmin/superadmin.routes.js';
 import qaRoutes from './routes/qaRoutes.js';
-import telegramRoutes from './modules/telegram/telegram.routes.js';
-import systemRoutes from './modules/system/system.routes.js';
-import { botManager } from './modules/bots/bot.service.js';
-import { seedAdmin } from './modules/users/user.service.js';
+import telegramRoutes from './modules/Communication/telegram/telegram.routes.js';
+import systemRoutes from './modules/Core/system/system.routes.js';
+import { whatsAppRouter } from './modules/Communication/whatsapp/whatsapp.service.js';
+import { viberRouter } from './modules/Communication/viber/viber.service.js';
+import { botManager } from './modules/Communication/bots/bot.service.js';
+import { seedAdmin } from './modules/Core/users/user.service.js';
 import { startContentWorker, stopContentWorker, getWorkerStatus } from './workers/content.worker.js';
-import { mtprotoWorker } from './modules/integrations/mtproto/mtproto.worker.js';
+import { mtprotoWorker } from './modules/Integrations/mtproto/mtproto.worker.js';
 import { workspaceContext } from './middleware/workspaceContext.js';
 import process from 'process';
 
@@ -58,6 +60,10 @@ app.use(express.json() as any);
 app.use(workspaceContext);
 
 // Routes
+// Public Webhooks (Must be before apiRoutes which has auth)
+app.use('/api/webhooks/whatsapp', whatsAppRouter);
+app.use('/api/webhooks/viber', viberRouter);
+
 app.use('/api/system', systemRoutes);
 app.use('/api/public', publicRoutes);
 app.use('/api/auth', authRoutes);

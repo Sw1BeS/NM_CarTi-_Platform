@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { writeService } from '../src/services/v41/writeService.js';
 import { FEATURE_FLAGS } from '../src/utils/constants.js';
@@ -229,14 +229,7 @@ async function main() {
     await prisma.systemSettings.update({
       where: { id: 1 },
       data: {
-        navigation: {
-          primary: [
-            { key: 'dashboard', label: 'Dashboard', href: '/' },
-            { key: 'requests', label: 'Requests', href: '/requests' },
-            { key: 'inventory', label: 'Inventory', href: '/inventory' },
-            { key: 'bots', label: 'Bots', href: '/bots' }
-          ]
-        },
+        navigation: Prisma.JsonNull,
         features: {
           analytics: true,
           bots: true,
@@ -507,15 +500,43 @@ async function seedBots(companyId: string) {
 }
 
 async function seedNormalization(companyId: string) {
-  console.log('🧭 Seeding normalization aliases...');
+  console.log('🧭 Seeding normalization aliases - Business Ready...');
   const aliases = [
+    // GERMAN
+    { type: 'brand', alias: 'BMW', canonical: 'BMW' },
     { type: 'brand', alias: 'БМВ', canonical: 'BMW' },
+    { type: 'brand', alias: 'Mercedes', canonical: 'Mercedes-Benz' },
+    { type: 'brand', alias: 'Mercedes-Benz', canonical: 'Mercedes-Benz' },
     { type: 'brand', alias: 'Мерседес', canonical: 'Mercedes-Benz' },
-    { type: 'brand', alias: 'мерседес', canonical: 'Mercedes-Benz' },
-    { type: 'brand', alias: 'БМВ ', canonical: 'BMW' },
+    { type: 'brand', alias: 'Audi', canonical: 'Audi' },
+    { type: 'brand', alias: 'Ауди', canonical: 'Audi' },
+    { type: 'brand', alias: 'Volkswagen', canonical: 'Volkswagen' },
+    { type: 'brand', alias: 'VW', canonical: 'Volkswagen' },
+    { type: 'brand', alias: 'Фольксваген', canonical: 'Volkswagen' },
+    { type: 'brand', alias: 'Porsche', canonical: 'Porsche' },
+    { type: 'brand', alias: 'Порше', canonical: 'Porsche' },
+    // ASIAN
+    { type: 'brand', alias: 'Toyota', canonical: 'Toyota' },
+    { type: 'brand', alias: 'Тойота', canonical: 'Toyota' },
+    { type: 'brand', alias: 'Lexus', canonical: 'Lexus' },
+    { type: 'brand', alias: 'Лексус', canonical: 'Lexus' },
+    { type: 'brand', alias: 'Nissan', canonical: 'Nissan' },
+    { type: 'brand', alias: 'Ниссан', canonical: 'Nissan' },
+    { type: 'brand', alias: 'Hyundai', canonical: 'Hyundai' },
+    { type: 'brand', alias: 'Хюндай', canonical: 'Hyundai' },
+    { type: 'brand', alias: 'Kia', canonical: 'Kia' },
+    { type: 'brand', alias: 'Киа', canonical: 'Kia' },
+    // CITIES
+    { type: 'city', alias: 'Kyiv', canonical: 'Kyiv' },
     { type: 'city', alias: 'Киев', canonical: 'Kyiv' },
     { type: 'city', alias: 'Київ', canonical: 'Kyiv' },
-    { type: 'city', alias: 'Lviv', canonical: 'Lviv' }
+    { type: 'city', alias: 'Lviv', canonical: 'Lviv' },
+    { type: 'city', alias: 'Львов', canonical: 'Lviv' },
+    { type: 'city', alias: 'Львів', canonical: 'Lviv' },
+    { type: 'city', alias: 'Odessa', canonical: 'Odesa' },
+    { type: 'city', alias: 'Одесса', canonical: 'Odesa' },
+    { type: 'city', alias: 'Dnipro', canonical: 'Dnipro' },
+    { type: 'city', alias: 'Днепр', canonical: 'Dnipro' }
   ];
 
   for (const entry of aliases) {
@@ -525,7 +546,7 @@ async function seedNormalization(companyId: string) {
       update: { canonical: entry.canonical }
     });
   }
-  console.log('✅ Normalization seeded');
+  console.log('✅ Normalization - Business Data seeded');
 }
 
 async function seedInventory(companyId: string) {

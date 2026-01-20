@@ -7,7 +7,7 @@
 
 import cron from 'node-cron';
 import { prisma } from '../services/prisma.js';
-import { telegramOutbox } from '../modules/telegram/outbox/telegramOutbox.js';
+import { telegramOutbox } from '../modules/Communication/telegram/outbox/telegramOutbox.js';
 
 interface ScheduledPost {
     id: string;

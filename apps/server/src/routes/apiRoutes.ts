@@ -7,21 +7,30 @@ import axios from 'axios';
 import { Prisma } from '@prisma/client';
 import { authenticateToken, requireRole } from '../middleware/auth.js';
 import { getWorkspaceById, getWorkspaceBySlug, getAllUsers } from '../services/v41/readService.js';
-import { botManager } from '../modules/bots/bot.service.js';
-import { searchAutoRia } from '../modules/integrations/autoria.service.js';
-import { sendMetaEvent } from '../modules/integrations/meta.service.js';
-import { importDraft } from '../modules/inventory/inventory.service.js';
+import { botManager } from '../modules/Communication/bots/bot.service.js';
+import { searchAutoRia } from '../modules/Integrations/autoria.service.js';
+import { sendMetaEvent } from '../modules/Integrations/meta.service.js';
+import { importDraft } from '../modules/Inventory/inventory/inventory.service.js';
 import { mapLeadCreateInput, mapLeadOutput, mapLeadStatusFilter, mapLeadUpdateInput } from '../services/dto.js';
-import { mapBotInput, mapBotOutput } from '../modules/bots/botDto.js';
-import { IntegrationService } from '../modules/integrations/integration.service.js';
-import { setWebhookForBot, deleteWebhookForBot } from '../modules/telegram/telegramAdmin.service.js';
-import { telegramOutbox } from '../modules/telegram/outbox/telegramOutbox.js';
+import { mapBotInput, mapBotOutput } from '../modules/Communication/bots/botDto.js';
+import { IntegrationService } from '../modules/Integrations/integration.service.js';
+import { setWebhookForBot, deleteWebhookForBot } from '../modules/Communication/telegram/telegramAdmin.service.js';
+import { telegramOutbox } from '../modules/Communication/telegram/outbox/telegramOutbox.js';
+import { whatsAppRouter } from '../modules/Communication/whatsapp/whatsapp.service.js';
+import { viberRouter } from '../modules/Communication/viber/viber.service.js';
 
 const integrationService = new IntegrationService();
 
 const router = Router();
 
 router.use(authenticateToken);
+
+// Public Webhooks
+const webhookRouter = Router();
+webhookRouter.use('/whatsapp', whatsAppRouter);
+webhookRouter.use('/viber', viberRouter);
+// Note: Telegram webhook is handled in telegram.routes.ts and likely mounted in index.ts or separate root
+
 
 const resolveCompanyId = async (requestedCompanyId?: string | null, userCompanyId?: string | null) => {
     if (requestedCompanyId) return requestedCompanyId;

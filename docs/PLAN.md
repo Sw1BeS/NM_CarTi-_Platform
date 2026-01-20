@@ -1,59 +1,99 @@
-# Orchestration Plan: System Audit & Deployment
+# Cartie Platform: "Pro Max" Upgrade Plan
 
-This plan covers the comprehensive audit, verification, and deployment of the Cartie automotive platform.
+> **Objective:** Transform current MVP into a production-ready, multi-lingual, high-performance platform with premium UI/UX.
 
-## Agents Involved
-1. **project-planner**: (Current Phase) - Orchestration planning and system mapping.
-2. **backend-specialist**: Audit and fix all backend modules (Leads, Inventory, Parser, B2B, TG).
-3. **frontend-specialist**: Audit and fix all frontend pages and ensure they connect to the backend.
-4. **test-engineer**: Run verification scripts and validate system integrity.
-5. **devops-engineer**: Execute production deployment and verify live environment.
+## 👥 Orchestration Team (Minimum 3 Agents)
+1. ** Backend Specialist:** Refactoring, API generation, Integrations.
+2. ** Frontend Specialist:** UI/UX Redesign, i18n implementation.
+3. ** Database Architect:** Data seeding, Schema optimization.
+4. ** DevOps/Test Engineer:** Verification, file structure cleanup.
 
-## Phase 1: Comprehensive Audit & Verification
+---
 
-### 1. Leads & CRM
-- Audit `Lead` and `BotMessage` models.
-- Verify lead capture flow from Telegram bots.
-- Verify `Leads.tsx` display and actions.
+## Phase 1: Architecture & Housekeeping (The Foundation)
+**Goal:** Clean up technical debt and prepare for scale.
 
-### 2. Inventory Management
-- Fix `CarListing` schema issues (missing `sourceChatId`).
-- Verify manual and automated inventory updates.
-- Verify `Inventory.tsx` CRUD operations.
+### 1.1 Backend Module Consolidation
+*   **Current:** 58+ loose modules in `src/modules`.
+*   **Target:** Consolidate into Domain Modules:
+    *   `@modules/Sales` (Leads, Deals, B2B Requests)
+    *   `@modules/Inventory` (Cars, Parser, Stock)
+    *   `@modules/Communication` (Telegram, Bots, Outbox)
+    *   `@modules/Core` (Users, Companies, Settings, Auth)
+    *   `@modules/Integrations` (Meta, SendPulse, External)
 
-### 3. Telegram & Bots
-- Verify `BotConfig`, `BotSession`, and `Scenario` logic.
-- Test `TelegramHub.tsx` dashboard and bot management.
-- Ensure scenarios/templates are correctly associated with the "Cartie Auto" workspace.
+### 1.2 File Structure Optimization
+*   **Backend:** Standardize `Service <-> Controller <-> DTO` pattern.
+*   **Frontend:** Group by feature (`features/auth`, `features/inventory`) instead of type (`components`, `pages`).
 
-### 4. Auto Parser & Search
-- Verify `parser.ts` and `urlParser.ts` functionality (AutoRia, etc.).
-- Audit `Search.tsx` integration with parser services.
-- Test car saving from search results to inventory.
+---
 
-### 5. B2B Requests & Proposals
-- Audit `B2bRequest` and `RequestVariant` models.
-- Verify request collection and variant submission flow.
-- Ensure `Requests.tsx` shows all relevant data and actions.
+## Phase 2: Core Enhancements (Data & Settings)
+**Goal:** Make the system usable "out of the box" and configurable.
 
-### 6. Integrations & Settings
-- Verify `Integration` model and supported types (Webhooks, TG channels).
-- Audit `Settings.tsx` and `CompanySettings.tsx`.
-- Ensure workspace-level configurations are correctly applied.
+### 2.1 Settings Exposure (Backend + Frontend)
+*   [NEW] `GET/PUT /api/settings/integrations`: Manage API keys securely.
+*   [NEW] `GET/PUT /api/settings/localization`: Manage default languages.
+*   [NEW] Frontend "Settings" Section:
+    *   Tabs: General, Team, Integrations, Billing, Logs.
+    *   **Action:** Verify "Planer" content visibility.
 
-## Phase 2: Implementation & Fixes (Parallel)
-- **Backend**: Apply fixes to schema, services, and routes.
-- **Frontend**: Resolve UI bugs, non-working buttons, and API connectivity issues.
-- **Testing**: Develop and run integration tests for core flows.
+### 2.2 Data Population (Seeding)
+*   **Scenarios:** Pre-fill 5 common templates (Lead Gen, Support, Feedback, Catalog, Quiz).
+*   **Normalization:** Seed `Brands`, `Models`, `Colors` (EN/UA/RU) into DB.
 
-## Phase 3: Deployment & Final Verification
-- Run `verify_all.py` (or equivalent scripts).
-- Perform security scan (`security_scan.py`).
-- Execute `npm run build` and deploy to production.
-- Final health check on `https://cartie2.umanoff-analytics.space/`.
+---
 
-## User Review Required
-> [!IMPORTANT]
-> The seed script was previously modified to bypass mismatching schema in `CarListing`. In Phase 2, we will resolve these schema issues permanently.
+## Phase 3: Internationalization (i18n)
+**Goal:** Native support for EN, UA, RU.
 
-Onaylıyor musunuz? (Y/N)
+### 3.1 Backend i18n
+*   Store content in `jsonb` or separate `Translation` tables where dynamic.
+*   Static errors/messages: Use `i18next-fs-backend`.
+
+### 3.2 Frontend i18n
+*   Replace monolithic `translations.ts`.
+*   Implement `react-i18next` with lazy-loading JSONs (`public/locales/{lang}/translation.json`).
+*   Language Switcher UI in Navbar.
+
+---
+
+## Phase 4: Integrations (Meta & SendPulse)
+**Goal:** Connect external marketing ecosystems.
+
+### 4.1 Meta (Facebook/Instagram)
+*   [NEW] `MetaService`: CAPI (Conversions API) integration.
+*   **Events:** `Lead`, `ViewContent` (Car), `Contact`.
+
+### 4.2 SendPulse
+*   [NEW] `SendPulseService`: Sync email leads to mailing lists.
+*   **Trigger:** On `Lead` creation.
+
+### 4.3 Additional Messenger Bots
+*   **WhatsApp, Viber:** Add to `@modules/Communication`.
+*   **Instagram:** Consolidate with Meta integration.
+
+---
+
+## Phase 5: UI/UX "Pro Max" Polish
+**Goal:** "Wow" factor - Premium Auto Dealer Aesthetic.
+
+### 5.1 Design System Upgrade
+*   **Theme:** "Black & Metallic". Dark mode optimization.
+*   **Visuals:** Glassmorphism cards, premium typography, metallic gradients.
+*   **Interactions:** Hover states, micro-interactions (framer-motion).
+*   **Mobile:** Verify "Mini App" responsiveness.
+
+### 5.2 Critical Flow Walkthroughs
+*   **Login:** Shake animation on error, smooth fade-in.
+*   **Dashboard:** Real-time charts (Recharts).
+*   **Kanban (Leads):** Drag-and-drop smoothness (dnd-kit).
+
+---
+
+## Phase 6: Verification
+**Goal:** Ensure 100% functionality.
+
+*   [ ] **Automated:** Run `npm test` (Backend).
+*   [ ] **Manual:** URL Check `https://cartie2.umanoff-analytics.space`.
+*   [ ] **Security:** Audit new Settings endpoints.
