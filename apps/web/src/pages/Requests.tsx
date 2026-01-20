@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
+import DOMPurify from 'dompurify';
 import { RequestsService } from '../services/requestsService';
 import { Data } from '../services/data';
 import { ApiClient } from '../services/apiClient';
@@ -208,15 +209,14 @@ export const RequestList: React.FC = () => {
                                                 <div className="text-sm text-[var(--text-secondary)] mt-0.5">{r.yearMin}+</div>
                                             </td>
                                             <td>
-                                                <span className={`px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wider ${
-                                                    r.status === RequestStatus.DRAFT ? 'bg-blue-500/10 text-blue-500' :
-                                                    r.status === RequestStatus.COLLECTING_VARIANTS ? 'bg-amber-500/10 text-amber-400' :
-                                                    r.status === RequestStatus.SHORTLIST ? 'bg-purple-500/10 text-purple-400' :
-                                                    r.status === RequestStatus.CONTACT_SHARED ? 'bg-teal-500/10 text-teal-400' :
-                                                    r.status === RequestStatus.WON ? 'bg-green-500/10 text-green-500' :
-                                                    r.status === RequestStatus.LOST ? 'bg-red-500/10 text-red-500' :
-                                                    'bg-[var(--bg-input)] text-[var(--text-secondary)]'
-                                                }`}>
+                                                <span className={`px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wider ${r.status === RequestStatus.DRAFT ? 'bg-blue-500/10 text-blue-500' :
+                                                        r.status === RequestStatus.COLLECTING_VARIANTS ? 'bg-amber-500/10 text-amber-400' :
+                                                            r.status === RequestStatus.SHORTLIST ? 'bg-purple-500/10 text-purple-400' :
+                                                                r.status === RequestStatus.CONTACT_SHARED ? 'bg-teal-500/10 text-teal-400' :
+                                                                    r.status === RequestStatus.WON ? 'bg-green-500/10 text-green-500' :
+                                                                        r.status === RequestStatus.LOST ? 'bg-red-500/10 text-red-500' :
+                                                                            'bg-[var(--bg-input)] text-[var(--text-secondary)]'
+                                                    }`}>
                                                     {r.status.replace(/_/g, ' ')}
                                                 </span>
                                             </td>
@@ -393,7 +393,7 @@ export const RequestList: React.FC = () => {
                             </div>
                             <div className="bg-[var(--bg-input)] border border-[var(--border-color)] rounded-lg p-3 text-xs text-[var(--text-secondary)]">
                                 <div className="font-bold text-[var(--text-primary)] mb-2">Preview</div>
-                                <div dangerouslySetInnerHTML={{ __html: ContentGenerator.fromRequest(broadcastReq).replace(/\n/g, '<br/>') }} />
+                                <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(ContentGenerator.fromRequest(broadcastReq).replace(/\n/g, '<br/>')) }} />
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                 <div>

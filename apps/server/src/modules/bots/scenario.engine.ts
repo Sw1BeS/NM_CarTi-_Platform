@@ -33,14 +33,19 @@ export interface BotRuntime {
 
 export interface ScenarioRecord {
   id: string;
-  trigger: string;
-  flow: ScenarioNode[];
+  triggerCommand: string | null;
+  isActive?: boolean;
+  keywords?: string[];
+  nodes: ScenarioNode[] | any[];
+  flow?: ScenarioNode[];
 }
 
 export interface ScenarioNode {
   id: string;
   type: string;
   text?: string;
+  content?: any;
+  nextNodeId?: string;
   buttons?: any[];
   next?: string | Record<string, string>;
 }
@@ -394,7 +399,7 @@ export class ScenarioEngine {
 
     const checkKeywords = async () => {
       const triggered = scenarios.find(s =>
-        s.isActive && Array.isArray(s.keywords) && s.keywords.some(k => input.includes(String(k).toLowerCase()))
+        s.isActive && Array.isArray(s.keywords) && s.keywords.some((k: any) => input.includes(String(k).toLowerCase()))
       );
       if (triggered) {
         await startScenario(triggered.id);
@@ -1275,7 +1280,7 @@ export class ScenarioEngine {
         if (mapped.length < 3) {
           const external = await searchAutoRia(filter);
           const seen = new Set(mapped.map(c => c.canonicalId || c.sourceUrl));
-          const deduped = external.filter(car => {
+          const deduped = external.filter((car: any) => {
             const key = car.canonicalId || car.sourceUrl;
             if (!key || seen.has(key)) return false;
             seen.add(key);
@@ -1554,8 +1559,8 @@ export class ScenarioEngine {
         source: fromResults.source || 'MANUAL',
         sourceUrl: fromResults.sourceUrl || null,
         title: fromResults.title,
-        price: fromResults.price?.amount || 0,
-        currency: fromResults.price?.currency || 'USD',
+        price: typeof fromResults.price === 'object' ? fromResults.price?.amount || 0 : fromResults.price || 0,
+        currency: typeof fromResults.price === 'object' ? fromResults.price?.currency || 'USD' : 'USD',
         year: fromResults.year || 0,
         mileage: fromResults.mileage || 0,
         location: fromResults.location || null,
@@ -1578,7 +1583,7 @@ export class ScenarioEngine {
     if (action === 'CLOSE') {
       await prisma.b2bRequest.update({
         where: { id: reqId },
-        data: { status: 'CLOSED' }
+        data: { status: 'CLOSED' as any } // TODO: Use Enum
       });
       await sendMessage(bot, chatId, '✅ Request closed.');
       return;
@@ -1590,7 +1595,7 @@ export class ScenarioEngine {
 
       const text = mapRequestForMessage(req);
       if (bot.channelId) {
-        const link = generateRequestLink(bot.config?.username || 'CarTieBot', req.publicId);
+        const link = generateRequestLink(bot.config?.username || 'CarTieBot', req.publicId || '');
         const keyboard = createDeepLinkKeyboard([{ text: '💼 Створити пропозицію', link }]);
         await sendMessage(bot, bot.channelId, text, keyboard);
         await sendMessage(bot, chatId, '✅ Posted to channel.');

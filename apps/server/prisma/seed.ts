@@ -211,10 +211,10 @@ async function main() {
   }
 
   // 3. Demo company users
-  await createUserIfMissing('owner@demo.com', 'OWNER', demoCompany.id, 'demo123', 'Demo Owner');
-  await createUserIfMissing('admin@demo.com', 'ADMIN', demoCompany.id, 'demo123', 'Demo Admin');
-  await createUserIfMissing('manager@demo.com', 'MANAGER', demoCompany.id, 'demo123', 'Demo Manager');
-  await createUserIfMissing('dealer@demo.com', 'DEALER', demoCompany.id, 'demo123', 'Demo Dealer');
+  await createUserIfMissing('max@demo.com', 'OWNER', demoCompany.id, process.env.DEMO_USER_PASSWORD || 'demo123', 'Demo Owner');
+  await createUserIfMissing('admin@demo.com', 'ADMIN', demoCompany.id, process.env.DEMO_USER_PASSWORD || 'demo123', 'Demo Admin');
+  await createUserIfMissing('manager@demo.com', 'MANAGER', demoCompany.id, process.env.DEMO_USER_PASSWORD || 'demo123', 'Demo Manager');
+  await createUserIfMissing('dealer@demo.com', 'DEALER', demoCompany.id, process.env.DEMO_USER_PASSWORD || 'demo123', 'Demo Dealer');
 
   // 3. Init Generic Entities (Stage D/E)
   await seedEntities();
@@ -424,7 +424,7 @@ async function seedBots(companyId: string) {
       id: 'bot_demo_polling',
       name: 'Demo Polling Bot',
       template: 'CLIENT_LEAD',
-      token: 'demo-bot-token-1',
+      token: process.env.DEMO_BOT_TOKEN_1 || 'demo-bot-token-1',
       deliveryMode: 'POLLING',
       isEnabled: true,
       config: {
@@ -438,14 +438,14 @@ async function seedBots(companyId: string) {
       id: 'bot_demo_webhook',
       name: 'Demo Webhook Bot',
       template: 'CATALOG',
-      token: 'demo-bot-token-2',
+      token: process.env.DEMO_BOT_TOKEN_2 || 'demo-bot-token-2',
       deliveryMode: 'WEBHOOK',
       isEnabled: true,
       config: {
         username: 'demo_webhook_bot',
         role: 'CHANNEL',
-        publicBaseUrl: 'https://demo.cartie.local/bot',
-        webhookSecret: 'demo-secret',
+        publicBaseUrl: process.env.DEMO_BOT_URL || 'https://demo.cartie.local/bot',
+        webhookSecret: process.env.DEMO_WEBHOOK_SECRET || 'demo-secret',
         deliveryMode: 'webhook'
       }
     }
@@ -663,7 +663,7 @@ async function seedIntegrationsAndDrafts(companyId: string) {
       id: 'int_demo_webhook',
       type: 'WEBHOOK',
       isActive: true,
-      config: { url: 'https://demo.cartie.local/hooks/lead', secret: 'demo-webhook' }
+      config: { url: process.env.DEMO_HOOK_URL || 'https://demo.cartie.local/hooks/lead', secret: process.env.DEMO_HOOK_SECRET || 'demo-webhook' }
     },
     {
       id: 'int_demo_telegram',

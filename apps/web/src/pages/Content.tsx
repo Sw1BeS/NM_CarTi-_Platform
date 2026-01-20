@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
+import DOMPurify from 'dompurify';
 import { Data } from '../services/data';
 import { ApiClient } from '../services/apiClient';
 import { DraftsService, DraftRecord } from '../services/draftsService';
@@ -200,8 +201,8 @@ export const ContentPage = () => {
                                         {dest?.name || draft.destination}
                                     </div>
                                     <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${draft.status === 'POSTED' ? 'bg-green-500/20 text-green-500' :
-                                            draft.status === 'SCHEDULED' ? 'bg-blue-500/20 text-blue-500' :
-                                                'bg-gray-500/20 text-gray-500'
+                                        draft.status === 'SCHEDULED' ? 'bg-blue-500/20 text-blue-500' :
+                                            'bg-gray-500/20 text-gray-500'
                                         }`}>
                                         {draft.status}
                                     </span>
@@ -268,8 +269,8 @@ export const ContentPage = () => {
                                                 key={car.canonicalId}
                                                 onClick={() => setSelectedCar(car)}
                                                 className={`p-3 rounded cursor-pointer transition-colors ${selectedCar?.canonicalId === car.canonicalId
-                                                        ? 'bg-gold-500 text-black'
-                                                        : 'hover:bg-[var(--bg-panel)]'
+                                                    ? 'bg-gold-500 text-black'
+                                                    : 'hover:bg-[var(--bg-panel)]'
                                                     }`}
                                             >
                                                 <div className="text-xs font-bold">{car.title}</div>
@@ -287,8 +288,8 @@ export const ContentPage = () => {
                                         <button
                                             onClick={() => setTemplate('IN_STOCK')}
                                             className={`py-2 px-3 rounded text-xs font-bold transition-colors ${template === 'IN_STOCK'
-                                                    ? 'bg-gold-500 text-black'
-                                                    : 'bg-[var(--bg-input)] text-[var(--text-secondary)]'
+                                                ? 'bg-gold-500 text-black'
+                                                : 'bg-[var(--bg-input)] text-[var(--text-secondary)]'
                                                 }`}
                                         >
                                             ✅ In Stock
@@ -296,8 +297,8 @@ export const ContentPage = () => {
                                         <button
                                             onClick={() => setTemplate('IN_TRANSIT')}
                                             className={`py-2 px-3 rounded text-xs font-bold transition-colors ${template === 'IN_TRANSIT'
-                                                    ? 'bg-gold-500 text-black'
-                                                    : 'bg-[var(--bg-input)] text-[var(--text-secondary)]'
+                                                ? 'bg-gold-500 text-black'
+                                                : 'bg-[var(--bg-input)] text-[var(--text-secondary)]'
                                                 }`}
                                         >
                                             📦 In Transit
@@ -305,8 +306,8 @@ export const ContentPage = () => {
                                         <button
                                             onClick={() => setTemplate('CUSTOM')}
                                             className={`py-2 px-3 rounded text-xs font-bold transition-colors ${template === 'CUSTOM'
-                                                    ? 'bg-gold-500 text-black'
-                                                    : 'bg-[var(--bg-input)] text-[var(--text-secondary)]'
+                                                ? 'bg-gold-500 text-black'
+                                                : 'bg-[var(--bg-input)] text-[var(--text-secondary)]'
                                                 }`}
                                         >
                                             ✏️ Custom
@@ -322,8 +323,8 @@ export const ContentPage = () => {
                                         <button
                                             onClick={() => setPostLang('UA')}
                                             className={`py-2 px-3 rounded text-xs font-bold transition-colors ${postLang === 'UA'
-                                                    ? 'bg-gold-500 text-black'
-                                                    : 'bg-[var(--bg-input)] text-[var(--text-secondary)]'
+                                                ? 'bg-gold-500 text-black'
+                                                : 'bg-[var(--bg-input)] text-[var(--text-secondary)]'
                                                 }`}
                                         >
                                             Українська
@@ -331,8 +332,8 @@ export const ContentPage = () => {
                                         <button
                                             onClick={() => setPostLang('RU')}
                                             className={`py-2 px-3 rounded text-xs font-bold transition-colors ${postLang === 'RU'
-                                                    ? 'bg-gold-500 text-black'
-                                                    : 'bg-[var(--bg-input)] text-[var(--text-secondary)]'
+                                                ? 'bg-gold-500 text-black'
+                                                : 'bg-[var(--bg-input)] text-[var(--text-secondary)]'
                                                 }`}
                                         >
                                             Русский
@@ -400,7 +401,7 @@ export const ContentPage = () => {
                                     )}
                                     <div
                                         className="text-sm text-[var(--text-primary)] whitespace-pre-wrap"
-                                        dangerouslySetInnerHTML={{ __html: generatePreview().replace(/\n/g, '<br/>') }}
+                                        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(generatePreview().replace(/\n/g, '<br/>')) }}
                                     />
                                 </div>
                             </div>
