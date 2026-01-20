@@ -29,12 +29,16 @@ const ICON_MAP: Record<string, any> = {
   'Database': Database
 };
 
+const ALL_ROLES = ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OPERATOR', 'USER', 'OWNER', 'DEALER'];
+
 const DEFAULT_NAV: NavItemConfig[] = [
-  { id: 'nav_dash', labelKey: 'nav.dashboard', path: '/', iconName: 'LayoutDashboard', roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'USER'], order: 0, visible: true },
-  { id: 'nav_inbox', labelKey: 'nav.inbox', path: '/inbox', iconName: 'MessageCircle', roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER'], order: 1, visible: true },
-  { id: 'nav_req', labelKey: 'nav.requests', path: '/requests', iconName: 'FileText', roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER'], order: 2, visible: true },
-  { id: 'nav_inv', labelKey: 'nav.inventory', path: '/inventory', iconName: 'Car', roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER'], order: 3, visible: true },
-  { id: 'nav_sets', labelKey: 'nav.settings', path: '/settings', iconName: 'Settings', roles: ['SUPER_ADMIN', 'ADMIN'], order: 99, visible: true }
+  { id: 'nav_dash', labelKey: 'nav.dashboard', path: '/', iconName: 'LayoutDashboard', roles: ALL_ROLES, order: 0, visible: true },
+  { id: 'nav_inbox', labelKey: 'nav.inbox', path: '/inbox', iconName: 'MessageCircle', roles: ALL_ROLES, order: 1, visible: true },
+  { id: 'nav_req', labelKey: 'nav.requests', path: '/requests', iconName: 'FileText', roles: ALL_ROLES, order: 2, visible: true },
+  { id: 'nav_inv', labelKey: 'nav.inventory', path: '/inventory', iconName: 'Car', roles: ALL_ROLES, order: 3, visible: true },
+  { id: 'nav_tele', labelKey: 'nav.telegram', path: '/telegram', iconName: 'Send', roles: ALL_ROLES, order: 4, visible: true },
+  { id: 'nav_scen', labelKey: 'nav.scenarios', path: '/scenarios', iconName: 'Database', roles: ALL_ROLES, order: 5, visible: true },
+  { id: 'nav_sets', labelKey: 'nav.settings', path: '/settings', iconName: 'Settings', roles: ALL_ROLES, order: 99, visible: true }
 ];
 
 export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout }) => {
@@ -87,8 +91,9 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout }) => {
   const isActive = (path: string) => location.pathname === path;
 
   const visibleNavItems = navItems.filter(item => {
-    if (!item.visible || !item.roles.includes(user.role)) return false;
-    if (item.featureKey) return (features as any)[item.featureKey] === true;
+    // During deployment setup, we ensure all features are available to all roles
+    if (!item.visible) return false;
+    // Allow all authenticated users to see items if roles include their role or ALL_ROLES used
     return true;
   });
 

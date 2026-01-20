@@ -5,11 +5,13 @@
 
 import { Router } from 'express';
 import { SuperadminService } from './superadmin.service.js';
+import { ClientManagerService } from './client-manager.service.js';
 import { companyMiddleware, requireRole } from '../../middleware/company.middleware.js';
 import jwt from 'jsonwebtoken';
 
 const router = Router();
 const superadminService = new SuperadminService();
+const clientManagerService = new ClientManagerService();
 const JWT_SECRET = process.env.JWT_SECRET || 'dev_secret_key_123';
 
 // All routes require SUPER_ADMIN role
@@ -41,7 +43,7 @@ router.post('/companies', async (req: any, res) => {
             return res.status(400).json({ error: 'name, slug, and ownerEmail are required' });
         }
 
-        const result = await superadminService.createCompany({
+        const result = await clientManagerService.createCompany({
             name,
             slug,
             plan,
@@ -61,7 +63,7 @@ router.post('/companies', async (req: any, res) => {
  */
 router.delete('/companies/:id', async (req: any, res) => {
     try {
-        await superadminService.deleteCompany(req.params.id);
+        await clientManagerService.deleteCompany(req.params.id);
         res.json({ success: true });
     } catch (e: any) {
         res.status(400).json({ error: e.message });

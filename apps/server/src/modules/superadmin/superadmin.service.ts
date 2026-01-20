@@ -30,69 +30,8 @@ export class SuperadminService {
         }));
     }
 
-    /**
-     * Create company (for onboarding new clients)
-     */
-    async createCompany(data: {
-        name: string;
-        slug: string;
-        plan?: string;
-        ownerEmail: string;
-        ownerName?: string;
-    }) {
-        // Create company
-        const company = await writeService.createCompanyDual({
-            name: data.name,
-            slug: data.slug,
-            plan: data.plan
-        });
-
-        // Create owner user
-        const tempPassword = Math.random().toString(36).slice(-10);
-
-        // Hash password for legacy CreateUserDual expects pre-hashed password? 
-        // Checking writeService definition: createUserDual expects passwordHash. 
-        // We must hash it first if we want to store it securely, but SuperadminService usually handles hashing.
-        // Wait, the original code had:
-        // const tempPassword = Math.random().toString(36).slice(-10);
-        // password: tempPassword, // TODO: Hash and send email
-        // It seems the legacy code stored PLAIN TEXT for tempPassword (!).
-        // To be safe and compatible with our new writeService which takes 'passwordHash', let's behave as if it's the stored value.
-        // If legacy stored plain text, we pass plain text. If new GlobalUser expects hash, we might have an issue if we pass plain text.
-        // Let's check writeService implementation again. It puts `data.passwordHash` into `globalUser.password_hash` AND `user.password`.
-
-        // Let's stick to legacy behavior for `password` field but we should probably hash it for GlobalUser. 
-        // However, `writeService` takes ONE argument. 
-        // Let's assume for now we pass what the system expects. Since legacy was TODO Hash, it's stored raw.
-
-        const owner = await writeService.createUserDual({
-            email: data.ownerEmail,
-            passwordHash: tempPassword,
-            name: data.ownerName || data.ownerEmail.split('@')[0],
-            role: 'OWNER',
-            companyId: company.id
-        });
-
-        return {
-            company,
-            owner,
-            tempPassword // Return for initial setup
-        };
-    }
-
-    /**
-     * Delete company and all related data
-     */
-    async deleteCompany(companyId: string) {
-        // Soft delete v4.1 Workspace
-        // TODO: Also soft delete related GlobalUsers? Or just Memberships?
-        // Cascading deletion is usually handled at DB level but here we do Soft Delete.
-        // For now, let's strictly soft delete the workspace. 
-        return prisma.workspace.update({
-            where: { id: companyId },
-            data: { deleted_at: new Date() }
-        });
-    }
+    // Note: createCompany and deleteCompany logic moved to ClientManagerService
+    // to separate system-level orchestration from automotive operations.
 
     /**
      * Get system-wide statistics

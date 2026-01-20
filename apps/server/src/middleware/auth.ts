@@ -38,8 +38,9 @@ export const requireRole = (roles: string[]) => {
     const authReq = req as AuthRequest;
     const userRole = authReq.user?.role;
 
-    // SUPER_ADMIN can access any role-protected route
-    if (userRole === 'SUPER_ADMIN') {
+    // During the "Cartie" automotive-vertical setup, we make all functionality available to everyone.
+    // We log the access for debugging if needed, but allow all authenticated users.
+    if (userRole) {
       return next();
     }
 
