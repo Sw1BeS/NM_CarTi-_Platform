@@ -1,4 +1,5 @@
 import { LeadStatus as DbLeadStatus, RequestStatus as DbRequestStatus, VariantStatus as DbVariantStatus } from '@prisma/client';
+import { NormalizationService } from './normalization.service.js';
 
 const DEFAULT_CURRENCY = 'USD';
 
@@ -9,9 +10,7 @@ const toNumber = (value: any) => {
 };
 
 const toString = (value: any) => {
-  if (typeof value !== 'string') return undefined;
-  const trimmed = value.trim();
-  return trimmed ? trimmed : undefined;
+  return NormalizationService.cleanString(value) || undefined;
 };
 
 const LEAD_STATUS_TO_DB: Record<string, DbLeadStatus> = {
@@ -68,21 +67,8 @@ const VARIANT_STATUS_MAP: Record<string, DbVariantStatus> = {
 export const generatePublicId = () =>
   `REQ-${Date.now().toString(36).toUpperCase()}${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
 
-const extractPrice = (input: any, fallbackCurrency?: string) => {
-  let amount: any;
-  let currency: string | undefined;
-  if (input && typeof input === 'object') {
-    amount = input.amount;
-    currency = typeof input.currency === 'string' ? input.currency : undefined;
-  } else {
-    amount = input;
-  }
-  const parsedAmount = toNumber(amount);
-  return {
-    amount: parsedAmount,
-    currency: currency || fallbackCurrency || DEFAULT_CURRENCY
-  };
-};
+// Replaced with NormalizationService.extractPrice
+// const extractPrice = ...
 
 const mergeLeadPayload = (input: any, existingPayload: any = {}) => {
   const payload = { ...(existingPayload || {}) };
@@ -137,7 +123,7 @@ export const mapLeadCreateInput = (input: any) => {
     payload
   };
 
-  if ('phone' in input) data.phone = input.phone;
+  if ('phone' in input) data.phone = NormalizationService.normalizePhone(input.phone);
   if ('source' in input) data.source = input.source;
   if ('telegramChatId' in input || 'userTgId' in input) {
     data.userTgId = input.telegramChatId ?? input.userTgId;
@@ -156,7 +142,7 @@ export const mapLeadUpdateInput = (input: any, existingPayload: any = {}) => {
     const name = toString(input.clientName) || toString(input.name);
     if (name) data.clientName = name;
   }
-  if ('phone' in input) data.phone = input.phone;
+  if ('phone' in input) data.phone = NormalizationService.normalizePhone(input.phone);
   if ('source' in input) data.source = input.source;
   if ('telegramChatId' in input || 'userTgId' in input) {
     data.userTgId = input.telegramChatId ?? input.userTgId;
@@ -194,7 +180,7 @@ export const mapLeadOutput = (lead: any) => {
 };
 
 export const mapVariantInput = (input: any) => {
-  const price = extractPrice(input.price);
+  const price = NormalizationService.extractPrice(input.price, input.currency); // Prioritize input.currency
   const data: any = {};
 
   if ('status' in input) {
@@ -203,12 +189,12 @@ export const mapVariantInput = (input: any) => {
   }
   if ('source' in input) data.source = input.source;
   if ('sourceUrl' in input || 'url' in input) data.sourceUrl = input.sourceUrl ?? input.url;
-  if ('title' in input) data.title = input.title;
+  if ('title' in input) data.title = toString(input.title);
   if (price.amount !== undefined) data.price = price.amount;
   if (price.currency) data.currency = price.currency;
   if ('year' in input) data.year = toNumber(input.year);
   if ('mileage' in input) data.mileage = toNumber(input.mileage);
-  if ('location' in input) data.location = input.location;
+  if ('location' in input) data.location = NormalizationService.normalizeCity(input.location);
   if ('thumbnail' in input) data.thumbnail = input.thumbnail;
   if ('specs' in input) data.specs = input.specs ?? null;
 
@@ -250,7 +236,7 @@ export const mapRequestInput = (input: any) => {
   if (yearMin !== undefined) data.yearMin = yearMin;
   const yearMax = toNumber(input.yearMax);
   if (yearMax !== undefined) data.yearMax = yearMax;
-  if ('city' in input) data.city = input.city ?? null;
+  if ('city' in input) data.city = NormalizationService.normalizeCity(input.city) ?? null;
   if ('language' in input) data.language = input.language ?? null;
   if ('status' in input) {
     const norm = String(input.status || '').toUpperCase();
@@ -299,9 +285,9 @@ export const mapInventoryInput = (input: any) => {
 
   if ('source' in input) data.source = input.source;
   if ('sourceUrl' in input) data.sourceUrl = input.sourceUrl ?? null;
-  if ('title' in input) data.title = input.title;
+  if ('title' in input) data.title = toString(input.title);
 
-  const price = extractPrice(input.price, input.currency);
+  const price = NormalizationService.extractPrice(input.price, input.currency);
   if (price.amount !== undefined) data.price = price.amount;
   if (price.currency) data.currency = price.currency;
 
@@ -310,14 +296,14 @@ export const mapInventoryInput = (input: any) => {
   const mileage = toNumber(input.mileage);
   if (mileage !== undefined) data.mileage = mileage;
 
-  if ('location' in input) data.location = input.location ?? null;
+  if ('location' in input) data.location = NormalizationService.normalizeCity(input.location) ?? null;
   if ('thumbnail' in input) data.thumbnail = input.thumbnail ?? null;
   if ('mediaUrls' in input) {
     data.mediaUrls = Array.isArray(input.mediaUrls)
       ? input.mediaUrls
       : input.mediaUrls
-      ? [input.mediaUrls]
-      : [];
+        ? [input.mediaUrls]
+        : [];
   }
   if ('specs' in input) data.specs = input.specs ?? null;
   if ('description' in input) data.description = input.description ?? null;
@@ -335,3 +321,4 @@ export const mapInventoryOutput = (car: any) => ({
     currency: car.currency || DEFAULT_CURRENCY
   }
 });
+

@@ -33,6 +33,7 @@ import { LangProvider } from './contexts/LanguageContext';
 import { WorkerProvider } from './contexts/WorkerContext';
 import { ToastProvider } from './contexts/ToastContext';
 import { ThemeProvider } from './contexts/ThemeContext';
+import { Data } from './services/data';
 
 const ProtectedRoute = ({ children }: React.PropsWithChildren) => {
   const { user } = useAuth();
@@ -41,6 +42,22 @@ const ProtectedRoute = ({ children }: React.PropsWithChildren) => {
 };
 
 export default function App() {
+  // Theme Engine
+  React.useEffect(() => {
+    const updateTheme = async () => {
+      try {
+        const settings = await Data.getSettings();
+        if (settings?.theme?.primaryColor) {
+          document.documentElement.style.setProperty('--color-primary', settings.theme.primaryColor);
+        }
+      } catch (e) {
+        console.error("Theme load failed", e);
+      }
+    };
+    updateTheme();
+    return Data.subscribe('UPDATE_SETTINGS', updateTheme);
+  }, []);
+
   return (
     <ThemeProvider>
       <LangProvider>

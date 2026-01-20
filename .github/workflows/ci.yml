@@ -1,0 +1,49 @@
+name: Cartie v2 CI
+
+on:
+  push:
+    branches: [ "main", "develop" ]
+  pull_request:
+    branches: [ "main", "develop" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [20.x]
+
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v3
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+        cache-dependency-path: '**/package-lock.json'
+
+    - name: Install dependencies (Root)
+      run: npm install
+
+    - name: Building Backend
+      working-directory: ./apps/server
+      run: |
+        npm install
+        npx prisma generate
+        npm run build
+
+    - name: Building Frontend
+      working-directory: ./apps/web
+      run: |
+        npm install
+        npm run build
+      env:
+        # Dummy value for build time, replaced at run time or via Docker build args
+        VITE_API_BASE_URL: "https://api.staging.cartie.io" 
+
+    - name: Run Tests (Backend)
+      working-directory: ./apps/server
+      run: npm test
+

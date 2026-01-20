@@ -209,6 +209,8 @@ export const InboxPage = () => {
         return true;
     });
 
+    const activeRequest = activeChatId ? requestByChat[activeChatId] : undefined;
+
     return (
         <div className="h-[calc(100vh-100px)] flex gap-6">
             {/* Sidebar List */}
@@ -334,8 +336,8 @@ export const InboxPage = () => {
                                 return (
                                     <div key={m.id} className={`flex ${isOut ? 'justify-end' : 'justify-start'}`}>
                                         <div className={`max-w-[70%] p-3 rounded-2xl shadow-sm text-sm relative group ${isOut
-                                                ? 'bg-gold-500 text-charcoal-950 rounded-tr-none'
-                                                : 'bg-[var(--bg-panel)] text-[var(--text-primary)] rounded-tl-none border border-[var(--border-color)]'
+                                            ? 'bg-gold-500 text-charcoal-950 rounded-tr-none'
+                                            : 'bg-[var(--bg-panel)] text-[var(--text-primary)] rounded-tl-none border border-[var(--border-color)]'
                                             }`}>
                                             {m.text}
                                             <div className={`text-[9px] mt-1 text-right opacity-60 ${isOut ? 'text-charcoal-800' : 'text-[var(--text-secondary)]'}`}>

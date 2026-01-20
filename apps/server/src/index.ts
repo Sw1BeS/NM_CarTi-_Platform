@@ -81,6 +81,27 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Serve Frontend (Vite Build)
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// apps/server/dist/index.js -> apps/web/dist
+const clientBuildPath = path.join(__dirname, '../../web/dist');
+
+app.use(express.static(clientBuildPath));
+
+// SPA Catch-all (must be after API routes)
+app.get('*', (req, res) => {
+  // Pass through if asking for API that doesn't exist (optional, or let 404 handled by client)
+  if (req.path.startsWith('/api')) {
+    return res.status(404).json({ error: 'API endpoint not found' });
+  }
+  res.sendFile(path.join(clientBuildPath, 'index.html'));
+});
+
 // Start Server
 const startServer = async () => {
   try {
