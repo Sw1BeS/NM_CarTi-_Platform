@@ -3,6 +3,7 @@ import { Language } from './types';
 
 export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     EN: {
+        // Navigation
         'nav.dashboard': 'Dashboard',
         'nav.requests': 'B2B Requests',
         'nav.telegram': 'Marketing & Bots',
@@ -13,24 +14,133 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
         'nav.inventory': 'Inventory',
         'nav.companies': 'Partner Network',
         'nav.entities': 'Entities',
+        'nav.superadmin': 'Superadmin',
+        'nav.content': 'Content',
+        'nav.calendar': 'Calendar',
+        'nav.automation': 'Automation',
+        'nav.scenarios': 'Scenarios',
+
+        // Login
         'login.title': 'Enterprise Access',
         'login.btn': 'Sign In',
+        'login.email': 'Email',
+        'login.password': 'Password',
+        'login.error': 'Invalid credentials',
+        'login.loading': 'Signing in...',
+
+        // Buttons
         'btn.create': 'Create',
         'btn.save': 'Save',
         'btn.cancel': 'Cancel',
+        'btn.delete': 'Delete',
+        'btn.edit': 'Edit',
+        'btn.close': 'Close',
+        'btn.confirm': 'Confirm',
+        'btn.back': 'Back',
+        'btn.next': 'Next',
+        'btn.search': 'Search',
+        'btn.filter': 'Filter',
+        'btn.export': 'Export',
+        'btn.import': 'Import',
+        'btn.refresh': 'Refresh',
+
+        // Dashboard
+        'dash.title': 'Dashboard',
+        'dash.requests': 'Active Requests',
+        'dash.leads': 'New Leads',
+        'dash.revenue': 'Revenue',
+        'dash.conversion': 'Conversion Rate',
+        'dash.today': 'Today',
+        'dash.week': 'This Week',
+        'dash.month': 'This Month',
+        'dash.recent': 'Recent Activity',
+
+        // Requests
+        'req.title': 'Title',
+        'req.budget': 'Budget',
+        'req.budget_min': 'Min Budget',
+        'req.budget_max': 'Max Budget',
+        'req.year': 'Year',
+        'req.year_min': 'Min Year',
+        'req.year_max': 'Max Year',
+        'req.city': 'City',
+        'req.description': 'Description',
+        'req.priority': 'Priority',
+        'req.status': 'Status',
+        'req.new': 'New Request',
+        'req.create_success': 'Request created successfully',
+        'req.create_error': 'Failed to create request',
+        'req.variants': 'Variants',
+        'req.broadcast': 'Broadcast to Channel',
+
+        // Leads
+        'lead.name': 'Name',
+        'lead.phone': 'Phone',
+        'lead.email': 'Email',
+        'lead.source': 'Source',
+        'lead.status': 'Status',
+        'lead.notes': 'Notes',
+        'lead.new': 'New Lead',
+        'lead.contacted': 'Contacted',
+        'lead.won': 'Won',
+        'lead.lost': 'Lost',
+
+        // Inventory
+        'inv.title': 'Title',
+        'inv.price': 'Price',
+        'inv.year': 'Year',
+        'inv.mileage': 'Mileage',
+        'inv.status': 'Status',
+        'inv.available': 'Available',
+        'inv.sold': 'Sold',
+        'inv.reserved': 'Reserved',
+
+        // Settings
         'settings.users': 'Users',
         'settings.lang': 'Language',
         'settings.telegram': 'Telegram Diagnostics',
         'settings.users.create': 'Create User',
         'settings.users.role': 'Role',
         'settings.users.status': 'Status',
+        'settings.company': 'Company Settings',
+        'settings.integrations': 'Integrations',
+
+        // Telegram
         'tg.bots': 'Connected Bots',
         'tg.dests': 'Destinations',
         'tg.sync': 'Sync Updates',
         'tg.broadcast': 'Broadcast',
+        'tg.webhook': 'Webhook Status',
+        'tg.scenarios': 'Bot Scenarios',
+
+        // Statuses
         'status.new': 'New',
         'status.in_progress': 'In Progress',
-        
+        'status.draft': 'Draft',
+        'status.published': 'Published',
+        'status.active': 'Active',
+        'status.inactive': 'Inactive',
+        'status.collecting': 'Collecting Variants',
+        'status.shortlist': 'Shortlist',
+        'status.won': 'Won',
+        'status.lost': 'Lost',
+
+        // Errors
+        'error.network': 'Network connection failed',
+        'error.unauthorized': 'Session expired. Please login again.',
+        'error.not_found': 'Resource not found',
+        'error.server': 'Server error. Please try again.',
+        'error.validation': 'Please check your input',
+        'error.required': 'This field is required',
+        'error.loading': 'Failed to load data',
+
+        // Success
+        'success.saved': 'Saved successfully',
+        'success.deleted': 'Deleted successfully',
+        'success.created': 'Created successfully',
+        'success.updated': 'Updated successfully',
+
+        // Public Pages
         'pub.title': 'What are you looking for?',
         'pub.subtitle': 'Tell us about your dream car.',
         'pub.make': 'Make',
@@ -48,12 +158,31 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
         'pub.success': 'Request Received!',
         'pub.success_msg': 'Thank you. A manager will contact you shortly.',
 
+        // Proposal
         'prop.title': 'Personal Selection',
         'prop.subtitle': 'We found matching cars for you.',
         'prop.interested': "I'm Interested",
-        'prop.sent': 'Request Sent'
+        'prop.sent': 'Request Sent',
+
+        // Superadmin
+        'admin.companies': 'Companies',
+        'admin.users': 'Global Users',
+        'admin.logs': 'System Logs',
+        'admin.impersonate': 'Login As',
+        'admin.plan': 'Plan',
+        'admin.active': 'Active',
+        'admin.inactive': 'Inactive',
+
+        // Mini App
+        'mini.menu': 'Main Menu',
+        'mini.find_car': 'Find a Car',
+        'mini.my_requests': 'My Requests',
+        'mini.contact': 'Contact Manager',
+        'mini.settings': 'Settings',
+        'mini.language': 'Language'
     },
     RU: {
+        // Навигация
         'nav.dashboard': 'Дашборд',
         'nav.requests': 'B2B Заявки',
         'nav.telegram': 'Маркетинг и Боты',
@@ -64,24 +193,133 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
         'nav.inventory': 'Склад Авто',
         'nav.companies': 'Партнеры',
         'nav.entities': 'Сущности',
+        'nav.superadmin': 'Суперадмин',
+        'nav.content': 'Контент',
+        'nav.calendar': 'Календарь',
+        'nav.automation': 'Автоматизация',
+        'nav.scenarios': 'Сценарии',
+
+        // Вход
         'login.title': 'Вход в систему',
         'login.btn': 'Войти',
+        'login.email': 'Email',
+        'login.password': 'Пароль',
+        'login.error': 'Неверные данные',
+        'login.loading': 'Вход...',
+
+        // Кнопки
         'btn.create': 'Создать',
         'btn.save': 'Сохранить',
         'btn.cancel': 'Отмена',
+        'btn.delete': 'Удалить',
+        'btn.edit': 'Редактировать',
+        'btn.close': 'Закрыть',
+        'btn.confirm': 'Подтвердить',
+        'btn.back': 'Назад',
+        'btn.next': 'Далее',
+        'btn.search': 'Поиск',
+        'btn.filter': 'Фильтр',
+        'btn.export': 'Экспорт',
+        'btn.import': 'Импорт',
+        'btn.refresh': 'Обновить',
+
+        // Дашборд
+        'dash.title': 'Дашборд',
+        'dash.requests': 'Активные заявки',
+        'dash.leads': 'Новые лиды',
+        'dash.revenue': 'Выручка',
+        'dash.conversion': 'Конверсия',
+        'dash.today': 'Сегодня',
+        'dash.week': 'Эта неделя',
+        'dash.month': 'Этот месяц',
+        'dash.recent': 'Последняя активность',
+
+        // Заявки
+        'req.title': 'Название',
+        'req.budget': 'Бюджет',
+        'req.budget_min': 'Мин. бюджет',
+        'req.budget_max': 'Макс. бюджет',
+        'req.year': 'Год',
+        'req.year_min': 'Год от',
+        'req.year_max': 'Год до',
+        'req.city': 'Город',
+        'req.description': 'Описание',
+        'req.priority': 'Приоритет',
+        'req.status': 'Статус',
+        'req.new': 'Новая заявка',
+        'req.create_success': 'Заявка создана успешно',
+        'req.create_error': 'Ошибка создания заявки',
+        'req.variants': 'Варианты',
+        'req.broadcast': 'Отправить в канал',
+
+        // Лиды
+        'lead.name': 'Имя',
+        'lead.phone': 'Телефон',
+        'lead.email': 'Email',
+        'lead.source': 'Источник',
+        'lead.status': 'Статус',
+        'lead.notes': 'Заметки',
+        'lead.new': 'Новый',
+        'lead.contacted': 'Связались',
+        'lead.won': 'Сделка',
+        'lead.lost': 'Отказ',
+
+        // Инвентарь
+        'inv.title': 'Название',
+        'inv.price': 'Цена',
+        'inv.year': 'Год',
+        'inv.mileage': 'Пробег',
+        'inv.status': 'Статус',
+        'inv.available': 'В наличии',
+        'inv.sold': 'Продано',
+        'inv.reserved': 'Забронировано',
+
+        // Настройки
         'settings.users': 'Пользователи',
         'settings.lang': 'Язык',
         'settings.telegram': 'Диагностика TG',
         'settings.users.create': 'Создать пользователя',
         'settings.users.role': 'Роль',
         'settings.users.status': 'Статус',
+        'settings.company': 'Настройки компании',
+        'settings.integrations': 'Интеграции',
+
+        // Telegram
         'tg.bots': 'Активные боты',
         'tg.dests': 'Каналы и Чаты',
         'tg.sync': 'Обновить',
         'tg.broadcast': 'Рассылка',
+        'tg.webhook': 'Статус вебхука',
+        'tg.scenarios': 'Сценарии бота',
+
+        // Статусы
         'status.new': 'Новый',
         'status.in_progress': 'В работе',
+        'status.draft': 'Черновик',
+        'status.published': 'Опубликовано',
+        'status.active': 'Активен',
+        'status.inactive': 'Неактивен',
+        'status.collecting': 'Сбор вариантов',
+        'status.shortlist': 'Шортлист',
+        'status.won': 'Сделка',
+        'status.lost': 'Отказ',
 
+        // Ошибки
+        'error.network': 'Ошибка сети',
+        'error.unauthorized': 'Сессия истекла. Войдите снова.',
+        'error.not_found': 'Не найдено',
+        'error.server': 'Ошибка сервера. Попробуйте снова.',
+        'error.validation': 'Проверьте введенные данные',
+        'error.required': 'Обязательное поле',
+        'error.loading': 'Ошибка загрузки данных',
+
+        // Успех
+        'success.saved': 'Сохранено',
+        'success.deleted': 'Удалено',
+        'success.created': 'Создано',
+        'success.updated': 'Обновлено',
+
+        // Публичные страницы
         'pub.title': 'Какое авто вы ищете?',
         'pub.subtitle': 'Расскажите нам о машине мечты.',
         'pub.make': 'Марка',
@@ -99,12 +337,31 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
         'pub.success': 'Заявка принята!',
         'pub.success_msg': 'Спасибо. Менеджер свяжется с вами в ближайшее время.',
 
+        // Предложение
         'prop.title': 'Персональная подборка',
         'prop.subtitle': 'Мы нашли авто по вашим критериям.',
-        'prop.interested': "Мне интересно",
-        'prop.sent': 'Запрос отправлен'
+        'prop.interested': 'Мне интересно',
+        'prop.sent': 'Запрос отправлен',
+
+        // Суперадмин
+        'admin.companies': 'Компании',
+        'admin.users': 'Все пользователи',
+        'admin.logs': 'Системные логи',
+        'admin.impersonate': 'Войти как',
+        'admin.plan': 'Тариф',
+        'admin.active': 'Активен',
+        'admin.inactive': 'Неактивен',
+
+        // Мини-приложение
+        'mini.menu': 'Главное меню',
+        'mini.find_car': 'Найти авто',
+        'mini.my_requests': 'Мои заявки',
+        'mini.contact': 'Связаться с менеджером',
+        'mini.settings': 'Настройки',
+        'mini.language': 'Язык'
     },
     UK: {
+        // Навігація
         'nav.dashboard': 'Дашборд',
         'nav.requests': 'B2B Заявки',
         'nav.telegram': 'Маркетинг та Боти',
@@ -115,24 +372,133 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
         'nav.inventory': 'Склад Авто',
         'nav.companies': 'Партнери',
         'nav.entities': 'Сутності',
+        'nav.superadmin': 'Суперадмін',
+        'nav.content': 'Контент',
+        'nav.calendar': 'Календар',
+        'nav.automation': 'Автоматизація',
+        'nav.scenarios': 'Сценарії',
+
+        // Вхід
         'login.title': 'Вхід до системи',
         'login.btn': 'Увійти',
+        'login.email': 'Email',
+        'login.password': 'Пароль',
+        'login.error': 'Невірні дані',
+        'login.loading': 'Вхід...',
+
+        // Кнопки
         'btn.create': 'Створити',
         'btn.save': 'Зберегти',
         'btn.cancel': 'Скасувати',
+        'btn.delete': 'Видалити',
+        'btn.edit': 'Редагувати',
+        'btn.close': 'Закрити',
+        'btn.confirm': 'Підтвердити',
+        'btn.back': 'Назад',
+        'btn.next': 'Далі',
+        'btn.search': 'Пошук',
+        'btn.filter': 'Фільтр',
+        'btn.export': 'Експорт',
+        'btn.import': 'Імпорт',
+        'btn.refresh': 'Оновити',
+
+        // Дашборд
+        'dash.title': 'Дашборд',
+        'dash.requests': 'Активні заявки',
+        'dash.leads': 'Нові ліди',
+        'dash.revenue': 'Виручка',
+        'dash.conversion': 'Конверсія',
+        'dash.today': 'Сьогодні',
+        'dash.week': 'Цей тиждень',
+        'dash.month': 'Цей місяць',
+        'dash.recent': 'Остання активність',
+
+        // Заявки
+        'req.title': 'Назва',
+        'req.budget': 'Бюджет',
+        'req.budget_min': 'Мін. бюджет',
+        'req.budget_max': 'Макс. бюджет',
+        'req.year': 'Рік',
+        'req.year_min': 'Рік від',
+        'req.year_max': 'Рік до',
+        'req.city': 'Місто',
+        'req.description': 'Опис',
+        'req.priority': 'Пріоритет',
+        'req.status': 'Статус',
+        'req.new': 'Нова заявка',
+        'req.create_success': 'Заявку створено успішно',
+        'req.create_error': 'Помилка створення заявки',
+        'req.variants': 'Варіанти',
+        'req.broadcast': 'Надіслати в канал',
+
+        // Ліди
+        'lead.name': "Ім'я",
+        'lead.phone': 'Телефон',
+        'lead.email': 'Email',
+        'lead.source': 'Джерело',
+        'lead.status': 'Статус',
+        'lead.notes': 'Нотатки',
+        'lead.new': 'Новий',
+        'lead.contacted': "Зв'язалися",
+        'lead.won': 'Угода',
+        'lead.lost': 'Відмова',
+
+        // Інвентар
+        'inv.title': 'Назва',
+        'inv.price': 'Ціна',
+        'inv.year': 'Рік',
+        'inv.mileage': 'Пробіг',
+        'inv.status': 'Статус',
+        'inv.available': 'В наявності',
+        'inv.sold': 'Продано',
+        'inv.reserved': 'Заброньовано',
+
+        // Налаштування
         'settings.users': 'Користувачі',
         'settings.lang': 'Мова',
         'settings.telegram': 'Діагностика TG',
         'settings.users.create': 'Створити користувача',
         'settings.users.role': 'Роль',
         'settings.users.status': 'Статус',
+        'settings.company': 'Налаштування компанії',
+        'settings.integrations': 'Інтеграції',
+
+        // Telegram
         'tg.bots': 'Активні боти',
         'tg.dests': 'Канали та Чати',
         'tg.sync': 'Оновити',
         'tg.broadcast': 'Розсилка',
+        'tg.webhook': 'Статус вебхука',
+        'tg.scenarios': 'Сценарії бота',
+
+        // Статуси
         'status.new': 'Новий',
         'status.in_progress': 'В роботі',
+        'status.draft': 'Чернетка',
+        'status.published': 'Опубліковано',
+        'status.active': 'Активний',
+        'status.inactive': 'Неактивний',
+        'status.collecting': 'Збір варіантів',
+        'status.shortlist': 'Шортліст',
+        'status.won': 'Угода',
+        'status.lost': 'Відмова',
 
+        // Помилки
+        'error.network': 'Помилка мережі',
+        'error.unauthorized': 'Сесія закінчилася. Увійдіть знову.',
+        'error.not_found': 'Не знайдено',
+        'error.server': 'Помилка сервера. Спробуйте знову.',
+        'error.validation': 'Перевірте введені дані',
+        'error.required': "Обов'язкове поле",
+        'error.loading': 'Помилка завантаження даних',
+
+        // Успіх
+        'success.saved': 'Збережено',
+        'success.deleted': 'Видалено',
+        'success.created': 'Створено',
+        'success.updated': 'Оновлено',
+
+        // Публічні сторінки
         'pub.title': 'Яке авто ви шукаєте?',
         'pub.subtitle': 'Розкажіть нам про авто мрії.',
         'pub.make': 'Марка',
@@ -143,16 +509,34 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
         'pub.next': 'Далі',
         'pub.contact_title': 'Контакти',
         'pub.contact_sub': 'Куди надіслати пропозиції?',
-        'pub.name': 'Ваше Ім\'я',
+        'pub.name': "Ваше Ім'я",
         'pub.phone': 'Телефон',
         'pub.submit': 'Надіслати заявку',
         'pub.privacy': 'Ваша заявка буде оброблена перевіреними дилерами. Ми цінуємо вашу конфіденційність.',
         'pub.success': 'Заявку прийнято!',
-        'pub.success_msg': 'Дякуємо. Менеджер зв\'яжеться з вами найближчим часом.',
+        'pub.success_msg': "Дякуємо. Менеджер зв'яжеться з вами найближчим часом.",
 
+        // Пропозиція
         'prop.title': 'Персональна підбірка',
         'prop.subtitle': 'Ми знайшли авто за вашими критеріями.',
-        'prop.interested': "Мені цікаво",
-        'prop.sent': 'Запит надіслано'
+        'prop.interested': 'Мені цікаво',
+        'prop.sent': 'Запит надіслано',
+
+        // Суперадмін
+        'admin.companies': 'Компанії',
+        'admin.users': 'Усі користувачі',
+        'admin.logs': 'Системні логи',
+        'admin.impersonate': 'Увійти як',
+        'admin.plan': 'Тариф',
+        'admin.active': 'Активний',
+        'admin.inactive': 'Неактивний',
+
+        // Міні-застосунок
+        'mini.menu': 'Головне меню',
+        'mini.find_car': 'Знайти авто',
+        'mini.my_requests': 'Мої заявки',
+        'mini.contact': "Зв'язатися з менеджером",
+        'mini.settings': 'Налаштування',
+        'mini.language': 'Мова'
     }
 };

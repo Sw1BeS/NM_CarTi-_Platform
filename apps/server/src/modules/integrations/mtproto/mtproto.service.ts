@@ -1,7 +1,7 @@
 
 import { TelegramClient, Api } from 'telegram';
 import { StringSession } from 'telegram/sessions/index.js';
-import { prisma } from './prisma.js';
+import { prisma } from '../../../services/prisma.js';
 import { Logger } from 'telegram/extensions/Logger.js';
 
 // Minimal logger to avoid spam

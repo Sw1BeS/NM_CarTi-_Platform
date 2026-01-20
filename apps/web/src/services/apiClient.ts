@@ -18,7 +18,7 @@ interface RequestOptions extends RequestInit {
 async function request<T>(endpoint: string, options: RequestOptions = {}): Promise<ApiResponse<T>> {
     const base = getApiBase();
     const url = `${base}${endpoint.startsWith('/') ? '' : '/'}${endpoint}`;
-    
+
     const headers: HeadersInit = {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
@@ -30,9 +30,12 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
         headers['Authorization'] = `Bearer ${token}`;
     }
 
+    // Debug logging
+    console.debug(`[API] ${options.method || 'GET'} ${url}`);
+
     try {
         const response = await fetch(url, { ...options, headers });
-        
+
         let data;
         const contentType = response.headers.get('content-type');
         if (contentType && contentType.includes('application/json')) {
@@ -53,6 +56,7 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
                 localStorage.removeItem('cartie_token');
                 window.dispatchEvent(new Event('auth-error'));
             }
+            console.warn(`[API] ${options.method || 'GET'} ${url} → ${response.status}`, data.message || response.statusText);
             return {
                 ok: false,
                 status: response.status,

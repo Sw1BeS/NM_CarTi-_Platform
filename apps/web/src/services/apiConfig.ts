@@ -1,5 +1,5 @@
 
-export const DEFAULT_LOCAL_FALLBACK = 'http://localhost:3001';
+export const DEFAULT_LOCAL_FALLBACK = 'http://localhost:8082';
 
 function normalizeApiBase(value: string): string {
     const trimmed = value.trim().replace(/\/$/, '');
@@ -27,9 +27,9 @@ export function getApiBase(): string {
     }
 
     // 3. Local Development Fallback
-    // If we are on localhost and NOT on port 3000 (e.g. 5173), assume API is on 3000
+    // If we are on localhost and NOT on port 8082 (API server), assume API is on 8082
     if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-        if (window.location.port !== '3000') {
+        if (window.location.port !== '8082') {
             return `${DEFAULT_LOCAL_FALLBACK}/api`;
         }
     }
