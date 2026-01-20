@@ -1,6 +1,6 @@
 
 import { prisma } from '../../../services/prisma.js';
-import { MTProtoService } from '../../../services/mtproto.service.js';
+import { MTProtoService } from './mtproto.service.js';
 import { MessageParser } from './mtproto.utils.js';
 // @ts-ignore
 import { v4 as uuidv4 } from 'uuid';

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useToast } from '../contexts/ToastContext';
+import { useToast } from '../../contexts/ToastContext';
 import { Store, Search, Download, Check, Star, Grid, List, Filter, Crown } from 'lucide-react';
 
 interface Template {

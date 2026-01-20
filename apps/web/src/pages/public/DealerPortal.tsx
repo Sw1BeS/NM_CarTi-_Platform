@@ -1,9 +1,9 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { B2BRequest, RequestStatus, Variant, VariantStatus, User, UserRole, Company } from '../types';
-import { CarSearchEngine } from '../services/carService';
-import { ImageUtils } from '../services/imageUtils';
-import { addPublicVariant, createDealerSession, getPublicRequests } from '../services/publicApi';
+import { B2BRequest, RequestStatus, Variant, VariantStatus, User, UserRole, Company } from '../../types';
+import { CarSearchEngine } from '../../services/carService';
+import { ImageUtils } from '../../services/imageUtils';
+import { addPublicVariant, createDealerSession, getPublicRequests } from '../../services/publicApi';
 import { Briefcase, ChevronRight, X, DollarSign, Calendar, MapPin, Search, Plus, CheckCircle, Zap, Loader, ExternalLink, RefreshCw, Car, Upload, Image as ImageIcon, Camera, ArrowLeft } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 

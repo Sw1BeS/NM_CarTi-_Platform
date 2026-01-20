@@ -46,5 +46,23 @@ export const SuperadminApi = {
         const res = await ApiClient.post<{ token: string; user: User }>('/superadmin/impersonate', payload);
         if (!res.ok) throw new Error(res.message || 'Impersonation failed');
         return res.data!;
+    },
+
+    async createCompany(payload: { name: string; slug: string; plan: string; ownerEmail: string; ownerName?: string }) {
+        const res = await ApiClient.post<CompanySummary>('/superadmin/companies', payload);
+        if (!res.ok) throw new Error(res.message || 'Create company failed');
+        return res.data;
+    },
+
+    async toggleCompanyStatus(id: string, isActive: boolean) {
+        const res = await ApiClient.put<CompanySummary>(`/superadmin/companies/${id}/status`, { isActive });
+        if (!res.ok) throw new Error(res.message || 'Update status failed');
+        return res.data;
+    },
+
+    async updateCompanyPlan(id: string, plan: string) {
+        const res = await ApiClient.put<CompanySummary>(`/superadmin/companies/${id}/plan`, { plan });
+        if (!res.ok) throw new Error(res.message || 'Update plan failed');
+        return res.data;
     }
 };

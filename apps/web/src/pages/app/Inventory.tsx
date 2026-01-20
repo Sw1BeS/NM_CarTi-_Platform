@@ -1,13 +1,13 @@
 
 import React, { useState, useEffect } from 'react';
-import { InventoryService } from '../services/inventoryService';
-import { CarListing, B2BRequest, VariantStatus } from '../types';
+import { InventoryService } from '../../services/inventoryService';
+import { CarListing, B2BRequest, VariantStatus } from '../../types';
 import { Plus, X, Search, Edit2, Trash2, MapPin, Calendar, Gauge, Link, UserPlus, CheckSquare, Square, DollarSign, CheckCircle, ChevronLeft, ChevronRight } from 'lucide-react';
-import { useToast } from '../contexts/ToastContext';
+import { useToast } from '../../contexts/ToastContext';
 import { useNavigate } from 'react-router-dom';
-import { MatchingService } from '../services/matchingService';
-import { RequestsService } from '../services/requestsService';
-import { parseListingFromUrl } from '../services/parserClient';
+import { MatchingService } from '../../services/matchingService';
+import { RequestsService } from '../../services/requestsService';
+import { parseListingFromUrl } from '../../services/parserClient';
 
 export const InventoryPage = () => {
     // Data State

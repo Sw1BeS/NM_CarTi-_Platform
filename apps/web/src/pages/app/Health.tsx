@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { Bot, ActivityLog } from '../types';
-import { useToast } from '../contexts/ToastContext';
-import { Data } from '../services/data';
-import { TelegramAPI } from '../services/telegram';
-import { ApiClient } from '../services/apiClient';
+import { Bot, ActivityLog } from '../../types';
+import { useToast } from '../../contexts/ToastContext';
+import { Data } from '../../services/data';
+import { TelegramAPI } from '../../services/telegram';
+import { ApiClient } from '../../services/apiClient';
 import { RefreshCw, Shield, Wifi, HardDrive, Terminal } from 'lucide-react';
 
 export const HealthPage = () => {

@@ -1,16 +1,16 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { VersionSnapshots, ConfigSnapshot } from '../services/versionSnapshots';
-import { User, UserRole, FeatureKey, SystemSettings } from '../types';
-import { useLang } from '../contexts/LanguageContext';
+import { VersionSnapshots, ConfigSnapshot } from '../../services/versionSnapshots';
+import { User, UserRole, FeatureKey, SystemSettings } from '../../types';
+import { useLang } from '../../contexts/LanguageContext';
 import { User as UserIcon, Layers, Cpu, Terminal, Book, Plus, CheckCircle, X, ToggleLeft, ToggleRight, MessageCircle, Briefcase, Search, GitMerge, Megaphone, HardDrive, Download, Upload, RefreshCw, AlertTriangle, Clock, Trash2, RotateCcw, Globe, Server, Database, History, Info, Lock, Shield, LogIn } from 'lucide-react';
-import { useToast } from '../contexts/ToastContext';
-import { useAuth } from '../contexts/AuthContext';
-import { TelegramAPI } from '../services/telegram';
-import { ApiClient } from '../services/apiClient';
-import { getApiBase, setApiBase } from '../services/apiConfig';
-import { Data } from '../services/data';
-import { SuperadminApi } from '../services/superadminApi';
+import { useToast } from '../../contexts/ToastContext';
+import { useAuth } from '../../contexts/AuthContext';
+import { TelegramAPI } from '../../services/telegram';
+import { ApiClient } from '../../services/apiClient';
+import { getApiBase, setApiBase } from '../../services/apiConfig';
+import { Data } from '../../services/data';
+import { SuperadminApi } from '../../services/superadminApi';
 
 export const SettingsPage = () => {
     const [activeTab, setActiveTab] = useState<'USERS' | 'INTEGRATIONS' | 'TG' | 'FEATURES' | 'DICT' | 'BACKUP' | 'API' | 'VERSIONS' | 'SUPERADMIN'>('USERS');

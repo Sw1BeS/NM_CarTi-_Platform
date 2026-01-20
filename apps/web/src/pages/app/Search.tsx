@@ -1,13 +1,13 @@
 
 import React, { useState, useEffect } from 'react';
 import { Search as SearchIcon, Download, Loader, CheckCircle, Plus, Globe, Link as LinkIcon, ArrowRight, Eye, Edit3, Terminal, Filter, AlertTriangle, Bug, Megaphone } from 'lucide-react';
-import { B2BRequest, Variant, VariantStatus, TelegramContent, ContentStatus } from '../types';
+import { B2BRequest, Variant, VariantStatus, TelegramContent, ContentStatus } from '../../types';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { Data } from '../services/data';
-import { ContentGenerator } from '../services/contentGenerator';
-import { CarSearchEngine } from '../services/carService'; // Real Service
-import { RequestsService } from '../services/requestsService'; // Real Service
-import { useToast } from '../contexts/ToastContext';
+import { Data } from '../../services/data';
+import { ContentGenerator } from '../../services/contentGenerator';
+import { CarSearchEngine } from '../../services/carService'; // Real Service
+import { RequestsService } from '../../services/requestsService'; // Real Service
+import { useToast } from '../../contexts/ToastContext';
 
 export const SearchPage = () => {
     const [searchParams] = useSearchParams();

@@ -1,0 +1,21 @@
+# Stage B: Debugging, Admin UI, and Architecture
+
+- [x] **Discovery & Analysis**
+    - [x] Analyze `Requests.tsx` crash.
+    - [x] Map Superadmin API endpoints.
+    - [x] Audit File Structure.
+    - [x] Investigate deployment issues.
+- [x] **Planning**
+    - [x] Create `docs/STAGE_B_PLAN.md`.
+    - [x] Request user approval.
+- [x] **Implementation**
+    - [x] **Fix Request Crash** (Error Boundary added).
+    - [x] **Superadmin UI** (Implemented Companies, Users, Routes).
+    - [x] **Refactoring**
+        - [x] Backend: Move Services to Modules.
+        - [x] Frontend: Organize Pages by Domain.
+    - [x] **UI/UX Improvements** (Audit done).
+- [x] **Verification**
+    - [x] Run Tests (Build Verification).
+    - [x] Security Scan.
+    - [x] Final Deployment (Backend Restarted).

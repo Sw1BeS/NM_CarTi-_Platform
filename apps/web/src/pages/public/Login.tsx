@@ -1,11 +1,11 @@
 
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { useLang } from '../contexts/LanguageContext';
+import { useLang } from '../../contexts/LanguageContext';
 import { Lock, Mail, Server, Settings, CheckCircle, XCircle, RefreshCw, AlertTriangle } from 'lucide-react';
-import { getApiBase, setApiBase } from '../services/apiConfig';
-import { ApiClient } from '../services/apiClient';
+import { getApiBase, setApiBase } from '../../services/apiConfig';
+import { ApiClient } from '../../services/apiClient';
 
 export const Login = () => {
     const { login } = useAuth();

@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
-import { Data } from '../services/data';
-import { Bot, MiniAppConfig, CarListing } from '../types';
-import { getPublicBots } from '../services/publicApi';
+import { Data } from '../../services/data';
+import { Bot, MiniAppConfig, CarListing } from '../../types';
+import { getPublicBots } from '../../services/publicApi';
 import {
     Search, LayoutGrid, User, Plus, Filter, ArrowRight, DollarSign,
     MessageSquare, Zap, List as ListIcon, Star, Phone, Home,

@@ -2,31 +2,32 @@
 import React from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Layout } from './components/Layout';
-import { Dashboard } from './pages/Dashboard';
-import { RequestList } from './pages/Requests';
-import { TelegramHub } from './pages/TelegramHub';
-import { ScenarioBuilder } from './pages/ScenarioBuilder';
-import { InboxPage } from './pages/Inbox';
-import { AutomationBuilder } from './pages/AutomationBuilder';
+import { Dashboard } from './pages/app/Dashboard';
+import { RequestList } from './pages/app/Requests';
+import { TelegramHub } from './pages/app/TelegramHub';
+import { ScenarioBuilder } from './pages/app/ScenarioBuilder';
+import { InboxPage } from './pages/app/Inbox';
+import { AutomationBuilder } from './pages/app/AutomationBuilder';
 
-import { Leads } from './pages/Leads';
-import { Login } from './pages/Login';
-import { SearchPage } from './pages/Search';
-import { SettingsPage } from './pages/Settings';
-import { InventoryPage } from './pages/Inventory';
-import { HealthPage } from './pages/Health';
-import { CompaniesPage } from './pages/Companies';
-import { EntitiesPage } from './pages/Entities';
-import { PublicRequest } from './pages/PublicRequest';
-import { DealerPortal } from './pages/DealerPortal';
-import { ClientProposal } from './pages/ClientProposal';
-import { MiniApp } from './pages/MiniApp';
-import { ContentPage } from './pages/Content';
-import { ContentCalendarPage } from './pages/ContentCalendar';
-import { CompanySettingsPage } from './pages/CompanySettings';
-import { MarketplacePage } from './pages/Marketplace';
-import { IntegrationsPage } from './pages/Integrations';
-import { QAStageA } from './pages/QAStageA';
+import { Leads } from './pages/app/Leads';
+import { Login } from './pages/public/Login';
+import { SearchPage } from './pages/app/Search';
+import { SettingsPage } from './pages/app/Settings';
+import { InventoryPage } from './pages/app/Inventory';
+import { HealthPage } from './pages/app/Health';
+import { CompaniesPage } from './pages/app/Companies';
+import { EntitiesPage } from './pages/app/Entities';
+import { PublicRequest } from './pages/public/PublicRequest';
+import { DealerPortal } from './pages/public/DealerPortal';
+import { ClientProposal } from './pages/public/ClientProposal';
+import { MiniApp } from './pages/public/MiniApp';
+import { ContentPage } from './pages/app/Content';
+import { ContentCalendarPage } from './pages/app/ContentCalendar';
+import { CompanySettingsPage } from './pages/app/CompanySettings';
+import { MarketplacePage } from './pages/app/Marketplace';
+import { IntegrationsPage } from './pages/app/Integrations';
+import { QAStageA } from './pages/app/QAStageA';
+import { SuperadminRoutes } from './pages/superadmin/DashboardRoutes';
 import { NotFound } from './components/NotFound';
 
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -82,6 +83,7 @@ export default function App() {
                     <Route path="/integrations" element={<ProtectedRoute><IntegrationsPage /></ProtectedRoute>} />
                     <Route path="/qa" element={<ProtectedRoute><QAStageA /></ProtectedRoute>} />
                     <Route path="/health" element={<ProtectedRoute><HealthPage /></ProtectedRoute>} />
+                    <Route path="/superadmin/*" element={<ProtectedRoute><SuperadminRoutes /></ProtectedRoute>} />
 
                     <Route path="*" element={<NotFound />} />
                   </Routes>

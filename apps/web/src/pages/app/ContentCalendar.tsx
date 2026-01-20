@@ -1,15 +1,15 @@
 
 import React, { useState, useEffect } from 'react';
-import { Data } from '../services/data';
-import { DraftsService, DraftRecord } from '../services/draftsService';
-import { CarListing, TelegramDestination, Bot } from '../types';
-import { useToast } from '../contexts/ToastContext';
+import { Data } from '../../services/data';
+import { DraftsService, DraftRecord } from '../../services/draftsService';
+import { CarListing, TelegramDestination, Bot } from '../../types';
+import { useToast } from '../../contexts/ToastContext';
 import {
     Send, Calendar as CalendarIcon, X, Plus,
     ChevronLeft, ChevronRight, List, Settings, Copy, Trash2,
     Check, Clock, AlertCircle
 } from 'lucide-react';
-import { ContentGenerator } from '../services/contentGenerator';
+import { ContentGenerator } from '../../services/contentGenerator';
 
 type PostTemplate = 'IN_STOCK' | 'IN_TRANSIT' | 'CUSTOM';
 type ViewMode = 'GRID' | 'CALENDAR' | 'DAY';

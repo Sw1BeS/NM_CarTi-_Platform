@@ -3,7 +3,7 @@ import { Router } from 'express';
 // @ts-ignore
 import { prisma } from '../../services/prisma.js';
 import { authenticateToken, requireRole } from '../../middleware/auth.js';
-import { mapBotOutput } from '../../services/botDto.js';
+import { mapBotOutput } from './botDto.js';
 
 const router = Router();
 

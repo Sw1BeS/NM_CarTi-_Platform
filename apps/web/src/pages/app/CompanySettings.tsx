@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { useCompany } from '../contexts/CompanyContext';
-import { useToast } from '../contexts/ToastContext';
+import { useCompany } from '../../contexts/CompanyContext';
+import { useToast } from '../../contexts/ToastContext';
 import {
     Building2, Palette, Globe, Users, Crown, Upload, X,
     Mail, Shield, Trash2, UserPlus

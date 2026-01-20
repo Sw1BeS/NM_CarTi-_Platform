@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useToast } from '../contexts/ToastContext';
+import { useToast } from '../../contexts/ToastContext';
 import {
     Plug, Mail, Share2, Table, Webhook, Settings,
     Check, X, AlertCircle, Link2, TestTube

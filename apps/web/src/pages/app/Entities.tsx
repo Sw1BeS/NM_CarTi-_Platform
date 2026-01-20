@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
-import { getMeta, createDefinition, listRecords, createRecord, updateRecord, deleteRecord, EntityDefinition, EntityField } from '../services/entitiesApi';
+import { getMeta, createDefinition, listRecords, createRecord, updateRecord, deleteRecord, EntityDefinition, EntityField } from '../../services/entitiesApi';
 import { Plus, RefreshCw, Trash2, Edit2, Database, MoreVertical, X, Save, Box } from 'lucide-react';
-import { useToast } from '../contexts/ToastContext';
+import { useToast } from '../../contexts/ToastContext';
 
 export const EntitiesPage = () => {
     const [meta, setMeta] = useState<EntityDefinition[]>([]);

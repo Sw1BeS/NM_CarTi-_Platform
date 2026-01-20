@@ -1,14 +1,14 @@
 
 import React, { useState, useEffect } from 'react';
 import DOMPurify from 'dompurify';
-import { RequestsService } from '../services/requestsService';
-import { Data } from '../services/data';
-import { ApiClient } from '../services/apiClient';
-import { ContentGenerator } from '../services/contentGenerator';
-import { createDeepLinkKeyboard, buildDeepLink } from '../services/deeplink';
-import { B2BRequest, RequestStatus, TelegramDestination, Bot } from '../types';
+import { RequestsService } from '../../services/requestsService';
+import { Data } from '../../services/data';
+import { ApiClient } from '../../services/apiClient';
+import { ContentGenerator } from '../../services/contentGenerator';
+import { createDeepLinkKeyboard, buildDeepLink } from '../../services/deeplink';
+import { B2BRequest, RequestStatus, TelegramDestination, Bot } from '../../types';
 import { Plus, List as ListIcon, LayoutGrid, Search as SearchIcon, Filter, DollarSign, Calendar, ChevronRight, ChevronLeft, Send } from 'lucide-react';
-import { useToast } from '../contexts/ToastContext';
+import { useToast } from '../../contexts/ToastContext';
 
 export const RequestList: React.FC = () => {
     const [requests, setRequests] = useState<B2BRequest[]>([]);

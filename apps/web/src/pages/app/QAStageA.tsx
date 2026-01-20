@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { parseListingFromUrl } from '../services/parserClient';
-import { ApiClient } from '../services/apiClient';
-import { useToast } from '../contexts/ToastContext';
+import { parseListingFromUrl } from '../../services/parserClient';
+import { ApiClient } from '../../services/apiClient';
+import { useToast } from '../../contexts/ToastContext';
 
 export const QAStageA = () => {
   const [url, setUrl] = useState('');

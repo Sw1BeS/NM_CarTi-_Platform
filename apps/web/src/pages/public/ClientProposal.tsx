@@ -1,9 +1,9 @@
 
 import React, { useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
-import { getPublicProposal, trackPublicProposalView, sendPublicProposalFeedback } from '../services/publicApi';
-import { Proposal, Variant, Language } from '../types';
-import { TRANSLATIONS } from '../translations';
+import { getPublicProposal, trackPublicProposalView, sendPublicProposalFeedback } from '../../services/publicApi';
+import { Proposal, Variant, Language } from '../../types';
+import { TRANSLATIONS } from '../../translations';
 import { CheckCircle, X, ChevronRight, Share2, ThumbsUp, ThumbsDown, MessageCircle, MapPin, Calendar, Gauge, Phone } from 'lucide-react';
 
 export const ClientProposal = () => {

@@ -1,10 +1,10 @@
 
 import React, { useState, useEffect } from 'react';
-import { RequestStatus, LeadStatus, Language } from '../types';
-import { TRANSLATIONS } from '../translations';
+import { RequestStatus, LeadStatus, Language } from '../../types';
+import { TRANSLATIONS } from '../../translations';
 import { CheckCircle, ArrowRight, Car, DollarSign, User, Phone, MapPin, Loader, ShieldCheck, ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { createPublicLead, createPublicRequest } from '../services/publicApi';
+import { createPublicLead, createPublicRequest } from '../../services/publicApi';
 
 export const PublicRequest = () => {
     const navigate = useNavigate();

@@ -4,8 +4,8 @@ import { prisma } from '../services/prisma.js';
 import { RequestStatus } from '@prisma/client';
 import { getUserByTelegramId } from '../services/v41/readService.js';
 import { generatePublicId, mapLeadCreateInput, mapLeadOutput, mapRequestInput, mapRequestOutput, mapVariantInput, mapVariantOutput } from '../services/dto.js';
-import { parseTelegramUser, verifyTelegramInitData } from '../services/telegramAuth.js';
-import { mapBotOutput } from '../services/botDto.js';
+import { parseTelegramUser, verifyTelegramInitData } from '../modules/telegram/services/telegramAuth.js';
+import { mapBotOutput } from '../modules/bots/botDto.js';
 
 const router = Router();
 

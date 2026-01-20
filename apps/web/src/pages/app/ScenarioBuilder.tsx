@@ -1,11 +1,11 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Data } from '../services/data';
-import { Scenario, ScenarioNode, NodeType, Bot, BotMenuButtonConfig } from '../types';
+import { Data } from '../../services/data';
+import { Scenario, ScenarioNode, NodeType, Bot, BotMenuButtonConfig } from '../../types';
 import { Plus, Save, Trash2, ArrowRight, MessageSquare, HelpCircle, Search, UserCheck, X, GitMerge, MousePointer2, Move, LayoutGrid, Smartphone, Filter, Play, Send, Menu, Smartphone as PhoneIcon, Link as LinkIcon, Type, Zap, Globe, UploadCloud, Loader, Grid, Box, Crosshair, ChevronDown, Check, FolderOpen, DollarSign, Key, Settings, Download, Upload, Megaphone } from 'lucide-react';
-import { useToast } from '../contexts/ToastContext';
-import { TelegramAPI } from '../services/telegram';
-import { ApiClient } from '../services/apiClient';
+import { useToast } from '../../contexts/ToastContext';
+import { TelegramAPI } from '../../services/telegram';
+import { ApiClient } from '../../services/apiClient';
 
 const NODE_WIDTH = 280;
 

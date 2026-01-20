@@ -1,13 +1,13 @@
 
 import React, { useState, useEffect } from 'react';
 import DOMPurify from 'dompurify';
-import { Data } from '../services/data';
-import { ApiClient } from '../services/apiClient';
-import { DraftsService, DraftRecord } from '../services/draftsService';
-import { CarListing, TelegramDestination, Bot } from '../types';
-import { useToast } from '../contexts/ToastContext';
+import { Data } from '../../services/data';
+import { ApiClient } from '../../services/apiClient';
+import { DraftsService, DraftRecord } from '../../services/draftsService';
+import { CarListing, TelegramDestination, Bot } from '../../types';
+import { useToast } from '../../contexts/ToastContext';
 import { Send, Image as ImageIcon, Calendar, Eye, X, Check, Plus, Search, Filter } from 'lucide-react';
-import { ContentGenerator } from '../services/contentGenerator';
+import { ContentGenerator } from '../../services/contentGenerator';
 
 type PostTemplate = 'IN_STOCK' | 'IN_TRANSIT' | 'CUSTOM';
 

@@ -2,10 +2,10 @@
 import React, { useEffect, useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend } from 'recharts';
 import { Users, FileText, Send, AlertTriangle, Zap, CheckCircle, Clock, MessageCircle, TrendingUp, Filter, Car, Briefcase, ChevronRight } from 'lucide-react';
-import { Data } from '../services/data';
+import { Data } from '../../services/data';
 import { useNavigate } from 'react-router-dom';
-import { useLang } from '../contexts/LanguageContext';
-import { ActivityLog } from '../types';
+import { useLang } from '../../contexts/LanguageContext';
+import { ActivityLog } from '../../types';
 
 // Dark Theme Palette
 const COLORS = ['#D4AF37', '#27272A', '#52525B', '#A1A1AA', '#4B5563'];

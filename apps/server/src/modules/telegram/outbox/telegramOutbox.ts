@@ -1,5 +1,5 @@
 import { prisma } from '../../../services/prisma.js';
-import { TelegramSender } from '../../../services/telegramSender.js';
+import { TelegramSender } from '../../services/telegramSender.js';
 import { emitPlatformEvent, summarizeText } from '../events/eventEmitter.js';
 
 type OutboxContext = {

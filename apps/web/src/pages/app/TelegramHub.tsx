@@ -1,10 +1,10 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Data } from '../services/data';
-import { MTProtoConnector } from '../types/mtproto.types';
-import { TelegramAPI } from '../services/telegram';
-import { useToast } from '../contexts/ToastContext';
-import { Bot, Scenario, BotMenuButtonConfig, MiniAppConfig, Campaign, TelegramDestination, ContentStatus } from '../types';
+import { Data } from '../../services/data';
+import { MTProtoConnector } from '../../types/mtproto.types';
+import { TelegramAPI } from '../../services/telegram';
+import { useToast } from '../../contexts/ToastContext';
+import { Bot, Scenario, BotMenuButtonConfig, MiniAppConfig, Campaign, TelegramDestination, ContentStatus } from '../../types';
 import {
     GitMerge, LayoutGrid, Smartphone, Plus, Trash2, Save, UploadCloud,
     Settings, Activity, MessageSquare, Bot as BotIcon, X, Check, Eye,
@@ -14,7 +14,7 @@ import {
     BarChart3, PieChart, Send, Globe, Radio
 } from 'lucide-react';
 import { ScenarioBuilder } from './ScenarioBuilder';
-import { DEFAULT_MENU_CONFIG, DEFAULT_MINI_APP_CONFIG } from '../services/defaults';
+import { DEFAULT_MENU_CONFIG, DEFAULT_MINI_APP_CONFIG } from '../../services/defaults';
 
 const normalizeMenuConfig = (menuConfig?: Bot['menuConfig']) => {
     const buttonsRaw = Array.isArray(menuConfig?.buttons) ? menuConfig!.buttons : [];

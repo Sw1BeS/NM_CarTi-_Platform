@@ -18,7 +18,7 @@ import {
   createDeepLinkKeyboard
 } from '../../utils/deeplink.utils.js';
 // @ts-ignore
-import { searchAutoRia } from '../../services/integrationService.js';
+import { searchAutoRia } from '../integrations/autoria.service.js';
 import { ulid } from 'ulid';
 
 // Types & Interfaces
@@ -36,8 +36,9 @@ export interface ScenarioRecord {
   triggerCommand: string | null;
   isActive?: boolean;
   keywords?: string[];
-  nodes: ScenarioNode[] | any[];
-  flow?: ScenarioNode[];
+  nodes: any;
+  flow?: any;
+  entryNodeId?: string | null;
 }
 
 export interface ScenarioNode {

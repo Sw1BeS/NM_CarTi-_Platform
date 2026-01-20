@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { LeadsService } from '../services/leadsService';
-import { Lead, LeadStatus } from '../types';
+import { LeadsService } from '../../services/leadsService';
+import { Lead, LeadStatus } from '../../types';
 import { Plus, X, ChevronRight, List as ListIcon, LayoutGrid, ChevronLeft, Search } from 'lucide-react';
-import { useToast } from '../contexts/ToastContext';
+import { useToast } from '../../contexts/ToastContext';
 import { useNavigate } from 'react-router-dom';
 
 export const Leads: React.FC = () => {

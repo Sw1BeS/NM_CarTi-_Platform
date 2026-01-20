@@ -1,9 +1,9 @@
 
 import React, { useState, useEffect } from 'react';
-import { Data } from '../services/data';
-import { Company, User } from '../types';
+import { Data } from '../../services/data';
+import { Company, User } from '../../types';
 import { Briefcase, Plus, Search, MoreVertical, Copy, Shield, X, Users, CheckCircle, Ban, Edit2, Trash2 } from 'lucide-react';
-import { useToast } from '../contexts/ToastContext';
+import { useToast } from '../../contexts/ToastContext';
 
 export const CompaniesPage = () => {
     const [companies, setCompanies] = useState<Company[]>([]);

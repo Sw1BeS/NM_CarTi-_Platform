@@ -1,12 +1,12 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Data } from '../services/data';
-import { BotEngine } from '../services/botEngine';
-import { RequestsService } from '../services/requestsService';
-import { TelegramMessage, ChatMacro, User, B2BRequest, RequestStatus } from '../types';
+import { Data } from '../../services/data';
+import { BotEngine } from '../../services/botEngine';
+import { RequestsService } from '../../services/requestsService';
+import { TelegramMessage, ChatMacro, User, B2BRequest, RequestStatus } from '../../types';
 import { Send, Inbox, Trash2, X, Zap, UserCheck, StickyNote, Filter } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
-import { useToast } from '../contexts/ToastContext';
+import { useAuth } from '../../contexts/AuthContext';
+import { useToast } from '../../contexts/ToastContext';
 import { useSearchParams } from 'react-router-dom';
 
 // Default macros (можна винести в БД пізніше)

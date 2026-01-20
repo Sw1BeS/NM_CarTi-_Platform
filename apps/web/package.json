@@ -11,13 +11,16 @@
   "dependencies": {
     "@types/dompurify": "^3.0.5",
     "axios": "^1.13.2",
+    "clsx": "^2.1.1",
     "dompurify": "^3.3.1",
+    "framer-motion": "^12.27.5",
     "lucide-react": "^0.562.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "react-router-dom": "^7.11.0",
     "reactflow": "^11.11.4",
-    "recharts": "^3.6.0"
+    "recharts": "^3.6.0",
+    "tailwind-merge": "^3.4.0"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
