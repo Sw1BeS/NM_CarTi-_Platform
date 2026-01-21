@@ -647,3 +647,5 @@ const BASE_TRANSLATIONS: Record<Language, Record<string, string>> = {
         'mini.language': 'Мова'
     }
 };
+
+export const TRANSLATIONS = mergeTranslations(BASE_TRANSLATIONS, EMPTY_STATE_TRANSLATIONS);
