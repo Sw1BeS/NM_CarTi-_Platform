@@ -4,10 +4,9 @@ import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { Dashboard } from './pages/app/Dashboard';
 import { RequestList } from './pages/app/Requests';
-import { TelegramHub } from './pages/app/TelegramHub';
-import { ScenarioBuilder } from './pages/app/ScenarioBuilder';
+import { RequestList } from './pages/app/Requests';
+import { TelegramDashboard } from './modules/Telegram/TelegramDashboard';
 import { InboxPage } from './pages/app/Inbox';
-import { AutomationBuilder } from './pages/app/AutomationBuilder';
 
 import { Leads } from './pages/app/Leads';
 import { Login } from './pages/public/Login';
@@ -67,10 +66,9 @@ export default function App() {
                     <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
                     <Route path="/inbox" element={<ProtectedRoute><InboxPage /></ProtectedRoute>} />
                     <Route path="/requests" element={<ProtectedRoute><RequestList /></ProtectedRoute>} />
-                    <Route path="/telegram" element={<ProtectedRoute><TelegramHub /></ProtectedRoute>} />
-                    <Route path="/scenarios" element={<ProtectedRoute><ScenarioBuilder /></ProtectedRoute>} />
+                    <Route path="/requests" element={<ProtectedRoute><RequestList /></ProtectedRoute>} />
+                    <Route path="/telegram" element={<ProtectedRoute><TelegramDashboard /></ProtectedRoute>} />
                     <Route path="/leads" element={<ProtectedRoute><Leads /></ProtectedRoute>} />
-                    <Route path="/automation" element={<ProtectedRoute><AutomationBuilder /></ProtectedRoute>} />
                     <Route path="/search" element={<ProtectedRoute><SearchPage /></ProtectedRoute>} />
                     <Route path="/inventory" element={<ProtectedRoute><InventoryPage /></ProtectedRoute>} />
                     <Route path="/companies" element={<ProtectedRoute><CompaniesPage /></ProtectedRoute>} />

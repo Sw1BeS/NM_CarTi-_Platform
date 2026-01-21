@@ -57,8 +57,12 @@ main() {
     docker compose -p "$PROJECT" -f "$compose" build api web
 
     echo
-    echo "[DEPLOY] up -d"
-    docker compose -p "$PROJECT" -f "$compose" up -d
+    echo "[DEPLOY] up -d --force-recreate --remove-orphans"
+    docker compose -p "$PROJECT" -f "$compose" up -d --force-recreate --remove-orphans
+
+    echo
+    echo "[DEPLOY] prune builds"
+    docker image prune -f --filter "label!=keep"
 
     echo
     echo "[DEPLOY] Detailed Health Verification"
