@@ -1,5 +1,5 @@
 import { prisma } from '../../../../../services/prisma.js';
-import type { PipelineContext, PipelineMiddleware } from '../../types.js';
+import type { PipelineContext, PipelineMiddleware } from '../../core/types.js';
 
 export const resolveBotTenant: PipelineMiddleware = async (ctx: PipelineContext, next) => {
   if (!ctx.bot && ctx.botId) {

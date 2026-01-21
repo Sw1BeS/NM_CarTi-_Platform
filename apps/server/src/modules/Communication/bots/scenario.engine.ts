@@ -1,9 +1,9 @@
 import { prisma } from '../../../services/prisma.js';
 import { RequestStatus, LeadStatus } from '@prisma/client';
-import { telegramOutbox } from '../telegram/outbox/telegramOutbox.js';
-import { emitPlatformEvent } from '../telegram/events/eventEmitter.js';
+import { telegramOutbox } from '../telegram/messaging/outbox/telegramOutbox.js';
+import { emitPlatformEvent } from '../telegram/core/events/eventEmitter.js';
 // @ts-ignore
-import { createOrMergeLead } from '../telegram/services/leadService.js';
+import { createOrMergeLead } from '../telegram/core/leadService.js';
 import {
   renderCarListingCard,
   renderRequestCard,

@@ -1,18 +1,18 @@
 import { prisma } from '../../../../services/prisma.js';
-import type { PipelineContext } from '../types.js';
+import type { PipelineContext } from '../core/types.js';
 import { ScenarioEngine } from '../../bots/scenario.engine.js';
-import { telegramOutbox } from '../outbox/telegramOutbox.js';
+import { telegramOutbox } from '../messaging/outbox/telegramOutbox.js';
 import { normalizeBrand } from '../../../Inventory/normalization/normalizeBrand.js';
 import { normalizeModel } from '../../../Inventory/normalization/normalizeModel.js';
 import { normalizeCity } from '../../../Inventory/normalization/normalizeCity.js';
 import { normalizePhone } from '../../../Inventory/normalization/normalizePhone.js';
-import { createOrMergeLead } from '../services/leadService.js';
+import { createOrMergeLead } from '../core/leadService.js';
 import { renderLeadCard, renderRequestCard } from '../../../../services/cardRenderer.js';
 import { generateRequestLink } from '../../../../utils/deeplink.utils.js';
-import { buildMiniAppUrl } from '../utils/miniappUrl.js';
+import { buildMiniAppUrl } from '../core/utils/miniappUrl.js';
 import { generatePublicId, mapRequestInput } from '../../../../services/dto.js';
-import { buildCallbackData } from '../utils/callbackUtils.js';
-import { button, isCommand, resolveLang, t, type Lang } from '../utils/telegramText.js';
+import { buildCallbackData } from '../core/utils/callbackUtils.js';
+import { button, isCommand, resolveLang, t, type Lang } from '../core/utils/telegramText.js';
 
 
 const parseRange = (input: string) => {

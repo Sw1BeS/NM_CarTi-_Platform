@@ -1,4 +1,4 @@
-import type { PipelineContext, PipelineMiddleware } from '../../types.js';
+import type { PipelineContext, PipelineMiddleware } from '../../core/types.js';
 import { normalizeBrand } from '../../../../Inventory/normalization/normalizeBrand.js';
 import { normalizeCity } from '../../../../Inventory/normalization/normalizeCity.js';
 import { normalizeModel } from '../../../../Inventory/normalization/normalizeModel.js';

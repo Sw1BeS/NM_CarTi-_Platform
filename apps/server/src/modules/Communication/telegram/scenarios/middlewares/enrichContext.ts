@@ -1,5 +1,5 @@
 import { prisma } from '../../../../../services/prisma.js';
-import type { PipelineContext, PipelineMiddleware } from '../../types.js';
+import type { PipelineContext, PipelineMiddleware } from '../../core/types.js';
 
 const getUpdateType = (update: any) => {
   if (update?.inline_query) return 'inline_query';
@@ -81,6 +81,13 @@ export const enrichContext: PipelineMiddleware = async (ctx: PipelineContext, ne
           variables: {}
         }
       });
+
+      // SendPulse Subscription (Placeholder)
+      // Note: We usually don't have email/phone at session start.
+      // logic omitted until user data is available
+      if (ctx.featureFlags?.sendpulseEnabled) {
+        // Sync logic would go here
+      }
     }
   }
 

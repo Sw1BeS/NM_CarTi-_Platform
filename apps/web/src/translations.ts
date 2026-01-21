@@ -1,7 +1,20 @@
 
 import { Language } from './types';
+import { EMPTY_STATE_TRANSLATIONS } from './translations.empty-states';
 
-export const TRANSLATIONS: Record<Language, Record<string, string>> = {
+// Merge empty state translations with main translations
+const mergeTranslations = (
+    main: Record<Language, Record<string, string>>,
+    additional: Record<Language, Record<string, string>>
+): Record<Language, Record<string, string>> => {
+    const result: Record<Language, Record<string, string>> = {} as any;
+    for (const lang of Object.keys(main) as Language[]) {
+        result[lang] = { ...main[lang], ...additional[lang] };
+    }
+    return result;
+};
+
+const BASE_TRANSLATIONS: Record<Language, Record<string, string>> = {
     EN: {
         // Navigation
         'nav.dashboard': 'Dashboard',
@@ -85,6 +98,22 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
         'lead.won': 'Won',
         'lead.lost': 'Lost',
 
+        // Integrations
+        'integrations.title': 'Integrations',
+        'integrations.subtitle': 'Connect third-party services',
+        'integrations.active': 'Active',
+        'integrations.inactive': 'Inactive',
+        'integrations.configure': 'Configure',
+        'integrations.test_connection': 'Test Connection',
+        'integrations.save_config': 'Save Configuration',
+        'integrations.config_modal_title': 'Configure {{name}}',
+        'integrations.toast_saved': 'Integration saved!',
+        'integrations.toast_enabled': 'Integration enabled',
+        'integrations.toast_disabled': 'Integration disabled',
+        'integrations.test_success': 'Connection test successful!',
+        'integrations.test_failed': 'Test failed',
+
+
         // Inventory
         'inv.title': 'Title',
         'inv.price': 'Price',
@@ -96,7 +125,85 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
         'inv.reserved': 'Reserved',
 
         // Settings
+        'settings.subtitle': 'System configuration',
+        'settings.connectivity': 'Connectivity',
+        'settings.organization': 'Organization',
+        'settings.system': 'System',
+        'settings.api': 'API & Data Source',
+        'settings.logs': 'Telegram Logs',
+        'settings.superadmin': 'Super Admin',
+        'settings.features': 'Features',
+        'settings.general': 'General',
+        'settings.backup': 'Data Backup',
+        'settings.versions': 'Config Versions',
+        'settings.dict': 'Dictionaries',
+
         'settings.users': 'Users',
+        'settings.team_members': 'Team Members',
+        'settings.add_user': 'Add User',
+        'settings.new_user': 'New User',
+
+        // Forms & Common
+        'form.display_name': 'Display Name',
+        'form.username': 'Username',
+        'form.password': 'Password',
+        'form.company_id': 'Company ID',
+        'form.company_id_opt': 'Company ID (optional)',
+        'form.tg_id_opt': 'Telegram User ID (optional)',
+        'form.required': 'Fields required',
+        'form.company_required': 'Company ID required',
+
+        'role.manager': 'Manager',
+        'role.admin': 'Admin',
+        'role.owner': 'Owner',
+        'role.viewer': 'Viewer',
+
+        // SuperAdmin
+        'superadmin.title': 'Super Admin Console',
+        'superadmin.desc': 'Cross-company control: users, access, quick login.',
+        'superadmin.filter_all': 'All companies',
+        'superadmin.users_count': 'Users',
+        'superadmin.bots_count': 'Bots',
+        'superadmin.table_users': 'Users',
+        'superadmin.create_scope': 'SUPER_ADMIN scope',
+        'form.select_company': 'Select company',
+        'common.no_users': 'No users found',
+        'table.company': 'Company',
+        'table.actions': 'Actions',
+        'btn.impersonate': 'Login',
+
+        // Settings Tabs
+        'settings.features.title': 'System Modules',
+        'settings.features.desc': 'Enable or disable core functionality.',
+        'settings.dict.title': 'Dictionaries',
+        'settings.dict.add': 'Add',
+        'settings.tg.title': 'Telegram Diagnostics',
+        'settings.tg.ping': 'Ping API',
+        'settings.api.title': 'API Connection',
+        'settings.api.desc': 'Configure backend connectivity.',
+        'settings.api.base_url': 'API Base URL',
+        'btn.save_reload': 'Save & Reload',
+        'status.connected': 'Connected',
+        'status.failed': 'Connection Failed',
+        'settings.backup.title': 'Full Data Backups',
+        'settings.backup.desc': 'Version control for your application data.',
+        'settings.backup.create': 'Create New Data Backup',
+        'settings.general.desc': 'Configure global system parameters',
+        'settings.backup.restore': 'Restore',
+        'settings.backup.empty': 'No backups found.',
+        'settings.versions.title': 'Configuration Versions',
+        'settings.versions.desc': 'Save and restore UI settings.',
+        'settings.versions.create': 'Create Snapshot',
+        'settings.versions.import': 'Import',
+        'settings.versions.export': 'Export',
+        'settings.general.title': 'General Settings',
+        'settings.general.timezone': 'Timezone',
+        'settings.general.currency': 'Default Currency',
+        'settings.general.date_format': 'Date Format',
+        'settings.general.language': 'Default Language',
+        'settings.general.save': 'Save Changes',
+
+        // Setting items
         'settings.lang': 'Language',
         'settings.telegram': 'Telegram Diagnostics',
         'settings.users.create': 'Create User',

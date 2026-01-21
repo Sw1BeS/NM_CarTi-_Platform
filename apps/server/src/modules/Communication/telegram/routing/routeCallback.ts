@@ -1,10 +1,10 @@
 import { LeadStatus } from '@prisma/client';
 import { prisma } from '../../../../services/prisma.js';
-import type { PipelineContext } from '../types.js';
+import type { PipelineContext } from '../core/types.js';
 import { ScenarioEngine } from '../../bots/scenario.engine.js';
-import { telegramOutbox } from '../outbox/telegramOutbox.js';
-import { parseCallbackData } from '../utils/callbackUtils.js';
-import { button, resolveLang, t } from '../utils/telegramText.js';
+import { telegramOutbox } from '../messaging/outbox/telegramOutbox.js';
+import { parseCallbackData } from '../core/utils/callbackUtils.js';
+import { button, resolveLang, t } from '../core/utils/telegramText.js';
 import { finalizeB2BRequest, finalizeCatalogSell, finalizeClientLead } from './routeMessage.js';
 
 const updateSession = async (ctx: PipelineContext, state: string, variables: Record<string, any>) => {

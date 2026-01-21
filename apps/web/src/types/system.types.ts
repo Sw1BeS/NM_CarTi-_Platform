@@ -3,7 +3,13 @@ export interface SystemBranding {
     primaryColor?: string;
     logoUrl?: string;
     faviconUrl?: string;
+    timezone?: string;
+    currency?: string;
+    dateFormat?: string;
+    defaultLanguage?: string;
 }
+
+export type FeatureKey = 'scenarios' | 'inventory' | 'analytics' | 'bots' | 'crm' | 'finance';
 
 export interface SystemModules {
     scenarios?: boolean;
@@ -31,6 +37,7 @@ export interface SystemSettings {
     modules?: SystemModules;
     navigation?: SystemNavigation;
     features?: any; // legacy
+    integrations?: any;
     autoriaApiKey?: string;
     metaPixelId?: string;
     metaToken?: string;

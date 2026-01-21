@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useToast } from '../../contexts/ToastContext';
+import { useLang } from '../../contexts/LanguageContext';
 import {
     Plug, Mail, Share2, Table, Webhook, Settings,
     Check, X, AlertCircle, Link2, TestTube
@@ -68,6 +69,7 @@ const INTEGRATIONS: IntegrationConfig[] = [
 
 export const IntegrationsPage = () => {
     const { showToast } = useToast();
+    const { t } = useLang();
     const [integrations, setIntegrations] = useState<Integration[]>([]);
     const [editingType, setEditingType] = useState<string | null>(null);
     const [configData, setConfigData] = useState<Record<string, any>>({});
@@ -162,6 +164,33 @@ export const IntegrationsPage = () => {
         }
     };
 
+    const testConnection = async (type: string) => {
+        try {
+            const response = await fetch(`/api/integrations/${type}/test`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('cartie_token')}`
+                },
+                body: JSON.stringify({ config: configData })
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                if (result.success) {
+                    showToast('✅ Connection test successful!', 'success');
+                } else {
+                    showToast(`❌ Test failed: ${result.error}`, 'error');
+                }
+            } else {
+                const error = await response.json();
+                showToast(`Test failed: ${error.error}`, 'error');
+            }
+        } catch (e: any) {
+            showToast(`Connection error: ${e.message}`, 'error');
+        }
+    };
+
     const testWebhook = async () => {
         try {
             const response = await fetch('/api/integrations/webhook/trigger', {
@@ -196,8 +225,8 @@ export const IntegrationsPage = () => {
                 <div className="flex items-center gap-3">
                     <Plug size={24} className="text-gold-500" />
                     <div>
-                        <h1 className="text-2xl font-bold text-[var(--text-primary)]">Integrations</h1>
-                        <p className="text-sm text-[var(--text-secondary)] mt-1">Connect third-party services</p>
+                        <h1 className="text-2xl font-bold text-[var(--text-primary)]">{t('integrations.title')}</h1>
+                        <p className="text-sm text-[var(--text-secondary)] mt-1">{t('integrations.subtitle')}</p>
                     </div>
                 </div>
             </div>
@@ -225,11 +254,11 @@ export const IntegrationsPage = () => {
                                     <button
                                         onClick={() => toggleActive(integration.type, !status.isActive)}
                                         className={`px-3 py-1 rounded text-xs font-bold ${status.isActive
-                                                ? 'bg-green-500/20 text-green-500'
-                                                : 'bg-gray-500/20 text-gray-500'
+                                            ? 'bg-green-500/20 text-green-500'
+                                            : 'bg-gray-500/20 text-gray-500'
                                             }`}
                                     >
-                                        {status.isActive ? 'Active' : 'Inactive'}
+                                        {status.isActive ? t('integrations.active') : t('integrations.inactive')}
                                     </button>
                                 )}
                             </div>
@@ -239,7 +268,7 @@ export const IntegrationsPage = () => {
                                     onClick={() => loadConfig(integration.type)}
                                     className="btn-secondary flex-1 py-2 text-xs"
                                 >
-                                    <Settings size={14} className="inline mr-1" /> Configure
+                                    <Settings size={14} className="inline mr-1" /> {t('integrations.configure')}
                                 </button>
 
                                 {integration.type === 'WEBHOOK' && status && (
@@ -304,6 +333,16 @@ export const IntegrationsPage = () => {
                                     )}
                                 </div>
                             ))}
+
+                            {/* Test Connection Button (for supported integrations) */}
+                            {(editingType === 'META_PIXEL' || editingType === 'SENDPULSE' || editingType === 'WEBHOOK') && (
+                                <button
+                                    onClick={() => testConnection(editingType)}
+                                    className="btn-ghost w-full py-3 flex items-center justify-center gap-2 border border-[var(--border-color)]"
+                                >
+                                    <TestTube size={18} /> Test Connection
+                                </button>
+                            )}
 
                             <button onClick={saveConfig} className="btn-primary w-full py-3">
                                 Save Configuration

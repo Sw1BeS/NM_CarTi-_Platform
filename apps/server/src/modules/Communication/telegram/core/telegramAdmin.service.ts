@@ -1,6 +1,6 @@
 import axios from 'axios';
 import crypto from 'crypto';
-import { prisma } from '../../../services/prisma.js';
+import { prisma } from '../../../../services/prisma.js';
 
 const TELEGRAM_API = (token: string) => `https://api.telegram.org/bot${token}`;
 

@@ -1,6 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../../../../services/prisma.js';
-import type { PipelineContext, PipelineMiddleware } from '../../types.js';
+import type { PipelineContext, PipelineMiddleware } from '../../core/types.js';
 
 const buildDedupPayload = (update: any) => {
   const message = update?.message;

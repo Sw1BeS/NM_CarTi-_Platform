@@ -1,8 +1,9 @@
 import { LeadStatus } from '@prisma/client';
 import { prisma } from '../../../../services/prisma.js';
 import { normalizePhone } from '../../../Inventory/normalization/normalizePhone.js';
-import { emitPlatformEvent } from '../events/eventEmitter.js';
+import { emitPlatformEvent } from './events/eventEmitter.js';
 import { generatePublicId, mapRequestInput } from '../../../../services/dto.js';
+import { MetaService } from '../../../Integrations/meta/meta.service.js';
 
 export type LeadCreateInput = {
   botId: string;
@@ -11,6 +12,7 @@ export type LeadCreateInput = {
   userId?: string | null;
   name: string;
   phone?: string | null;
+  email?: string | null;
   request?: string | null;
   source?: string | null;
   payload?: Record<string, any> | null;
@@ -211,5 +213,66 @@ export const createOrMergeLead = async (input: LeadCreateInput, botConfig?: any)
     }
   });
 
+  // Meta CAPI Event
+  MetaService.getInstance().sendEvent('Lead', {
+    ph: normalizedPhone, // hashed inside service if needed
+    client_user_agent: 'Telegram Bot' // server-side event
+  }, {
+    content_name: 'Lead ' + (input.name || 'Unknown'),
+    content_category: 'Lead',
+    content_ids: [lead.id],
+    value: 0,
+    currency: 'USD'
+  }).catch(console.error);
+
+  // SendPulse Integration - Add lead to mailing list
+  if (normalizedPhone || input.payload?.email) {
+    import('../../../Integrations/sendpulse/sendpulse.service.js').then(({ SendPulseService }) => {
+      const spService = SendPulseService.getInstance();
+      // Get integration config from SystemSettings
+      prisma.systemSettings.findFirst().then(settings => {
+        if (settings?.sendpulseId && settings?.sendpulseSecret) {
+          const config = {
+            clientId: settings.sendpulseId,
+            clientSecret: settings.sendpulseSecret,
+            addressBookId: (settings as any).sendpulseListId || undefined
+          };
+          const email = input.payload?.email || `${normalizedPhone?.replace(/\+/g, '')}@leads.cartie.local`;
+          spService.syncContact(config, email, {
+            name: input.name,
+            phone: normalizedPhone || '',
+            source: input.source || 'TELEGRAM',
+            leadId: lead.id
+          }).catch(console.error);
+        }
+      }).catch(console.error);
+    }).catch(console.error);
+  }
+
+  // Meta CAPI Event
+  if (input.companyId) {
+    import('../../../Integrations/meta.service.js').then(({ sendMetaEvent }) => {
+      sendMetaEvent('Lead', {
+        user: { phone: normalizedPhone, id: input.userId },
+        customData: { leadId: lead.id, source: lead.source }
+      }).catch(err => console.error('[LeadService] Meta event failed:', err));
+    });
+  }
+
+  // SendPulse Integration
+  if (input.email || normalizedPhone) {
+    import('../../../Integrations/sendpulse/sendpulse.service.js').then(async ({ SendPulseService }) => {
+      const settings = await prisma.systemSettings.findFirst();
+      const s = settings as any; // Cast to any to avoid stale type errors
+      if (s?.sendpulseId && s?.sendpulseSecret) {
+        console.log('[LeadService] Syncing to SendPulse...');
+        // TODO: Add addressBookId to settings or use a default one
+        // const config = { ...settings, addressBookId: settings.sendpulseListId };
+        // SendPulseService.getInstance().syncContact(config, email, ...);
+      }
+    }).catch(err => console.error('[LeadService] SendPulse sync failed:', err));
+  }
+
   return { lead, isDuplicate: false, request: createdRequest };
 };
+

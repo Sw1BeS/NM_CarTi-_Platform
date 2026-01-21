@@ -1,16 +1,16 @@
 import { prisma } from '../../../../services/prisma.js';
-import type { PipelineContext } from '../types.js';
-import { parseMiniAppPayload } from '../utils/miniappPayload.js';
+import type { PipelineContext } from '../core/types.js';
+import { parseMiniAppPayload } from '../core/utils/miniappPayload.js';
 import { normalizeBrand } from '../../../Inventory/normalization/normalizeBrand.js';
 import { normalizeModel } from '../../../Inventory/normalization/normalizeModel.js';
 import { normalizeCity } from '../../../Inventory/normalization/normalizeCity.js';
 import { normalizePhone } from '../../../Inventory/normalization/normalizePhone.js';
-import { createOrMergeLead } from '../services/leadService.js';
-import { telegramOutbox } from '../outbox/telegramOutbox.js';
+import { createOrMergeLead } from '../core/leadService.js';
+import { telegramOutbox } from '../messaging/outbox/telegramOutbox.js';
 import { renderLeadCard, renderRequestCard } from '../../../../services/cardRenderer.js';
-import { emitPlatformEvent } from '../events/eventEmitter.js';
+import { emitPlatformEvent } from '../core/events/eventEmitter.js';
 import { ScenarioEngine } from '../../bots/scenario.engine.js';
-import { resolveLang, t } from '../utils/telegramText.js';
+import { resolveLang, t } from '../core/utils/telegramText.js';
 
 const sendMessage = async (ctx: PipelineContext, text: string, replyMarkup?: any, targetChatId?: string) => {
   if (!ctx.bot) return;

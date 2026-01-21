@@ -1,5 +1,5 @@
-import type { PipelineContext, PipelineMiddleware } from '../../types.js';
-import { emitPlatformEvent, summarizeText } from '../../events/eventEmitter.js';
+import type { PipelineContext, PipelineMiddleware } from '../../core/types.js';
+import { emitPlatformEvent, summarizeText } from '../../core/events/eventEmitter.js';
 
 export const emitEvent: PipelineMiddleware = async (ctx: PipelineContext, next) => {
   let error: any = null;

@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import { prisma } from '../../../services/prisma.js';
-import { runTelegramPipeline } from './pipeline/pipeline.js';
+import { prisma } from '../../../../services/prisma.js';
+import { runTelegramPipeline } from '../scenarios/pipeline.js';
 
 const router = Router();
 

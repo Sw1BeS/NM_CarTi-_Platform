@@ -1,6 +1,6 @@
-import { prisma } from '../../../../services/prisma.js';
-import { TelegramSender } from '../services/telegramSender.js';
-import { emitPlatformEvent, summarizeText } from '../events/eventEmitter.js';
+import { prisma } from '../../../../../services/prisma.js';
+import { TelegramSender } from '../telegramSender.js';
+import { emitPlatformEvent, summarizeText } from '../../core/events/eventEmitter.js';
 
 type OutboxContext = {
   botId: string;

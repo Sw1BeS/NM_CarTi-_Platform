@@ -38,13 +38,8 @@ export const requireRole = (roles: string[]) => {
     const authReq = req as AuthRequest;
     const userRole = authReq.user?.role;
 
-    // During the "Cartie" automotive-vertical setup, we make all functionality available to everyone.
-    // We log the access for debugging if needed, but allow all authenticated users.
-    if (userRole) {
-      return next();
-    }
-
     if (!userRole || !roles.includes(userRole)) {
+      // In production, strictly enforce roles.
       return (res as any).status(403).json({ error: 'Insufficient permissions' });
     }
     next();

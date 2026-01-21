@@ -5,8 +5,8 @@ import { BotTemplate, LeadStatus } from '@prisma/client';
 import { prisma } from '../../../services/prisma.js';
 import { type DeepLinkPayload } from '../../../utils/deeplink.utils.js';
 import { renderLeadCard, renderRequestCard } from '../../../services/cardRenderer.js';
-import { runTelegramPipeline } from '../telegram/pipeline/pipeline.js';
-import { telegramOutbox } from '../telegram/outbox/telegramOutbox.js';
+import { runTelegramPipeline } from '../telegram/scenarios/pipeline.js';
+import { telegramOutbox } from '../telegram/messaging/outbox/telegramOutbox.js';
 
 
 
@@ -273,7 +273,7 @@ class BotInstance {
         if (text === '/buy' || text === '🚗 Залишити заявку' || state === 'LEAD_MENU') {
             if (backCmd.includes(text.toLowerCase())) return resetToMenu();
             await this.sendMessage(chatId, "Як тебе звати?", { remove_keyboard: true });
-            await this.updateState(session.id, 'LEAD_NAME', { leadFlow: { } });
+            await this.updateState(session.id, 'LEAD_NAME', { leadFlow: {} });
             return;
         }
 

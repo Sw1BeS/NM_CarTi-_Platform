@@ -14,10 +14,10 @@ import { importDraft } from '../modules/Inventory/inventory/inventory.service.js
 import { mapLeadCreateInput, mapLeadOutput, mapLeadStatusFilter, mapLeadUpdateInput } from '../services/dto.js';
 import { mapBotInput, mapBotOutput } from '../modules/Communication/bots/botDto.js';
 import { IntegrationService } from '../modules/Integrations/integration.service.js';
-import { setWebhookForBot, deleteWebhookForBot } from '../modules/Communication/telegram/telegramAdmin.service.js';
-import { telegramOutbox } from '../modules/Communication/telegram/outbox/telegramOutbox.js';
-import { whatsAppRouter } from '../modules/Communication/whatsapp/whatsapp.service.js';
-import { viberRouter } from '../modules/Communication/viber/viber.service.js';
+import { setWebhookForBot, deleteWebhookForBot } from '../modules/Communication/telegram/core/telegramAdmin.service.js';
+import { telegramOutbox } from '../modules/Communication/telegram/messaging/outbox/telegramOutbox.js';
+import { whatsAppRouter } from '../modules/Integrations/whatsapp/whatsapp.service.js';
+import { viberRouter } from '../modules/Integrations/viber/viber.service.js';
 
 const integrationService = new IntegrationService();
 
@@ -36,26 +36,11 @@ const resolveCompanyId = async (requestedCompanyId?: string | null, userCompanyI
     if (requestedCompanyId) return requestedCompanyId;
     if (userCompanyId) return userCompanyId;
 
-    // Use read abstraction for finding system workspace
-    let systemWorkspace = (
-        await getWorkspaceById('company_system') ||
-        await getWorkspaceBySlug('system')
-        // Removed legacy fallback: (await prisma.company.findFirst(...))
-    );
-
+    const systemWorkspace = await getWorkspaceById('company_system') || await getWorkspaceBySlug('system');
     if (systemWorkspace) return systemWorkspace.id;
 
-    // If no system company found, create one via WriteService
-    // We need to import writeService first.
-    // For now, let's assume system exists or fail, or we need to add writeService import. 
-    // Given the context block, I can't easily add import at top without seeing it.
-    // But I can use the existing 'prisma' if I absolutely must, but we want to avoid it.
-    // Let's use prisma.workspace directly for this "system" creation if writeService isn't available, 
-    // OR better, we know we have 'writeService' available in the project.
-
-    // Let's fail if not found for now, or use prisma.workspace.create if we are sure.
-    // Actually, 'company_system' is specific.
-    return 'company_system'; // Fallback to ID if we trust it exists or will be handled.
+    console.warn('[API] System workspace not found, falling back to ID literal "company_system"');
+    return 'company_system';
 };
 
 // --- Bot Management (CRUD) ---

@@ -242,19 +242,45 @@ async function main() {
   }
 
   // 3. Demo company users
-  await createUserIfMissing('max@demo.com', 'OWNER', demoCompany.id, process.env.DEMO_USER_PASSWORD || 'demo123', 'Demo Owner');
-  await createUserIfMissing('admin@demo.com', 'ADMIN', demoCompany.id, process.env.DEMO_USER_PASSWORD || 'demo123', 'Demo Admin');
-  await createUserIfMissing('manager@demo.com', 'MANAGER', demoCompany.id, process.env.DEMO_USER_PASSWORD || 'demo123', 'Demo Manager');
-  await createUserIfMissing('dealer@demo.com', 'DEALER', demoCompany.id, process.env.DEMO_USER_PASSWORD || 'demo123', 'Demo Dealer');
+  if (process.env.SEED_DEMO === 'true') {
+    console.log('🚧 Seeding Demo Company Users...');
+    await createUserIfMissing('max@demo.com', 'OWNER', demoCompany.id, process.env.DEMO_USER_PASSWORD || 'demo123', 'Demo Owner');
+    await createUserIfMissing('admin@demo.com', 'ADMIN', demoCompany.id, process.env.DEMO_USER_PASSWORD || 'demo123', 'Demo Admin');
+    await createUserIfMissing('manager@demo.com', 'MANAGER', demoCompany.id, process.env.DEMO_USER_PASSWORD || 'demo123', 'Demo Manager');
+    await createUserIfMissing('dealer@demo.com', 'DEALER', demoCompany.id, process.env.DEMO_USER_PASSWORD || 'demo123', 'Demo Dealer');
+  }
 
-  // 3. Init Generic Entities (Stage D/E)
+  // 3. Init Generic Entities (Stage D/E) - Structural
   await seedEntities();
   await seedTemplates(cartieCompany.id);
-  await seedBots(cartieCompany.id);
   await seedNormalization(cartieCompany.id);
-  await seedInventory(cartieCompany.id);
-  await seedRequestsAndLeads(cartieCompany.id);
-  await seedIntegrationsAndDrafts(cartieCompany.id);
+
+  // 3.5. Seed Production Data (Scenarios & Normalization)
+  console.log('\n📦 Seeding production data...');
+  try {
+    const { seedProductionScenarios } = await import('./seeds/scenarios.production.js');
+    await seedProductionScenarios();
+  } catch (e: any) {
+    console.log('⚠️ Production scenarios seed skipped:', e.message);
+  }
+
+  try {
+    const { seedProductionNormalization } = await import('./seeds/normalization.production.js');
+    await seedProductionNormalization(cartieCompany.id);
+  } catch (e: any) {
+    console.log('⚠️ Production normalization seed skipped:', e.message);
+  }
+
+  // 4. Demo Data (Optional)
+  if (process.env.SEED_DEMO === 'true') {
+    console.log('🚧 Seeding Demo Content...');
+    await seedBots(cartieCompany.id); // Contains demo bot tokens
+    await seedInventory(cartieCompany.id);
+    await seedRequestsAndLeads(cartieCompany.id);
+    await seedIntegrationsAndDrafts(cartieCompany.id);
+  } else {
+    console.log('ℹ️ Skipping Demo Content (SEED_DEMO != true)');
+  }
 
   console.log('🏁 Seed finished.');
 }

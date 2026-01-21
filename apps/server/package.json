@@ -24,7 +24,8 @@
     "jsonwebtoken": "^9.0.2",
     "node-cron": "^3.0.3",
     "telegram": "^2.26.22",
-    "ulid": "^2.3.0"
+    "ulid": "^2.3.0",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
@@ -39,5 +40,8 @@
     "tsx": "^4.21.0",
     "typescript": "^5.3.3",
     "vitest": "^1.6.0"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
   }
 }

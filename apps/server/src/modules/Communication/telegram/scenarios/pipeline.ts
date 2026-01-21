@@ -1,14 +1,14 @@
 import type { BotConfig } from '@prisma/client';
-import type { PipelineContext, PipelineMiddleware } from '../types.js';
+import type { PipelineContext, PipelineMiddleware } from '../core/types.js';
 import { resolveBotTenant } from './middlewares/resolveBotTenant.js';
 import { dedup } from './middlewares/dedup.js';
 import { enrichContext } from './middlewares/enrichContext.js';
 import { normalize } from './middlewares/normalize.js';
 import { emitEvent } from './middlewares/emitEvent.js';
-import { routeMessage } from '../routers/routeMessage.js';
-import { routeCallback } from '../routers/routeCallback.js';
-import { routeWebApp } from '../routers/routeWebApp.js';
-import { routeInline } from '../routers/routeInline.js';
+import { routeMessage } from '../routing/routeMessage.js';
+import { routeCallback } from '../routing/routeCallback.js';
+import { routeWebApp } from '../routing/routeWebApp.js';
+import { routeInline } from '../routing/routeInline.js';
 
 type PipelineInput = {
   update: any;

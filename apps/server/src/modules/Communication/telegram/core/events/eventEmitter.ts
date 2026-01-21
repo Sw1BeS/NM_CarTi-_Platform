@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { prisma } from '../../../../services/prisma.js';
+import { prisma } from '../../../../../services/prisma.js';
 
 type EventInput = {
   companyId?: string | null;

@@ -5,8 +5,11 @@ import { prisma } from '../../../services/prisma.js';
 import { authenticateToken, requireRole } from '../../../middleware/auth.js';
 import { generatePublicId, mapRequestInput, mapRequestOutput, mapVariantInput, mapVariantOutput, mapRequestStatusFilter } from '../../../services/dto.js';
 import { renderRequestCard, managerActionsKeyboard } from '../../../services/cardRenderer.js';
-import { telegramOutbox } from '../../Communication/telegram/outbox/telegramOutbox.js';
+import { telegramOutbox } from '../../Communication/telegram/messaging/outbox/telegramOutbox.js';
 import { generateRequestLink } from '../../../utils/deeplink.utils.js';
+
+import { validate } from '../../../middleware/validation.js';
+import { createRequestSchema } from '../../../validation/schemas.js';
 
 const router = Router();
 
@@ -57,26 +60,37 @@ router.get('/', async (req, res) => {
     }
 });
 
-router.post('/', authenticateToken, requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
+router.post('/', requireRole(['ADMIN', 'MANAGER']), validate(createRequestSchema), async (req, res) => {
     try {
-        const { id, variants, ...raw } = req.body;
-        const createData: any = mapRequestInput(raw);
-        if (!createData.title) {
-            return res.status(400).json({ error: 'Title is required' });
-        }
-        if (!createData.publicId) createData.publicId = generatePublicId();
+        const { data } = mapRequestInput(req.body);
+        const { variants } = req.body;
 
-        // Handle nested creation provided via `variants` array
+        // Handle nested creation
         if (variants && Array.isArray(variants)) {
-            createData.variants = {
+            data.variants = {
                 create: variants.map((v: any) => mapVariantInput(v))
             };
         }
 
         const request = await prisma.b2bRequest.create({
-            data: createData,
+            data: {
+                ...data,
+                companyId: (req as any).user?.companyId || null,
+                publicId: generatePublicId()
+            },
             include: { variants: true }
         });
+
+        // Meta CAPI Event (preserved from legacy)
+        if ((req as any).user?.companyId) {
+            import('../../Integrations/meta.service.js').then(({ sendMetaEvent }) => {
+                sendMetaEvent('SubmitApplication', {
+                    user: { id: (req as any).user.id },
+                    customData: { requestId: request.publicId }
+                }).catch(console.error);
+            });
+        }
+
         res.json(mapRequestOutput(request));
     } catch (e: any) {
         console.error(e);
@@ -96,6 +110,16 @@ router.put('/:id', authenticateToken, requireRole(['ADMIN', 'MANAGER', 'OPERATOR
             data,
             include: { variants: true }
         });
+
+        // Meta CAPI: Purchase Event
+        if (data.status === 'WON' && (req as any).user?.companyId) {
+            import('../../Integrations/meta.service.js').then(({ sendMetaEvent }) => {
+                sendMetaEvent('Purchase', {
+                    user: { id: (req as any).user.id },
+                    customData: { requestId: request.publicId, value: request.budgetMax, currency: 'USD' }
+                }).catch(console.error);
+            });
+        }
 
         // Sync Variants logic would go here if we want to full-sync, 
         // but typically variants are managed via specific endpoint or separate calls.

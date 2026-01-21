@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, FileText, Search, Users,
-  Send, LogOut, Menu, Settings as SettingsIcon, X, Plus, Radio, MessageCircle, Bell, Car, Sparkles, Briefcase, Database, Calendar, Library
+  Send, LogOut, Menu, Settings as SettingsIcon, X, Plus, Radio, MessageCircle, Bell, Car, Sparkles, Briefcase, Database, Calendar, Library, Globe
 } from 'lucide-react';
 import { User, NavItemConfig } from '../types';
 import { useLang } from '../contexts/LanguageContext';
@@ -49,12 +49,13 @@ const DEFAULT_NAV: NavItemConfig[] = [
 export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { t } = useLang();
+  const { t, lang, setLang } = useLang();
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isCmdOpen, setIsCmdOpen] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [showNotif, setShowNotif] = useState(false);
+  const [showLang, setShowLang] = useState(false);
   const [navItems, setNavItems] = useState<NavItemConfig[]>([]);
   const [features, setFeatures] = useState({});
 
@@ -191,6 +192,28 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout }) => {
             </div>
 
             <div className="h-8 w-px bg-[var(--border-color)] mx-1"></div>
+
+            {/* Language Switcher */}
+            <div className="relative">
+              <button onClick={() => setShowLang(!showLang)} className="btn-ghost btn-icon relative p-2">
+                <Globe size={22} className={showLang ? 'text-gold-500' : ''} />
+                <span className="absolute -bottom-1 -right-1 text-[10px] font-bold bg-[var(--bg-input)] px-1 rounded border border-[var(--border-color)]">
+                  {lang}
+                </span>
+              </button>
+              {showLang && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setShowLang(false)}></div>
+                  <div className="absolute right-0 top-14 w-36 panel z-50 flex flex-col overflow-hidden animate-slide-up shadow-2xl py-1">
+                    {(['EN', 'UK', 'RU'] as const).map(l => (
+                      <button key={l} onClick={() => { setLang(l); setShowLang(false); }} className={`px-4 py-2 text-left hover:bg-[var(--bg-input)] text-sm font-medium transition-colors ${lang === l ? 'text-gold-500 bg-[var(--bg-input)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}>
+                        {l === 'EN' ? 'English' : l === 'UK' ? 'Українська' : 'Русский'}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
 
             <div className="relative">
               <button onClick={() => setShowNotif(!showNotif)} className="btn-ghost btn-icon relative p-2">

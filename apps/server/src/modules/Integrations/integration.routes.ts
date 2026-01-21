@@ -103,6 +103,69 @@ router.post('/:type/toggle', requireRole('OWNER', 'ADMIN'), async (req: any, res
 });
 
 /**
+ * POST /api/integrations/:type/test
+ * Test integration connection (ADMIN+ only)
+ */
+router.post('/:type/test', requireRole('OWNER', 'ADMIN'), async (req: any, res) => {
+    try {
+        const { config } = req.body;
+        const type = req.params.type.toUpperCase();
+
+        if (!config) {
+            return res.status(400).json({ error: 'Config is required for testing' });
+        }
+
+        let testResult;
+
+        // Meta Pixel Test
+        if (type === 'META_PIXEL') {
+            const { testMetaConnection } = await import('./meta.service.js');
+            const { pixelId, accessToken, testCode } = config;
+
+            if (!pixelId || !accessToken) {
+                return res.status(400).json({ error: 'pixelId and accessToken are required' });
+            }
+
+            testResult = await testMetaConnection(pixelId, accessToken, testCode);
+        }
+        // SendPulse Test
+        else if (type === 'SENDPULSE') {
+            const { testSendPulseConnection } = await import('./sendpulse/sendpulse.service.js');
+            const { apiUserId, apiSecret } = config;
+
+            if (!apiUserId || !apiSecret) {
+                return res.status(400).json({ error: 'apiUserId and apiSecret are required' });
+            }
+
+            testResult = await testSendPulseConnection(apiUserId, apiSecret);
+        }
+        // Webhook Test
+        else if (type === 'WEBHOOK') {
+            const { url } = config;
+
+            if (!url) {
+                return res.status(400).json({ error: 'url is required' });
+            }
+
+            const axios = (await import('axios')).default;
+            try {
+                await axios.post(url, { test: true, timestamp: Date.now() }, { timeout: 5000 });
+                testResult = { success: true };
+            } catch (e: any) {
+                testResult = { success: false, error: e.message };
+            }
+        }
+        else {
+            return res.status(400).json({ error: 'Test not supported for this integration type' });
+        }
+
+        res.json(testResult);
+    } catch (e: any) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+/**
  * POST /api/integrations/webhook/trigger
  * Manually trigger webhook for testing (ADMIN+ only)
  */
@@ -122,3 +185,4 @@ router.post('/webhook/trigger', requireRole('OWNER', 'ADMIN'), async (req: any, 
 });
 
 export default router;
+

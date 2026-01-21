@@ -5,7 +5,7 @@
 
 import { prisma } from '../../services/prisma.js';
 import axios from 'axios';
-import { telegramOutbox } from '../Communication/telegram/outbox/telegramOutbox.js';
+import { telegramOutbox } from '../Communication/telegram/messaging/outbox/telegramOutbox.js';
 
 export class IntegrationService {
     /**
