@@ -2,7 +2,7 @@
 import { DataAdapter } from './dataAdapter';
 import { ServerAdapter } from './serverAdapter';
 import { ApiClient } from './apiClient';
-import type { CarListing, CarSearchFilter, Scenario } from '../types';
+import type { CarListing, CarSearchFilter, Scenario, DictionaryCollection } from '../types';
 
 const serverAdapter = new ServerAdapter();
 

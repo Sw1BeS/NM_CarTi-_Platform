@@ -19,11 +19,18 @@ export interface SystemModules {
 }
 
 export interface NavigationItem {
-    key: string;
-    label: string;
-    href: string;
+    key?: string;
+    label?: string;
+    labelKey?: string;
+    href?: string;
+    path?: string;
     icon?: string;
+    iconName?: string;
+    visible?: boolean;
+    order?: number;
+    featureKey?: string;
     roles?: string[];
+    id?: string;
 }
 
 export interface SystemNavigation {
@@ -44,10 +51,15 @@ export interface SystemSettings {
     metaTestCode?: string;
 }
 
+export interface NormalizationItem {
+    key: string;
+    values: string[];
+}
+
 export interface DictionaryCollection {
     id: string;
-    brands: string[];
-    cities: string[];
+    brands: NormalizationItem[];
+    cities: NormalizationItem[];
 }
 
 export interface SystemNotification {

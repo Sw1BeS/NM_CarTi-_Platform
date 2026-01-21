@@ -1,5 +1,7 @@
+/// <reference types="vite/client" />
 
 import axios from 'axios';
+
 import { SystemSettings } from '../types/system.types'; // Assuming types exist or I need to create them
 
 const API_URL = import.meta.env.VITE_API_BASE_URL || '/api';
