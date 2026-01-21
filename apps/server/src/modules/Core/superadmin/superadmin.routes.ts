@@ -7,6 +7,7 @@ import { Router } from 'express';
 import { SuperadminService } from './superadmin.service.js';
 import { ClientManagerService } from './client-manager.service.js';
 import { companyMiddleware, requireRole } from '../../../middleware/company.middleware.js';
+import { authenticateToken } from '../../../middleware/auth.js';
 import jwt from 'jsonwebtoken';
 
 const router = Router();
@@ -15,6 +16,7 @@ const clientManagerService = new ClientManagerService();
 const JWT_SECRET = process.env.JWT_SECRET || 'dev_secret_key_123';
 
 // All routes require SUPER_ADMIN role
+router.use(authenticateToken);
 router.use(companyMiddleware);
 router.use(requireRole('SUPER_ADMIN'));
 

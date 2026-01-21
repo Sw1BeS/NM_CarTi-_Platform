@@ -5,11 +5,13 @@
 import { Router } from 'express';
 import { IntegrationService } from './integration.service.js';
 import { companyMiddleware, requireRole } from '../../middleware/company.middleware.js';
+import { authenticateToken } from '../../middleware/auth.js';
 
 const router = Router();
 const integrationService = new IntegrationService();
 
 // All routes require authentication
+router.use(authenticateToken);
 router.use(companyMiddleware);
 
 import mtprotoRoutes from './mtproto/mtproto.routes.js';

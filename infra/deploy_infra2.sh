@@ -61,14 +61,38 @@ main() {
     docker compose -p "$PROJECT" -f "$compose" up -d
 
     echo
-    echo "[DEPLOY] ps"
-    docker compose -p "$PROJECT" -f "$compose" ps
+    echo "[DEPLOY] Detailed Health Verification"
 
-    echo
-    echo "[DEPLOY] health checks"
-    curl -fsS -o /dev/null -w "API 127.0.0.1:3002/health => %{http_code}\n" http://127.0.0.1:3002/health
-    curl -fsS -o /dev/null -w "WEB 127.0.0.1:8082/api/health => %{http_code}\n" http://127.0.0.1:8082/api/health
-    curl -fsS -o /dev/null -w "PUBLIC /api/health => %{http_code}\n" https://cartie2.umanoff-analytics.space/api/health
+    # Verify Containers
+    for service in "web" "api" "db"; do
+      container_name="${PROJECT}-${service}-1"
+      if [ "$(docker inspect -f '{{.State.Status}}' "$container_name" 2>/dev/null)" != "running" ]; then
+        echo "❌ Container $container_name is NOT running!"
+        docker logs "$container_name" --tail 10
+        exit 1
+      else
+        echo "✅ Container $container_name is running."
+      fi
+    done
+
+    # Verify Endpoints
+    echo "[DEPLOY] Checking HTTP Endpoints..."
+    if curl -fsS --retry 5 --retry-delay 2 --retry-connrefused -o /dev/null "http://127.0.0.1:3002/health"; then
+        echo "✅ API Internal Health (3002) OK"
+    else
+        echo "❌ API Internal Health Failed"
+        exit 1
+    fi
+
+    if curl -fsS --retry 5 --retry-delay 2 --retry-connrefused -o /dev/null "http://127.0.0.1:8082/api/health"; then
+         echo "✅ WEB Proxy Health (8082) OK"
+    else
+         echo "❌ WEB Proxy Health Failed"
+         exit 1
+    fi
+     
+    # Optional: Public check (warning only)
+    curl -fsS -o /dev/null -w "PUBLIC /api/health => %{http_code}\n" https://cartie2.umanoff-analytics.space/api/health || echo "⚠️ Public health check failed (DNS/SSL issue?)"
 
     echo
     echo "[DEPLOY] OK"

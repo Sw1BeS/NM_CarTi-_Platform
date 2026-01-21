@@ -1,54 +1,53 @@
-# Production Readiness Execution Plan
+# 🎼 Master Plan: Cartie2 Reliability & Optimization
 
-## Phase 1: Foundations & Security (P0)
-**Goal**: Secure the application and ensure critical integrations are safe and functional.
+## 🎯 Objective
+Achieve 100% deployment reliability, verify system integrity through deep audits, and prevent regression of container/update issues.
 
-1.  **Meta Pixel Fix**
-    - [ ] Update `apps/server/src/modules/Integrations/meta.service.ts` to use `crypto` for SHA256 hashing of user data.
-    - [ ] Verify `sendMetaEvent` is called in relevant flows (Leads, Requests).
+## 👥 Agent Orchestration
+| Phase | Focus Area | Responsible Agent |
+|-------|------------|-------------------|
+| **0** | Critical Fixes | `backend-specialist` |
+| **1** | Deployment & Infra | `devops-engineer` |
+| **2** | Backend Audit | `backend-specialist` |
+| **3** | Frontend Audit | `frontend-specialist` |
+| **4** | Verification | `quality-assurance` |
 
-2.  **SendPulse Implementation**
-    - [ ] Implement `syncToMailingList` in `apps/server/src/modules/Integrations/sendpulse/sendpulse.service.ts`.
-    - [ ] Connect `integration.service.ts` to call SendPulse service on lead creation/update (if active).
-    - [ ] Ensure `Test Connection` validates actual API connectivity.
+---
 
-3.  **Env & Configuration**
-    - [ ] Audit `.env.example` to include `META_PIXEL_ID`, `META_ACCESS_TOKEN`, `SENDPULSE_ID`, `SENDPULSE_SECRET` (as defaults or documentation).
-    - [ ] Ensure `systemApi` exposes safe configuration to frontend.
+## 📅 Roadmap
 
-## Phase 2: Core Functionality & Integrations (P1)
-**Goal**: Ensure all main modules work with real data and external services.
+### Phase 0: Immediate Critical Fixes (Prerequisite)
+> **Goal:** Resolve known blocking errors in logs.
+- [ ] **Database Schema:** Fix `SystemSettings.sendpulseId does not exist` (Create & Run Migration).
+- [ ] **API Stability:** Investigate and resolve `Bot Loop Error (404)` which may be linked to missing DB columns or API routes.
 
-1.  **Autoria/Inventory**
-    - [ ] Review `autoria.service.ts`. If real API is not available, ensure the mock is clearly labeled or replaced with a "Manual Mode" if appropriate.
-    - [ ] Verify `Inventory` page CRUD operations.
-    - [ ] **Crucial**: Ensure every sub-module (Normalization, etc.) has a visible UI or Modal.
+### Phase 1: Infrastructure & Deployment Hardening
+> **Goal:** "Work out containers correctly" so update errors don't repeat.
+- [ ] **Harden `deploy_infra2.sh`:**
+    - Add strict post-deployment verification (check all 3 containers).
+    - Implement "Atomic Deploy" pattern (don't stop until new build is ready).
+- [ ] **Self-Healing Monitor (`monitor.sh`):**
+    - Cron script to check `infra2-web-1`, `infra2-api-1`, `infra2-db-1`.
+    - Auto-restart if down > 1 minute.
+- [ ] **Container Configuration:**
+    - Review `restart` policies (ensure `always` or `unless-stopped`).
+    - Verify `healthcheck` intervals and timeout settings.
 
-2.  **WhatsApp & Unified Inbox**
-    - [ ] Address `TODO: Route to Unified Inbox` in `whatsapp.service.ts`.
-    - [ ] Verify message flow from WhatsApp -> Inbox.
-    - [ ] Verify "Reply", "Archive", and "Delete" buttons work in UI.
+### Phase 2: Backend Deep Audit
+> **Goal:** Ensure API robustness and code quality.
+- [ ] **Route Security:** Audit all routes for missing `authenticateToken` / `requireRole` (like the one fixed recently).
+- [ ] **Error Handling:** Verify global error handler captures and logs all exceptions (prevent silent crashes).
+- [ ] **Performance:** Check for "N+1" queries in Prisma usage.
+- [ ] **Logs:** Ensure clean signal-to-noise ratio (reduce spammy logs).
 
-3.  **UI Completeness (Mandatory)**
-    - [ ] **Audit**: Verify every registered module has a corresponding Page or Working Modal. No backend-only "ghost" modules allowed without admin interface.
-    - [ ] **Functional Smoke Test**: Click every button in the core flows (Create, Edit, Delete, Connect, Save).
+### Phase 3: Frontend Deep Audit
+> **Goal:** UI/UX perfection and build verification.
+- [ ] **Build Verification:** Ensure `vite build` produces optimized chunks without errors.
+- [ ] **Console Audit:** Open app and eliminate all console errors/warnings (React keys, invalid DOM nesting).
+- [ ] **Environment Check:** Verify all ENV variables are correctly baked in during build.
+- [ ] **Responsiveness:** Quick check of mobile view for critical flows (Login, Dashboard).
 
-
-## Phase 3: UX Polish & Empty States (P2)
-**Goal**: Remove "under construction" feel.
-
-1.  **Empty States Audit**
-    - [ ] Walk through `Leads`, `Inbox`, `Inventory`. If empty, show "Create New" or helper text.
-    - [ ] check `translations.empty-states.ts` usage.
-
-2.  **Dashboard**
-    - [ ] Ensure Dashboard widgets use `requestsService` and `leadsService` for counts, not hardcoded numbers.
-
-## Phase 4: Final Verification
-1.  **End-to-End Test**
-    - [ ] Visitor -> Lead -> CRM -> SendPulse/Meta Event.
-    - [ ] Admin -> Inventory -> Edit -> Save.
-
-2.  **Browser Proof**
-    - [ ] Screenshots of Settings -> Integrations (Connected).
-    - [ ] Screenshot of Lead in CRM.
+### Phase 4: Verification & Handover
+- [ ] **Full E2E Test:** Run a complete flow (Login -> Dashboard -> Requests).
+- [ ] **Disaster Recovery Drill:** Manually kill a container and watch it auto-recover.
+- [ ] **Final Report:** detailed audit findings and fixes.
