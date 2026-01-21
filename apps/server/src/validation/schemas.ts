@@ -1,5 +1,24 @@
 import { z } from 'zod';
 
+const REQUEST_STATUS_VALUES = [
+    'NEW',
+    'DRAFT',
+    'PUBLISHED',
+    'COLLECTING_VARIANTS',
+    'SHORTLIST',
+    'CONTACT_SHARED',
+    'WON',
+    'LOST',
+    'CLOSED'
+] as const;
+
+const normalizeStatus = (value: any) => typeof value === 'string' ? value.toUpperCase() : value;
+const normalizePriority = (value: any) => {
+    if (typeof value !== 'string') return value;
+    const upper = value.toUpperCase();
+    return upper === 'MEDIUM' ? 'NORMAL' : upper;
+};
+
 export const createLeadSchema = z.object({
     clientName: z.string().min(1, 'Client name is required'),
     phone: z.string().optional(),
@@ -26,8 +45,8 @@ export const createRequestSchema = z.object({
     currency: z.enum(['USD', 'EUR', 'UAH']).default('USD'),
     city: z.string().optional(),
     chatId: z.string().optional(),
-    status: z.enum(['new', 'draft', 'published', 'collecting_variants', 'shortlist', 'won', 'lost', 'closed']).optional(),
-    priority: z.enum(['LOW', 'NORMAL', 'HIGH', 'URGENT']).default('NORMAL'),
+    status: z.preprocess(normalizeStatus, z.enum(REQUEST_STATUS_VALUES)).optional(),
+    priority: z.preprocess(normalizePriority, z.enum(['LOW', 'NORMAL', 'HIGH', 'URGENT'])).optional(),
     language: z.enum(['EN', 'UK', 'RU']).optional()
 });
 

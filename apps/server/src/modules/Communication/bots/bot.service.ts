@@ -58,13 +58,9 @@ export class BotManager {
         if (this.activeBots.has(config.id)) return;
 
         const deliveryMode = (config.config as any)?.deliveryMode || 'polling';
-        if (deliveryMode === 'webhook') {
-            console.log(`🔔 Bot [${config.id}] running in webhook mode. Polling disabled.`);
-            return;
-        }
+        console.log(`🚀 Starting Bot [${config.id}] (${deliveryMode}): ${config.name}`);
 
-        console.log(`🚀 Starting Bot [${config.id}]: ${config.name}`);
-        const instance = new BotInstance(config);
+        const instance = new BotInstance(config, deliveryMode);
         instance.start();
         this.activeBots.set(config.id, instance);
     }
@@ -92,18 +88,27 @@ export class BotManager {
 // --- Individual Bot Instance ---
 class BotInstance {
     private config: BotConfigModel;
+    private mode: 'polling' | 'webhook';
     private isRunning: boolean = false;
     private offset: number = 0;
     private timeoutHandle: any = null;
 
-    constructor(config: BotConfigModel) {
+    constructor(config: BotConfigModel, mode: 'polling' | 'webhook') {
         this.config = config;
+        this.mode = mode;
     }
 
     public start() {
         if (this.isRunning) return;
         this.isRunning = true;
         this.registerCommands();
+
+        if (this.mode === 'webhook') {
+            // Webhook mode: pipeline will be triggered by express route, no polling loop needed
+            console.log(`🔔 Bot [${this.config.id}] listening via webhook.`);
+            return;
+        }
+
         this.loop();
     }
 

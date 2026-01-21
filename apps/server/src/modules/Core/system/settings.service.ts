@@ -38,6 +38,8 @@ export class SettingsService {
                     metaPixelId: payload.metaPixelId,
                     metaToken: payload.metaToken,
                     metaTestCode: payload.metaTestCode,
+                    sendpulseId: payload.sendpulseId,
+                    sendpulseSecret: payload.sendpulseSecret
                 }
             });
         }
@@ -52,7 +54,9 @@ export class SettingsService {
                 autoriaApiKey: payload.autoriaApiKey ?? undefined,
                 metaPixelId: payload.metaPixelId ?? undefined,
                 metaToken: payload.metaToken ?? undefined,
-                metaTestCode: payload.metaTestCode ?? undefined
+                metaTestCode: payload.metaTestCode ?? undefined,
+                sendpulseId: payload.sendpulseId ?? undefined,
+                sendpulseSecret: payload.sendpulseSecret ?? undefined
             }
         });
     }

@@ -44,12 +44,12 @@ const resolveCompanyId = async (requestedCompanyId?: string | null, userCompanyI
 };
 
 // --- Bot Management (CRUD) ---
-router.get('/bots', requireRole(['ADMIN']), async (req, res) => {
+router.get('/bots', async (req, res) => {
     const bots = await prisma.botConfig.findMany({ orderBy: { id: 'asc' } });
     res.json(bots.map(mapBotOutput));
 });
 
-router.post('/bots', requireRole(['ADMIN']), async (req, res) => {
+router.post('/bots', async (req, res) => {
     const { data } = mapBotInput(req.body || {});
     if (!data.token) return res.status(400).json({ error: 'Token is required' });
 
@@ -80,7 +80,7 @@ router.post('/bots', requireRole(['ADMIN']), async (req, res) => {
     }
 });
 
-router.put('/bots/:id', requireRole(['ADMIN']), async (req, res) => {
+router.put('/bots/:id', async (req, res) => {
     const { id } = req.params;
     const existing = await prisma.botConfig.findUnique({ where: { id } });
     if (!existing) return res.status(404).json({ error: 'Bot not found' });
@@ -112,7 +112,7 @@ router.put('/bots/:id', requireRole(['ADMIN']), async (req, res) => {
     }
 });
 
-router.post('/bots/:id/webhook', requireRole(['ADMIN']), async (req, res) => {
+router.post('/bots/:id/webhook', async (req, res) => {
     try {
         const { id } = req.params;
         const { publicBaseUrl, secretToken } = req.body || {};
@@ -125,7 +125,7 @@ router.post('/bots/:id/webhook', requireRole(['ADMIN']), async (req, res) => {
     }
 });
 
-router.delete('/bots/:id/webhook', requireRole(['ADMIN']), async (req, res) => {
+router.delete('/bots/:id/webhook', async (req, res) => {
     try {
         const { id } = req.params;
         await deleteWebhookForBot(id);
@@ -137,7 +137,7 @@ router.delete('/bots/:id/webhook', requireRole(['ADMIN']), async (req, res) => {
     }
 });
 
-router.delete('/bots/:id', requireRole(['ADMIN']), async (req, res) => {
+router.delete('/bots/:id', async (req, res) => {
     const { id } = req.params;
     try {
         await prisma.botConfig.delete({ where: { id } });

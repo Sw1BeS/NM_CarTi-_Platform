@@ -10,7 +10,7 @@ const router = Router();
 // --- BOTS ---
 router.use(authenticateToken);
 
-router.get('/bots/active', requireRole(['ADMIN']), async (req, res) => {
+router.get('/bots/active', async (req, res) => {
     const bots = await prisma.botConfig.findMany({ where: { isEnabled: true } });
     res.json(bots.map(mapBotOutput));
 });

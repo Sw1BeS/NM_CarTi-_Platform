@@ -166,11 +166,16 @@ export class ServerAdapter implements DataAdapter {
         return res.ok ? res.data : [];
     }
     async saveBot(b: Bot) {
-        if (b.id) {
+        const hasPersistentId = b.id && !String(b.id).startsWith('bot_') && !String(b.id).startsWith('temp_');
+
+        if (hasPersistentId) {
             const res = await ApiClient.put<Bot>(`bots/${b.id}`, b);
             if (res.ok) return res.data as Bot;
+            console.warn('[ServerAdapter] Bot update failed, falling back to create:', res.message);
         }
-        const res = await ApiClient.post<Bot>('bots', b);
+
+        const { id, ...payload } = b as any;
+        const res = await ApiClient.post<Bot>('bots', payload);
         if (!res.ok) throw new Error(res.message);
         return res.data as Bot;
     }
@@ -261,8 +266,24 @@ export class ServerAdapter implements DataAdapter {
 
     // --- SETTINGS (Relational) ---
     async getSettings() {
-        const res = await ApiClient.get<SystemSettings>('settings');
+        // Use system settings endpoint (protected) and gracefully fall back to defaults/public config
+        const res = await ApiClient.get<SystemSettings>('system/settings');
         const settings = res.ok ? res.data : {} as SystemSettings;
+
+        const defaultNavigation = [
+            { id: 'nav_dash', labelKey: 'nav.dashboard', path: '/', iconName: 'LayoutDashboard', visible: true, order: 0, roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OPERATOR', 'USER', 'OWNER', 'DEALER'] },
+            { id: 'nav_inbox', labelKey: 'nav.inbox', path: '/inbox', iconName: 'MessageCircle', visible: true, order: 1, roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OPERATOR', 'USER', 'OWNER', 'DEALER'] },
+            { id: 'nav_req', labelKey: 'nav.requests', path: '/requests', iconName: 'FileText', visible: true, order: 2, roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OPERATOR', 'USER', 'OWNER', 'DEALER'] },
+            { id: 'nav_inv', labelKey: 'nav.inventory', path: '/inventory', iconName: 'Car', visible: true, order: 3, roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OPERATOR', 'USER', 'OWNER', 'DEALER'] },
+            { id: 'nav_tele', labelKey: 'nav.telegram', path: '/telegram', iconName: 'Send', visible: true, order: 4, roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OPERATOR', 'USER', 'OWNER', 'DEALER'] },
+            { id: 'nav_cal', labelKey: 'nav.calendar', path: '/calendar', iconName: 'Calendar', visible: true, order: 5, roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OPERATOR', 'USER', 'OWNER', 'DEALER'] },
+            { id: 'nav_cont', labelKey: 'nav.content', path: '/content', iconName: 'Library', visible: true, order: 6, roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OPERATOR', 'USER', 'OWNER', 'DEALER'] },
+            { id: 'nav_scen', labelKey: 'nav.scenarios', path: '/scenarios', iconName: 'Database', visible: true, order: 7, roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OPERATOR', 'USER', 'OWNER', 'DEALER'] },
+            { id: 'nav_market', labelKey: 'nav.marketplace', path: '/marketplace', iconName: 'Library', visible: true, order: 8, roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OWNER'] },
+            { id: 'nav_integrations', labelKey: 'nav.integrations', path: '/integrations', iconName: 'Plug', visible: true, order: 9, roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OWNER'] },
+            { id: 'nav_company', labelKey: 'nav.company', path: '/company', iconName: 'Briefcase', visible: true, order: 10, roles: ['SUPER_ADMIN', 'ADMIN', 'OWNER'] },
+            { id: 'nav_sets', labelKey: 'nav.settings', path: '/settings', iconName: 'Settings', visible: true, order: 99, roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OPERATOR', 'USER', 'OWNER', 'DEALER'] }
+        ];
 
         // Polyfill defaults if missing (e.g. empty DB)
         if (!settings.features) {
@@ -270,31 +291,36 @@ export class ServerAdapter implements DataAdapter {
                 MODULE_SCENARIOS: true,
                 MODULE_SEARCH: true,
                 MODULE_CAMPAIGNS: true,
-                MODULE_COMPANIES: true
+                MODULE_COMPANIES: true,
+                MODULE_CONTENT: true,
+                MODULE_INTEGRATIONS: true,
+                MODULE_MARKETPLACE: true
             };
         }
         if (!settings.navigation) {
-            settings.navigation = {
-                primary: [
-                    { id: 'nav_dash', labelKey: 'nav.dashboard', path: '/', iconName: 'LayoutDashboard', visible: true, order: 1, roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER'] },
-                    { id: 'nav_inbox', labelKey: 'nav.inbox', path: '/inbox', iconName: 'MessageCircle', visible: true, order: 2, roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OPERATOR'] },
-                    { id: 'nav_leads', labelKey: 'nav.leads', path: '/leads', iconName: 'Users', visible: true, order: 3, roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OPERATOR'] },
-                    { id: 'nav_req', labelKey: 'nav.requests', path: '/requests', iconName: 'FileText', visible: true, order: 4, roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER'] },
-                    { id: 'nav_inv', labelKey: 'nav.inventory', path: '/inventory', iconName: 'Car', visible: true, order: 5, roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER'] },
-                    { id: 'nav_search', labelKey: 'nav.search', path: '/search', iconName: 'Search', visible: true, order: 6, roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER'], featureKey: 'MODULE_SEARCH' },
-                    { id: 'nav_tg', labelKey: 'nav.telegram', path: '/telegram', iconName: 'Send', visible: true, order: 7, roles: ['SUPER_ADMIN', 'ADMIN'], featureKey: 'MODULE_CAMPAIGNS' },
-                    { id: 'nav_comp', labelKey: 'nav.companies', path: '/companies', iconName: 'Briefcase', visible: true, order: 8, roles: ['SUPER_ADMIN'], featureKey: 'MODULE_COMPANIES' },
-                    { id: 'nav_ent', labelKey: 'nav.entities', path: '/entities', iconName: 'Database', visible: true, order: 9, roles: ['SUPER_ADMIN', 'ADMIN'] },
-                    { id: 'nav_set', labelKey: 'nav.settings', path: '/settings', iconName: 'Settings', visible: true, order: 10, roles: ['SUPER_ADMIN', 'ADMIN'] },
-                    { id: 'nav_health', labelKey: 'System Health', path: '/health', iconName: 'Activity', visible: true, order: 11, roles: ['SUPER_ADMIN'] }
-                ]
-            };
+            settings.navigation = defaultNavigation;
+        } else {
+            // Normalize: accept either array or object with primary[]
+            const navigationArray = Array.isArray(settings.navigation)
+                ? settings.navigation
+                : Array.isArray((settings.navigation as any).primary)
+                    ? (settings.navigation as any).primary
+                    : [];
+
+            // Merge in any missing required nav items to avoid hiding key modules
+            const mergedNav = [...navigationArray];
+            defaultNavigation.forEach(item => {
+                if (!mergedNav.find((n: any) => n.id === item.id)) {
+                    mergedNav.push(item);
+                }
+            });
+            settings.navigation = mergedNav.sort((a: any, b: any) => (a.order ?? 999) - (b.order ?? 999));
         }
 
         return settings;
     }
     async saveSettings(s: SystemSettings) {
-        const res = await ApiClient.post('settings', s);
+        const res = await ApiClient.put('system/settings', s);
         if (!res.ok) throw new Error(res.message);
         return s; // API returns success:true
     }

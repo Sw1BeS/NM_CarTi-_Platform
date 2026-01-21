@@ -242,7 +242,10 @@ export const mapRequestInput = (input: any) => {
     const norm = String(input.status || '').toUpperCase();
     data.status = REQUEST_STATUS_MAP[norm] || DbRequestStatus.DRAFT;
   }
-  if ('priority' in input) data.priority = input.priority;
+  if ('priority' in input) {
+    const normPriority = String(input.priority || '').toUpperCase();
+    data.priority = normPriority === 'MEDIUM' ? 'NORMAL' : normPriority || 'NORMAL';
+  }
   const publicId = toString(input.publicId);
   if (publicId) data.publicId = publicId;
   const chatId = input.chatId ?? input.clientChatId;
@@ -321,4 +324,3 @@ export const mapInventoryOutput = (car: any) => ({
     currency: car.currency || DEFAULT_CURRENCY
   }
 });
-

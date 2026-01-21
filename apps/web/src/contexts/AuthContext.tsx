@@ -60,11 +60,17 @@ export const AuthProvider = ({ children }: React.PropsWithChildren) => {
         }
     };
 
-    const logout = () => {
+    const logout = React.useCallback(() => {
         setUser(null);
         localStorage.removeItem('cartie_token');
         window.location.href = '/#/login';
-    };
+    }, []);
+
+    useEffect(() => {
+        const onAuthError = () => logout();
+        window.addEventListener('auth-error', onAuthError);
+        return () => window.removeEventListener('auth-error', onAuthError);
+    }, [logout]);
 
     const hasPermission = (p: Permission): boolean => {
         if (!user) return false;

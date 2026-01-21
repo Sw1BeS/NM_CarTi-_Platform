@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, FileText, Search, Users,
-  Send, LogOut, Menu, Settings as SettingsIcon, X, Plus, Radio, MessageCircle, Bell, Car, Sparkles, Briefcase, Database, Calendar, Library, Globe
+  Send, LogOut, Menu, Settings as SettingsIcon, X, Plus, Radio, MessageCircle, Bell, Car, Sparkles, Briefcase, Database, Calendar, Library, Globe, Plug
 } from 'lucide-react';
 import { User, NavItemConfig } from '../types';
 import { useLang } from '../contexts/LanguageContext';
@@ -28,7 +28,8 @@ const ICON_MAP: Record<string, any> = {
   'Briefcase': Briefcase,
   'Database': Database,
   'Calendar': Calendar,
-  'Library': Library
+  'Library': Library,
+  'Plug': Plug
 };
 
 const ALL_ROLES = ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OPERATOR', 'USER', 'OWNER', 'DEALER'];
@@ -42,6 +43,9 @@ const DEFAULT_NAV: NavItemConfig[] = [
   { id: 'nav_cal', labelKey: 'nav.calendar', path: '/calendar', iconName: 'Calendar', roles: ALL_ROLES, order: 5, visible: true },
   { id: 'nav_cont', labelKey: 'nav.content', path: '/content', iconName: 'Library', roles: ALL_ROLES, order: 6, visible: true },
   { id: 'nav_scen', labelKey: 'nav.scenarios', path: '/scenarios', iconName: 'Database', roles: ALL_ROLES, order: 7, visible: true },
+  { id: 'nav_market', labelKey: 'nav.marketplace', path: '/marketplace', iconName: 'Library', roles: ALL_ROLES, order: 8, visible: true },
+  { id: 'nav_integrations', labelKey: 'nav.integrations', path: '/integrations', iconName: 'Plug', roles: ALL_ROLES, order: 9, visible: true },
+  { id: 'nav_company', labelKey: 'nav.company', path: '/company', iconName: 'Briefcase', roles: ALL_ROLES, order: 10, visible: true },
   // { id: 'nav_bots', labelKey: 'nav.bots', path: '/bots', iconName: 'Users', roles: ALL_ROLES, order: 8, visible: true }, // Merged into Scenarios/Communication
   { id: 'nav_sets', labelKey: 'nav.settings', path: '/settings', iconName: 'Settings', roles: ALL_ROLES, order: 99, visible: true }
 ];
@@ -61,12 +65,22 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout }) => {
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
+  const normalizeNav = (nav: any): NavItemConfig[] => {
+    if (Array.isArray(nav)) return nav as NavItemConfig[];
+    if (nav && Array.isArray((nav as any).primary)) return (nav as any).primary;
+    return [];
+  };
+
   useEffect(() => {
     const load = async () => {
       setNotifications(await Data.getNotifications());
       const settings = await Data.getSettings();
-      const backendNav = settings.navigation || [];
-      setNavItems(backendNav.length > 0 ? backendNav.sort((a: any, b: any) => a.order - b.order) : DEFAULT_NAV);
+      const backendNav = normalizeNav(settings.navigation);
+      const mergedNav = [...backendNav];
+      DEFAULT_NAV.forEach(item => {
+        if (!mergedNav.find(n => n.id === item.id)) mergedNav.push(item);
+      });
+      setNavItems(mergedNav.sort((a: any, b: any) => (a.order ?? 999) - (b.order ?? 999)));
       setFeatures(settings.features || {});
     };
 

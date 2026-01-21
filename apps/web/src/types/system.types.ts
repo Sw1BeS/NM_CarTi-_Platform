@@ -49,6 +49,8 @@ export interface SystemSettings {
     metaPixelId?: string;
     metaToken?: string;
     metaTestCode?: string;
+    sendpulseId?: string;
+    sendpulseSecret?: string;
 }
 
 export interface NormalizationItem {

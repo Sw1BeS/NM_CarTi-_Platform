@@ -94,7 +94,7 @@ export interface B2BRequest {
     yearMax: number;
     city: string;
     description: string;
-    priority: 'HIGH' | 'MEDIUM' | 'LOW';
+    priority: 'HIGH' | 'NORMAL' | 'LOW' | 'URGENT';
     assigneeId?: string;
     tags?: string[];
     notes?: string;

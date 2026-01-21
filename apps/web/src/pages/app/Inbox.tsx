@@ -8,6 +8,7 @@ import { Send, Inbox, Trash2, X, Zap, UserCheck, StickyNote, Filter } from 'luci
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
 import { useSearchParams } from 'react-router-dom';
+import { useLang } from '../../contexts/LanguageContext';
 
 // Default macros (можна винести в БД пізніше)
 const DEFAULT_MACROS: ChatMacro[] = [
@@ -55,6 +56,7 @@ export const InboxPage = () => {
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const { user } = useAuth();
     const { showToast } = useToast();
+    const { t } = useLang();
     const [searchParams] = useSearchParams();
 
     // Load messages and managers
@@ -149,7 +151,7 @@ export const InboxPage = () => {
     const handleReply = async () => {
         if (!activeChatId || !replyText.trim()) return;
         if (!selectedBotId) {
-            showToast('Select a bot', 'error');
+            showToast(t('inbox.select_bot'), 'error');
             return;
         }
         try {
@@ -159,21 +161,21 @@ export const InboxPage = () => {
             setMsgs(updatedMessages);
             Data._notify('UPDATE_MESSAGES');
         } catch (e: any) {
-            showToast(e.message || 'Failed to send', 'error');
+            showToast(e.message || t('inbox.send_failed'), 'error');
         }
     };
 
     const assignChat = async (chatId: string, userId: string) => {
         const req = requestByChat[chatId];
         if (!req) {
-            showToast('No request linked to this chat', 'error');
+            showToast(t('inbox.no_request'), 'error');
             return;
         }
         await RequestsService.updateRequest(req.id, { assigneeId: userId || null });
         const updated = chats.map(c => c.chatId === chatId ? { ...c, assignedTo: userId } : c);
         setChats(updated);
         setRequestByChat({ ...requestByChat, [chatId]: { ...req, assigneeId: userId || undefined } });
-        showToast(`Assigned to ${managers.find(m => m.id === userId)?.name || 'manager'}`);
+        showToast(t('inbox.assigned'), 'success');
         Data.getMessageLogs({ requestId: req.id, chatId, limit: 50 }).then(setTimeline);
     };
 
@@ -181,12 +183,12 @@ export const InboxPage = () => {
         if (!activeChatId) return;
         const req = requestByChat[activeChatId];
         if (!req) {
-            showToast('No request linked to this chat', 'error');
+            showToast(t('inbox.no_request'), 'error');
             return;
         }
         await RequestsService.updateRequest(req.id, { internalNote });
         setRequestByChat({ ...requestByChat, [activeChatId]: { ...req, internalNote } });
-        showToast('Note saved', 'success');
+        showToast(t('inbox.note_saved'), 'success');
         setShowNotePanel(false);
         Data.getMessageLogs({ requestId: req.id, chatId: activeChatId, limit: 50 }).then(setTimeline);
     };

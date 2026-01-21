@@ -7,7 +7,7 @@ import { ApiClient } from '../../services/apiClient';
 import { ContentGenerator } from '../../services/contentGenerator';
 import { createDeepLinkKeyboard, buildDeepLink } from '../../services/deeplink';
 import { B2BRequest, RequestStatus, TelegramDestination, Bot } from '../../types';
-import { Plus, List as ListIcon, LayoutGrid, Search as SearchIcon, Filter, DollarSign, Calendar, ChevronRight, ChevronLeft, Send } from 'lucide-react';
+import { Plus, List as ListIcon, LayoutGrid, Search as SearchIcon, Filter, DollarSign, Calendar, ChevronRight, ChevronLeft, Send, X } from 'lucide-react';
 import { useToast } from '../../contexts/ToastContext';
 
 export const RequestList: React.FC = () => {
@@ -40,7 +40,7 @@ export const RequestList: React.FC = () => {
         yearMax: new Date().getFullYear(),
         city: 'Kyiv',
         description: '',
-        priority: 'MEDIUM' as B2BRequest['priority']
+        priority: 'NORMAL' as B2BRequest['priority']
     });
     const [creating, setCreating] = useState(false);
 
@@ -136,7 +136,7 @@ export const RequestList: React.FC = () => {
                 yearMax: new Date().getFullYear(),
                 city: 'Kyiv',
                 description: '',
-                priority: 'MEDIUM'
+                priority: 'NORMAL'
             });
             loadRequests();
             showToast('Request created', 'success');
@@ -338,8 +338,9 @@ export const RequestList: React.FC = () => {
                                     <label className="text-xs font-bold text-[var(--text-secondary)] uppercase block mb-1">Priority</label>
                                     <select className="input" value={createForm.priority} onChange={e => setCreateForm({ ...createForm, priority: e.target.value as any })}>
                                         <option value="HIGH">High</option>
-                                        <option value="MEDIUM">Medium</option>
+                                        <option value="NORMAL">Normal</option>
                                         <option value="LOW">Low</option>
+                                        <option value="URGENT">Urgent</option>
                                     </select>
                                 </div>
                             </div>

@@ -145,7 +145,7 @@ export class IntegrationService {
     }
 
     /**
-     * Meta Pixel: Track event
+     * Meta Pixel: Track event via Conversion API
      */
     async metaPixelTrackEvent(companyId: string, eventName: string, data?: any) {
         const integration = await this.getByType(companyId, 'META_PIXEL');
@@ -154,12 +154,47 @@ export class IntegrationService {
             return null;
         }
 
-        const { pixelId, accessToken } = integration.config as any;
+        const { pixelId, accessToken, testCode } = integration.config as any;
 
-        // TODO: Implement Meta Conversion API
-        console.log('[Meta Pixel] Event:', eventName, 'Data:', data, 'Pixel:', pixelId);
+        if (!pixelId || !accessToken) {
+            console.error('[Meta Pixel] Missing pixelId or accessToken');
+            return { success: false, error: 'Missing configuration' };
+        }
 
-        return { success: true };
+        try {
+            const { testMetaConnection } = await import('./meta.service.js');
+            const crypto = await import('crypto');
+
+            const hash = (str: string) =>
+                crypto.createHash('sha256').update(str.trim().toLowerCase()).digest('hex');
+
+            const payload = {
+                data: [{
+                    event_name: eventName,
+                    event_time: Math.floor(Date.now() / 1000),
+                    user_data: {
+                        ...(data?.phone ? { ph: hash(data.phone) } : {}),
+                        ...(data?.email ? { em: hash(data.email) } : {}),
+                        ...(data?.name ? { fn: hash(data.name) } : {})
+                    },
+                    action_source: "website",
+                    ...(data?.value ? { custom_data: { value: data.value, currency: data.currency || 'USD' } } : {})
+                }],
+                ...(testCode ? { test_event_code: testCode } : {})
+            };
+
+            const axios = (await import('axios')).default;
+            await axios.post(
+                `https://graph.facebook.com/v19.0/${pixelId}/events?access_token=${accessToken}`,
+                payload
+            );
+
+            console.log('[Meta Pixel] Event sent:', eventName);
+            return { success: true };
+        } catch (e: any) {
+            console.error('[Meta Pixel] Error:', e.response?.data?.error?.message || e.message);
+            return { success: false, error: e.response?.data?.error?.message || e.message };
+        }
     }
 
     /**

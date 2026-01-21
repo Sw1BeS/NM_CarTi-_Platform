@@ -3,14 +3,17 @@ import { useToast } from '../../contexts/ToastContext';
 import { useLang } from '../../contexts/LanguageContext';
 import {
     Plug, Mail, Share2, Table, Webhook, Settings,
-    Check, X, AlertCircle, Link2, TestTube
+    X, TestTube
 } from 'lucide-react';
+import { ApiClient } from '../../services/apiClient';
+import { SystemSettings } from '../../types';
 
 interface Integration {
     id: string;
     type: string;
     isActive: boolean;
     createdAt: string;
+    config?: Record<string, any>;
 }
 
 interface IntegrationConfig {
@@ -73,92 +76,122 @@ export const IntegrationsPage = () => {
     const [integrations, setIntegrations] = useState<Integration[]>([]);
     const [editingType, setEditingType] = useState<string | null>(null);
     const [configData, setConfigData] = useState<Record<string, any>>({});
+    const [systemSettings, setSystemSettings] = useState<SystemSettings | null>(null);
+    const [saving, setSaving] = useState(false);
 
     useEffect(() => {
         loadIntegrations();
+        loadSettings();
     }, []);
+
+    const apiGet = async <T,>(endpoint: string) => {
+        const res = await ApiClient.get<T>(endpoint);
+        if (!res.ok) throw new Error(res.message || 'Request failed');
+        return res.data as T;
+    };
+
+    const apiPut = async <T,>(endpoint: string, body: any) => {
+        const res = await ApiClient.put<T>(endpoint, body);
+        if (!res.ok) throw new Error(res.message || 'Request failed');
+        return res.data as T;
+    };
+
+    const apiPost = async <T,>(endpoint: string, body: any) => {
+        const res = await ApiClient.post<T>(endpoint, body);
+        if (!res.ok) throw new Error(res.message || 'Request failed');
+        return res.data as T;
+    };
 
     const loadIntegrations = async () => {
         try {
-            const response = await fetch('/api/integrations', {
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('cartie_token')}` }
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                setIntegrations(data);
-            }
+            const data = await apiGet<Integration[]>('integrations');
+            setIntegrations(data);
         } catch (e) {
             console.error('Failed to load integrations:', e);
         }
     };
 
+    const loadSettings = async () => {
+        try {
+            const data = await apiGet<SystemSettings>('system/settings');
+            setSystemSettings(data);
+        } catch (e) {
+            console.error('Failed to load settings:', e);
+        }
+    };
+
+    const prefillFromSettings = (type: string) => {
+        if (!systemSettings) return {};
+        if (type === 'META_PIXEL') {
+            return {
+                pixelId: systemSettings.metaPixelId || '',
+                accessToken: systemSettings.metaToken || '',
+                testCode: systemSettings.metaTestCode || ''
+            };
+        }
+        if (type === 'SENDPULSE') {
+            return {
+                apiUserId: systemSettings.sendpulseId || '',
+                apiSecret: systemSettings.sendpulseSecret || '',
+                listId: ''
+            };
+        }
+        return {};
+    };
+
     const loadConfig = async (type: string) => {
         try {
-            const response = await fetch(`/api/integrations/${type}`, {
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('cartie_token')}` }
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                setConfigData(data.config || {});
-                setEditingType(type);
-            } else {
-                // New integration
-                setConfigData({});
-                setEditingType(type);
-            }
-        } catch (e) {
-            setConfigData({});
+            const data = await apiGet<any>(`integrations/${type}`);
+            setConfigData(data.config || prefillFromSettings(type));
+            setEditingType(type);
+        } catch (_e) {
+            setConfigData(prefillFromSettings(type));
             setEditingType(type);
         }
     };
 
     const saveConfig = async () => {
         if (!editingType) return;
-
+        setSaving(true);
         try {
-            const response = await fetch(`/api/integrations/${editingType}`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('cartie_token')}`
-                },
-                body: JSON.stringify({
-                    config: configData,
-                    isActive: true
-                })
+            await apiPut(`integrations/${editingType}`, {
+                config: configData,
+                isActive: true
             });
 
-            if (response.ok) {
-                showToast('Integration saved!', 'success');
-                setEditingType(null);
-                setConfigData({});
-                loadIntegrations();
-            } else {
-                const error = await response.json();
-                showToast(error.error || 'Failed to save', 'error');
+            // Mirror critical credentials into SystemSettings for backend Meta/SendPulse flows
+            if (editingType === 'META_PIXEL') {
+                await apiPut('system/settings', {
+                    metaPixelId: configData.pixelId,
+                    metaToken: configData.accessToken,
+                    metaTestCode: configData.testCode
+                });
+                await loadSettings();
             }
+            if (editingType === 'SENDPULSE') {
+                await apiPut('system/settings', {
+                    sendpulseId: configData.apiUserId,
+                    sendpulseSecret: configData.apiSecret
+                });
+                await loadSettings();
+            }
+
+            showToast(t('integrations.toast_saved'), 'success');
+            setEditingType(null);
+            setConfigData({});
+            loadIntegrations();
         } catch (e: any) {
             showToast(e.message, 'error');
+        } finally {
+            setSaving(false);
         }
     };
 
     const toggleActive = async (type: string, isActive: boolean) => {
         try {
-            const response = await fetch(`/api/integrations/${type}/toggle`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('cartie_token')}`
-                },
-                body: JSON.stringify({ isActive })
-            });
-
-            if (response.ok) {
-                showToast(`Integration ${isActive ? 'enabled' : 'disabled'}`, 'success');
-                loadIntegrations();
-            }
+            await apiPost(`integrations/${type}/toggle`, { isActive });
+            showToast(isActive ? t('integrations.toast_enabled') : t('integrations.toast_disabled'), 'success');
+            loadIntegrations();
         } catch (e: any) {
             showToast(e.message, 'error');
         }
@@ -166,49 +199,24 @@ export const IntegrationsPage = () => {
 
     const testConnection = async (type: string) => {
         try {
-            const response = await fetch(`/api/integrations/${type}/test`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('cartie_token')}`
-                },
-                body: JSON.stringify({ config: configData })
-            });
-
-            if (response.ok) {
-                const result = await response.json();
-                if (result.success) {
-                    showToast('✅ Connection test successful!', 'success');
-                } else {
-                    showToast(`❌ Test failed: ${result.error}`, 'error');
-                }
+            const result = await apiPost<any>(`integrations/${type}/test`, { config: configData });
+            if ((result as any)?.success) {
+                showToast(t('integrations.test_success'), 'success');
             } else {
-                const error = await response.json();
-                showToast(`Test failed: ${error.error}`, 'error');
+                showToast(`${t('integrations.test_failed')}: ${(result as any)?.error || ''}`, 'error');
             }
         } catch (e: any) {
-            showToast(`Connection error: ${e.message}`, 'error');
+            showToast(`${t('integrations.test_failed')}: ${e.message}`, 'error');
         }
     };
 
     const testWebhook = async () => {
         try {
-            const response = await fetch('/api/integrations/webhook/trigger', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('cartie_token')}`
-                },
-                body: JSON.stringify({
-                    event: 'test',
-                    payload: { message: 'Test webhook from Cartie' }
-                })
+            const results = await apiPost<any>('integrations/webhook/trigger', {
+                event: 'test',
+                payload: { message: 'Test webhook from Cartie' }
             });
-
-            if (response.ok) {
-                const results = await response.json();
-                showToast(`Webhook test sent! Results: ${JSON.stringify(results)}`, 'success');
-            }
+            showToast(`${t('integrations.test_success')} (${Array.isArray(results) ? results.length : 1})`, 'success');
         } catch (e: any) {
             showToast(e.message, 'error');
         }
@@ -291,7 +299,7 @@ export const IntegrationsPage = () => {
                     <div className="panel w-full max-w-2xl p-6 animate-slide-up max-h-[90vh] overflow-y-auto">
                         <div className="flex justify-between items-center mb-6">
                             <h3 className="font-bold text-xl text-[var(--text-primary)]">
-                                Configure {INTEGRATIONS.find(i => i.type === editingType)?.name}
+                                {t('integrations.config_modal_title').replace('{{name}}', INTEGRATIONS.find(i => i.type === editingType)?.name || '')}
                             </h3>
                             <button onClick={() => { setEditingType(null); setConfigData({}); }}>
                                 <X size={20} className="text-[var(--text-secondary)]" />
@@ -340,12 +348,12 @@ export const IntegrationsPage = () => {
                                     onClick={() => testConnection(editingType)}
                                     className="btn-ghost w-full py-3 flex items-center justify-center gap-2 border border-[var(--border-color)]"
                                 >
-                                    <TestTube size={18} /> Test Connection
+                                    <TestTube size={18} /> {t('integrations.test_connection')}
                                 </button>
                             )}
 
-                            <button onClick={saveConfig} className="btn-primary w-full py-3">
-                                Save Configuration
+                            <button onClick={saveConfig} disabled={saving} className="btn-primary w-full py-3">
+                                {saving ? 'Saving...' : t('integrations.save_config')}
                             </button>
                         </div>
                     </div>

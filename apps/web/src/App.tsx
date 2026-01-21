@@ -39,9 +39,9 @@ import { ThemeProvider } from './providers/ThemeProvider';
 import { Data } from './services/data';
 
 const ProtectedRoute = ({ children }: React.PropsWithChildren) => {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   if (!user) return <Navigate to="/login" />;
-  return <Layout user={user} onLogout={() => window.location.reload()}>{children}</Layout>;
+  return <Layout user={user} onLogout={logout}>{children}</Layout>;
 };
 
 export default function App() {

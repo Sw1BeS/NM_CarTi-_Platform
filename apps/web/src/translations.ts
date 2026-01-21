@@ -32,6 +32,9 @@ const BASE_TRANSLATIONS: Record<Language, Record<string, string>> = {
         'nav.calendar': 'Calendar',
         'nav.automation': 'Automation',
         'nav.scenarios': 'Scenarios',
+        'nav.marketplace': 'Marketplace',
+        'nav.integrations': 'Integrations',
+        'nav.company': 'Company',
 
         // Login
         'login.title': 'Enterprise Access',
@@ -232,6 +235,13 @@ const BASE_TRANSLATIONS: Record<Language, Record<string, string>> = {
         'status.won': 'Won',
         'status.lost': 'Lost',
 
+        // Inbox
+        'inbox.select_bot': 'Select a bot',
+        'inbox.send_failed': 'Failed to send message',
+        'inbox.no_request': 'No request linked to this chat',
+        'inbox.assigned': 'Assignment saved',
+        'inbox.note_saved': 'Note saved',
+
         // Errors
         'error.network': 'Network connection failed',
         'error.unauthorized': 'Session expired. Please login again.',
@@ -305,6 +315,9 @@ const BASE_TRANSLATIONS: Record<Language, Record<string, string>> = {
         'nav.calendar': 'Календарь',
         'nav.automation': 'Автоматизация',
         'nav.scenarios': 'Сценарии',
+        'nav.marketplace': 'Маркетплейс',
+        'nav.integrations': 'Интеграции',
+        'nav.company': 'Компания',
 
         // Вход
         'login.title': 'Вход в систему',
@@ -329,6 +342,21 @@ const BASE_TRANSLATIONS: Record<Language, Record<string, string>> = {
         'btn.export': 'Экспорт',
         'btn.import': 'Импорт',
         'btn.refresh': 'Обновить',
+
+        // Integrations
+        'integrations.title': 'Интеграции',
+        'integrations.subtitle': 'Подключите внешние сервисы',
+        'integrations.active': 'Активна',
+        'integrations.inactive': 'Отключена',
+        'integrations.configure': 'Настроить',
+        'integrations.test_connection': 'Проверить подключение',
+        'integrations.save_config': 'Сохранить конфигурацию',
+        'integrations.config_modal_title': 'Настройка {{name}}',
+        'integrations.toast_saved': 'Интеграция сохранена!',
+        'integrations.toast_enabled': 'Интеграция включена',
+        'integrations.toast_disabled': 'Интеграция выключена',
+        'integrations.test_success': 'Тест успешно пройден',
+        'integrations.test_failed': 'Тест не пройден',
 
         // Дашборд
         'dash.title': 'Дашборд',
@@ -411,6 +439,13 @@ const BASE_TRANSLATIONS: Record<Language, Record<string, string>> = {
         'status.won': 'Сделка',
         'status.lost': 'Отказ',
 
+        // Inbox
+        'inbox.select_bot': 'Выберите бота',
+        'inbox.send_failed': 'Не удалось отправить сообщение',
+        'inbox.no_request': 'Заявка не привязана к этому чату',
+        'inbox.assigned': 'Назначение сохранено',
+        'inbox.note_saved': 'Заметка сохранена',
+
         // Ошибки
         'error.network': 'Ошибка сети',
         'error.unauthorized': 'Сессия истекла. Войдите снова.',
@@ -484,6 +519,9 @@ const BASE_TRANSLATIONS: Record<Language, Record<string, string>> = {
         'nav.calendar': 'Календар',
         'nav.automation': 'Автоматизація',
         'nav.scenarios': 'Сценарії',
+        'nav.marketplace': 'Маркетплейс',
+        'nav.integrations': 'Інтеграції',
+        'nav.company': 'Компанія',
 
         // Вхід
         'login.title': 'Вхід до системи',
@@ -508,6 +546,21 @@ const BASE_TRANSLATIONS: Record<Language, Record<string, string>> = {
         'btn.export': 'Експорт',
         'btn.import': 'Імпорт',
         'btn.refresh': 'Оновити',
+
+        // Integrations
+        'integrations.title': 'Інтеграції',
+        'integrations.subtitle': 'Підключайте зовнішні сервіси',
+        'integrations.active': 'Активна',
+        'integrations.inactive': 'Вимкнена',
+        'integrations.configure': 'Налаштувати',
+        'integrations.test_connection': 'Перевірити підключення',
+        'integrations.save_config': 'Зберегти конфігурацію',
+        'integrations.config_modal_title': 'Налаштування {{name}}',
+        'integrations.toast_saved': 'Інтеграцію збережено!',
+        'integrations.toast_enabled': 'Інтеграція увімкнена',
+        'integrations.toast_disabled': 'Інтеграція вимкнена',
+        'integrations.test_success': 'Тест успішний',
+        'integrations.test_failed': 'Тест не пройдено',
 
         // Дашборд
         'dash.title': 'Дашборд',
@@ -589,6 +642,13 @@ const BASE_TRANSLATIONS: Record<Language, Record<string, string>> = {
         'status.shortlist': 'Шортліст',
         'status.won': 'Угода',
         'status.lost': 'Відмова',
+
+        // Inbox
+        'inbox.select_bot': 'Виберіть бота',
+        'inbox.send_failed': 'Не вдалося надіслати повідомлення',
+        'inbox.no_request': 'Заявка не прив\'язана до цього чату',
+        'inbox.assigned': 'Призначення збережено',
+        'inbox.note_saved': 'Нотатку збережено',
 
         // Помилки
         'error.network': 'Помилка мережі',

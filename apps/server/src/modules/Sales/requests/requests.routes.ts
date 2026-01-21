@@ -14,7 +14,7 @@ import { createRequestSchema } from '../../../validation/schemas.js';
 const router = Router();
 
 // --- B2B Requests CRUD ---
-router.get('/', async (req, res) => {
+router.get('/', authenticateToken, async (req, res) => {
     const page = Math.max(1, Number(req.query.page) || 1);
     const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 50));
     const skip = (page - 1) * limit;
@@ -60,7 +60,7 @@ router.get('/', async (req, res) => {
     }
 });
 
-router.post('/', requireRole(['ADMIN', 'MANAGER']), validate(createRequestSchema), async (req, res) => {
+router.post('/', authenticateToken, requireRole(['ADMIN', 'MANAGER']), validate(createRequestSchema), async (req, res) => {
     try {
         const { data } = mapRequestInput(req.body);
         const { variants } = req.body;
