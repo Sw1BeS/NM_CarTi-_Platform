@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { prisma } from '../../../services/prisma.js';
 import { logSystem } from '../../Core/system/systemLog.service.js';
 
 export class WhatsAppService {
@@ -11,15 +12,39 @@ export class WhatsAppService {
     }
 
     async handleWebhook(body: any) {
-        // Implement Meta WhatsApp Cloud API webhook handling
         if (body.object) {
             if (body.entry && body.entry[0].changes && body.entry[0].changes[0].value.messages && body.entry[0].changes[0].value.messages[0]) {
                 const msg = body.entry[0].changes[0].value.messages[0];
                 const from = msg.from;
-                const text = msg.text?.body;
+                const text = msg.text?.body || '';
+                const waBusinessAccountId = body.entry[0].id;
 
                 await logSystem('WHATSAPP_INCOMING', 'MESSAGE_RECEIVED', 'INFO', `Msg from ${from}: ${text}`, { body });
-                // TODO: Route to Unified Inbox
+
+                // Route to Unified Inbox - Store in BotMessage table
+                try {
+                    await prisma.$executeRaw`
+                        INSERT INTO "BotMessage" (id, "botId", "chatId", direction, text, "messageId", payload, "createdAt")
+                        VALUES (
+                            gen_random_uuid()::text,
+                            ${'whatsapp'},
+                            ${String(from)},
+                            ${'INCOMING'},
+                            ${text},
+                            ${msg.id || null},
+                            ${JSON.stringify({
+                        platform: 'WHATSAPP',
+                        from: { id: from },
+                        message: msg,
+                        waBusinessAccountId
+                    })}::jsonb,
+                            NOW()
+                        )
+                    `;
+                    await logSystem('WHATSAPP_ROUTING', 'INBOX_STORED', 'INFO', `WhatsApp message stored to Inbox from ${from}`);
+                } catch (error: any) {
+                    await logSystem('WHATSAPP_ROUTING', 'INBOX_ERROR', 'ERROR', `Failed to store WhatsApp message: ${error.message}`);
+                }
             }
         }
     }

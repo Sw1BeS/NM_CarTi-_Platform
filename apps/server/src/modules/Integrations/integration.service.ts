@@ -118,11 +118,30 @@ export class IntegrationService {
 
         const { apiUserId, apiSecret, listId } = integration.config as any;
 
-        // TODO: Implement SendPulse API call
-        // This is a placeholder
-        console.log('[SendPulse] Add contact:', contact, 'to list:', listId);
+        if (!apiUserId || !apiSecret || !listId) {
+            console.error('[SendPulse] Missing credentials or listId');
+            return { success: false, error: 'Missing configuration' };
+        }
 
-        return { success: true };
+        try {
+            const { SendPulseService } = await import('./sendpulse/sendpulse.service.js');
+            const service = SendPulseService.getInstance();
+
+            // Dynamic token fetch handled inside service.syncContact manually or we can expose it
+            // Actually existing service handles auth inside syncContact? No, it needs config passed
+            // Let's refactor to use the service correctly.
+
+            await service.syncContact({
+                clientId: apiUserId,
+                clientSecret: apiSecret,
+                addressBookId: listId
+            }, contact.email || '', contact.variables || {});
+
+            return { success: true };
+        } catch (e: any) {
+            console.error('[SendPulse] Error:', e.message);
+            return { success: false, error: e.message };
+        }
     }
 
     /**

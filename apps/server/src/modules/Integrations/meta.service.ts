@@ -3,9 +3,11 @@ import { prisma } from '../../services/prisma.js';
 import { logSystem } from '../Core/system/systemLog.service.js';
 
 // Helper
+import crypto from 'crypto';
+
+// Helper
 const hash = (str: string) => {
-    // In prod, use SHA256
-    return str;
+    return crypto.createHash('sha256').update(str.trim().toLowerCase()).digest('hex');
 };
 
 export const sendMetaEvent = async (eventName: string, userData: any) => {

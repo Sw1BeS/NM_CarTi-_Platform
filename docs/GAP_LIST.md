@@ -1,22 +1,24 @@
-# Artifact 2: Gap List
+# Gap List - Cartie2
 
-## 1. Functional Gaps (Critical P0)
-| Area | Feature | Gap Description | Fix Required |
-|------|---------|-----------------|--------------|
-| **Integrations** | **Meta (Facebook)** | Service class exists but is not wired to system events (Lead creation, Request submission). Frontend UI for config exists in `Settings.tsx` but might not sync with Backend `IntegrationService`. | Wire `MetaService` to `Lead` and `Request` events. Verify Config sync. |
-| **Integrations** | **SendPulse** | Enum exists, but no Service implementation found. No UI in Settings. | Implement `SendPulseService` (Email/CRM). Add Config UI in Settings. |
-| **I18n** | **Language Switcher** | `LangProvider` exists, and `translations.ts` is populated, but no visible Switcher in `Settings` or `Layout`. user cannot change language. | Add Language Switcher to `Settings` (or Topbar). |
-| **Data** | **Seeding** | `seed.ts` generates "Demo Motors" with fake cars/leads. Production build should be clean or have only "System" data. | Refactor `seed.ts` to separate "Demo" logic from "Production Init". |
+## Critical (P0) - Blocking Production
+1.  **Meta Pixel Security**: `hash` function in `meta.service.ts` is insecure (returns raw string). Must use SHA256.
+2.  **SendPulse Integration**: `integration.service.ts` has `TODO: Implement SendPulse API call`. Connection test works but actual sync might be missing.
+3.  **Google Sheets**: `TODO: Implement Google Sheets API`.
+4.  **Autoria Integration**: `autoria.service.ts` returns mock results for "MVP". Needs real implementation or secure fallback.
+5.  **WhatsApp**: `TODO: Route to Unified Inbox`. Messages might be lost.
+6.  **Environment Variables**: Ensure all new integrations (Meta, SendPulse) have generic support in `.env` and are not hardcoded.
 
-## 2. Frontend Polish (P1)
-- **Empty States**: Many pages (`Inbox`, `Leads`) likely show blank tables instead of helpful "Get Started" empty states.
-- **Visual Stagnation**: "Content Planner" mentioned as working but `Content.tsx` needs verification of full functionality.
-- **Navigation**: `Companies` and `CompanySettings` might be redundant or confusing. Merge or clarify.
+## High (P1) - Functionality & UX
+1.  **Empty States**: Review `translations.empty-states.ts` and ensure all pages have proper empty states, not just blank screens.
+2.  **Dashboard**: Verify if `Dashboard.tsx` uses real data. Currently suspected to be partial.
+3.  **ScenarioBuilder**: Check for "TODO: Use Enum" in `scenario.engine.ts`.
+4.  **Lead Service**: `TODO: Add addressBookId to settings` in `leadService.ts`.
 
-## 3. Backend Architecture (P2)
-- **File Structure**: `Integrations` folder has `meta/` but `mtproto` is separate? Unify structure.
-- **Unused Code**: `mockDb` or legacy files mentioned in previous user context might still exist. Clean up.
+## Medium (P2) - Polish & Refactoring
+1.  **File Structure**: `apps/server/src/modules/Integrations` has mix of folders and files. Should be standardized.
+2.  **Type Safety**: `TODO: Migrate callers to use UnifiedWorkspace type` in `company.service.ts`.
+3.  **I18n**: Ensure new integration pages are fully translated.
 
-## 4. Missing Artifacts
-- **Browser Proof**: Need to verify actual rendering on `https://cartie2.umanoff-analytics.space`.
-- **Tests**: `npm test` running for 4h+ suggests hung process or lack of actual tests. Need smoke tests.
+## Verification Required
+- Verify `Leads` and `Requests` pages for mock data usage.
+- specific integrations functionalities like "Test Connection" for SendPulse might be checking config only, not actual API validity.

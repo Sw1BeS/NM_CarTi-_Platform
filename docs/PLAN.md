@@ -1,28 +1,54 @@
-# Production Readiness Plan
+# Production Readiness Execution Plan
 
-> **Objective**: Bring Cartie2 to fully operational production state (Stage C/D) without demo artifacts.
+## Phase 1: Foundations & Security (P0)
+**Goal**: Secure the application and ensure critical integrations are safe and functional.
 
-## 📂 Planning Artifacts
-- **[Inventory Map](./INVENTORY_MAP.md)**: Full topology of Frontend Routes and Backend Modules.
-- **[Gap List](./GAP_LIST.md)**: Identified blockers (Missing SendPulse, Unwired Meta, Demo Data, I18n UI).
-- **[Execution Plan](./EXECUTION_PLAN.md)**: Step-by-step P0/P1 roadmap.
+1.  **Meta Pixel Fix**
+    - [ ] Update `apps/server/src/modules/Integrations/meta.service.ts` to use `crypto` for SHA256 hashing of user data.
+    - [ ] Verify `sendMetaEvent` is called in relevant flows (Leads, Requests).
 
-## 🚀 Strategy
+2.  **SendPulse Implementation**
+    - [ ] Implement `syncToMailingList` in `apps/server/src/modules/Integrations/sendpulse/sendpulse.service.ts`.
+    - [ ] Connect `integration.service.ts` to call SendPulse service on lead creation/update (if active).
+    - [ ] Ensure `Test Connection` validates actual API connectivity.
 
-### 1. Data Hygiene (P0)
-We will modify the seeder to strictly separate "System/Production" initialization from "Demo" data. The production environment will initialize with **only** the `Cartie Auto` workspace and necessary templates, **without** fake cars or leads.
+3.  **Env & Configuration**
+    - [ ] Audit `.env.example` to include `META_PIXEL_ID`, `META_ACCESS_TOKEN`, `SENDPULSE_ID`, `SENDPULSE_SECRET` (as defaults or documentation).
+    - [ ] Ensure `systemApi` exposes safe configuration to frontend.
 
-### 2. Integration Hardening (P0)
-- **Meta CAPI**: Will be connected to actual business logic events (Lead Created, Request Created).
-- **SendPulse**: Will be implemented from scratch (Service + API + UI).
+## Phase 2: Core Functionality & Integrations (P1)
+**Goal**: Ensure all main modules work with real data and external services.
 
-### 3. User Experience (P1)
-- **Internationalization**: A dedicated English/Ukrainian/Russian switcher will be added to the main layout.
-- **Empty States**: "Ghost towns" in the UI (empty tables) will be replaced with actionable empty states.
+1.  **Autoria/Inventory**
+    - [ ] Review `autoria.service.ts`. If real API is not available, ensure the mock is clearly labeled or replaced with a "Manual Mode" if appropriate.
+    - [ ] Verify `Inventory` page CRUD operations.
+    - [ ] **Crucial**: Ensure every sub-module (Normalization, etc.) has a visible UI or Modal.
 
-### 4. Verification
-Final verification will involve a live traversal of the deployed domain `https://cartie2.umanoff-analytics.space`.
+2.  **WhatsApp & Unified Inbox**
+    - [ ] Address `TODO: Route to Unified Inbox` in `whatsapp.service.ts`.
+    - [ ] Verify message flow from WhatsApp -> Inbox.
+    - [ ] Verify "Reply", "Archive", and "Delete" buttons work in UI.
 
----
+3.  **UI Completeness (Mandatory)**
+    - [ ] **Audit**: Verify every registered module has a corresponding Page or Working Modal. No backend-only "ghost" modules allowed without admin interface.
+    - [ ] **Functional Smoke Test**: Click every button in the core flows (Create, Edit, Delete, Connect, Save).
 
-**Status**: 🟡 Planning Complete. Waiting for Approval to Execute.
+
+## Phase 3: UX Polish & Empty States (P2)
+**Goal**: Remove "under construction" feel.
+
+1.  **Empty States Audit**
+    - [ ] Walk through `Leads`, `Inbox`, `Inventory`. If empty, show "Create New" or helper text.
+    - [ ] check `translations.empty-states.ts` usage.
+
+2.  **Dashboard**
+    - [ ] Ensure Dashboard widgets use `requestsService` and `leadsService` for counts, not hardcoded numbers.
+
+## Phase 4: Final Verification
+1.  **End-to-End Test**
+    - [ ] Visitor -> Lead -> CRM -> SendPulse/Meta Event.
+    - [ ] Admin -> Inventory -> Edit -> Save.
+
+2.  **Browser Proof**
+    - [ ] Screenshots of Settings -> Integrations (Connected).
+    - [ ] Screenshot of Lead in CRM.

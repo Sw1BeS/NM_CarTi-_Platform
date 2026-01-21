@@ -1,63 +1,56 @@
-# Artifact 1: Inventory Map
+# Inventory Map - Cartie2
 
-## 1. System Topology
-- **Frontend App**: `apps/web` (React + Vite + Tailwind)
-- **Backend API**: `apps/server` (Node.js + Express + Prisma)
-- **Database**: PostgreSQL (Prisma Schema with Multi-tenancy)
+## 1. Core Modules (Backend)
+Located in `apps/server/src/modules`:
 
-## 2. Frontend Inventory (`apps/web/src/pages`)
+| Module | Sub-components | Status |
+|--------|----------------|--------|
+| **Inventory** | `inventory`, `normalization` | Active. Normalization has mocks for Autoria? |
+| **Sales** | `requests` | Active. |
+| **Communication** | `bots`, `telegram` | Active. |
+| **Core** | `auth`, `system`, `templates`, `companies`, `users`, `superadmin` | Active. Foundation. |
+| **Integrations** | `whatsapp`, `mtproto`, `viber`, `meta`, `sendpulse` | Partial. Implementation details vary. |
 
-| Module | Route | Component File | Status | Notes |
-|--------|-------|================|========|-------|
-| **Public** | `/login` | `public/Login.tsx` | OK | Auth entry point |
-| | `/p/request` | `public/PublicRequest.tsx` | OK | Lead gen form |
-| | `/p/dealer` | `public/DealerPortal.tsx` | OK | Dealer access |
-| | `/p/proposal/:id`| `public/ClientProposal.tsx`| OK | Client review view |
-| | `/p/app` | `public/MiniApp.tsx` | OK | Telegram Mini App |
-| **Core** | `/` | `app/Dashboard.tsx` | OK | Main stats |
-| | `/inbox` | `app/Inbox.tsx` | OK | Unified msg center |
-| | `/settings` | `app/Settings.tsx` | OK | User prefs |
-| | `/company` | `app/CompanySettings.tsx`| OK | Tenants/Workspace |
-| | `/health` | `app/Health.tsx` | OK | System status |
-| **Business**| `/requests` | `app/Requests.tsx` | OK | B2B Requests |
-| | `/leads` | `app/Leads.tsx` | OK | CRM Leads |
-| | `/inventory` | `app/Inventory.tsx` | OK | Car listings |
-| | `/companies` | `app/Companies.tsx` | OK | Partners/Dealers |
-| **Automation**| `/scenarios` | `app/ScenarioBuilder.tsx`| Complex| Visual flow builder |
-| | `/telegram` | `app/TelegramHub.tsx` | OK | Bot management |
-| | `/automation` | `app/AutomationBuilder.tsx`| OK | Triggers/Workflows |
-| **Data** | `/search` | `app/Search.tsx` | OK | External parsing |
-| | `/entities` | `app/Entities.tsx` | Beta | Dynamic entities |
-| | `/content` | `app/Content.tsx` | OK | CMS |
-| | `/calendar` | `app/ContentCalendar.tsx`| OK | Social scheduling |
-| **Admin** | `/integrations`| `app/Integrations.tsx` | OK | 3rd party connections |
-| | `/marketplace` | `app/Marketplace.tsx` | OK | Templates/Plugins |
-| | `/superadmin` | `superadmin/*` | Secured| System-wide control |
+## 2. Frontend Pages (Routes)
+Located in `apps/web/src/pages`:
 
-## 3. Backend Inventory (`apps/server/src/modules`)
+### App (Protected)
+- `Dashboard`
+- `Inbox` (Unified Communication)
+- `Leads` (Pipeline)
+- `Requests` (B2B/Client Requests)
+- `Inventory` (Car Catalog)
+- `ContentCalendar` & `Content`
+- `ScenarioBuilder` (Bot Logic)
+- `AutomationBuilder`
+- `TelegramHub`
+- `Integrations`
+- `Settings`, `CompanySettings`
+- `Marketplace`, `Entities`, `Search`, `Health`
 
-| Domain | Module | Service File | Key Responsibilities |
-|--------|--------|--------------|----------------------|
-| **Core** | `Core/system` | `systemLog.service.ts` | Logging, Auditing |
-| **Integrations**| `Integrations`| `integration.service.ts`| Integration Manager |
-| | | `meta/meta.service.ts` | Facebook Pixel/CAPI |
-| | | `mtproto/*` | Telegram Client API |
-| **Communication**| `Communication/bots`| `bot.service.ts` | Bot Orchestrator |
-| | `Communication/telegram`| `telegram.service.ts`| Official Bot API |
-| **Inventory** | `Inventory/inventory`| `inventory.service.ts`| Car CRUD |
-| | `Inventory/normalization`| `normalization.service.ts`| Data cleanup |
-| **Data** | `Prisma` | `schema.prisma` | DB Definition |
+### Public
+- `Login`
+- `ClientProposal`
+- `PublicRequest`
+- `MiniApp`
+- `DealerPortal`
 
-## 4. Integration Points
-- **Meta (Facebook)**: `Integrations/meta` (Implemented, requires Env)
-- **Telegram (Official)**: `Communication/telegram` (Implemented)
-- **Telegram (MTProto)**: `Integrations/mtproto` (For scraping/user-bot)
-- **SendPulse**: Defined in Enum but **Missing Implementation**
-- **Autoria**: `Integrations/autoria.service.ts` (External car source)
+### Superadmin
+- `Users`
+- `Companies`
+- `DashboardRoutes`
 
-## 5. Environment Variables & Config
-- **Auth**: `JWT_SECRET`
-- **Database**: `DATABASE_URL`
-- **Meta**: `META_PIXEL_ID`, `META_ACCESS_TOKEN`
-- **Telegram**: `BOT_TOKEN`, `TELEGRAM_API_ID`, `TELEGRAM_API_HASH`
-- **System**: `NODE_ENV`, `PORT`
+## 3. Integrations Status
+
+| Integration | UI Config | Backend Service | Connection Test | Data Sync |
+|-------------|-----------|-----------------|-----------------|-----------|
+| **Meta Pixel** | ✅ Yes | ✅ `meta.service.ts` | ✅ Implemented | ⚠️ Insecure Hash (needs fix) |
+| **SendPulse** | ✅ Yes | ✅ `sendpulse.service.ts` | ⚠️ UI only? | ❌ TODO in `integration.service.ts` |
+| **Google Sheets**| ✅ Yes | ❌ Missing Service | ❌ Missing | ❌ TODO in `integration.service.ts` |
+| **Webhook** | ✅ Yes | N/A | ✅ Implemented | N/A |
+| **WhatsApp** | N/A | `whatsapp.service.ts` | ? | ⚠️ TODO: Route to Inbox |
+
+## 4. Key Services & APIs
+- `apiClient.ts`: Main axios instance.
+- `serverAdapter.ts`: Adapter for backend communication.
+- `systemApi.ts`: System status and configuration.

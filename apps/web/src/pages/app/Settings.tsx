@@ -1,9 +1,8 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { VersionSnapshots, ConfigSnapshot } from '../../services/versionSnapshots';
 import { User, UserRole, FeatureKey, SystemSettings } from '../../types';
 import { useLang } from '../../contexts/LanguageContext';
-import { User as UserIcon, Layers, Cpu, Terminal, Book, Plus, CheckCircle, X, ToggleLeft, ToggleRight, MessageCircle, Briefcase, Search, GitMerge, Megaphone, HardDrive, Download, Upload, RefreshCw, AlertTriangle, Clock, Trash2, RotateCcw, Globe, Server, Database, History, Info, Lock, Shield, LogIn, Settings as SettingsIcon } from 'lucide-react';
+import { User as UserIcon, Layers, Cpu, Terminal, Book, Plus, CheckCircle, X, ToggleLeft, ToggleRight, MessageCircle, Briefcase, Search, GitMerge, Megaphone, HardDrive, Download, Upload, RefreshCw, AlertTriangle, Clock, Trash2, RotateCcw, Globe, Server, Database, History, Info, Lock, Shield, LogIn, Settings as SettingsIcon, Save, Wifi } from 'lucide-react';
 import { useToast } from '../../contexts/ToastContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { TelegramAPI } from '../../services/telegram';
@@ -16,6 +15,35 @@ export const SettingsPage = () => {
     const [activeTab, setActiveTab] = useState<'USERS' | 'INTEGRATIONS' | 'TG' | 'FEATURES' | 'DICT' | 'BACKUP' | 'API' | 'VERSIONS' | 'SUPERADMIN' | 'GENERAL'>('USERS');
     const { t } = useLang();
     const { user } = useAuth();
+    const { showToast } = useToast();
+
+    const [settings, setSettings] = useState<SystemSettings>({});
+    const [apiBase, setApiBaseState] = useState(getApiBase());
+    const [autoriaApiKey, setAutoriaApiKey] = useState('');
+
+    useEffect(() => {
+        Data.getSettings().then(s => {
+            setSettings(s);
+            setAutoriaApiKey(s.autoriaApiKey || '');
+        });
+    }, []);
+
+    const handleSaveAutoriaApiKey = async () => {
+        try {
+            const newSettings = { ...settings, autoriaApiKey };
+            await Data.saveSettings(newSettings);
+            setSettings(newSettings);
+            showToast(t('settings.api.autoria_key_saved'), 'success');
+        } catch (error) {
+            console.error('Failed to save Autoria API key:', error);
+            showToast(t('settings.api.autoria_key_save_failed'), 'error');
+        }
+    };
+
+    const handleSaveApiBase = () => {
+        setApiBase(apiBase);
+        showToast(t('settings.api.base_url_saved'), 'success');
+    };
 
     return (
         <div className="space-y-8 max-w-7xl mx-auto h-[calc(100vh-120px)] flex flex-col">
@@ -68,7 +96,16 @@ export const SettingsPage = () => {
                     {activeTab === 'DICT' && <DictionariesTab />}
                     {activeTab === 'GENERAL' && <GeneralTab />}
                     {activeTab === 'BACKUP' && <BackupTab />}
-                    {activeTab === 'API' && <ApiConnectionTab />}
+                    {activeTab === 'API' && (
+                        <ApiConnectionTab
+                            apiBase={apiBase}
+                            setApiBaseState={setApiBaseState}
+                            handleSaveApiBase={handleSaveApiBase}
+                            autoriaApiKey={autoriaApiKey}
+                            setAutoriaApiKey={setAutoriaApiKey}
+                            handleSaveAutoriaApiKey={handleSaveAutoriaApiKey}
+                        />
+                    )}
                     {activeTab === 'VERSIONS' && <VersionsTab />}
                 </div>
             </div>
@@ -581,6 +618,18 @@ const IntegrationsTab = () => {
                     <input className="input font-mono text-xs" placeholder="Client ID" value={settings.integrations?.sendpulse?.config?.clientId || ''} onChange={e => updateInteg('sendpulse' as any, 'config', { ...settings.integrations?.sendpulse?.config, clientId: e.target.value })} />
                     <input className="input font-mono text-xs" placeholder="Client Secret" type="password" value={settings.integrations?.sendpulse?.config?.clientSecret || ''} onChange={e => updateInteg('sendpulse' as any, 'config', { ...settings.integrations?.sendpulse?.config, clientSecret: e.target.value })} />
                     <input className="input font-mono text-xs" placeholder="Address Book ID" value={settings.integrations?.sendpulse?.config?.addressBookId || ''} onChange={e => updateInteg('sendpulse' as any, 'config', { ...settings.integrations?.sendpulse?.config, addressBookId: e.target.value })} />
+                </div>
+            </div>
+
+            {/* AutoRia */}
+            <div className="panel p-6 border-orange-500/20">
+                <div className="flex items-center gap-3 mb-4">
+                    <Search className="text-orange-500" size={24} />
+                    <h4 className="font-bold text-[var(--text-primary)]">AutoRia Integration</h4>
+                </div>
+                <div className="space-y-3">
+                    <input className="input font-mono text-xs" placeholder="API Key (use 'TEST' for mock)" value={settings.autoriaApiKey || ''} onChange={e => setSettings({ ...settings, autoriaApiKey: e.target.value })} />
+                    <p className="text-xs text-[var(--text-secondary)]">Required for search and imports. Use 'TEST' to enable mock mode.</p>
                 </div>
             </div>
         </div>
