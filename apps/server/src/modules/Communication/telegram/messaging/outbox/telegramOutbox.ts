@@ -55,6 +55,29 @@ const logOutgoing = async (botId: string, chatId: string, text: string, messageI
   }
 };
 
+const logOutgoingBatch = async (
+  botId: string,
+  chatId: string,
+  messages: Array<{ text: string; messageId?: number | null; payload?: any }>
+) => {
+  if (messages.length === 0) return;
+
+  try {
+    await prisma.botMessage.createMany({
+      data: messages.map((msg) => ({
+        botId,
+        chatId,
+        direction: 'OUTGOING',
+        text: msg.text,
+        messageId: msg.messageId ?? null,
+        payload: msg.payload || {},
+      })),
+    });
+  } catch (e) {
+    console.error('[TelegramOutbox] Failed to batch log outgoing messages:', e);
+  }
+};
+
 class TelegramOutbox {
   async sendMessage(params: SendMessageParams) {
     const { botId, token, chatId, text, replyMarkup, payload, companyId, userId } = params;
@@ -99,11 +122,15 @@ class TelegramOutbox {
     const { botId, token, chatId, media, payload, companyId, userId } = params;
     const result = await TelegramSender.sendMediaGroup(token, chatId, media);
     const messages = Array.isArray(result) ? result : [];
-    for (const msg of messages) {
-      const caption = (msg as any)?.caption || '';
-      const messageId = (msg as any)?.message_id ?? null;
-      await logOutgoing(botId, chatId, caption || '[media_group]', messageId, { media, ...(payload || {}) });
-    }
+
+    const batchMessages = messages.map((msg: any) => ({
+      text: msg?.caption || '[media_group]',
+      messageId: msg?.message_id ?? null,
+      payload: { media, ...(payload || {}) },
+    }));
+
+    await logOutgoingBatch(botId, chatId, batchMessages);
+
     await emitPlatformEvent({
       companyId,
       botId,
