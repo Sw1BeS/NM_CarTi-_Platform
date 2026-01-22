@@ -224,13 +224,6 @@ export class BotEngine {
             return; // Skip this cycle
         }
 
-        // 2. Load Token State (Not available in Data Service yet; assume stateless polling for server mode)
-        // For server mode, polling should ideally be done by backend. 
-        // But since we are simulating "Server Mode" where frontend still polls using API:
-        // We need a place to store token state. 
-        // NOTE: In strict server architecture, the backend polls. Here we are hybrid.
-        // We will skip complex token state logic for this step and rely on lastUpdateId in Bot object.
-
         let processedCount = 0;
         let ignoredCount = 0;
 
@@ -1202,5 +1195,19 @@ export class BotEngine {
         } else if (platform === 'IG') {
             await InstagramAPI.sendMessage(chatId, text);
         }
+    }
+
+    // --- NEW: Send Car Card ---
+    static async sendCar(chatId: string, car: CarListing, botId?: string) {
+        const bots = await Data.getBots();
+        const active = botId ? bots.find(b => b.id === botId) : bots.find(b => b.active) || bots[0];
+        if (!active) throw new Error('No active bot configured');
+
+        const adapter = TelegramAdapter(active.token);
+        const session = await Data.getSession(chatId);
+        const lang = session?.language || 'EN';
+
+        await adapter.sendCarCard(chatId, car, lang);
+        Data._notify('UPDATE_MESSAGES');
     }
 }
