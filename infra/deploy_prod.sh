@@ -49,19 +49,11 @@ preflight() {
 # STEP 1: Cleanup Old Containers/Networks
 # ========================================
 # ========================================
-# STEP 1: Cleanup & Fresh Start
+# STEP 1: Rolling Update
 # ========================================
 cleanup_and_restart() {
-  log "Stopping current stack ($PROJECT)..."
-  
-  # Graceful shutdown of current project
-  docker compose -p "$PROJECT" -f "$COMPOSE_FILE" down --remove-orphans || warn "Compose down failed (first run?)"
-  
-  # Force cleanup of conflicting containers if name changed
-  # (Only if absolutely necessary, but rely on project name mostly)
-  # docker container prune -f
-  
-  log "✅ Cleaned up"
+  log "Using rolling update (no downtime)..."
+  log "✅ Skipping 'down' to keep services running"
 }
 
 # ========================================
@@ -99,9 +91,9 @@ build_images() {
 # STEP 4: Start Services
 # ========================================
 start_services() {
-  log "Starting services..."
+  log "Starting services (Rolling Update)..."
   
-  docker compose -p "$PROJECT" -f "$COMPOSE_FILE" up -d \
+  docker compose -p "$PROJECT" -f "$COMPOSE_FILE" up -d --build --remove-orphans \
     || die "Docker compose up failed"
   
   log "Waiting for containers to initialize (10s)..."

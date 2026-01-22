@@ -6,7 +6,10 @@ WORKDIR /app/server
 COPY apps/server/package*.json ./
 RUN npm install
 
-COPY apps/server ./
+COPY apps/server/prisma ./prisma
+COPY apps/server/src ./src
+COPY apps/server/scripts ./scripts
+COPY apps/server/tsconfig.json ./
 
 # IMPORTANT: prisma generate is safe ONLY after schema has models
 RUN npx prisma generate --schema ./prisma/schema.prisma

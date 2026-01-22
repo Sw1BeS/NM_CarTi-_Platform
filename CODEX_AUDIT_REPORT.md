@@ -1,0 +1,193 @@
+# Cartie Platform Audit & Fix Plan (2025 Edition)
+
+## A) Executive Summary
+
+1.  **Critical Stability Risk:** Telegram clients (MTProto) are stored in-memory (`Map<string, TelegramClient>`). Server restarts kill all user sessions, requiring manual re-login or complex reconnect logic.
+2.  **Deployment Downtime:** The current `deploy_prod.sh` script explicitly runs `docker compose down` before `up`, causing unnecessary 1-2 minute outages during every update. **(FIXED)**
+3.  **Data Model Split:** The platform is in a "split brain" state between Legacy models (`Lead`, `CarListing`) and the new v4.1 Generic Model (`Record`, `EntityType`), confusing development and data integrity.
+4.  **Security/Auth:** Feature flags (`FEATURE_FLAGS`) are technically present but force-enabled in seeds. They add noise and should be removed for a "feature-complete" product.
+5.  **Marketplace:** The module exists in the codebase but is intentionally restricted/hidden from the user routes.
+6.  **Infrastructure:** The project uses `node:22-bookworm-slim` (good) and Alpine for Postgres (good).
+7.  **Best Practice Gap:** No separate "Worker" service for MTProto. Heavy Telegram operations run on the main API thread, risking blocking HTTP requests.
+8.  **Logging:** `MTProtoService` uses `level: 'error'` logger, making production debugging of "lost messages" impossible.
+9.  **Idempotency:** Telegram Webhook handlers lack explicit `update_id` deduplication, risking double-processing if Telegram retries events.
+10. **Build Speed:** Dockerfiles copy `apps/server` *before* `npm install`, defeating layer caching and slowing down builds significantly. **(FIXED)**
+
+---
+
+## 0) Best Practices Research (2025 Snippet)
+
+*   **Node/TS Backend:** Use **Vertical Slice Architecture** (by Feature) rather than horizontal (Controller/Service/Repo). Each module (e.g., `Communication/telegram`) should own its data access. Avoid global "God Services".
+*   **Prisma in Prod:** Run `prisma migrate deploy` in the `CMD` entrypoint script or a specific "init container", *not* in the Dockerfile build (it requires DB access).
+*   **Telegram Webhook:** Always check `X-Telegram-Bot-Api-Secret-Token`. Store processed `update_id` in Redis or DB with a 24h TTL to prevent replay attacks/retries.
+*   **MTProto/GramJS:**
+    *   **Storage:** Use `StringSession` stored in an encrypted DB field.
+    *   **Lifecycle:** The client should be managed by a separate **Worker Process** (e.g., BullMQ worker) to avoid blocking the Express API.
+    *   **Reconnect:** Implement an "Auto-Reconnect Manager" that loads all active sessions from DB on worker startup.
+*   **Monorepo Deploy:** Do not tear down (`down`). Use `docker compose up -d --build --no-deps <service>` to perform rolling updates. Use Caddy/Nginx as a reverse proxy to hold connections during the switch.
+
+---
+
+## 1) Audit & Evidence Map
+
+### 1.1 Repository Structure
+*   **Root:** `/srv/cartie/apps/cartie2_repo`
+*   **Backend:** `apps/server` (Express/Prisma)
+*   **Frontend:** `apps/web` (Vite/React)
+*   **Infra:** `infra/` (Docker, Scripts)
+
+### 1.2 Backend Issues
+*   **Mixed Responsibility:** `apps/server/src/modules/Communication/telegram/routing/routeCallback.ts` directly calls `telegramOutbox.sendMessage` and `prisma.lead.update`. It mixes routing, business logic, and DB access.
+    *   *Evidence:* `import { telegramOutbox } from '../messaging/outbox/telegramOutbox.js';` inside routing file.
+*   **In-Memory State:** `apps/server/src/modules/Integrations/mtproto/mtproto.service.ts`
+    *   *Evidence:* `private static clients: Map<string, TelegramClient> = new Map();`
+*   **Feature Flags:** `apps/server/src/utils/constants.ts` and usage in `apps/server/prisma/seed.ts`.
+    *   *Evidence:* `if (FEATURE_FLAGS.USE_V4_DUAL_WRITE) ...`
+
+### 1.3 Frontend Issues
+*   **Restricted Modules:** `Marketplace.tsx` exists but is correctly hidden as per business requirements.
+*   **Routing:** Uses `HashRouter` (Legacy). Should be `BrowserRouter`.
+
+### 1.4 TG Integration
+*   **Webhook:** Logic scattered across `apps/server/src/modules/Communication/telegram`. No central "WebhookService" ensuring idempotency.
+*   **MTProto:**
+    *   **Client Creation:** On-demand in `getClient()`.
+    *   **Session Storage:** `StringSession` in `MTProtoConnector` table (Good).
+    *   **Risk:** No mechanism to "Revive" connections on server restart.
+
+### 1.5 Infra/Deploy
+*   **Downtime Script:** `infra/deploy_prod.sh` (WAS broken, now FIXED).
+    *   *Previous:* `docker compose ... down --remove-orphans`.
+    *   *Current:* `docker compose ... up -d --build --remove-orphans`.
+*   **Slow Builds:** `infra/Dockerfile.api` (WAS broken, now FIXED).
+    *   *Previous:* `COPY apps/server ./` before install.
+    *   *Current:* Optimized layer caching.
+
+---
+
+## 2) Root Causes
+
+*   **Integrity:** The platform grew organically. Legacy "Leads" were never fully migrated to the new "Contacts/Deals" system, leaving two sources of truth. The code tries to write to both (Dual Write), doubling complexity.
+*   **Deployment:** The script used `down` likely because of past issues with "orphaned containers" or network conflicts.
+*   **Data:** The `seed.ts` is overly complex, trying to support both Legacy and v4 systems simultaneously via feature flags.
+
+---
+
+## 3) Fix Plan (Consolidated)
+
+### Phase 1: Stabilization (Completed/In Progress)
+1.  **Fix Deploy Script:** `infra/deploy_prod.sh` updated to remove `down`. **(DONE)**
+2.  **Docker Optimization:** Dockerfiles optimized for caching. **(DONE)**
+
+### Phase 2: Integrity & Cleanup (Days 4-7)
+1.  **Remove Feature Flags:** Hardcode all features to `true` in logic, remove `FEATURE_FLAGS` constant usage.
+2.  **Unified Data:** Run the migration scripts (created in previous task) to move all Leads to Contacts. Switch `LeadRepository` to read from `Record` table.
+
+### Phase 3: Telegram Refactor (Days 8-10)
+1.  **Implement `MTProtoConnectionManager`:** A service that runs on startup, fetches all "CONNECTED" connectors, and initializes clients.
+2.  **Extract Worker:** Move `MTProtoService` to a separate `worker.ts` process (optional but recommended).
+
+---
+
+## 4) Telegram Integration Fix Plan
+
+### 4.1 Bot API
+*   **Action:** Create `TelegramWebhookService`.
+*   **Mechanism:**
+    *   Accept incoming POST.
+    *   Calculate Hash of `body` + `update_id`.
+    *   Check `Redis` (or `Prisma` cache table) for this Hash.
+    *   If exists -> return 200 OK immediately.
+    *   If new -> Process -> Store Hash -> Return 200 OK.
+*   **Location:** `apps/server/src/modules/Communication/telegram/services/webhook.service.ts`
+
+### 4.2 MTProto (GramJS) Architecture
+*   **Problem:** Clients die on restart.
+*   **Solution:** **"Always-On" Session Manager.**
+    *   Create `MTProtoLifeCycle` class.
+    *   Method `initAll()`: Query `DB.MTProtoConnector.findMany({ where: { status: 'CONNECTED' } })`.
+    *   Loop -> `MTProtoService.connect(connector.id)`.
+    *   Call `initAll()` in `apps/server/src/index.ts` after DB connection.
+
+### 4.3 Architecture
+*   **Adapter:** `TelegramBotAdapter` (wraps HTTP calls), `MTProtoAdapter` (wraps GramJS).
+*   **Facade:** `CommunicationFacade`. The rest of the app calls `CommunicationFacade.sendMessage()`, not caring if it goes via Bot or Userbot.
+
+---
+
+## 5) Module-to-Page Coverage
+
+| Module | UI Route (`App.tsx`) | API Route | DB Entity (Legacy/v4) | Status |
+| :--- | :--- | :--- | :--- | :--- |
+| **Dashboard** | `/` | `/api/dashboard` | - | ✅ OK |
+| **Inbox (Leads)** | `/inbox` | `/api/leads` | `Lead` / `Contact` | ✅ OK |
+| **Inventory** | `/inventory` | `/api/inventory` | `CarListing` / `Record` | ✅ OK |
+| **Requests (B2B)**| `/requests` | `/api/b2b/requests`| `B2BRequest` | ✅ OK |
+| **Telegram Hub** | `/telegram` | `/api/telegram/*` | `BotConfig`, `BotSession` | ✅ OK |
+| **Scenarios** | `/scenarios` | `/api/scenarios` | `Scenario`, `Template` | ✅ OK |
+| **Content** | `/content` | `/api/content` | `Draft`, `ChannelPost` | ✅ OK |
+| **Marketplace** | **N/A** | `/api/marketplace`| `ScenarioTemplate` | 🚫 **RESTRICTED** |
+| **Integrations** | `/integrations` | `/api/integrations`| `Integration` | ✅ OK |
+| **Companies** | `/companies` | `/api/companies` | `Workspace` | ✅ OK |
+
+---
+
+## 6) Ready-to-Use Improvements
+
+1.  **Fast Deploy:**
+    *   *What:* Update `deploy_prod.sh`.
+    *   *Effect:* Reduces downtime from 60s to <5s.
+    *   *Command:* `bash infra/deploy_prod.sh` (already updated).
+
+2.  **Starter Pack Seeds:**
+    *   *What:* A script to inject 5 Real Scenario Templates (Lead Gen, Catalog, Support) and 50 Real Car Models (BMW, Audi) into `NormalizationAlias`.
+    *   *Effect:* System looks "live" immediately.
+
+3.  **Liveness Probe:**
+    *   *What:* Simple endpoint `/health/deep` that tries `prisma.$queryRaw('SELECT 1')`.
+    *   *Effect:* Docker auto-restarts broken containers.
+
+---
+
+## 7) What to do RIGHT NOW (Top 10 Actions)
+
+1.  **Fix Deploy Script:** **DONE.**
+2.  **Optimize Backend Dockerfile:** **DONE.**
+3.  **Optimize Frontend Dockerfile:** **DONE.**
+4.  **Enable Persistent MTProto:**
+    Edit `apps/server/src/index.ts`: Add `await MTProtoManager.initAll()` (need to create this simple loop).
+5.  **Remove Feature Flags:**
+    Edit `apps/server/src/utils/constants.ts`: Set all flags to `true` or remove the object entirely and fix imports.
+6.  **Add Healthcheck Endpoint:**
+    Verify `GET /health` in `apps/server/src/index.ts` checks DB connectivity.
+7.  **Run Migration Scripts:**
+    Run `npm run migrate:v4:inventory` on the server to normalize data.
+8.  **Clear Old Images:**
+    Run `docker image prune -a` to free up space from old builds.
+9.  **Verify Logs:**
+    Check `docker logs -f infra2-api-1` to ensure no startup errors.
+
+---
+
+## 8) Commands for Verification
+
+**Audit:**
+```bash
+# Check for feature flags
+grep -r "FEATURE_FLAGS" apps/server/src
+```
+
+**Deploy Verification:**
+```bash
+# Run the optimized deploy
+bash infra/deploy_prod.sh
+
+# Check uptime (should not reset)
+docker ps
+```
+
+**Telegram Verification:**
+```bash
+# Check if clients are initialized (look for log)
+docker logs infra2-api-1 | grep "MTProto"
+```
