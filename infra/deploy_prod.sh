@@ -6,7 +6,7 @@ set -euo pipefail
 # Idempotent, zero-downtime deployment
 # ========================================
 
-REPO_DIR="${REPO_DIR:-/srv/cartie/apps/cartie2_repo}"
+REPO_DIR="${REPO_DIR:-/app}"
 PROJECT="${PROJECT:-infra2}"
 COMPOSE_FILE="${COMPOSE_FILE:-$REPO_DIR/infra/docker-compose.cartie2.prod.yml}"
 LOG_DIR="/srv/cartie/_logs"
@@ -34,20 +34,12 @@ preflight() {
   
   cd "$REPO_DIR" || die "Cannot cd to $REPO_DIR"
   
-  # Check git status
-  if [ -n "$(git status --porcelain 2>/dev/null || true)" ]; then
-    warn "Repo has uncommitted changes. Continuing anyway (manual mode)."
-  fi
-  
   # Create log dir
   mkdir -p "$LOG_DIR"
   
   log "✅ Pre-flight OK"
 }
 
-# ========================================
-# STEP 1: Cleanup Old Containers/Networks
-# ========================================
 # ========================================
 # STEP 1: Cleanup & Fresh Start
 # ========================================
@@ -57,34 +49,11 @@ cleanup_and_restart() {
   # Graceful shutdown of current project
   docker compose -p "$PROJECT" -f "$COMPOSE_FILE" down --remove-orphans || warn "Compose down failed (first run?)"
   
-  # Force cleanup of conflicting containers if name changed
-  # (Only if absolutely necessary, but rely on project name mostly)
-  # docker container prune -f
-  
   log "✅ Cleaned up"
 }
 
 # ========================================
-# STEP 2: Pull Latest Code (optional)
-# ========================================
-pull_code() {
-  log "Pulling latest code..."
-  
-  if git remote get-url origin &>/dev/null; then
-    log "Fetching origin/main..."
-    git fetch origin main || warn "Git fetch failed (offline?)"
-    
-    log "Merging origin/main (fast-forward only)..."
-    git merge --ff-only origin/main || warn "Cannot fast-forward (manual merge needed?)"
-  else
-    warn "No git remote 'origin' found. Skipping pull."
-  fi
-  
-  log "✅ Code updated"
-}
-
-# ========================================
-# STEP 3: Build Images
+# STEP 2: Build Images
 # ========================================
 build_images() {
   log "Building Docker images..."
@@ -96,7 +65,7 @@ build_images() {
 }
 
 # ========================================
-# STEP 4: Start Services
+# STEP 3: Start Services
 # ========================================
 start_services() {
   log "Starting services..."
@@ -111,7 +80,7 @@ start_services() {
 }
 
 # ========================================
-# STEP 5: Run Migrations
+# STEP 4: Run Migrations
 # ========================================
 run_migrations() {
   log "Running database migrations..."
@@ -137,7 +106,7 @@ run_migrations() {
 }
 
 # ========================================
-# STEP 6: Seed Production Data
+# STEP 5: Seed Production Data
 # ========================================
 seed_data() {
   log "Seeding production data..."
@@ -152,7 +121,7 @@ seed_data() {
 }
 
 # ========================================
-# STEP 7: Health Checks
+# STEP 6: Health Checks
 # ========================================
 health_checks() {
   log "Running health checks..."
@@ -171,7 +140,7 @@ health_checks() {
   
   # Check HTTP endpoints
   log "Checking API health..."
-  if curl --fail --silent --show-error --retry 5 --retry-delay 2 --retry-connrefused \
+  if curl --fail --silent --show-error --retry 5 --retry-delay 2 \
     -o /dev/null http://127.0.0.1:3002/health; then
     log "✅ API health OK (http://127.0.0.1:3002/health)"
   else
@@ -179,27 +148,18 @@ health_checks() {
   fi
   
   log "Checking WEB health..."
-  if curl --fail --silent --show-error --retry 5 --retry-delay 2 --retry-connrefused \
+  if curl --fail --silent --show-error --retry 5 --retry-delay 2 \
     -o /dev/null http://127.0.0.1:8082/api/health; then
     log "✅ WEB health OK (http://127.0.0.1:8082/api/health)"
   else
     die "WEB health check failed"
   fi
   
-  # Optional: Public health check (warning only)
-  log "Checking public health (optional)..."
-  if curl --fail --silent --show-error --max-time 5 \
-    -o /dev/null https://cartie2.umanoff-analytics.space/api/health 2>/dev/null; then
-    log "✅ Public health OK (https://cartie2.umanoff-analytics.space/api/health)"
-  else
-    warn "Public health check failed (DNS/SSL/firewall issue?)"
-  fi
-  
   log "✅ All health checks passed"
 }
 
 # ========================================
-# STEP 8: Cleanup Docker Artifacts
+# STEP 7: Cleanup Docker Artifacts
 # ========================================
 cleanup_docker() {
   log "Cleaning up unused Docker images..."
@@ -223,7 +183,6 @@ main() {
   
   preflight
   cleanup_and_restart
-  pull_code
   build_images
   start_services
   run_migrations
@@ -241,11 +200,6 @@ main() {
   log "  API: http://127.0.0.1:3002"
   log "  WEB: http://127.0.0.1:8082"
   log "  PROD: https://cartie2.umanoff-analytics.space"
-  log ""
-  log "Next steps:"
-  log "  - Verify login: https://cartie2.umanoff-analytics.space/#/login"
-  log "  - Check logs: docker logs ${PROJECT}-api-1 --tail 50"
-  log "  - Monitor: docker ps --filter name=${PROJECT}"
 }
 
 main "$@"

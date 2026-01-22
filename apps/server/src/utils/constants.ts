@@ -30,20 +30,19 @@ export const SYSTEM_DICTIONARY_SETS = {
 
 /**
  * Feature flags for v4.1 rollout
- * Enable these progressively during zero-downtime migration
+ * All features are now enabled by default.
  */
+export const USE_V4_WORKSPACE_SCOPING = true;
+export const USE_V4_DUAL_WRITE = true;
+export const USE_V4_READS = true;
+export const USE_V4_SHADOW_READS = true;
+
+// Keep object for backward compatibility
 export const FEATURE_FLAGS = {
-    /** Enable workspace scoping middleware (PR-0) */
-    USE_V4_WORKSPACE_SCOPING: true,
-
-    /** Enable dual-write to both legacy and v4.1 tables (PR-2) */
-    USE_V4_DUAL_WRITE: true,
-
-    /** Switch reads from legacy to v4.1 tables (PR-4) */
-    USE_V4_READS: true,
-
-    /** Enable shadow reads for parity checking (PR-4) */
-    USE_V4_SHADOW_READS: true,
+    USE_V4_WORKSPACE_SCOPING,
+    USE_V4_DUAL_WRITE,
+    USE_V4_READS,
+    USE_V4_SHADOW_READS,
 } as const;
 
 /**

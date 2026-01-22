@@ -1,45 +1,45 @@
-# Implementation Plan & Checklist
+# PLAN: Optimization and Fixes
 
-## Phase 3: Immediate Execution (P0/P1)
+## Phase 3: Immediate Fixes (Code Changes)
 
-### 3.1 Deployment Stability (P0)
-- [x] **Refactor `infra/deploy_prod.sh`**:
-  - Enforce `PROJECT="infra2"`.
-  - Use `docker compose -p $PROJECT down --remove-orphans`.
+### P0: Deployment Stability
+- [x] Create `infra/deploy_prod.sh` (Completed during audit)
+- [ ] Verify execution permissions and test (dry run)
+- [ ] Remove obsolete scripts: `infra/deploy_infra2.sh`, `infra/deploy_manual.sh`, `infra/monitor.sh`
 
-### 3.2 Data & Feature Access (P0)
-- [x] **Remove Feature Flags**:
-  - Updated `constants.ts` to all true.
+### P0: Feature Flags Cleanup
+- [ ] Modify `apps/server/src/utils/constants.ts`:
+    -   Remove `FEATURE_FLAGS` object or set all to true/hardcode usage.
+    -   Ensure `USE_V4_READS` is the default behavior.
+- [ ] Check `apps/server/prisma/seed.ts` to ensure it seeds v4 data unconditionally.
 
-### 3.3 Module Decomposition (P1)
-- [x] **Frontend Routing**:
-  - Fixed `App.tsx` routes.
-  - Implemented `IntegrationsLayout` with sub-routes.
-- [x] **Telegram Hub**:
-  - Cleaned up artifacts.
-  - UI now supports MTProto vs Bot tabs.
+### P1: Data Seeding & Realism
+- [ ] Update `apps/server/prisma/seed.ts`:
+    -   Ensure `Workspace` is created.
+    -   Ensure `EntityType` definitions exist for `car` and `lead`.
+    -   Seed `Record` entries for Cars (BMW X5, Audi Q7, etc.).
+    -   Seed `Record` entries for Leads.
+    -   Seed `BotConfig` and `MTProtoConnector`.
 
-### 3.4 Data Injection (P1)
-- [x] **Seeds**:
-  - Added `seedMTProto` to `seed.ts`.
-  - Injects connected demo account for visualization.
+### P1: Decompose & Link Modules
+- [ ] **Integrations**: Refactor `apps/web/src/pages/app/IntegrationsLayout.tsx` to explicitly list sub-pages instead of just generic `:type`.
+    -   Add specific links/tabs for `Telegram`, `Meta`, `SendPulse`.
+- [ ] **Templates**: The backend `Core/templates` seems to be used by `Marketplace.tsx`. Verify `Marketplace` route exists.
+    -   *Correction*: `Marketplace` page exists but wasn't in my initial route map. Check `App.tsx` again.
+    -   If missing, add route `/marketplace`.
 
-## Phase 4: Future Improvements (Proposals)
+### P2: Code Cleanup
+- [ ] Remove `_archive` folder.
+- [ ] Remove `.bak` files.
 
-### Proposal A: Queue-Based Architecture
-Use BullMQ/Redis for Telegram ingestion.
-- **Why:** Decouples MTProto handling (which is slow/heavy) from the HTTP API.
-- **Action:** Extracted `mtproto.worker.ts` is a good start, but needs true async queue.
+## Phase 4: Telegram Integration
+- [ ] **Bot Webhook**:
+    -   Review `apps/server/src/modules/Core/system/webhook.controller.ts` (if exists) or find where webhooks are handled.
+    -   Implement/Verify `X-Telegram-Bot-Api-Secret-Token`.
+    -   Ensure idempotent processing (dedup `update_id`).
+- [ ] **MTProto**:
+    -   Review `apps/server/src/modules/Integrations/mtproto/mtproto.service.ts`.
+    -   Ensure it writes to `Record` (v4) or `CarListing` (legacy) which is then synced.
 
-### Proposal B: Event Bus (Outbox Pattern)
-- **Why:** "Isolated islands" problem.
-- **Action:** Expand `PlatformEvent` usage in `mtproto-mapping.service.ts`.
-
-### Proposal C: Repository Layer
-- **Why:** `prisma` calls are scattered.
-- **Action:** Enforce strict Service -> Repository -> Database flow.
-
-## Verification
-- [x] **Build:** `tsc` checks passed for new modules.
-- [x] **Logic:** Mapping service correctly parses car data from text.
-- [x] **Routing:** Verified API structure.
+## Phase 5: Proposed "Ready Solutions"
+-   Draft `docs/PLAN.md`.
