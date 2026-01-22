@@ -214,6 +214,12 @@ export class ServerAdapter implements DataAdapter {
     async getContent() { return this.listEntities<TelegramContent>(SLUGS.CONTENT); }
     async saveContent(c: TelegramContent) { return this.saveEntity(SLUGS.CONTENT, c); }
 
+    async getDrafts() {
+        const res = await ApiClient.get<any[]>('drafts');
+        return res.ok ? res.data : [];
+    }
+
+
     async getCampaigns() { return this.listEntities<Campaign>(SLUGS.CAMPAIGN); }
     async saveCampaign(c: Campaign) { return this.saveEntity(SLUGS.CAMPAIGN, c); }
 
@@ -279,9 +285,8 @@ export class ServerAdapter implements DataAdapter {
             { id: 'nav_cal', labelKey: 'nav.calendar', path: '/calendar', iconName: 'Calendar', visible: true, order: 5, roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OPERATOR', 'USER', 'OWNER', 'DEALER'] },
             { id: 'nav_cont', labelKey: 'nav.content', path: '/content', iconName: 'Library', visible: true, order: 6, roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OPERATOR', 'USER', 'OWNER', 'DEALER'] },
             { id: 'nav_scen', labelKey: 'nav.scenarios', path: '/scenarios', iconName: 'Database', visible: true, order: 7, roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OPERATOR', 'USER', 'OWNER', 'DEALER'] },
-            { id: 'nav_market', labelKey: 'nav.marketplace', path: '/marketplace', iconName: 'Library', visible: true, order: 8, roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OWNER'] },
-            { id: 'nav_integrations', labelKey: 'nav.integrations', path: '/integrations', iconName: 'Plug', visible: true, order: 9, roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OWNER'] },
-            { id: 'nav_company', labelKey: 'nav.company', path: '/company', iconName: 'Briefcase', visible: true, order: 10, roles: ['SUPER_ADMIN', 'ADMIN', 'OWNER'] },
+            { id: 'nav_integrations', labelKey: 'nav.integrations', path: '/integrations', iconName: 'Plug', visible: true, order: 8, roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OWNER'] },
+            { id: 'nav_company', labelKey: 'nav.company', path: '/company', iconName: 'Briefcase', visible: true, order: 9, roles: ['SUPER_ADMIN', 'ADMIN', 'OWNER'] },
             { id: 'nav_sets', labelKey: 'nav.settings', path: '/settings', iconName: 'Settings', visible: true, order: 99, roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OPERATOR', 'USER', 'OWNER', 'DEALER'] }
         ];
 
@@ -293,8 +298,7 @@ export class ServerAdapter implements DataAdapter {
                 MODULE_CAMPAIGNS: true,
                 MODULE_COMPANIES: true,
                 MODULE_CONTENT: true,
-                MODULE_INTEGRATIONS: true,
-                MODULE_MARKETPLACE: true
+                MODULE_INTEGRATIONS: true
             };
         }
         if (!settings.navigation) {

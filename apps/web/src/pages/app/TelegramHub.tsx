@@ -2,36 +2,35 @@ import React, { useState, useEffect } from 'react';
 import { Data } from '../../services/data';
 import { useToast } from '../../contexts/ToastContext';
 import { Bot } from '../../types';
-import { Plus, Bot as BotIcon, Settings, Activity, Smartphone, GitMerge, Wifi, Megaphone, Users } from 'lucide-react';
+import { Plus, Bot as BotIcon, Settings, Activity, Smartphone, Wifi, Megaphone, Users, X } from 'lucide-react';
 
 // New modular components
 import { MiniAppManager } from '../../modules/Telegram/MiniAppManager';
 import { MTProtoSources } from '../../modules/Telegram/MTProtoSources';
-import { AutomationEditor } from '../../modules/Telegram/ScenarioEditor';
 import { AddBotModal, BotSettings } from './TelegramHub.components';
 import { CampaignManager } from '../../modules/Telegram/components/CampaignManager';
 import { AudienceManager } from '../../modules/Telegram/components/AudienceManager';
-import { AutomationSuite } from '../../modules/Telegram/components/AutomationSuite'; // Optional, but good to have
-import { MTProtoManager } from '../../modules/Telegram/components/MTProtoManager'; // Legacy backup if needed
 
 /**
  * TelegramHub - Refactored Controller
  * 
  * Tabs:
  * - OVERVIEW: Bot stats
- * - CAMPAIGNS: Campaign Manager (Restored)
- * - AUDIENCE: Audience Manager (Restored)
- * - SCENARIOS: Automation Editor (New Module)
- * - MINIAPP: Mini App Config (New Module)
- * - MTPROTO: Channel Sources (New Module)
+ * - CAMPAIGNS: Campaign Manager
+ * - AUDIENCE: Audience Manager  
+ * - MINIAPP: Mini App Config
+ * - MTPROTO: Channel Sources
  * - SETTINGS: Bot configuration
+ * 
+ * Note: Scenarios removed from here - available in main menu /scenarios
  */
 
 export const TelegramHub = () => {
     const [bots, setBots] = useState<Bot[]>([]);
     const [selectedBotId, setSelectedBotId] = useState<string | null>(null);
-    const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'CAMPAIGNS' | 'AUDIENCE' | 'SCENARIOS' | 'MINIAPP' | 'MTPROTO' | 'SETTINGS'>('OVERVIEW');
+    const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'CAMPAIGNS' | 'AUDIENCE' | 'MINIAPP' | 'MTPROTO' | 'SETTINGS'>('OVERVIEW');
     const [isAddBotOpen, setIsAddBotOpen] = useState(false);
+    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const { showToast } = useToast();
 
     useEffect(() => {
@@ -51,23 +50,54 @@ export const TelegramHub = () => {
     const selectedBot = bots.find(b => b.id === selectedBotId);
 
     return (
-        <div className="flex h-[calc(100vh-100px)] gap-6">
+        <div className="flex flex-col md:flex-row h-[calc(100vh-100px)] gap-4 md:gap-6">
+            {/* Mobile Overlay */}
+            {isSidebarOpen && (
+                <div
+                    className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 md:hidden"
+                    onClick={() => setIsSidebarOpen(false)}
+                />
+            )}
+
+            {/* Mobile Toggle Button */}
+            <button
+                onClick={() => setIsSidebarOpen(true)}
+                className="md:hidden fixed bottom-6 right-6 z-30 w-14 h-14 rounded-full bg-gold-500 text-black shadow-lg flex items-center justify-center hover:bg-gold-600 transition-colors"
+            >
+                <BotIcon size={24} />
+            </button>
+
             {/* Sidebar */}
-            <div className="w-72 panel p-0 overflow-hidden flex flex-col shrink-0 bg-[var(--bg-panel)]">
+            <div className={`
+                fixed md:static inset-y-0 left-0 z-50 w-72 panel p-0 overflow-hidden flex flex-col shrink-0 bg-[var(--bg-panel)]
+                transition-transform duration-300 md:translate-x-0
+                ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+            `}>
                 <div className="p-5 border-b border-[var(--border-color)] bg-[var(--bg-input)] flex justify-between items-center">
                     <h3 className="font-bold text-[var(--text-primary)]">My Bots</h3>
-                    <button
-                        onClick={() => setIsAddBotOpen(true)}
-                        className="p-1.5 rounded hover:bg-[var(--bg-app)] text-[var(--text-secondary)] hover:text-gold-500 transition-colors"
-                    >
-                        <Plus size={18} />
-                    </button>
+                    <div className="flex gap-2">
+                        <button
+                            onClick={() => setIsAddBotOpen(true)}
+                            className="p-1.5 rounded hover:bg-[var(--bg-app)] text-[var(--text-secondary)] hover:text-gold-500 transition-colors"
+                        >
+                            <Plus size={18} />
+                        </button>
+                        <button
+                            onClick={() => setIsSidebarOpen(false)}
+                            className="md:hidden p-1.5 rounded hover:bg-[var(--bg-app)] text-[var(--text-secondary)]"
+                        >
+                            <X size={18} />
+                        </button>
+                    </div>
                 </div>
                 <div className="flex-1 overflow-y-auto p-3 space-y-2">
                     {bots.map(bot => (
                         <button
                             key={bot.id}
-                            onClick={() => setSelectedBotId(bot.id)}
+                            onClick={() => {
+                                setSelectedBotId(bot.id);
+                                setIsSidebarOpen(false);
+                            }}
                             className={`w-full text-left p-3 rounded-xl flex items-center gap-3 transition-all ${selectedBotId === bot.id
                                 ? 'bg-gold-500/10 border border-gold-500/30'
                                 : 'hover:bg-[var(--bg-input)] border border-transparent'
@@ -106,7 +136,7 @@ export const TelegramHub = () => {
                 {selectedBot ? (
                     <>
                         {/* Tab Navigation */}
-                        <div className="flex border-b border-[var(--border-color)] px-5 bg-[var(--bg-panel)]">
+                        <div className="flex border-b border-[var(--border-color)] px-3 md:px-5 bg-[var(--bg-panel)] overflow-x-auto scrollbar-hide">
                             <TabBtn
                                 active={activeTab === 'OVERVIEW'}
                                 onClick={() => setActiveTab('OVERVIEW')}
@@ -124,12 +154,6 @@ export const TelegramHub = () => {
                                 onClick={() => setActiveTab('AUDIENCE')}
                                 icon={Users}
                                 label="Audience"
-                            />
-                            <TabBtn
-                                active={activeTab === 'SCENARIOS'}
-                                onClick={() => setActiveTab('SCENARIOS')}
-                                icon={GitMerge}
-                                label="Automation"
                             />
                             <TabBtn
                                 active={activeTab === 'MINIAPP'}
@@ -156,7 +180,6 @@ export const TelegramHub = () => {
                             {activeTab === 'OVERVIEW' && <BotOverview bot={selectedBot} />}
                             {activeTab === 'CAMPAIGNS' && <CampaignManager bot={selectedBot} />}
                             {activeTab === 'AUDIENCE' && <AudienceManager bot={selectedBot} />}
-                            {activeTab === 'SCENARIOS' && <AutomationEditor botId={selectedBot.id} />}
                             {activeTab === 'MINIAPP' && <MiniAppManager botId={selectedBot.id} />}
                             {activeTab === 'MTPROTO' && <MTProtoSources botId={selectedBot.id} />}
                             {activeTab === 'SETTINGS' && <BotSettings bot={selectedBot} />}
@@ -181,11 +204,11 @@ export const TelegramHub = () => {
 const TabBtn = ({ active, onClick, icon: Icon, label }: any) => (
     <button
         onClick={onClick}
-        className={`px-6 py-3 text-sm font-bold border-b-2 flex items-center gap-2 transition-colors ${active ? 'border-gold-500 text-[var(--text-primary)]' : 'border-transparent text-[var(--text-secondary)]'
+        className={`px-4 md:px-6 py-3 text-xs md:text-sm font-bold border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap ${active ? 'border-gold-500 text-[var(--text-primary)]' : 'border-transparent text-[var(--text-secondary)]'
             }`}
     >
         <Icon size={16} />
-        {label}
+        <span className="hidden sm:inline">{label}</span>
     </button>
 );
 

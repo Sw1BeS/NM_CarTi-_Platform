@@ -8,6 +8,9 @@ export const MTProtoSources = ({ botId }: { botId: string }) => {
     const { showToast } = useToast();
     const [connectors, setConnectors] = useState<MTProtoConnector[]>([]);
     const [loading, setLoading] = useState(true);
+    const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+    const [newConnector, setNewConnector] = useState({ name: '', phone: '' });
+    const [creating, setCreating] = useState(false);
 
     useEffect(() => {
         loadConnectors();
@@ -38,6 +41,30 @@ export const MTProtoSources = ({ botId }: { botId: string }) => {
         }
     };
 
+    const handleCreateConnector = async () => {
+        if (!newConnector.name.trim() || !newConnector.phone.trim()) {
+            showToast('Name and phone are required', 'error');
+            return;
+        }
+        setCreating(true);
+        try {
+            const res = await ApiClient.post('integrations/mtproto/connectors', {
+                name: newConnector.name,
+                phone: newConnector.phone,
+                botId
+            });
+            if (!res.ok) throw new Error(res.message);
+            showToast('Connector created. Complete auth flow.', 'success');
+            setIsAddModalOpen(false);
+            setNewConnector({ name: '', phone: '' });
+            loadConnectors();
+        } catch (e: any) {
+            showToast(e.message || 'Failed to create connector', 'error');
+        } finally {
+            setCreating(false);
+        }
+    };
+
     if (loading) {
         return <div className="p-8 text-center text-[var(--text-secondary)]">Loading...</div>;
     }
@@ -54,7 +81,10 @@ export const MTProtoSources = ({ botId }: { botId: string }) => {
                         Connect Telegram accounts to import channels
                     </p>
                 </div>
-                <button className="btn-primary px-4 py-2 flex items-center gap-2">
+                <button
+                    onClick={() => setIsAddModalOpen(true)}
+                    className="btn-primary px-4 py-2 flex items-center gap-2"
+                >
                     <Plus size={16} /> Add Connector
                 </button>
             </div>
@@ -80,10 +110,10 @@ export const MTProtoSources = ({ botId }: { botId: string }) => {
                                     Status:{' '}
                                     <span
                                         className={`font-bold ${conn.status === 'READY'
-                                                ? 'text-green-500'
-                                                : conn.status === 'ERROR'
-                                                    ? 'text-red-500'
-                                                    : 'text-yellow-500'
+                                            ? 'text-green-500'
+                                            : conn.status === 'ERROR'
+                                                ? 'text-red-500'
+                                                : 'text-yellow-500'
                                             }`}
                                     >
                                         {conn.status}
@@ -119,6 +149,51 @@ export const MTProtoSources = ({ botId }: { botId: string }) => {
                     </div>
                 </div>
             </div>
+
+            {/* Add Connector Modal */}
+            {isAddModalOpen && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="panel w-full max-w-md p-6 animate-slide-up">
+                        <h4 className="font-bold text-[var(--text-primary)] text-lg mb-4">Add MTProto Connector</h4>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="text-xs font-bold text-[var(--text-secondary)] uppercase block mb-2">Name</label>
+                                <input
+                                    className="input"
+                                    placeholder="e.g. My Telegram Account"
+                                    value={newConnector.name}
+                                    onChange={e => setNewConnector({ ...newConnector, name: e.target.value })}
+                                />
+                            </div>
+                            <div>
+                                <label className="text-xs font-bold text-[var(--text-secondary)] uppercase block mb-2">Phone Number</label>
+                                <input
+                                    className="input"
+                                    placeholder="+380991234567"
+                                    value={newConnector.phone}
+                                    onChange={e => setNewConnector({ ...newConnector, phone: e.target.value })}
+                                />
+                                <p className="text-xs text-[var(--text-secondary)] mt-1">Include country code (e.g. +380)</p>
+                            </div>
+                        </div>
+                        <div className="flex justify-end gap-2 mt-6">
+                            <button
+                                onClick={() => { setIsAddModalOpen(false); setNewConnector({ name: '', phone: '' }); }}
+                                className="btn-ghost"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleCreateConnector}
+                                disabled={creating}
+                                className="btn-primary"
+                            >
+                                {creating ? 'Creating...' : 'Create'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

@@ -8,6 +8,7 @@ import { CarListing, TelegramDestination, Bot } from '../../types';
 import { useToast } from '../../contexts/ToastContext';
 import { Send, Image as ImageIcon, Calendar, Eye, X, Check, Plus, Search, Filter } from 'lucide-react';
 import { ContentGenerator } from '../../services/contentGenerator';
+import { TelegramEditor } from '../../components/Editor';
 
 type PostTemplate = 'IN_STOCK' | 'IN_TRANSIT' | 'CUSTOM';
 

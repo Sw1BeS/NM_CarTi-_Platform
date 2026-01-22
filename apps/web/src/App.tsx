@@ -25,7 +25,6 @@ import { MiniApp } from './pages/public/MiniApp';
 import { ContentPage } from './pages/app/Content';
 import { ContentCalendarPage } from './pages/app/ContentCalendar';
 import { CompanySettingsPage } from './pages/app/CompanySettings';
-import { MarketplacePage } from './pages/app/Marketplace';
 import { IntegrationsPage } from './pages/app/Integrations';
 import { IntegrationsLayout } from './pages/app/IntegrationsLayout';
 import { IntegrationEditor } from './pages/app/IntegrationEditor';
@@ -83,7 +82,6 @@ export default function App() {
                     <Route path="/content" element={<ProtectedRoute><ContentPage /></ProtectedRoute>} />
                     <Route path="/calendar" element={<ProtectedRoute><ContentCalendarPage /></ProtectedRoute>} />
                     <Route path="/company" element={<ProtectedRoute><CompanySettingsPage /></ProtectedRoute>} />
-                    <Route path="/marketplace" element={<ProtectedRoute><MarketplacePage /></ProtectedRoute>} />
                     <Route path="/integrations" element={<ProtectedRoute><IntegrationsLayout /></ProtectedRoute>}>
                       <Route index element={<IntegrationsPage />} />
                       <Route path=":type" element={<IntegrationEditor />} />

@@ -124,9 +124,16 @@ export const RequestList: React.FC = () => {
         setCreating(true);
         try {
             await RequestsService.createRequest({
-                ...createForm,
-                status: RequestStatus.DRAFT
-            } as any);
+                title: createForm.title,
+                description: createForm.description,
+                budgetMin: Number(createForm.budgetMin) || 0,
+                budgetMax: Number(createForm.budgetMax),
+                yearMin: Number(createForm.yearMin),
+                yearMax: Number(createForm.yearMax),
+                city: createForm.city,
+                priority: createForm.priority,
+                status: 'DRAFT'
+            });
             setIsCreateOpen(false);
             setCreateForm({
                 title: '',
@@ -210,12 +217,12 @@ export const RequestList: React.FC = () => {
                                             </td>
                                             <td>
                                                 <span className={`px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wider ${r.status === RequestStatus.DRAFT ? 'bg-blue-500/10 text-blue-500' :
-                                                        r.status === RequestStatus.COLLECTING_VARIANTS ? 'bg-amber-500/10 text-amber-400' :
-                                                            r.status === RequestStatus.SHORTLIST ? 'bg-purple-500/10 text-purple-400' :
-                                                                r.status === RequestStatus.CONTACT_SHARED ? 'bg-teal-500/10 text-teal-400' :
-                                                                    r.status === RequestStatus.WON ? 'bg-green-500/10 text-green-500' :
-                                                                        r.status === RequestStatus.LOST ? 'bg-red-500/10 text-red-500' :
-                                                                            'bg-[var(--bg-input)] text-[var(--text-secondary)]'
+                                                    r.status === RequestStatus.COLLECTING_VARIANTS ? 'bg-amber-500/10 text-amber-400' :
+                                                        r.status === RequestStatus.SHORTLIST ? 'bg-purple-500/10 text-purple-400' :
+                                                            r.status === RequestStatus.CONTACT_SHARED ? 'bg-teal-500/10 text-teal-400' :
+                                                                r.status === RequestStatus.WON ? 'bg-green-500/10 text-green-500' :
+                                                                    r.status === RequestStatus.LOST ? 'bg-red-500/10 text-red-500' :
+                                                                        'bg-[var(--bg-input)] text-[var(--text-secondary)]'
                                                     }`}>
                                                     {r.status.replace(/_/g, ' ')}
                                                 </span>

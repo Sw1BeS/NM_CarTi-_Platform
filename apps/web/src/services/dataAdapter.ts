@@ -40,7 +40,10 @@ export interface DataAdapter {
     deleteScenario(id: string): Promise<void>;
 
     getContent(): Promise<TelegramContent[]>;
+    getContent(): Promise<TelegramContent[]>;
     saveContent(content: TelegramContent): Promise<TelegramContent>;
+    getDrafts(): Promise<any[]>;
+
 
     getCampaigns(): Promise<Campaign[]>;
     saveCampaign(camp: Campaign): Promise<Campaign>;

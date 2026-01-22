@@ -68,10 +68,12 @@ export const Dashboard: React.FC = () => {
         const dbStats = {
             requestsNew: requests.length,
             requestsProgress,
-            inventoryValue: inventory.reduce((sum: number, car: any) => sum + (car.price?.amount || 0), 0),
+            inventoryValue: inventory.reduce((sum: number, car: any) => sum + (car.price?.amount || 0), 0 as number),
             inventoryCount: inventory.length,
             inboxNew: msgs.filter(m => m.direction === 'INCOMING').length,
-            campaignsActive: campaigns.filter((c: any) => c.status === 'RUNNING').length
+            campaignsActive: campaigns.filter((c: any) => c.status === 'RUNNING').length,
+            draftsScheduled: (await Data.getDrafts()).filter((d: any) => d.status === 'SCHEDULED').length,
+            draftsPosted: (await Data.getDrafts()).filter((d: any) => d.status === 'POSTED' && new Date(d.postedAt).toDateString() === new Date().toDateString()).length
         };
 
         setFunnelData([
@@ -143,6 +145,13 @@ export const Dashboard: React.FC = () => {
                     subtext="Running"
                     icon={Send}
                     onClick={() => navigate('/telegram')}
+                />
+                <StatCard
+                    title="Content"
+                    value={stats.draftsScheduled}
+                    subtext={`${stats.draftsPosted} posted today`}
+                    icon={CheckCircle}
+                    onClick={() => navigate('/calendar')}
                 />
             </div>
 

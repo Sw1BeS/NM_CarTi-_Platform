@@ -24,10 +24,14 @@ let cronTask: cron.ScheduledTask | null = null;
 /**
  * Send post to Telegram channel
  */
-async function publishPost(post: ScheduledPost, botToken: string, companyId?: string | null): Promise<void> {
+/**
+ * Send post to Telegram channel
+ */
+async function publishPost(post: ScheduledPost, botToken: string, companyId?: string | null): Promise<any> {
     try {
+        let result;
         if (post.imageUrl) {
-            await telegramOutbox.sendPhoto({
+            result = await telegramOutbox.sendPhoto({
                 botId: post.botId,
                 token: botToken,
                 chatId: post.destination,
@@ -36,7 +40,7 @@ async function publishPost(post: ScheduledPost, botToken: string, companyId?: st
                 companyId: companyId || null
             });
         } else {
-            await telegramOutbox.sendMessage({
+            result = await telegramOutbox.sendMessage({
                 botId: post.botId,
                 token: botToken,
                 chatId: post.destination,
@@ -46,6 +50,7 @@ async function publishPost(post: ScheduledPost, botToken: string, companyId?: st
         }
 
         console.log(`[ContentWorker] Published post ${post.id} to ${post.destination}`);
+        return result;
     } catch (e: any) {
         console.error(`[ContentWorker] Failed to publish ${post.id}:`, e.message);
         throw e;
@@ -108,7 +113,7 @@ async function processScheduledPosts(): Promise<void> {
                 }
 
                 // Publish
-                await publishPost({
+                const result = await publishPost({
                     id: String(draft.id),  // Convert number to string
                     text: draft.description || draft.title,  // Use description as content
                     imageUrl: draft.url || undefined,  // Use url as image
@@ -116,6 +121,8 @@ async function processScheduledPosts(): Promise<void> {
                     scheduledAt: draft.scheduledAt!,
                     botId: draft.botId || ''
                 }, bot.token, bot.companyId || null);
+
+                const messageId = result?.message_id || result?.result?.message_id;
 
                 // Mark as posted
                 await prisma.draft.update({
@@ -125,6 +132,20 @@ async function processScheduledPosts(): Promise<void> {
                         postedAt: new Date()
                     }
                 });
+
+                // Create ChannelPost for analytics/tracking
+                if (messageId && draft.destination) {
+                    await prisma.channelPost.create({
+                        data: {
+                            draftId: draft.id, // Linked to the draft
+                            channelId: draft.destination,
+                            messageId: Number(messageId),
+                            botId: bot.id,
+                            status: 'ACTIVE',
+                            payload: result // Store full telegram response
+                        }
+                    });
+                }
 
                 console.log(`[ContentWorker] ✅ Successfully published ${draft.id}`);
 

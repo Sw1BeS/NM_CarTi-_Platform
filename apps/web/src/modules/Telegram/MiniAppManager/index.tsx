@@ -50,12 +50,15 @@ export const MiniAppManager = ({ botId }: { botId: string }) => {
     };
 
     return (
-        <div className="flex h-full">
+        <div className="flex h-full flex-col md:flex-row">
             {/* Config Panel */}
-            <div className="w-[400px] border-r border-[var(--border-color)] overflow-y-auto p-6 bg-[var(--bg-panel)]">
-                <h3 className="font-bold text-lg text-[var(--text-primary)] mb-6 flex items-center gap-2">
-                    <Smartphone size={20} className="text-gold-500" /> Mini App Configuration
-                </h3>
+            <div className="w-full md:w-[400px] border-r border-[var(--border-color)] overflow-y-auto p-6 bg-[var(--bg-panel)]">
+                <div className="mb-6">
+                    <h3 className="font-bold text-lg text-[var(--text-primary)] flex items-center gap-2">
+                        <Smartphone size={20} className="text-gold-500" /> Mini App Configuration
+                    </h3>
+                    <p className="text-xs text-[var(--text-secondary)] mt-1">Customize your Telegram Mini App appearance and actions</p>
+                </div>
 
                 <div className="space-y-6">
                     {/* Title */}
@@ -67,6 +70,7 @@ export const MiniAppManager = ({ botId }: { botId: string }) => {
                             className="input"
                             value={config.title}
                             onChange={e => save({ ...config, title: e.target.value })}
+                            placeholder="e.g. CarTié"
                         />
                     </div>
 
@@ -79,26 +83,30 @@ export const MiniAppManager = ({ botId }: { botId: string }) => {
                             className="textarea h-20"
                             value={config.welcomeText}
                             onChange={e => save({ ...config, welcomeText: e.target.value })}
+                            placeholder="Welcome to our service!"
                         />
                     </div>
 
                     {/* Color & Layout */}
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <label className="text-xs font-bold text-[var(--text-secondary)] uppercase block mb-2">
-                                Theme Color
+                                <Palette size={12} className="inline mr-1" /> Theme Color
                             </label>
                             <div className="flex gap-2">
-                                <input
-                                    type="color"
-                                    className="h-9 w-9 rounded cursor-pointer border-0"
-                                    value={config.primaryColor}
-                                    onChange={e => save({ ...config, primaryColor: e.target.value })}
-                                />
+                                <div className="relative">
+                                    <input
+                                        type="color"
+                                        className="h-10 w-10 rounded-lg cursor-pointer border-2 border-[var(--border-color)] hover:border-gold-500 transition-colors"
+                                        value={config.primaryColor}
+                                        onChange={e => save({ ...config, primaryColor: e.target.value })}
+                                    />
+                                </div>
                                 <input
                                     className="input flex-1 font-mono text-xs"
                                     value={config.primaryColor}
                                     onChange={e => save({ ...config, primaryColor: e.target.value })}
+                                    placeholder="#D4AF37"
                                 />
                             </div>
                         </div>
@@ -109,17 +117,19 @@ export const MiniAppManager = ({ botId }: { botId: string }) => {
                             <div className="flex bg-[var(--bg-input)] p-1 rounded-lg border border-[var(--border-color)]">
                                 <button
                                     onClick={() => save({ ...config, layout: 'GRID' })}
-                                    className={`flex-1 py-2 rounded flex justify-center ${config.layout === 'GRID' ? 'bg-[var(--bg-panel)] text-gold-500' : 'text-[var(--text-muted)]'
+                                    className={`flex-1 py-2 rounded flex justify-center items-center gap-1 transition-all ${config.layout === 'GRID' ? 'bg-[var(--bg-panel)] text-gold-500 shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
                                         }`}
                                 >
                                     <Grid size={16} />
+                                    <span className="text-xs font-bold hidden sm:inline">Grid</span>
                                 </button>
                                 <button
                                     onClick={() => save({ ...config, layout: 'LIST' })}
-                                    className={`flex-1 py-2 rounded flex justify-center ${config.layout === 'LIST' ? 'bg-[var(--bg-panel)] text-gold-500' : 'text-[var(--text-muted)]'
+                                    className={`flex-1 py-2 rounded flex justify-center items-center gap-1 transition-all ${config.layout === 'LIST' ? 'bg-[var(--bg-panel)] text-gold-500 shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
                                         }`}
                                 >
                                     <ListIcon size={16} />
+                                    <span className="text-xs font-bold hidden sm:inline">List</span>
                                 </button>
                             </div>
                         </div>
@@ -128,23 +138,44 @@ export const MiniAppManager = ({ botId }: { botId: string }) => {
                     {/* Actions */}
                     <div>
                         <div className="flex justify-between items-center mb-3">
-                            <label className="text-xs font-bold text-[var(--text-secondary)] uppercase">Actions</label>
-                            <button onClick={addAction} className="text-gold-500 hover:bg-gold-500/10 p-1 rounded">
-                                <Plus size={16} />
+                            <label className="text-xs font-bold text-[var(--text-secondary)] uppercase">Action Buttons</label>
+                            <button 
+                                onClick={addAction} 
+                                className="btn-primary text-xs px-3 py-1.5 flex items-center gap-1"
+                            >
+                                <Plus size={14} /> Add Action
                             </button>
                         </div>
-                        <div className="space-y-2">
+                        <div className="space-y-3">
                             {config.actions.map(act => (
                                 <div
                                     key={act.id}
-                                    className="bg-[var(--bg-input)] p-3 rounded-lg border border-[var(--border-color)] flex justify-between items-center"
+                                    className="bg-[var(--bg-input)] p-4 rounded-lg border border-[var(--border-color)] hover:border-gold-500/30 transition-colors group"
                                 >
-                                    <span className="text-sm text-[var(--text-primary)] font-semibold">{act.label}</span>
-                                    <button onClick={() => removeAction(act.id)} className="text-red-500 hover:text-red-400">
-                                        <Trash2 size={14} />
-                                    </button>
+                                    <div className="flex justify-between items-start mb-3">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-8 h-8 rounded-full bg-gold-500/10 flex items-center justify-center text-gold-500">
+                                                ⚡
+                                            </div>
+                                            <span className="text-sm text-[var(--text-primary)] font-semibold">{act.label}</span>
+                                        </div>
+                                        <button 
+                                            onClick={() => removeAction(act.id)} 
+                                            className="text-red-500 hover:text-red-400 p-1 rounded hover:bg-red-500/10 transition-colors"
+                                        >
+                                            <Trash2 size={16} />
+                                        </button>
+                                    </div>
+                                    <div className="text-[10px] text-[var(--text-secondary)] font-mono bg-[var(--bg-app)] px-2 py-1 rounded">
+                                        {act.actionType}: {act.value || 'Not configured'}
+                                    </div>
                                 </div>
                             ))}
+                            {config.actions.length === 0 && (
+                                <div className="text-center py-8 text-[var(--text-secondary)] text-sm border-2 border-dashed border-[var(--border-color)] rounded-lg">
+                                    No actions configured. Click "Add Action" to get started.
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>

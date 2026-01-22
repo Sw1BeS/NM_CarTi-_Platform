@@ -222,7 +222,7 @@ main() {
   log "========================================="
   
   preflight
-  cleanup_old
+  cleanup_and_restart
   pull_code
   build_images
   start_services

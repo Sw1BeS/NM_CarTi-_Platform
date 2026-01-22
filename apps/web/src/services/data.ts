@@ -110,6 +110,8 @@ class DataService {
 
     async getContent() { return this.adapter.getContent(); }
     async saveContent(c: any) { const res = await this.adapter.saveContent(c); this.notify('UPDATE_CONTENT'); return res; }
+    async getDrafts() { return this.adapter.getDrafts?.() || []; }
+
     async getCampaigns() { return this.adapter.getCampaigns(); }
     async saveCampaign(c: any) { const res = await this.adapter.saveCampaign(c); this.notify('UPDATE_CAMPAIGNS'); return res; }
     async createCampaign(c: any) { return this.saveCampaign(c); }

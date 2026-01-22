@@ -316,6 +316,8 @@ model Draft {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  channelPosts ChannelPost[]
+
   @@index([scheduledAt, status])
   @@index([postedAt])
 }
@@ -417,20 +419,31 @@ model ChannelSource {
 }
 
 model ChannelPost {
-  id        String     @id @default(cuid())
-  requestId String
-  request   B2bRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  id        String      @id @default(cuid())
+  
+  // Decoupled Relations
+  requestId String?
+  request   B2bRequest? @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  
+  draftId   Int?        // Link to content calendar
+  draft     Draft?      @relation(fields: [draftId], references: [id], onDelete: SetNull)
+
+  carId     String?     // Direct link to inventory if not via Request
+  
   botId     String?
-  bot       BotConfig? @relation(fields: [botId], references: [id])
+  bot       BotConfig?  @relation(fields: [botId], references: [id])
+  
   channelId String
   messageId Int
-  status    String     @default("ACTIVE") // ACTIVE, UPDATED, CLOSED
-  payload   Json?      @db.JsonB
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
+  status    String      @default("ACTIVE") // ACTIVE, UPDATED, CLOSED
+  payload   Json?       @db.JsonB
+  
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
 
   @@unique([requestId, channelId])
   @@index([channelId])
+  @@index([draftId])
 }
 
 model MessageLog {
