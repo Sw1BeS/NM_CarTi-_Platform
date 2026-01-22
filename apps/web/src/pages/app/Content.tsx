@@ -347,11 +347,10 @@ export const ContentPage = () => {
                                         <label className="text-xs font-bold text-[var(--text-secondary)] uppercase block mb-2">
                                             Custom Text (use variables like {'{title}'}, {'{price}'}, {'{hashtags}'})
                                         </label>
-                                        <textarea
-                                            className="textarea h-32"
-                                            value={customText}
-                                            onChange={e => setCustomText(e.target.value)}
-                                            placeholder="🚗 Your custom post text here...\n\n{title}\n💰 {price} {currency}\n{hashtags}"
+                                        <TelegramEditor
+                                            placeholder="Write your post here..."
+                                            initialValue={customText}
+                                            onChange={(html, markdown) => setCustomText(markdown)}
                                         />
                                     </div>
                                 )}

@@ -12,15 +12,15 @@ export const DealerPortal = () => {
     const [company, setCompany] = useState<Company | null>(null);
     const [requests, setRequests] = useState<B2BRequest[]>([]);
     const [filter, setFilter] = useState('');
-    
+
     // Auth State
     const [isLoading, setIsLoading] = useState(true);
     const [accessError, setAccessError] = useState('');
-    
+
     // View State
     const [selectedReq, setSelectedReq] = useState<B2BRequest | null>(null);
     const [formOpen, setFormOpen] = useState(false);
-    
+
     const [searchParams] = useSearchParams();
 
     useEffect(() => {
@@ -55,7 +55,7 @@ export const DealerPortal = () => {
                 setFormOpen(true);
             }
         }
-        
+
         if (tg) {
             tg.ready();
             tg.expand();
@@ -66,7 +66,7 @@ export const DealerPortal = () => {
 
     const loadRequests = async () => {
         const res = await getPublicRequests();
-        const publicRequests = (res.items || []).filter(r => r.status !== 'CLOSED');
+        const publicRequests = (res.items || []).filter(r => r.status !== RequestStatus.CLOSED);
         setRequests(publicRequests);
         return publicRequests;
     };
@@ -83,10 +83,10 @@ export const DealerPortal = () => {
 
         const tg = (window as any).Telegram?.WebApp;
         if (tg) {
-            tg.showPopup({ 
-                title: 'Success', 
-                message: 'Offer submitted to the manager!', 
-                buttons: [{type: 'ok'}]
+            tg.showPopup({
+                title: 'Success',
+                message: 'Offer submitted to the manager!',
+                buttons: [{ type: 'ok' }]
             }, () => {
                 tg.close();
             });
@@ -100,7 +100,7 @@ export const DealerPortal = () => {
     if (isLoading) {
         return (
             <div className="min-h-screen bg-[var(--bg-app)] flex items-center justify-center text-[var(--text-primary)]">
-                <Loader className="animate-spin" size={32}/>
+                <Loader className="animate-spin" size={32} />
             </div>
         );
     }
@@ -108,7 +108,7 @@ export const DealerPortal = () => {
     if (accessError) {
         return (
             <div className="min-h-screen bg-[var(--bg-app)] flex flex-col items-center justify-center p-6 text-center">
-                <div className="bg-red-500/10 p-4 rounded-full text-red-500 mb-4"><Briefcase size={32}/></div>
+                <div className="bg-red-500/10 p-4 rounded-full text-red-500 mb-4"><Briefcase size={32} /></div>
                 <h2 className="text-xl font-bold text-[var(--text-primary)] mb-2">Partner Access Only</h2>
                 <p className="text-[var(--text-secondary)] text-sm mb-6">{accessError}</p>
             </div>
@@ -124,13 +124,13 @@ export const DealerPortal = () => {
             <div className="bg-[var(--bg-surface)] p-4 sticky top-0 z-10 border-b border-[var(--border-color)]">
                 <div className="flex justify-between items-center mb-1">
                     <h1 className="text-lg font-bold text-[var(--text-primary)] flex items-center gap-2">
-                        CarTié Partner <CheckCircle size={16} className="text-blue-500 fill-blue-500/20"/>
+                        CarTié Partner <CheckCircle size={16} className="text-blue-500 fill-blue-500/20" />
                     </h1>
                     {company && <span className="text-[10px] bg-[var(--bg-input)] px-2 py-1 rounded text-[var(--text-secondary)] font-bold uppercase">{company.name}</span>}
                 </div>
                 <div className="relative mt-2">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)]" size={16}/>
-                    <input 
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)]" size={16} />
+                    <input
                         className="input pl-9 py-2"
                         placeholder="Search requests..."
                         value={filter}
@@ -148,13 +148,13 @@ export const DealerPortal = () => {
                         </div>
                         <h3 className="font-bold text-[var(--text-primary)] text-lg mb-1">{r.title}</h3>
                         <div className="flex flex-wrap gap-2 text-sm text-[var(--text-secondary)] mb-3">
-                            <span className="flex items-center gap-1 bg-[var(--bg-input)] px-2 py-1 rounded"><DollarSign size={12}/> {r.budgetMax ? r.budgetMax.toLocaleString() : 'Any'}</span>
-                            <span className="flex items-center gap-1 bg-[var(--bg-input)] px-2 py-1 rounded"><Calendar size={12}/> {r.yearMin}+</span>
-                            <span className="flex items-center gap-1 bg-[var(--bg-input)] px-2 py-1 rounded"><MapPin size={12}/> {r.city}</span>
+                            <span className="flex items-center gap-1 bg-[var(--bg-input)] px-2 py-1 rounded"><DollarSign size={12} /> {r.budgetMax ? r.budgetMax.toLocaleString() : 'Any'}</span>
+                            <span className="flex items-center gap-1 bg-[var(--bg-input)] px-2 py-1 rounded"><Calendar size={12} /> {r.yearMin}+</span>
+                            <span className="flex items-center gap-1 bg-[var(--bg-input)] px-2 py-1 rounded"><MapPin size={12} /> {r.city}</span>
                         </div>
                         <p className="text-xs text-[var(--text-muted)] line-clamp-2 mb-3">{r.description || 'No specific details.'}</p>
                         <button className="btn-primary w-full text-sm">
-                            Have this car? <ChevronRight size={16}/>
+                            Have this car? <ChevronRight size={16} />
                         </button>
                     </div>
                 ))}
@@ -173,14 +173,14 @@ const SubmissionForm = ({ request, onSubmit, onCancel }: any) => {
     const [isParsing, setIsParsing] = useState(false);
     const [thumbnail, setThumbnail] = useState('');
     const fileInputRef = useRef<HTMLInputElement>(null);
-    
+
     const [data, setData] = useState({
         title: '',
         price: '',
         year: '',
         mileage: '',
         description: '',
-        url: '' 
+        url: ''
     });
 
     const handleSmartPaste = async () => {
@@ -221,7 +221,7 @@ const SubmissionForm = ({ request, onSubmit, onCancel }: any) => {
         if (!data.title || !data.price) return alert("Title and Price are required.");
         onSubmit({
             title: data.title,
-            price: { amount: parseInt(data.price), currency: 'USD' }, 
+            price: { amount: parseInt(data.price), currency: 'USD' },
             year: parseInt(data.year) || new Date().getFullYear(),
             mileage: parseInt(data.mileage) || 0,
             sourceUrl: data.url,
@@ -233,7 +233,7 @@ const SubmissionForm = ({ request, onSubmit, onCancel }: any) => {
     return (
         <div className="min-h-screen bg-[var(--bg-app)] flex flex-col">
             <div className="p-4 border-b border-[var(--border-color)] flex items-center gap-3 sticky top-0 bg-[var(--bg-surface)] z-20">
-                <button onClick={onCancel} className="btn-icon btn-ghost rounded-full"><ArrowLeft size={24}/></button>
+                <button onClick={onCancel} className="btn-icon btn-ghost rounded-full"><ArrowLeft size={24} /></button>
                 <div className="flex-1">
                     <h3 className="font-bold text-[var(--text-primary)] leading-tight">Submit Offer</h3>
                     <p className="text-xs text-[var(--text-secondary)] truncate w-48">{request.title}</p>
@@ -243,17 +243,17 @@ const SubmissionForm = ({ request, onSubmit, onCancel }: any) => {
             <div className="p-4 space-y-6 flex-1 overflow-y-auto">
                 <div className="bg-blue-500/10 p-4 rounded-xl border border-blue-500/20">
                     <label className="block text-xs font-bold text-blue-500 uppercase mb-2 flex items-center gap-1">
-                        <Zap size={14} className="fill-blue-500"/> Smart Paste
+                        <Zap size={14} className="fill-blue-500" /> Smart Paste
                     </label>
                     <div className="flex gap-2">
-                        <input 
-                            className="input flex-1" 
+                        <input
+                            className="input flex-1"
                             placeholder="Paste link..."
                             value={link}
                             onChange={e => setLink(e.target.value)}
                         />
                         <button onClick={handleSmartPaste} disabled={!link || isParsing} className="btn-primary">
-                            {isParsing ? <Loader className="animate-spin" size={18}/> : 'Fill'}
+                            {isParsing ? <Loader className="animate-spin" size={18} /> : 'Fill'}
                         </button>
                     </div>
                 </div>
@@ -261,7 +261,7 @@ const SubmissionForm = ({ request, onSubmit, onCancel }: any) => {
                 <div className="space-y-2">
                     <label className="block text-xs font-bold text-[var(--text-muted)] uppercase">Photo</label>
                     <div className="flex items-center gap-3">
-                        <div 
+                        <div
                             onClick={() => fileInputRef.current?.click()}
                             className="w-24 h-24 bg-[var(--bg-input)] rounded-xl border border-dashed border-[var(--border-color)] flex flex-col items-center justify-center cursor-pointer hover:border-gold-500 transition-colors overflow-hidden relative"
                         >
@@ -269,7 +269,7 @@ const SubmissionForm = ({ request, onSubmit, onCancel }: any) => {
                                 <img src={thumbnail} className="w-full h-full object-cover" />
                             ) : (
                                 <>
-                                    <Camera size={24} className="text-[var(--text-muted)] mb-1"/>
+                                    <Camera size={24} className="text-[var(--text-muted)] mb-1" />
                                     <span className="text-[10px] text-[var(--text-muted)]">Add Photo</span>
                                 </>
                             )}
@@ -277,12 +277,12 @@ const SubmissionForm = ({ request, onSubmit, onCancel }: any) => {
                         <div className="flex-1">
                             <p className="text-xs text-[var(--text-secondary)] mb-2">Upload a real photo of the car.</p>
                             <button onClick={() => fileInputRef.current?.click()} className="btn-secondary btn-sm">
-                                <Upload size={12}/> Upload
+                                <Upload size={12} /> Upload
                             </button>
-                            <input 
-                                type="file" 
-                                ref={fileInputRef} 
-                                className="hidden" 
+                            <input
+                                type="file"
+                                ref={fileInputRef}
+                                className="hidden"
                                 accept="image/*"
                                 onChange={handleFileUpload}
                             />
@@ -293,21 +293,21 @@ const SubmissionForm = ({ request, onSubmit, onCancel }: any) => {
                 <div className="space-y-4">
                     <div>
                         <label className="block text-xs font-bold text-[var(--text-muted)] uppercase mb-1">Car Title</label>
-                        <input className="input" placeholder="BMW X5..." value={data.title} onChange={e => setData({...data, title: e.target.value})} />
+                        <input className="input" placeholder="BMW X5..." value={data.title} onChange={e => setData({ ...data, title: e.target.value })} />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                         <div>
                             <label className="block text-xs font-bold text-[var(--text-muted)] uppercase mb-1">Price ($)</label>
-                            <input type="number" className="input" placeholder="50000" value={data.price} onChange={e => setData({...data, price: e.target.value})} />
+                            <input type="number" className="input" placeholder="50000" value={data.price} onChange={e => setData({ ...data, price: e.target.value })} />
                         </div>
                         <div>
                             <label className="block text-xs font-bold text-[var(--text-muted)] uppercase mb-1">Year</label>
-                            <input type="number" className="input" placeholder="2020" value={data.year} onChange={e => setData({...data, year: e.target.value})} />
+                            <input type="number" className="input" placeholder="2020" value={data.year} onChange={e => setData({ ...data, year: e.target.value })} />
                         </div>
                     </div>
                     <div>
                         <label className="block text-xs font-bold text-[var(--text-muted)] uppercase mb-1">Description</label>
-                        <textarea className="textarea h-24" placeholder="Condition, location..." value={data.description} onChange={e => setData({...data, description: e.target.value})} />
+                        <textarea className="textarea h-24" placeholder="Condition, location..." value={data.description} onChange={e => setData({ ...data, description: e.target.value })} />
                     </div>
                 </div>
             </div>

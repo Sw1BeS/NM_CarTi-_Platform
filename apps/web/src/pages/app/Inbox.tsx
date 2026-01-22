@@ -67,12 +67,20 @@ export const InboxPage = () => {
                 RequestsService.getRequests({ status: 'ALL', limit: 200 }),
                 Data.getBots()
             ]);
-            setBots(botList);
-            if (!selectedBotId && botList.length > 0) {
+            setBots(botList || []);
+            let currentBotId = selectedBotId;
+            if (!currentBotId && botList && botList.length > 0) {
                 const active = botList.find((b: any) => b.active);
-                setSelectedBotId(active ? active.id : botList[0].id);
+                currentBotId = active ? active.id : botList[0].id;
+                setSelectedBotId(currentBotId);
             }
-            setMsgs(messages);
+
+            // If we have a bot ID, fetch messages specifically for it (reload if needed)
+            let finalMessages = messages || [];
+            if (!messages || (currentBotId && messages.length === 0)) {
+                finalMessages = await Data.getMessages({ botId: currentBotId });
+            }
+            setMsgs(finalMessages);
 
             // Build chat list with metadata
             const chatMap = new Map<string, ChatInfo>();
@@ -107,9 +115,10 @@ export const InboxPage = () => {
                 }
             });
 
-            setChats(Array.from(chatMap.values()).sort((a, b) =>
+            const sortedChats = Array.from(chatMap.values()).sort((a, b) =>
                 new Date(b.lastMsg.date).getTime() - new Date(a.lastMsg.date).getTime()
-            ));
+            );
+            setChats(sortedChats);
         };
 
         load();
@@ -166,15 +175,33 @@ export const InboxPage = () => {
     };
 
     const assignChat = async (chatId: string, userId: string) => {
-        const req = requestByChat[chatId];
+        let req = requestByChat[chatId];
         if (!req) {
-            showToast(t('inbox.no_request'), 'error');
-            return;
+            try {
+                const chatInfo = chats.find(c => c.chatId === chatId);
+                const newReq = await RequestsService.createRequest({
+                    clientChatId: chatId,
+                    title: chatInfo ? `Request from ${chatInfo.lastMsg.from}` : 'New Request',
+                    status: RequestStatus.DRAFT,
+                    platform: 'TG',
+                    budgetMin: 0, budgetMax: 0, yearMin: 0, yearMax: 0, city: '', description: '',
+                    createdAt: new Date().toISOString()
+                });
+                req = newReq;
+                setRequestByChat(prev => ({ ...prev, [chatId]: newReq }));
+                if (chatInfo) {
+                    setChats(prev => prev.map(c => c.chatId === chatId ? { ...c, requestId: newReq.id } : c));
+                }
+            } catch (e) {
+                console.error(e);
+                showToast(t('inbox.create_failed') || "Failed to create request", 'error');
+                return;
+            }
         }
         await RequestsService.updateRequest(req.id, { assigneeId: userId || null });
         const updated = chats.map(c => c.chatId === chatId ? { ...c, assignedTo: userId } : c);
         setChats(updated);
-        setRequestByChat({ ...requestByChat, [chatId]: { ...req, assigneeId: userId || undefined } });
+        setRequestByChat(prev => ({ ...prev, [chatId]: { ...prev[chatId], assigneeId: userId || undefined } }));
         showToast(t('inbox.assigned'), 'success');
         Data.getMessageLogs({ requestId: req.id, chatId, limit: 50 }).then(setTimeline);
     };

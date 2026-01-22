@@ -5,8 +5,8 @@ import { Bot } from '../../types';
 import { Plus, Bot as BotIcon, Settings, Activity, Smartphone, Wifi, Megaphone, Users, X } from 'lucide-react';
 
 // New modular components
-import { MiniAppManager } from '../../modules/Telegram/MiniAppManager';
-import { MTProtoSources } from '../../modules/Telegram/MTProtoSources';
+import { MiniAppManager } from '../../modules/Telegram/MiniAppManager/index';
+import { MTProtoSources } from '../../modules/Telegram/MTProtoSources/index';
 import { AddBotModal, BotSettings } from './TelegramHub.components';
 import { CampaignManager } from '../../modules/Telegram/components/CampaignManager';
 import { AudienceManager } from '../../modules/Telegram/components/AudienceManager';
@@ -35,17 +35,22 @@ export const TelegramHub = () => {
 
     useEffect(() => {
         const load = async () => {
-            const list = await Data.getBots();
-            setBots(list);
-            if (list.length > 0 && !selectedBotId) {
-                const active = list.find(b => b.active);
-                setSelectedBotId(active ? active.id : list[0].id);
+            try {
+                const list = await Data.getBots();
+                setBots(list || []);
+                if (list && list.length > 0 && !selectedBotId) {
+                    const active = list.find(b => b.active);
+                    setSelectedBotId(active ? active.id : list[0].id);
+                }
+            } catch (e) {
+                console.error("Failed to load bots", e);
+                setBots([]);
             }
         };
         load();
         const sub = Data.subscribe('UPDATE_BOTS', load);
         return sub;
-    }, []);
+    }, [selectedBotId]);
 
     const selectedBot = bots.find(b => b.id === selectedBotId);
 

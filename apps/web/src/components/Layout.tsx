@@ -5,7 +5,7 @@ import {
   LayoutDashboard, FileText, Search, Users,
   Send, LogOut, Menu, Settings as SettingsIcon, X, Plus, Radio, MessageCircle, Bell, Car, Sparkles, Briefcase, Database, Calendar, Library, Globe, Plug
 } from 'lucide-react';
-import { User, NavItemConfig } from '../types';
+import { User, NavigationItem } from '../types';
 import { useLang } from '../contexts/LanguageContext';
 import { CommandPalette } from './CommandPalette';
 import { Data } from '../services/data';
@@ -34,7 +34,7 @@ const ICON_MAP: Record<string, any> = {
 
 const ALL_ROLES = ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OPERATOR', 'USER', 'OWNER', 'DEALER'];
 
-const DEFAULT_NAV: NavItemConfig[] = [
+const DEFAULT_NAV: NavigationItem[] = [
   { id: 'nav_dash', labelKey: 'nav.dashboard', path: '/', iconName: 'LayoutDashboard', roles: ALL_ROLES, order: 0, visible: true },
   { id: 'nav_inbox', labelKey: 'nav.inbox', path: '/inbox', iconName: 'MessageCircle', roles: ALL_ROLES, order: 1, visible: true },
   { id: 'nav_req', labelKey: 'nav.requests', path: '/requests', iconName: 'FileText', roles: ALL_ROLES, order: 2, visible: true },
@@ -59,13 +59,13 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout }) => {
   const [notifications, setNotifications] = useState<any[]>([]);
   const [showNotif, setShowNotif] = useState(false);
   const [showLang, setShowLang] = useState(false);
-  const [navItems, setNavItems] = useState<NavItemConfig[]>([]);
+  const [navItems, setNavItems] = useState<NavigationItem[]>([]);
   const [features, setFeatures] = useState({});
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
-  const normalizeNav = (nav: any): NavItemConfig[] => {
-    if (Array.isArray(nav)) return nav as NavItemConfig[];
+  const normalizeNav = (nav: any): NavigationItem[] => {
+    if (Array.isArray(nav)) return nav as NavigationItem[];
     if (nav && Array.isArray((nav as any).primary)) return (nav as any).primary;
     return [];
   };
@@ -87,8 +87,8 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout }) => {
     const unsub1 = Data.subscribe('UPDATE_NOTIFICATIONS', async () => setNotifications(await Data.getNotifications()));
     const unsub2 = Data.subscribe('UPDATE_SETTINGS', async () => {
       const settings = await Data.getSettings();
-      const backendNav = settings.navigation || [];
-      setNavItems(backendNav.length > 0 ? backendNav.sort((a: any, b: any) => a.order - b.order) : DEFAULT_NAV);
+      const backendNav = normalizeNav(settings.navigation);
+      setNavItems(backendNav.length > 0 ? backendNav.sort((a: any, b: any) => (a.order ?? 999) - (b.order ?? 999)) : DEFAULT_NAV);
       setFeatures(settings.features || {});
     });
     return () => { unsub1(); unsub2(); };

@@ -214,7 +214,7 @@ export const ContentCalendarPage = () => {
         setEditingTemplate(null);
     };
 
-    const allTemplates = { ...DEFAULT_TEMPLATES, ...customTemplates };
+    const allTemplates: Record<string, TemplateConfig> = { ...DEFAULT_TEMPLATES, ...customTemplates };
     const weekDays = getWeekDays();
     const queueDrafts = [...drafts].sort((a, b) => {
         const statusPriority: Record<DraftRecord['status'], number> = {
@@ -341,8 +341,8 @@ export const ContentCalendarPage = () => {
                                                         <div
                                                             key={post.id}
                                                             className={`text-[10px] p-2 rounded mb-1 ${post.status === 'SCHEDULED' ? 'bg-blue-500/20 text-blue-400' :
-                                                                    post.status === 'POSTED' ? 'bg-green-500/20 text-green-400' :
-                                                                        'bg-red-500/20 text-red-400'
+                                                                post.status === 'POSTED' ? 'bg-green-500/20 text-green-400' :
+                                                                    'bg-red-500/20 text-red-400'
                                                                 }`}
                                                         >
                                                             <div className="font-bold truncate">{car?.title || 'Unknown'}</div>
@@ -442,8 +442,8 @@ export const ContentCalendarPage = () => {
                                                     <div
                                                         key={post.id}
                                                         className={`text-[10px] p-2 rounded mb-1 ${post.status === 'SCHEDULED' ? 'bg-blue-500/20 text-blue-400' :
-                                                                post.status === 'POSTED' ? 'bg-green-500/20 text-green-400' :
-                                                                    'bg-red-500/20 text-red-400'
+                                                            post.status === 'POSTED' ? 'bg-green-500/20 text-green-400' :
+                                                                'bg-red-500/20 text-red-400'
                                                             }`}
                                                     >
                                                         <div className="font-bold truncate">{car?.title || 'Unknown'}</div>
@@ -471,8 +471,8 @@ export const ContentCalendarPage = () => {
             {/* Grid View */}
             {viewMode === 'GRID' && (
                 <div className="panel flex-1 overflow-auto p-6">
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {queueDrafts.map(draft => {
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {queueDrafts.map(draft => {
                             const carId = typeof draft.metadata === 'object' ? draft.metadata?.carId : undefined;
                             const car = inventory.find(c => c.canonicalId === carId);
                             const dest = destinations.find(d => d.identifier === draft.destination);
@@ -496,9 +496,9 @@ export const ContentCalendarPage = () => {
                                             {dest?.name || draft.destination}
                                         </div>
                                         <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${draft.status === 'POSTED' ? 'bg-green-500/20 text-green-500' :
-                                                draft.status === 'SCHEDULED' ? 'bg-blue-500/20 text-blue-500' :
-                                                    draft.status === 'FAILED' ? 'bg-red-500/20 text-red-500' :
-                                                        'bg-gray-500/20 text-gray-500'
+                                            draft.status === 'SCHEDULED' ? 'bg-blue-500/20 text-blue-500' :
+                                                draft.status === 'FAILED' ? 'bg-red-500/20 text-red-500' :
+                                                    'bg-gray-500/20 text-gray-500'
                                             }`}>
                                             {draft.status}
                                         </span>
@@ -559,8 +559,8 @@ export const ContentCalendarPage = () => {
                                                 setSelectedCars(newSet);
                                             }}
                                             className={`p-3 rounded cursor-pointer flex items-center gap-3 transition-colors ${selectedCars.has(car.canonicalId)
-                                                    ? 'bg-gold-500/20 border-2 border-gold-500'
-                                                    : 'bg-[var(--bg-panel)] border-2 border-transparent hover:border-[var(--border-color)]'
+                                                ? 'bg-gold-500/20 border-2 border-gold-500'
+                                                : 'bg-[var(--bg-panel)] border-2 border-transparent hover:border-[var(--border-color)]'
                                                 }`}
                                         >
                                             <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${selectedCars.has(car.canonicalId) ? 'bg-gold-500 border-gold-500' : 'border-[var(--text-secondary)]'
@@ -598,8 +598,8 @@ export const ContentCalendarPage = () => {
                                         <button
                                             onClick={() => setBulkConfig({ ...bulkConfig, lang: 'UA' })}
                                             className={`py-2 px-3 rounded text-xs font-bold transition-colors ${bulkConfig.lang === 'UA'
-                                                    ? 'bg-gold-500 text-black'
-                                                    : 'bg-[var(--bg-input)] text-[var(--text-secondary)]'
+                                                ? 'bg-gold-500 text-black'
+                                                : 'bg-[var(--bg-input)] text-[var(--text-secondary)]'
                                                 }`}
                                         >
                                             Українська
@@ -607,8 +607,8 @@ export const ContentCalendarPage = () => {
                                         <button
                                             onClick={() => setBulkConfig({ ...bulkConfig, lang: 'RU' })}
                                             className={`py-2 px-3 rounded text-xs font-bold transition-colors ${bulkConfig.lang === 'RU'
-                                                    ? 'bg-gold-500 text-black'
-                                                    : 'bg-[var(--bg-input)] text-[var(--text-secondary)]'
+                                                ? 'bg-gold-500 text-black'
+                                                : 'bg-[var(--bg-input)] text-[var(--text-secondary)]'
                                                 }`}
                                         >
                                             Русский

@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Data } from '../../../services/data';
 import { Scenario, Bot, BotMenuButtonConfig } from '../../../types';
 import { ScenarioFlowEditor } from '../flow/ScenarioFlowEditor';
-import { MenuDesigner } from '../../../../pages/app/ScenarioBuilder'; // Re-use MenuDesigner from old file for now, or extract it too.
+
 // Ideally we extract MenuDesigner. Let's assume we extract it to here or reuse.
 // For now, let's copy MenuDesigner logic here to avoid circular dep or partial refactor.
 

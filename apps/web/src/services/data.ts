@@ -104,8 +104,37 @@ class DataService {
     }
     async deleteScenario(id: string) { await this.adapter.deleteScenario(id); this.notify('UPDATE_SCENARIOS'); }
     async getTemplates() {
-        const templates = await this.adapter.getScenarios();
-        return Array.isArray(templates) ? templates.map(normalizeScenario) : [];
+        // Return hardcoded templates for now as the backend endpoint is just returning all scenarios
+        const timestamp = new Date().toISOString();
+        return [
+            {
+                id: 'tpl_welcome',
+                name: 'Welcome Flow',
+                triggerCommand: 'start',
+                isActive: true,
+                createdAt: timestamp,
+                updatedAt: timestamp,
+                keywords: ['hi', 'hello'],
+                nodes: [
+                    { id: 'node_1', type: 'START', content: { text: 'Welcome to CarBot! 🚗\nHow can I help you today?' }, nextNodeId: 'node_2', position: { x: 100, y: 100 } },
+                    { id: 'node_2', type: 'QUESTION_CHOICE', content: { text: 'Choose an option:', choices: [{ label: 'Buy Car', value: 'buy', nextNodeId: 'node_buy' }, { label: 'Sell Car', value: 'sell', nextNodeId: 'node_sell' }] }, nextNodeId: '', position: { x: 100, y: 250 } }
+                ]
+            },
+            {
+                id: 'tpl_lead',
+                name: 'Lead Generation',
+                triggerCommand: 'buy',
+                isActive: true,
+                createdAt: timestamp,
+                updatedAt: timestamp,
+                keywords: ['buy'],
+                nodes: [
+                    { id: 'node_1', type: 'START', content: { text: 'Great! What is your budget?' }, nextNodeId: 'node_2', position: { x: 100, y: 100 } },
+                    { id: 'node_2', type: 'QUESTION_TEXT', content: { text: 'Enter amount in USD:' }, nextNodeId: 'node_3', position: { x: 100, y: 250 } },
+                    { id: 'node_3', type: 'HTTP_REQUEST', content: { text: 'Saving preference...', url: 'https://api.example.com/lead', method: 'POST' }, nextNodeId: '', position: { x: 100, y: 400 } }
+                ]
+            }
+        ].map(normalizeScenario);
     }
 
     async getContent() { return this.adapter.getContent(); }

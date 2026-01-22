@@ -126,7 +126,7 @@ export const BotMenuEditor = ({ scenarios }: { scenarios: Scenario[] }) => {
     }, {} as Record<number, BotMenuButtonConfig[]>);
 
     return (
-        <div className="h-full flex gap-8 bg-[var(--bg-app)] p-8 overflow-hidden">
+        <div className="flex flex-col lg:flex-row gap-8 bg-[var(--bg-app)] p-4 md:p-8 h-full overflow-y-auto lg:overflow-hidden">
             <input type="file" ref={configInputRef} onChange={handleImportConfig} accept=".json" className="hidden" />
 
             {/* Visual Preview (Dark Mode Telegram) */}

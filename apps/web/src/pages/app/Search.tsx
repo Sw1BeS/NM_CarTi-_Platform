@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Search as SearchIcon, Download, Loader, CheckCircle, Plus, Globe, Link as LinkIcon, ArrowRight, Eye, Edit3, Terminal, Filter, AlertTriangle, Bug, Megaphone } from 'lucide-react';
-import { B2BRequest, Variant, VariantStatus, TelegramContent, ContentStatus } from '../../types';
+import { B2BRequest, RequestStatus, Variant, VariantStatus, TelegramContent, ContentStatus } from '../../types';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Data } from '../../services/data';
 import { ContentGenerator } from '../../services/contentGenerator';
@@ -40,7 +40,7 @@ export const SearchPage = () => {
     useEffect(() => {
         // Load Requests via RequestsService (API)
         RequestsService.getRequests({ status: 'ALL', limit: 100 }).then(res => {
-            const activeReqs = res.items.filter(r => r.status && r.status !== 'CLOSED' && r.status !== 'PUBLISHED');
+            const activeReqs = res.items.filter(r => r.status && r.status !== RequestStatus.CLOSED && r.status !== RequestStatus.PUBLISHED);
             setRequests(activeReqs);
 
             const paramId = searchParams.get('requestId');

@@ -125,14 +125,16 @@ export const RequestList: React.FC = () => {
         try {
             await RequestsService.createRequest({
                 title: createForm.title,
-                description: createForm.description,
+                description: createForm.description || '',
                 budgetMin: Number(createForm.budgetMin) || 0,
                 budgetMax: Number(createForm.budgetMax),
                 yearMin: Number(createForm.yearMin),
                 yearMax: Number(createForm.yearMax),
                 city: createForm.city,
                 priority: createForm.priority,
-                status: 'DRAFT'
+                status: RequestStatus.DRAFT,
+                clientChatId: undefined, // Explicit undefined to avoid null issues if backend is strict
+                assigneeId: undefined
             });
             setIsCreateOpen(false);
             setCreateForm({

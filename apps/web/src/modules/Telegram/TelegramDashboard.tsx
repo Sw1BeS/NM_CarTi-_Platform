@@ -61,8 +61,8 @@ export const TelegramDashboard = () => {
     };
 
     const toggleBotActive = async (bot: Bot) => {
-        await Data.saveBot({ ...bot, isEnabled: !bot.isEnabled } as any);
-        showToast(`Bot ${!bot.isEnabled ? 'enabled' : 'disabled'}`);
+        await Data.saveBot({ ...bot, active: !bot.active } as any);
+        showToast(`Bot ${!bot.active ? 'enabled' : 'disabled'}`);
     };
 
     // Sidebar Items
@@ -150,20 +150,20 @@ export const TelegramDashboard = () => {
                     <div className="p-4 border-t border-[var(--border-color)] bg-[var(--bg-input)]/50">
                         <div className="flex items-center justify-between mb-3">
                             <div className="flex items-center gap-2">
-                                <div className={`w-2 h-2 rounded-full ${selectedBot.isEnabled ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]' : 'bg-red-500'}`}></div>
-                                <span className="text-xs font-bold text-[var(--text-secondary)]">{selectedBot.isEnabled ? 'ONLINE' : 'OFFLINE'}</span>
+                                <div className={`w-2 h-2 rounded-full ${selectedBot.active ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]' : 'bg-red-500'}`}></div>
+                                <span className="text-xs font-bold text-[var(--text-secondary)]">{selectedBot.active ? 'ONLINE' : 'OFFLINE'}</span>
                             </div>
                             <button onClick={() => handleDeleteBot(selectedBot.id)} className="text-red-500 hover:bg-red-500/10 p-1.5 rounded transition-colors"><Trash2 size={14} /></button>
                         </div>
                         <button
                             onClick={() => toggleBotActive(selectedBot)}
                             className={`w-full py-2 rounded-lg text-xs font-bold border transition-all flex items-center justify-center gap-2
-                            ${selectedBot.isEnabled
+                            ${selectedBot.active
                                     ? 'border-red-500/30 text-red-500 hover:bg-red-500/10'
                                     : 'border-green-500/30 text-green-500 hover:bg-green-500/10'
                                 }`}
                         >
-                            <Power size={12} /> {selectedBot.isEnabled ? 'Stop Bot' : 'Start Bot'}
+                            <Power size={12} /> {selectedBot.active ? 'Stop Bot' : 'Start Bot'}
                         </button>
                     </div>
                 )}

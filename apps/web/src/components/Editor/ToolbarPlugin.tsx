@@ -1,5 +1,5 @@
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
-import { FORMAT_TEXT_COMMAND, FORMAT_ELEMENT_COMMAND } from 'lexical';
+import { FORMAT_TEXT_COMMAND, FORMAT_ELEMENT_COMMAND, $getSelection, $isRangeSelection } from 'lexical';
 import { INSERT_UNORDERED_LIST_COMMAND, INSERT_ORDERED_LIST_COMMAND } from '@lexical/list';
 import { Bold, Italic, Code, Link as LinkIcon, List, ListOrdered, Smile } from 'lucide-react';
 
@@ -17,9 +17,9 @@ export function ToolbarPlugin() {
         const emoji = prompt('Enter emoji or text:');
         if (emoji) {
             editor.update(() => {
-                const selection = editor.getEditorState()._selection;
-                if (selection) {
-                    editor.dispatchCommand(FORMAT_TEXT_COMMAND, emoji);
+                const selection = $getSelection();
+                if ($isRangeSelection(selection)) {
+                    selection.insertText(emoji);
                 }
             });
         }

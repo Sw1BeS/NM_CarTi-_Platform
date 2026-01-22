@@ -302,7 +302,7 @@ export class ServerAdapter implements DataAdapter {
             };
         }
         if (!settings.navigation) {
-            settings.navigation = defaultNavigation;
+            settings.navigation = { primary: defaultNavigation };
         } else {
             // Normalize: accept either array or object with primary[]
             const navigationArray = Array.isArray(settings.navigation)
@@ -318,7 +318,7 @@ export class ServerAdapter implements DataAdapter {
                     mergedNav.push(item);
                 }
             });
-            settings.navigation = mergedNav.sort((a: any, b: any) => (a.order ?? 999) - (b.order ?? 999));
+            settings.navigation = { primary: mergedNav.sort((a: any, b: any) => (a.order ?? 999) - (b.order ?? 999)) };
         }
 
         return settings;

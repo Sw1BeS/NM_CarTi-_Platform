@@ -134,8 +134,17 @@ export const ScenarioBuilder = () => {
     };
 
     const handleSave = async (scn: Scenario) => {
-        await Data.saveScenario(scn);
-        showToast("Flow Saved Successfully");
+        try {
+            await Data.saveScenario(scn);
+            showToast("Flow Saved Successfully");
+        } catch (e: any) {
+            console.error(e);
+            if (e.message && e.message.includes("Permission")) {
+                showToast("Permission Denied: You cannot edit this scenario.", "error");
+            } else {
+                showToast(e.message || "Failed to save flow", "error");
+            }
+        }
     };
 
     const handleDeleteScenario = async (id: string) => {

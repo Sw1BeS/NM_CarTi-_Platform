@@ -139,8 +139,8 @@ export const MiniAppManager = ({ botId }: { botId: string }) => {
                     <div>
                         <div className="flex justify-between items-center mb-3">
                             <label className="text-xs font-bold text-[var(--text-secondary)] uppercase">Action Buttons</label>
-                            <button 
-                                onClick={addAction} 
+                            <button
+                                onClick={addAction}
                                 className="btn-primary text-xs px-3 py-1.5 flex items-center gap-1"
                             >
                                 <Plus size={14} /> Add Action
@@ -159,8 +159,8 @@ export const MiniAppManager = ({ botId }: { botId: string }) => {
                                             </div>
                                             <span className="text-sm text-[var(--text-primary)] font-semibold">{act.label}</span>
                                         </div>
-                                        <button 
-                                            onClick={() => removeAction(act.id)} 
+                                        <button
+                                            onClick={() => removeAction(act.id)}
                                             className="text-red-500 hover:text-red-400 p-1 rounded hover:bg-red-500/10 transition-colors"
                                         >
                                             <Trash2 size={16} />
@@ -188,7 +188,12 @@ export const MiniAppManager = ({ botId }: { botId: string }) => {
                     <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-6 bg-[#18181B] rounded-b-xl z-20" />
 
                     {/* Header */}
-                    <div className="pt-10 px-6 pb-6" style={{ background: `linear-gradient(to bottom, ${config.primaryColor}20, transparent)` }}>
+                    <div className="pt-10 px-6 pb-6 shadow-sm" style={{ background: `linear-gradient(to bottom, ${config.primaryColor}20, transparent)` }}>
+                        <div className="flex justify-between items-center mb-4 text-white">
+                            <span className="text-blue-400 font-medium text-sm flex items-center gap-1 cursor-pointer">← Back</span>
+                            <span className="font-bold text-sm">Mini App</span>
+                            <span className="w-8"></span>
+                        </div>
                         <h2 className="text-xl font-bold text-white">{config.title}</h2>
                         <p className="text-white/60 text-xs mt-1">{config.welcomeText}</p>
                     </div>

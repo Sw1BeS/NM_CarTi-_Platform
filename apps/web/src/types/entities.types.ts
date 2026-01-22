@@ -10,7 +10,8 @@ export enum RequestStatus {
     SHORTLIST = 'SHORTLIST',
     CONTACT_SHARED = 'CONTACT_SHARED',
     WON = 'WON',
-    LOST = 'LOST'
+    LOST = 'LOST',
+    CLOSED = 'CLOSED'
 }
 
 export enum VariantStatus {

@@ -89,7 +89,7 @@ export const InventoryPage = () => {
 
         // This should theoretically be a bulk API call. 
         // For now, loop calls (inefficient but works for small batches).
-        Array.from(selectedIds).forEach(async id => {
+        Array.from(selectedIds).forEach(async (id: string) => {
             if (action === 'DELETE') {
                 await InventoryService.deleteCar(id);
             } else {
@@ -158,7 +158,7 @@ export const InventoryPage = () => {
                 </div>
                 <div className="flex gap-2">
                     <button onClick={() => setImporting(true)} className="btn-secondary">
-                        <Plus size={18}/> Import URL
+                        <Plus size={18} /> Import URL
                     </button>
                     <button onClick={() => { setEditingCar(null); setIsModalOpen(true); }} className="btn-primary">
                         <Plus size={20} /> Add Car

@@ -153,8 +153,8 @@ export const CompanySettingsPage = () => {
                 </div>
                 <div className="flex items-center gap-3">
                     <div className={`px-3 py-1 rounded text-xs font-bold ${company?.plan === 'ENTERPRISE' ? 'bg-purple-500/20 text-purple-500' :
-                            company?.plan === 'PRO' ? 'bg-blue-500/20 text-blue-500' :
-                                'bg-gray-500/20 text-gray-500'
+                        company?.plan === 'PRO' ? 'bg-blue-500/20 text-blue-500' :
+                            'bg-gray-500/20 text-gray-500'
                         }`}>
                         {company?.plan || 'FREE'}
                     </div>
@@ -170,18 +170,19 @@ export const CompanySettingsPage = () => {
 
                 <div className="grid grid-cols-2 gap-6">
                     <div>
-                        <label className="text-xs font-bold text-[var(--text-secondary)] uppercase block mb-2">
+                        <label className="text-xs font-bold text-[var(--text-secondary)] uppercase block mb-2" title="Your company brand name">
                             Company Name
                         </label>
                         <input
                             className="input"
                             value={branding.name}
                             onChange={e => setBranding({ ...branding, name: e.target.value })}
+                            title="Enter your official company name"
                         />
                     </div>
 
                     <div>
-                        <label className="text-xs font-bold text-[var(--text-secondary)] uppercase block mb-2">
+                        <label className="text-xs font-bold text-[var(--text-secondary)] uppercase block mb-2" title="Main accent color for the interface">
                             Primary Color
                         </label>
                         <div className="flex gap-2">
@@ -190,17 +191,19 @@ export const CompanySettingsPage = () => {
                                 className="w-12 h-10 rounded cursor-pointer"
                                 value={branding.primaryColor}
                                 onChange={e => setBranding({ ...branding, primaryColor: e.target.value })}
+                                title="Pick a color"
                             />
                             <input
                                 className="input flex-1"
                                 value={branding.primaryColor}
                                 onChange={e => setBranding({ ...branding, primaryColor: e.target.value })}
+                                title="Hex color code"
                             />
                         </div>
                     </div>
 
                     <div>
-                        <label className="text-xs font-bold text-[var(--text-secondary)] uppercase block mb-2">
+                        <label className="text-xs font-bold text-[var(--text-secondary)] uppercase block mb-2" title="URL to your logo image">
                             Logo URL
                         </label>
                         <input
@@ -208,11 +211,12 @@ export const CompanySettingsPage = () => {
                             placeholder="https://..."
                             value={branding.logo}
                             onChange={e => setBranding({ ...branding, logo: e.target.value })}
+                            title="Direct link to logo (PNG/SVG recommended)"
                         />
                     </div>
 
                     <div>
-                        <label className="text-xs font-bold text-[var(--text-secondary)] uppercase block mb-2">
+                        <label className="text-xs font-bold text-[var(--text-secondary)] uppercase block mb-2" title="Custom domain for white-labeling">
                             Custom Domain
                         </label>
                         <input
@@ -220,6 +224,7 @@ export const CompanySettingsPage = () => {
                             placeholder="your-domain.com"
                             value={branding.domain}
                             onChange={e => setBranding({ ...branding, domain: e.target.value })}
+                            title="e.g. app.mydealer.com (requires DNS setup)"
                         />
                     </div>
                 </div>

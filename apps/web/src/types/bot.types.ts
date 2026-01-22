@@ -19,6 +19,7 @@ export interface Bot {
     };
     miniAppConfig?: MiniAppConfig;
     adminChannelId?: string;
+    channelId?: string;
     processedUpdateIds?: number[];
     stats?: {
         processed: number;
@@ -158,6 +159,14 @@ export interface TelegramMessage {
     buttons?: { text: string; value: string }[];
 }
 
+
+
+export interface ChatMacro {
+    id: string;
+    shortcut: string;
+    text: string;
+    category: string;
+}
 
 export enum ContentStatus {
     DRAFT = 'DRAFT',

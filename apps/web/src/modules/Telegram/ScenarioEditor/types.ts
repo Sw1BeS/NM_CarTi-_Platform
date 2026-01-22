@@ -1,3 +1,5 @@
+import { Scenario, Bot, MiniAppConfig } from '../../../types';
+
 export interface ScenarioEditorProps {
     botId: string;
     initialScenario?: Scenario;

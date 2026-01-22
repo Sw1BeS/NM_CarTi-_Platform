@@ -68,7 +68,7 @@ export const Dashboard: React.FC = () => {
         const dbStats = {
             requestsNew: requests.length,
             requestsProgress,
-            inventoryValue: inventory.reduce((sum: number, car: any) => sum + (car.price?.amount || 0), 0 as number),
+            inventoryValue: (inventory as any[]).reduce<number>((sum, car: any) => sum + (car.price?.amount || 0), 0),
             inventoryCount: inventory.length,
             inboxNew: msgs.filter(m => m.direction === 'INCOMING').length,
             campaignsActive: campaigns.filter((c: any) => c.status === 'RUNNING').length,

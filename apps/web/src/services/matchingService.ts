@@ -1,6 +1,6 @@
 
 import { Data } from './data';
-import { CarListing, B2BRequest } from '../types';
+import { CarListing, B2BRequest, RequestStatus } from '../types';
 
 export const MatchingService = {
     findMatchesForCar: async (car: CarListing): Promise<{ req: B2BRequest, score: number }[]> => {
@@ -8,7 +8,7 @@ export const MatchingService = {
         const matches: { req: B2BRequest, score: number }[] = [];
 
         requests.forEach(req => {
-            if (req.status === 'CLOSED' || req.status === 'PUBLISHED') return;
+            if (req.status === RequestStatus.CLOSED || req.status === RequestStatus.PUBLISHED) return;
 
             let score = 0;
             let totalWeight = 0;
@@ -17,7 +17,7 @@ export const MatchingService = {
             const carTitle = car.title.toLowerCase();
             const reqTitle = req.title.toLowerCase();
             const brand = reqTitle.split(' ')[0]; // Simple assumption
-            
+
             if (carTitle.includes(brand)) {
                 score += 40;
                 // Model fuzzy match
@@ -48,7 +48,7 @@ export const MatchingService = {
             }
         });
 
-        return matches.sort((a,b) => b.score - a.score);
+        return matches.sort((a, b) => b.score - a.score);
     },
 
     notifyIfMatch: async (car: CarListing) => {
