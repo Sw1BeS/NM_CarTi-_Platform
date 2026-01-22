@@ -48,34 +48,20 @@ preflight() {
 # ========================================
 # STEP 1: Cleanup Old Containers/Networks
 # ========================================
-cleanup_old() {
-  log "Cleaning up old containers/networks..."
+# ========================================
+# STEP 1: Cleanup & Fresh Start
+# ========================================
+cleanup_and_restart() {
+  log "Stopping current stack ($PROJECT)..."
   
-  # Stop and remove any containers with cartie/infra/prod in name
-  local old_containers
-  old_containers=$(docker ps -aq --filter "name=infra" --filter "name=cartie" --filter "name=prod" 2>/dev/null || true)
+  # Graceful shutdown of current project
+  docker compose -p "$PROJECT" -f "$COMPOSE_FILE" down --remove-orphans || warn "Compose down failed (first run?)"
   
-  if [ -n "$old_containers" ]; then
-    log "Found old containers: $(echo "$old_containers" | wc -l) containers"
-    echo "$old_containers" | xargs docker rm -f 2>/dev/null || true
-    log "✅ Old containers removed"
-  else
-    log "No old containers found"
-  fi
+  # Force cleanup of conflicting containers if name changed
+  # (Only if absolutely necessary, but rely on project name mostly)
+  # docker container prune -f
   
-  # Remove old networks
-  local old_networks
-  old_networks=$(docker network ls --filter "name=infra" --filter "name=cartie" --filter "name=prod" -q 2>/dev/null || true)
-  
-  if [ -n "$old_networks" ]; then
-    log "Found old networks: $(echo "$old_networks" | wc -l) networks"
-    echo "$old_networks" | xargs docker network rm 2>/dev/null || true
-    log "✅ Old networks removed"
-  else
-    log "No old networks found"
-  fi
-  
-  log "✅ Cleanup complete"
+  log "✅ Cleaned up"
 }
 
 # ========================================
