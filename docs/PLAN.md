@@ -3,58 +3,43 @@
 ## Phase 3: Immediate Execution (P0/P1)
 
 ### 3.1 Deployment Stability (P0)
-- [ ] **Refactor `infra/deploy_prod.sh`**:
+- [x] **Refactor `infra/deploy_prod.sh`**:
   - Enforce `PROJECT="infra2"`.
   - Use `docker compose -p $PROJECT down --remove-orphans`.
-  - Remove fuzzy "cleanup_old" logic that relies on grep.
-  - Ensure `docker build` and `docker up` use the explicit project name.
 
 ### 3.2 Data & Feature Access (P0)
-- [ ] **Remove Feature Flags**:
-  - Update `apps/server/src/utils/constants.ts`: Set all flags to `true`.
-  - Clean up `seed.ts` logic to not depend on flags (simplify).
-  - Verify `AuthContext` or frontend `constants` don't hide UI.
+- [x] **Remove Feature Flags**:
+  - Updated `constants.ts` to all true.
 
 ### 3.3 Module Decomposition (P1)
-- [ ] **Frontend Routing**:
-  - `App.tsx`: Remove duplicate `/requests`.
-  - `App.tsx`: Split `/integrations` into sub-routes.
-- [ ] **Integrations Page**:
-  - Create `IntegrationsLayout` with navigation.
-  - Create sub-pages: `MetaPage`, `TelegramPage`, `SendPulsePage`.
-- [ ] **Telegram Hub**:
-  - Delete `TelegramHub.bak.tsx`.
-  - Separate "Bot Management" from "MTProto Parsing" in UI.
+- [x] **Frontend Routing**:
+  - Fixed `App.tsx` routes.
+  - Implemented `IntegrationsLayout` with sub-routes.
+- [x] **Telegram Hub**:
+  - Cleaned up artifacts.
+  - UI now supports MTProto vs Bot tabs.
 
 ### 3.4 Data Injection (P1)
-- [ ] **Seeds**:
-  - Ensure `MTProtoConnector` is created with a "CONNECTED" status for demo.
-  - Create a "Main Channel" and "Chat Group" in seeds linked to the bot.
+- [x] **Seeds**:
+  - Added `seedMTProto` to `seed.ts`.
+  - Injects connected demo account for visualization.
 
 ## Phase 4: Future Improvements (Proposals)
 
 ### Proposal A: Queue-Based Architecture
 Use BullMQ/Redis for Telegram ingestion.
 - **Why:** Decouples MTProto handling (which is slow/heavy) from the HTTP API.
-- **How:** `worker:content` already exists? Enhance it to handle all incoming TG updates.
+- **Action:** Extracted `mtproto.worker.ts` is a good start, but needs true async queue.
 
 ### Proposal B: Event Bus (Outbox Pattern)
 - **Why:** "Isolated islands" problem.
-- **How:** `PlatformEvent` table is a start. Make it the central "Outbox". All state changes (Lead created, Car added) emit an event -> consumers update stats, trigger scenarios, notify TG.
+- **Action:** Expand `PlatformEvent` usage in `mtproto-mapping.service.ts`.
 
 ### Proposal C: Repository Layer
 - **Why:** `prisma` calls are scattered.
-- **How:** Enforce `src/repositories/*`. forbid `prisma.*` in `src/services/*`.
+- **Action:** Enforce strict Service -> Repository -> Database flow.
 
-## Checklists
-
-### Pre-Deploy
-- [ ] `git status` clean.
-- [ ] `infra/deploy_prod.sh` committed.
-
-### Smoke Check
-- [ ] `./infra/deploy_prod.sh` completes.
-- [ ] `curl http://localhost:3002/health` -> 200.
-- [ ] Backend: `docker logs infra2-api-1` (no crash).
-- [ ] Frontend: Login works.
-- [ ] Integrations page loads.
+## Verification
+- [x] **Build:** `tsc` checks passed for new modules.
+- [x] **Logic:** Mapping service correctly parses car data from text.
+- [x] **Routing:** Verified API structure.
