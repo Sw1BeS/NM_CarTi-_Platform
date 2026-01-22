@@ -2,6 +2,7 @@
 import { prisma } from '../../../services/prisma.js';
 import { MTProtoService } from './mtproto.service.js';
 import { MessageParser } from './mtproto.utils.js';
+import { processParsedMessage } from '../../../services/mtproto-mapping.service.js';
 // @ts-ignore
 import { v4 as uuidv4 } from 'uuid';
 
@@ -63,58 +64,22 @@ export class MTProtoWorker {
             for (const msg of messages) {
                 if (!msg.message) continue; // Skip empty messages (service messages)
 
-                // Parse
-                const parsed = MessageParser.parse(msg);
+                // Convert MTProto message to our standard format
+                const telegramMessage = {
+                    chatId: source.channelId,
+                    messageId: msg.id,
+                    text: msg.message,
+                    date: new Date(msg.date * 1000), // Convert Unix timestamp to Date
+                    mediaUrls: [], // TODO: Extract media URLs from msg.media
+                    mediaGroupKey: msg.groupedId?.toString() || undefined
+                };
 
-                // If it looks like a car (has price + title), save it
-                // Or if we are lenient, save everything as DRAFT
-
-                // Generate a stable ID based on channel + message ID
-                // But CarListing ID usually UUID. We can search by sourceChatId + sourceMessageId
-
-                const existing = await prisma.carListing.findUnique({
-                    where: {
-                        sourceChatId_sourceMessageId: {
-                            sourceChatId: source.channelId,
-                            sourceMessageId: msg.id
-                        }
-                    }
-                });
-
-                if (existing) {
-                    // Start Live Sync logic here? For now, skip or update status
-                    continue;
-                }
-
-                // Create
-                await prisma.carListing.create({
-                    data: {
-                        id: uuidv4(),
-                        title: parsed.title || 'Untitled Import',
-                        description: parsed.description,
-                        price: parsed.price || 0,
-                        currency: parsed.currency,
-                        year: parsed.year || 0,
-                        mileage: parsed.mileage || 0,
-                        status: parsed.status, // AVAILABLE, SOLD, etc.
-                        source: 'TELEGRAM_CHANNEL',
-                        sourceUrl: `https://t.me/${source.username}/${msg.id}`,
-                        sourceChatId: source.channelId,
-                        sourceMessageId: msg.id,
-                        companyId: source.connector.companyId,
-                        mediaUrls: [],
-                        mediaGroupKey: parsed.mediaGroupId, // Store album ID
-                        originalRaw: JSON.parse(JSON.stringify({
-                            text: msg.message,
-                            date: msg.date,
-                            fwdFrom: msg.fwdFrom
-                        }))
-                    }
-                });
+                // Use mapping service (handles import rules, filtering, dedup)
+                await processParsedMessage(telegramMessage, source);
                 count++;
             }
 
-            console.log(`[MTProtoWorker] Synced ${count} messages from ${source.title}`);
+            console.log(`[MTProtoWorker] Processed ${count} messages from ${source.title}`);
 
             // Update source
             await prisma.channelSource.update({
@@ -182,52 +147,19 @@ export class MTProtoWorker {
     }
 
     private async syncMessage(source: any, msg: any) {
-        // Re-use logic from processSource but for single message
-        // To avoid code duplication, we could extract `saveListing`.
-        // For speed, just inlining the logic modified for single item.
+        // Convert live message to standard format
+        const telegramMessage = {
+            chatId: source.channelId,
+            messageId: msg.id,
+            text: msg.message,
+            date: new Date(msg.date * 1000),
+            mediaUrls: [],
+            mediaGroupKey: msg.groupedId?.toString() || undefined
+        };
 
-        const parsed = MessageParser.parse(msg);
-
-        const existing = await prisma.carListing.findUnique({
-            where: {
-                sourceChatId_sourceMessageId: {
-                    sourceChatId: source.channelId,
-                    sourceMessageId: msg.id
-                }
-            }
-        });
-
-        if (existing) {
-            // Update?
-            // If parsed price changed, update it.
-            return;
-        }
-
-        // Create
-        await prisma.carListing.create({
-            data: {
-                id: uuidv4(),
-                title: parsed.title || 'Live Import',
-                description: parsed.description,
-                price: parsed.price || 0,
-                currency: parsed.currency,
-                year: parsed.year || 0,
-                mileage: parsed.mileage || 0,
-                status: parsed.status,
-                source: 'TELEGRAM_LIVE',
-                sourceUrl: `https://t.me/${source.username}/${msg.id}`,
-                sourceChatId: source.channelId,
-                sourceMessageId: msg.id,
-                companyId: source.connector.companyId,
-                mediaUrls: [],
-                mediaGroupKey: parsed.mediaGroupId, // Store album ID
-                originalRaw: JSON.parse(JSON.stringify({
-                    text: msg.message,
-                    date: msg.date,
-                    fwdFrom: msg.fwdFrom
-                }))
-            }
-        });
+        // Use mapping service (handles all logic)
+        await processParsedMessage(telegramMessage, source);
+        console.log(`[LiveSync] Processed message ${msg.id} from ${source.title}`);
     }
 }
 
