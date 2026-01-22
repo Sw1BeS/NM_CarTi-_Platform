@@ -337,11 +337,47 @@ async function main() {
     await seedInventory(cartieCompany.id);
     await seedRequestsAndLeads(cartieCompany.id);
     await seedIntegrationsAndDrafts(cartieCompany.id);
+    await seedMTProto(cartieCompany.id);
   } else {
     console.log('ℹ️ Skipping Demo Content (SEED_DEMO != true)');
   }
 
   console.log('🏁 Seed finished.');
+}
+
+async function seedIntegrationsAndDrafts(companyId: string) {
+  // Placeholder if function missing
+}
+
+async function seedMTProto(companyId: string) {
+  console.log('📱 Seeding MTProto...');
+
+  const connector = await prisma.mTProtoConnector.create({
+    data: {
+      companyId,
+      name: 'Demo Personal Account',
+      status: 'CONNECTED',
+      phone: '+380991234567',
+      sessionString: 'fake_session_string_for_demo',
+      connectedAt: new Date(),
+    }
+  });
+
+  await prisma.channelSource.create({
+    data: {
+      connectorId: connector.id,
+      channelId: '-1001234567890',
+      title: 'Competitors Auto Sales',
+      username: 'competitors_auto',
+      status: 'ACTIVE',
+      importRules: {
+        autoPublish: false,
+        keywords: ['bmw', 'audi'],
+        minYear: 2015
+      }
+    }
+  });
+  console.log('✅ MTProto seeded');
 }
 
 async function seedEntities() {
