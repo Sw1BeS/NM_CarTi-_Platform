@@ -23,7 +23,9 @@ import { botManager } from './modules/Communication/bots/bot.service.js';
 import { seedAdmin } from './modules/Core/users/user.service.js';
 import { startContentWorker, stopContentWorker, getWorkerStatus } from './workers/content.worker.js';
 import { mtprotoWorker } from './modules/Integrations/mtproto/mtproto.worker.js';
+import { MTProtoLifeCycle } from './modules/Integrations/mtproto/mtproto.lifecycle.js';
 import { workspaceContext } from './middleware/workspaceContext.js';
+import { checkHealth } from './modules/Core/health/health.controller.js';
 import process from 'process';
 
 dotenv.config();
@@ -79,16 +81,8 @@ app.use('/api', botRoutes); // Mount at /api root for /bots, /scenarios etc.
 app.use('/api/qa', qaRoutes);
 app.use('/api/telegram', telegramRoutes);
 
-// Health Check
-app.get('/health', (req, res) => {
-  res.json({
-    status: 'ok',
-    timestamp: new Date(),
-    uptime: process.uptime(),
-    bots: botManager.getStatus(),
-    worker: getWorkerStatus()
-  });
-});
+// Health Check (Robust)
+app.get('/health', checkHealth);
 
 // Serve Frontend (Vite Build)
 import path from 'path';
@@ -128,6 +122,9 @@ const startServer = async () => {
 
     // Start MTProto Live Sync
     mtprotoWorker.startLiveSync();
+
+    // Restore persistent MTProto sessions
+    await MTProtoLifeCycle.initAll();
 
     const server = app.listen(PORT, () => {
       console.log(`🚀 Server running on http://localhost:${PORT}`);
