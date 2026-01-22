@@ -27,6 +27,8 @@ import { ContentCalendarPage } from './pages/app/ContentCalendar';
 import { CompanySettingsPage } from './pages/app/CompanySettings';
 import { MarketplacePage } from './pages/app/Marketplace';
 import { IntegrationsPage } from './pages/app/Integrations';
+import { IntegrationsLayout } from './pages/app/IntegrationsLayout';
+import { IntegrationEditor } from './pages/app/IntegrationEditor';
 import { QAStageA } from './pages/app/QAStageA';
 import { SuperadminRoutes } from './pages/superadmin/DashboardRoutes';
 import { NotFound } from './components/NotFound';
@@ -82,7 +84,10 @@ export default function App() {
                     <Route path="/calendar" element={<ProtectedRoute><ContentCalendarPage /></ProtectedRoute>} />
                     <Route path="/company" element={<ProtectedRoute><CompanySettingsPage /></ProtectedRoute>} />
                     <Route path="/marketplace" element={<ProtectedRoute><MarketplacePage /></ProtectedRoute>} />
-                    <Route path="/integrations" element={<ProtectedRoute><IntegrationsPage /></ProtectedRoute>} />
+                    <Route path="/integrations" element={<ProtectedRoute><IntegrationsLayout /></ProtectedRoute>}>
+                      <Route index element={<IntegrationsPage />} />
+                      <Route path=":type" element={<IntegrationEditor />} />
+                    </Route>
                     <Route path="/qa" element={<ProtectedRoute><QAStageA /></ProtectedRoute>} />
                     <Route path="/health" element={<ProtectedRoute><HealthPage /></ProtectedRoute>} />
                     <Route path="/superadmin/*" element={<ProtectedRoute><SuperadminRoutes /></ProtectedRoute>} />
