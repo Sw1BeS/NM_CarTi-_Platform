@@ -1,0 +1,24 @@
+{
+  "slug": "car",
+  "name": "Car",
+  "description": "Vehicle inventory item",
+  "fields": [
+    { "key": "title", "label": "Title", "type": "text", "required": true },
+    { "key": "price", "label": "Price", "type": "number", "required": true },
+    { "key": "currency", "label": "Currency", "type": "select", "config": { "options": ["USD", "EUR", "UAH"] } },
+    { "key": "year", "label": "Year", "type": "number" },
+    { "key": "mileage", "label": "Mileage (km)", "type": "number" },
+    { "key": "location", "label": "Location", "type": "text" },
+    { "key": "vin", "label": "VIN", "type": "text" },
+    { "key": "transmission", "label": "Transmission", "type": "select", "config": { "options": ["Automatic", "Manual", "CVT", "Robot"] } },
+    { "key": "fuel", "label": "Fuel Type", "type": "select", "config": { "options": ["Petrol", "Diesel", "Electric", "Hybrid"] } },
+    { "key": "engine_volume", "label": "Engine Volume (L)", "type": "number" },
+    { "key": "body_type", "label": "Body Type", "type": "select", "config": { "options": ["Sedan", "SUV", "Coupe", "Hatchback", "Wagon"] } },
+    { "key": "drive_type", "label": "Drive Type", "type": "select", "config": { "options": ["FWD", "RWD", "AWD", "4WD"] } },
+    { "key": "color", "label": "Color", "type": "text" },
+    { "key": "description", "label": "Description", "type": "text", "config": { "multiline": true } },
+    { "key": "source_url", "label": "Source URL", "type": "text" },
+    { "key": "images", "label": "Images", "type": "json" },
+    { "key": "status", "label": "Status", "type": "select", "config": { "options": ["AVAILABLE", "RESERVED", "SOLD", "PENDING", "HIDDEN"] }, "default": "AVAILABLE" }
+  ]
+}

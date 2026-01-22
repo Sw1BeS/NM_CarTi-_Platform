@@ -1,0 +1,14 @@
+{
+  "slug": "deal",
+  "name": "Deal",
+  "description": "Sales opportunity or Lead",
+  "fields": [
+    { "key": "title", "label": "Deal Name", "type": "text", "required": true },
+    { "key": "status", "label": "Stage", "type": "select", "config": { "options": ["NEW", "IN_PROGRESS", "CONTACTED", "WON", "LOST"] }, "default": "NEW" },
+    { "key": "value", "label": "Deal Value", "type": "number" },
+    { "key": "currency", "label": "Currency", "type": "select", "default": "USD", "config": { "options": ["USD", "EUR", "UAH"] } },
+    { "key": "source", "label": "Source", "type": "text" },
+    { "key": "notes", "label": "Notes", "type": "text", "config": { "multiline": true } },
+    { "key": "client_requirements", "label": "Requirements", "type": "json" }
+  ]
+}

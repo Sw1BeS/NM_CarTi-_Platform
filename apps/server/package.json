@@ -11,6 +11,9 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate deploy",
     "seed": "tsx prisma/seed.ts",
+    "migrate:v4:seed": "tsx scripts/seed_definitions.ts",
+    "migrate:v4:inventory": "tsx scripts/migrate_inventory.ts",
+    "migrate:v4:leads": "tsx scripts/migrate_leads.ts",
     "test": "vitest"
   },
   "dependencies": {
