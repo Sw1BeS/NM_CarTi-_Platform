@@ -211,34 +211,89 @@ async function main() {
       data: {
         navigation: {
           primary: [
-            { key: 'dashboard', label: 'Dashboard', href: '/' },
-            { key: 'requests', label: 'Requests', href: '/requests' },
-            { key: 'inventory', label: 'Inventory', href: '/inventory' }
+            { key: 'dashboard', label: 'Dashboard', href: '/', roles: ['ADMIN', 'MANAGER', 'DEALER', 'OPERATOR'] },
+            { key: 'requests', label: 'Requests', href: '/requests', roles: ['ADMIN', 'MANAGER', 'DEALER'] },
+            { key: 'inventory', label: 'Inventory', href: '/inventory', roles: ['ADMIN', 'MANAGER', 'DEALER'] },
+            { key: 'leads', label: 'Leads', href: '/inbox', roles: ['ADMIN', 'MANAGER', 'OPERATOR'] },
+            { key: 'telegram', label: 'Telegram', href: '/telegram', roles: ['ADMIN', 'MANAGER'] },
+            { key: 'scenarios', label: 'Scenarios', href: '/scenarios', roles: ['ADMIN'] },
+            { key: 'content', label: 'Content', href: '/content', roles: ['ADMIN', 'MANAGER'] },
+            { key: 'marketplace', label: 'Marketplace', href: '/marketplace', roles: ['ADMIN', 'OWNER'] },
+            { key: 'integrations', label: 'Integrations', href: '/integrations', roles: ['ADMIN', 'OWNER'] },
+            { key: 'settings', label: 'Settings', href: '/settings', roles: ['ADMIN', 'OWNER'] }
           ]
         },
         features: {
-          analytics: true,
-          bots: true,
-          inventory: true,
-          b2bRequests: true
-        }
-      } as any
-    });
-    console.log('✅ System Settings initialized');
-  } else {
-    await prisma.systemSettings.update({
-      where: { id: 1 },
-      data: {
-        navigation: Prisma.JsonNull,
-        features: {
+          // Core Modules - ALL ENABLED BY DEFAULT
+          MODULE_LEADS: true,
+          MODULE_INVENTORY: true,
+          MODULE_REQUESTS: true,
+          MODULE_TELEGRAM: true,
+          MODULE_SCENARIOS: true,
+          MODULE_CAMPAIGNS: true,
+          MODULE_CONTENT: true,
+          MODULE_MARKETPLACE: true,
+          MODULE_INTEGRATIONS: true,
+          MODULE_COMPANIES: true,
+
+          // Deprecated/Legacy (remove if unused)
           analytics: true,
           bots: true,
           inventory: true,
           b2bRequests: true,
           templates: true
+        },
+        modules: {
+          // Default enabled modules
+          leads: { enabled: true, roles: ['ADMIN', 'MANAGER', 'OPERATOR'] },
+          inventory: { enabled: true, roles: ['ADMIN', 'MANAGER', 'DEALER'] },
+          requests: { enabled: true, roles: ['ADMIN', 'MANAGER', 'DEALER'] },
+          telegram: { enabled: true, roles: ['ADMIN', 'MANAGER'] },
+          scenarios: { enabled: true, roles: ['ADMIN'] },
+          campaigns: { enabled: true, roles: ['ADMIN', 'MANAGER'] },
+          content: { enabled: true, roles: ['ADMIN', 'MANAGER'] },
+          marketplace: { enabled: true, roles: ['ADMIN', 'OWNER'] },
+          integrations: { enabled: true, roles: ['ADMIN', 'OWNER'] }
         }
       } as any
-    }).catch(() => null);
+    });
+    console.log('✅ System Settings initialized with ALL features enabled by default');
+  } else {
+    // Update existing settings to enable all features
+    await prisma.systemSettings.update({
+      where: { id: 1 },
+      data: {
+        features: {
+          MODULE_LEADS: true,
+          MODULE_INVENTORY: true,
+          MODULE_REQUESTS: true,
+          MODULE_TELEGRAM: true,
+          MODULE_SCENARIOS: true,
+          MODULE_CAMPAIGNS: true,
+          MODULE_CONTENT: true,
+          MODULE_MARKETPLACE: true,
+          MODULE_INTEGRATIONS: true,
+          MODULE_COMPANIES: true,
+          analytics: true,
+          bots: true,
+          inventory: true,
+          b2bRequests: true,
+          templates: true
+        },
+        modules: {
+          leads: { enabled: true, roles: ['ADMIN', 'MANAGER', 'OPERATOR'] },
+          inventory: { enabled: true, roles: ['ADMIN', 'MANAGER', 'DEALER'] },
+          requests: { enabled: true, roles: ['ADMIN', 'MANAGER', 'DEALER'] },
+          telegram: { enabled: true, roles: ['ADMIN', 'MANAGER'] },
+          scenarios: { enabled: true, roles: ['ADMIN'] },
+          campaigns: { enabled: true, roles: ['ADMIN', 'MANAGER'] },
+          content: { enabled: true, roles: ['ADMIN', 'MANAGER'] },
+          marketplace: { enabled: true, roles: ['ADMIN', 'OWNER'] },
+          integrations: { enabled: true, roles: ['ADMIN', 'OWNER'] }
+        }
+      } as any
+    }).catch(() => console.log('⚠️ SystemSettings update failed (might not exist yet)'));
+    console.log('✅ System Settings updated with ALL features enabled');
   }
 
   // 3. Demo company users

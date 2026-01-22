@@ -64,7 +64,10 @@ router.delete('/bots/:id', requireRole(['ADMIN']), async (req, res) => {
 // --- SCENARIOS ---
 router.get('/scenarios', requireRole(['ADMIN', 'MANAGER']), async (req, res) => {
     const isActive = req.query.isActive as string | undefined;
+    const companyId = (req as any).user?.companyId;
+
     const where: any = {};
+    if (companyId) where.companyId = companyId;
     if (isActive === 'true') where.isActive = true;
     if (isActive === 'false') where.isActive = false;
 
@@ -77,15 +80,27 @@ router.get('/scenarios', requireRole(['ADMIN', 'MANAGER']), async (req, res) => 
 
 router.post('/scenarios', requireRole(['ADMIN']), async (req, res) => {
     const { id, ...data } = req.body;
+    const companyId = (req as any).user?.companyId;
+
+    if (!companyId) {
+        return res.status(400).json({ error: 'Company ID required' });
+    }
+
     try {
         if (id) {
-            const updated = await prisma.scenario.update({ where: { id }, data });
+            const updated = await prisma.scenario.update({
+                where: { id },
+                data: { ...data, companyId }
+            });
             res.json(updated);
         } else {
-            const created = await prisma.scenario.create({ data });
+            const created = await prisma.scenario.create({
+                data: { ...data, companyId }
+            });
             res.json(created);
         }
     } catch (e: any) {
+        console.error('[Scenario Save Error]:', e);
         res.status(500).json({ error: e.message });
     }
 });

@@ -1,6 +1,7 @@
 import { PrismaClient, RequestVariant, B2bRequest, RequestStatus, ChannelPost, MessageLog } from '@prisma/client';
 import { BaseRepository } from './base.repository.js';
 import { generateULID } from '../utils/ulid.js';
+import { generatePublicId } from '../services/dto.js';
 
 export class RequestRepository extends BaseRepository<B2bRequest> {
     constructor(prisma: PrismaClient) {
@@ -39,6 +40,7 @@ export class RequestRepository extends BaseRepository<B2bRequest> {
         return this.prisma.b2bRequest.create({
             data: {
                 id: generateULID(),
+                publicId: data.publicId || generatePublicId(),
                 ...data
             }
         });

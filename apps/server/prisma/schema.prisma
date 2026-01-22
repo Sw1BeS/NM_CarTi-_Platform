@@ -204,6 +204,11 @@ model Lead {
   activities LeadActivity[]
 
   @@index([botId])
+  @@index([status])
+  @@index([phone])
+  @@index([botId, status])
+  @@index([botId, phone, createdAt])
+  @@index([userTgId, botId])
 }
 
 model LeadActivity {
@@ -263,6 +268,7 @@ model B2bRequest {
   @@index([companyId])
   @@index([status])
   @@index([companyId, status])
+  @@index([companyId, status, createdAt])
 }
 
 model RequestVariant {
@@ -331,39 +337,42 @@ model CarListing {
   status      String   @default("AVAILABLE") // AVAILABLE, RESERVED, SOLD, PENDING, HIDDEN
   companyId   String?
   postedAt    DateTime @default(now())
-  
+
   // MTProto Sync Fields
   sourceChatId    String?
   sourceMessageId Int?
   mediaGroupKey   String?
-  originalRaw     Json?     @db.JsonB // Store original raw message for debug/re-parse
+  originalRaw     Json?   @db.JsonB // Store original raw message for debug/re-parse
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
+  @@unique([sourceChatId, sourceMessageId]) // Dedup by source
   @@index([price])
   @@index([year])
   @@index([status])
   @@index([companyId])
-  @@unique([sourceChatId, sourceMessageId]) // Dedup by source
+  @@index([companyId, status])
+  @@index([companyId, status, createdAt])
+  @@index([year, price])
 }
 
 model MTProtoConnector {
-  id            String   @id @default(cuid())
-  name          String
-  status        String   @default("DISCONNECTED") // DISCONNECTED, CONNECTING, READY, ERROR
-  
+  id     String @id @default(cuid())
+  name   String
+  status String @default("DISCONNECTED") // DISCONNECTED, CONNECTING, READY, ERROR
+
   // Credentials (optional overrides)
   workspaceApiId   Int?
   workspaceApiHash String?
-  
+
   // Session
-  sessionString String?  // Store securely
+  sessionString String? // Store securely
   phone         String?
-  
+
   // Ownership
-  companyId     String
-  workspace     Workspace @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  companyId String
+  workspace Workspace @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   // Meta
   connectedAt       DateTime?
@@ -372,20 +381,20 @@ model MTProtoConnector {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
+
   channelSources ChannelSource[]
 
   @@index([companyId])
 }
 
 model ChannelSource {
-  id          String   @id @default(cuid())
+  id          String           @id @default(cuid())
   connectorId String
   connector   MTProtoConnector @relation(fields: [connectorId], references: [id], onDelete: Cascade)
 
-  channelId   String   // Telegram Channel ID
-  username    String?
-  title       String
+  channelId String // Telegram Channel ID
+  username  String?
+  title     String
 
   // Import Config
   // { 
@@ -394,14 +403,14 @@ model ChannelSource {
   //   minYear: number, 
   //   mapTo: { brand: 'BMW' } 
   // }
-  importRules Json?    @db.JsonB 
-  
-  status      String   @default("ACTIVE") // ACTIVE, PAUSED, ERROR
-  lastSyncedAt DateTime?
-  lastMessageId Int?   // Checkpoint for backfill/sync
+  importRules Json? @db.JsonB
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  status        String    @default("ACTIVE") // ACTIVE, PAUSED, ERROR
+  lastSyncedAt  DateTime?
+  lastMessageId Int? // Checkpoint for backfill/sync
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([connectorId, channelId])
   @@index([status])
@@ -566,19 +575,19 @@ model Campaign {
 }
 
 model SystemSettings {
-  id            Int      @id @default(autoincrement())
-  autoriaApiKey String?
-  metaPixelId   String?
-  metaToken     String?
-  metaTestCode  String?
-  sendpulseId   String?
+  id              Int      @id @default(autoincrement())
+  autoriaApiKey   String?
+  metaPixelId     String?
+  metaToken       String?
+  metaTestCode    String?
+  sendpulseId     String?
   sendpulseSecret String?
-  navigation    Json?
-  features      Json?
-  branding      Json?
-  modules       Json?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  navigation      Json?
+  features        Json?
+  branding        Json?
+  modules         Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }
 
 model SystemLog {

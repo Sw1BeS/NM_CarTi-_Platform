@@ -4,8 +4,10 @@ import { Router } from 'express';
 import { prisma } from '../../../services/prisma.js';
 import { authenticateToken, requireRole } from '../../../middleware/auth.js';
 import { mapInventoryInput, mapInventoryOutput } from '../../../services/dto.js';
+import { CarRepository } from '../../../repositories/index.js';
 
 const router = Router();
+const carRepo = new CarRepository(prisma);
 
 // --- Inventory (CarListing) ---
 
@@ -49,15 +51,17 @@ router.get('/', async (req, res) => {
         ];
     }
 
-    const [total, items] = await Promise.all([
-        prisma.carListing.count({ where }),
-        prisma.carListing.findMany({
-            where,
-            orderBy: { createdAt: 'desc' },
-            take: limit,
-            skip
-        })
-    ]);
+    const { items, total } = await carRepo.findCars({
+        status,
+        priceMin,
+        priceMax,
+        yearMin,
+        yearMax,
+        search,
+        skip,
+        take: limit,
+        companyId: (req as any).user?.companyId
+    });
 
     res.json({
         items: items.map(mapInventoryOutput),
@@ -71,17 +75,13 @@ router.get('/', async (req, res) => {
 router.post('/', requireRole(['ADMIN', 'MANAGER']), async (req, res) => {
     try {
         const mapped = mapInventoryInput(req.body || {});
-        const carId = mapped.id || `inv_${Date.now()}`;
-
-        const car = await prisma.carListing.create({
-            data: {
-                ...mapped,
-                id: carId
-            }
+        const car = await carRepo.createCar({
+            ...mapped,
+            companyId: (req as any).user?.companyId
         });
         res.json(mapInventoryOutput(car));
     } catch (e: any) {
-        console.error(e);
+        console.error('[Inventory POST Error]:', e);
         res.status(500).json({ error: 'Failed to create car: ' + e.message });
     }
 });
@@ -92,20 +92,23 @@ router.put('/:id', requireRole(['ADMIN', 'MANAGER']), async (req, res) => {
         const { id: _id, createdAt, updatedAt, ...raw } = req.body;
         const updateData = mapInventoryInput(raw);
 
-        const car = await prisma.carListing.update({ where: { id }, data: updateData });
+        const car = await carRepo.updateCar(id, updateData);
         res.json(mapInventoryOutput(car));
     } catch (e: any) {
-        console.error(e);
-        res.status(500).json({ error: 'Failed to update car' });
+        console.error('[Inventory PUT Error]:', e);
+        res.status(500).json({ error: 'Failed to update car: ' + e.message });
     }
 });
 
 router.delete('/:id', requireRole(['ADMIN']), async (req, res) => {
     try {
         const id = req.params.id;
-        await prisma.carListing.delete({ where: { id } });
+        await carRepo.deleteCar(id);
         res.json({ success: true });
-    } catch (e) { res.status(500).json({ error: 'Failed to delete car' }); }
+    } catch (e: any) {
+        console.error('[Inventory DELETE Error]:', e);
+        res.status(500).json({ error: 'Failed to delete car: ' + e.message });
+    }
 });
 
 export default router;

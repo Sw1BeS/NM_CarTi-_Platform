@@ -202,30 +202,6 @@ export const createOrMergeLead = async (input: LeadCreateInput, botConfig?: any)
     }).catch(console.error);
   }
 
-  // Meta CAPI Event
-  if (input.companyId) {
-    import('../../../Integrations/meta.service.js').then(({ sendMetaEvent }) => {
-      sendMetaEvent('Lead', {
-        user: { phone: normalizedPhone, id: input.userId },
-        customData: { leadId: lead.id, source: lead.source }
-      }).catch(err => console.error('[LeadService] Meta event failed:', err));
-    });
-  }
-
-  // SendPulse Integration
-  if (input.email || normalizedPhone) {
-    import('../../../Integrations/sendpulse/sendpulse.service.js').then(async ({ SendPulseService }) => {
-      const settings = await prisma.systemSettings.findFirst();
-      const s = settings as any; // Cast to any to avoid stale type errors
-      if (s?.sendpulseId && s?.sendpulseSecret) {
-        console.log('[LeadService] Syncing to SendPulse...');
-        // TODO: Add addressBookId to settings or use a default one
-        // const config = { ...settings, addressBookId: settings.sendpulseListId };
-        // SendPulseService.getInstance().syncContact(config, email, ...);
-      }
-    }).catch(err => console.error('[LeadService] SendPulse sync failed:', err));
-  }
-
   return { lead, isDuplicate: false, request: createdRequest };
 };
 
