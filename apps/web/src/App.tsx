@@ -7,6 +7,8 @@ import { RequestList } from './pages/app/Requests';
 
 import { TelegramHub } from './pages/app/TelegramHub';
 import { InboxPage } from './pages/app/Inbox';
+import { ScenarioBuilder } from './pages/app/ScenarioBuilder';
+import { AutomationBuilder } from './pages/app/AutomationBuilder';
 
 import { Leads } from './pages/app/Leads';
 import { Login } from './pages/public/Login';
@@ -68,6 +70,8 @@ export default function App() {
                     <Route path="/requests" element={<ProtectedRoute><RequestList /></ProtectedRoute>} />
                     <Route path="/requests" element={<ProtectedRoute><RequestList /></ProtectedRoute>} />
                     <Route path="/telegram" element={<ProtectedRoute><TelegramHub /></ProtectedRoute>} />
+                    <Route path="/scenarios" element={<ProtectedRoute><ScenarioBuilder /></ProtectedRoute>} />
+                    <Route path="/automations" element={<ProtectedRoute><AutomationBuilder /></ProtectedRoute>} />
                     <Route path="/leads" element={<ProtectedRoute><Leads /></ProtectedRoute>} />
                     <Route path="/search" element={<ProtectedRoute><SearchPage /></ProtectedRoute>} />
                     <Route path="/inventory" element={<ProtectedRoute><InventoryPage /></ProtectedRoute>} />

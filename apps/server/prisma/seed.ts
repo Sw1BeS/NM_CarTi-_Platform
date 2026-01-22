@@ -224,6 +224,10 @@ async function main() {
           ]
         },
         features: {
+          // ⚠️ FEATURE FLAGS DISABLED PER REQUIREMENT
+          // All features are permanently enabled. This field kept for backward compatibility.
+          // User requirement: "Всё должно быть доступно всем пользователям"
+
           // Core Modules - ALL ENABLED BY DEFAULT
           MODULE_LEADS: true,
           MODULE_INVENTORY: true,

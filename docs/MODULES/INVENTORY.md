@@ -1,70 +1,33 @@
 # Inventory Module
 
-> **Purpose**: Car inventory and data normalization  
-> **Submodules**: `inventory`, `normalization`
-
----
-
-## Overview
-
-Vehicle inventory management:
-- Car catalog (inventory)
-- Brand/model/city normalization
-- Phone number normalization
-
----
+> Purpose: Car inventory and normalization
+> Submodules: inventory, normalization
 
 ## Module Structure
-
 ```
-modules/Inventory/
+apps/server/src/modules/Inventory/
 ├── inventory/
-│   ├── inventory.routes.ts     # Car CRUD
+│   ├── inventory.routes.ts
 │   └── inventory.service.ts
 └── normalization/
-    ├── brand.service.ts        # Brand standardization
-    ├── city.service.ts         # City/region mapping
-    ├── model.service.ts        # Model normalization
-    ├── phone.service.ts        # Phone number parsing
-    └── normalization.types.ts
+    ├── normalizationStore.ts
+    ├── normalizeBrand.ts
+    ├── normalizeCity.ts
+    ├── normalizeModel.ts
+    ├── normalizePhone.ts
+    └── normalizeBrand.test.ts
 ```
 
----
-
-## Key Entities
-
-- `Car` - Inventory item
-- `Brand` - Car manufacturer
-- `Model` - Car model
-- `City` - Location data
-
----
-
-## Critical Endpoints
-
-- `GET /api/inventory/cars` - List cars
-- `POST /api/inventory/cars` - Add car
-- `PUT /api/inventory/cars/:id` - Update car
-- `DELETE /api/inventory/cars/:id` - Remove car
-
----
+## Key Endpoints
+- GET /api/inventory/cars
+- POST /api/inventory/cars
 
 ## Integration Points
-
-- **Prisma**: Direct calls for car CRUD (⚠️ Phase 3 refactor)
-- **Normalization**: Brand/model/city helpers used across modules
-
----
+- Prisma for inventory CRUD
+- Normalization helpers used in request/lead handling
 
 ## Verification Checklist
+- Inventory list returns
+- Normalization helpers behave as expected
 
-✅ Car can be added to inventory  
-✅ Car appears in list  
-✅ Brand normalization works (e.g., "BMW" = "bmw")  
-✅ Phone normalization strips formatting  
-✅ City autocomplete returns matches
-
----
-
-**Owner**: Inventory domain  
-**Last Updated**: 2026-01-22
+Last updated: 2026-01-22

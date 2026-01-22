@@ -1,34 +1,22 @@
 # Integrations Module
 
-> **Purpose**: External service integrations  
-> **Submodules**: `meta`, `mtproto`, `sendpulse`, `viber`, `whatsapp`
-
----
-
-## Overview
-
-Third-party service integrations:
-- Meta (Facebook/Instagram) CAPI events
-- MTProto (Telegram user client for channel scraping)
-- SendPulse (Email/SMS marketing)
-- Viber webhooks
-- WhatsApp webhooks
-
----
+> Purpose: External service integrations
+> Submodules: meta, mtproto, sendpulse, viber, whatsapp, autoria
 
 ## Module Structure
-
 ```
-modules/Integrations/
-├── integration.routes.ts       # Generic integration CRUD
+apps/server/src/modules/Integrations/
+├── integration.routes.ts
 ├── integration.service.ts
+├── autoria.service.ts
+├── meta.service.ts
 ├── meta/
-│   └── meta.service.ts         # Meta CAPI tracking
+│   └── meta.service.ts
 ├── mtproto/
-│   ├── mtproto.routes.ts       # Connector management
+│   ├── mtproto.routes.ts
 │   ├── mtproto.service.ts
-│   ├── mtproto.worker.ts       # Live sync worker
-│   └── mtproto.types.ts
+│   ├── mtproto.utils.ts
+│   └── mtproto.worker.ts
 ├── sendpulse/
 │   └── sendpulse.service.ts
 ├── viber/
@@ -37,44 +25,21 @@ modules/Integrations/
     └── whatsapp.service.ts
 ```
 
----
-
-## Key Entities
-
-- `Integration` - Generic integration config
-- `MTProtoConnector` - Telegram user session
-- `ChannelSource` - Telegram channel to scrape
-- `CarListing` - Auto listing from channels
-
----
-
-## Critical Endpoints
-
-- `GET /api/integrations` - List integrations
-- `POST /api/integrations` - Configure integration
-- `POST /api/webhooks/whatsapp` - WhatsApp webhook (public)
-- `POST /api/webhooks/viber` - Viber webhook (public)
-- `GET /api/mtproto/connectors` - List MTProto sessions
-
----
+## Key Endpoints
+- GET /api/integrations
+- POST /api/integrations
+- POST /api/webhooks/whatsapp
+- POST /api/webhooks/viber
+- GET /api/mtproto/* (see mtproto.routes.ts)
 
 ## Integration Points
-
-- **Prisma**: Direct calls for integration configs, MTProto data (⚠️ Phase 3 refactor)
-- **External SDKs**: Meta Graph API, Telegram MTProto, SendPulse API
-- **Workers**: `mtprotoWorker.startLiveSync()` for channel monitoring
-
----
+- Meta, SendPulse, WhatsApp, Viber, MTProto
+- MTProto worker started from `apps/server/src/index.ts`
+- Some integration helpers are imported in `apps/server/src/routes/apiRoutes.ts`
 
 ## Verification Checklist
+- Integrations list returns
+- Webhooks accept POSTs
+- MTProto worker reports status
 
-✅ Meta CAPI events fire correctly  
-✅ MTProto can connect and scrape channels  
-✅ WhatsApp/Viber webhooks receive messages  
-✅ SendPulse sends emails/SMS  
-✅ Integration configs save and load
-
----
-
-**Owner**: Integrations domain  
-**Last Updated**: 2026-01-22
+Last updated: 2026-01-22

@@ -1,87 +1,47 @@
 # Core Module
 
-> **Purpose**: Authentication, multi-tenancy, system administration  
-> **Submodules**: `auth`, `companies`, `superadmin`, `system`, `templates`, `users`
-
----
-
-## Overview
-
-Core platform functionality including:
-- User
-
- authentication and JWT management
-- Multi-tenant workspace isolation
-- System administration and monitoring
-- Marketplace template management
-- User management and seeding
-
----
+> Purpose: Authentication, tenancy, system config, templates, users
+> Submodules: auth, companies, superadmin, system, templates, users
 
 ## Module Structure
-
 ```
-modules/Core/
+apps/server/src/modules/Core/
 ├── auth/
-│   └── auth.routes.ts          # Login, register, JWT
+│   └── auth.routes.ts
 ├── companies/
-│   ├── company.routes.ts       # Workspace CRUD
+│   ├── company.routes.ts
 │   └── company.service.ts
 ├── superadmin/
-│   ├── superadmin.routes.ts    # System-wide admin
-│   ├── superadmin.service.ts
-│   └── superadmin.types.ts
+│   ├── client-manager.service.ts
+│   ├── superadmin.routes.ts
+│   └── superadmin.service.ts
 ├── system/
-│   ├── system.routes.ts        # Health, metrics
-│   └── system.service.ts
+│   ├── settings.service.ts
+│   ├── system.routes.ts
+│   └── systemLog.service.ts
 ├── templates/
-│   ├── template.routes.ts      # Marketplace templates
+│   ├── template.routes.ts
 │   └── template.service.ts
 └── users/
-    └── user.service.ts          # User seeding, helpers
+    └── user.service.ts
 ```
 
----
-
-## Key Entities
-
-- `User` / `GlobalUser` - User accounts
-- `Workspace` - Multi-tenant workspace (company)
-- `Membership` - User-workspace association
-- `ScenarioTemplate` - Marketplace templates
-- `SystemLog` - Audit trail
-
----
-
-## Critical Endpoints
-
-- `POST /api/auth/login` - User login
-- `POST /api/auth/register` - User registration
-- `GET /api/companies` - List workspaces
-- `POST /api/companies` - Create workspace
-- `GET /api/users` - List users (admin)
-- `GET /api/templates` - List marketplace templates
-- `GET /api/system/health` - System health check
-
----
+## Key Endpoints
+- POST /api/auth/login
+- POST /api/auth/register
+- GET /api/companies
+- GET /api/users
+- GET /api/templates
+- GET /api/system/settings/public
 
 ## Integration Points
-
-- **Prisma**: Heavy direct usage for auth, workspaces, users (⚠️ Phase 3 refactor target)
-- **JWT**: `jsonwebtoken` for auth tokens
-- **Middleware**: `workspaceContext` for tenant isolation
-
----
+- JWT auth middleware
+- Workspace context middleware
+- Prisma access for users/workspaces/templates
 
 ## Verification Checklist
+- Login returns JWT
+- Workspace-scoped data access works
+- System settings public endpoint returns config
 
-✅ Login returns valid JWT  
-✅ Workspace isolation works (users see only their data)  
-✅ Admin can create users/workspaces  
-✅ System health endpoint returns status  
-✅ Marketplace templates load correctly
-
----
-
-**Owner**: Core platform domain  
-**Last Updated**: 2026-01-22
+Last updated: 2026-01-22
