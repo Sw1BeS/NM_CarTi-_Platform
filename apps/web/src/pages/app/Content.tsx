@@ -6,7 +6,7 @@ import { ApiClient } from '../../services/apiClient';
 import { DraftsService, DraftRecord } from '../../services/draftsService';
 import { CarListing, TelegramDestination, Bot } from '../../types';
 import { useToast } from '../../contexts/ToastContext';
-import { Send, Image as ImageIcon, Calendar, Eye, X, Check, Plus, Search, Filter } from 'lucide-react';
+import { Send, Image as ImageIcon, Calendar, Eye, X, Check, Plus, Search, Filter, Smile } from 'lucide-react';
 import { ContentGenerator } from '../../services/contentGenerator';
 import { TelegramEditor } from '../../components/Editor';
 

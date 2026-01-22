@@ -18,8 +18,10 @@ import { setWebhookForBot, deleteWebhookForBot } from '../modules/Communication/
 import { telegramOutbox } from '../modules/Communication/telegram/messaging/outbox/telegramOutbox.js';
 import { whatsAppRouter } from '../modules/Integrations/whatsapp/whatsapp.service.js';
 import { viberRouter } from '../modules/Integrations/viber/viber.service.js';
+import { LeadRepository } from '../repositories/lead.repository.js';
 
 const integrationService = new IntegrationService();
+const leadRepository = new LeadRepository(prisma);
 
 const router = Router();
 
@@ -868,7 +870,9 @@ router.post('/leads', async (req, res) => {
         const { id, ...raw } = req.body || {};
         const mapped = mapLeadCreateInput(raw);
         if (mapped.error) return res.status(400).json({ error: mapped.error });
-        const lead = await prisma.lead.create({ data: mapped.data });
+
+        // Use repository for Dual Write
+        const lead = await leadRepository.createLead(mapped.data);
         res.json(mapLeadOutput(lead));
     } catch (e) { console.error(e); res.status(500).json({ error: 'Failed to create lead' }); }
 });
@@ -879,8 +883,11 @@ router.put('/leads/:id', async (req, res) => {
         const { id } = req.params;
         const existing = await prisma.lead.findUnique({ where: { id } });
         if (!existing) return res.status(404).json({ error: 'Lead not found' });
+
         const mapped = mapLeadUpdateInput(raw, existing.payload);
-        const lead = await prisma.lead.update({ where: { id }, data: mapped.data });
+
+        // Use repository for Dual Write
+        const lead = await leadRepository.updateLead(id, mapped.data);
         res.json(mapLeadOutput(lead));
     } catch (e) { console.error(e); res.status(500).json({ error: 'Failed to update lead' }); }
 });
