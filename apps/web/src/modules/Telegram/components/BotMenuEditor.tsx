@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Data } from '../../services/data';
-import { Bot, BotMenuButtonConfig, Scenario } from '../../types';
+import React, { useState, useEffect } from 'react';
+import { Data } from '../../../services/data';
+import { Bot, BotMenuButtonConfig, Scenario } from '../../../types';
 import { Plus, Trash2, Upload, Download, UploadCloud, Grid } from 'lucide-react';
-import { useToast } from '../../contexts/ToastContext';
-import { TelegramAPI } from '../../services/telegram';
+import { useToast } from '../../../contexts/ToastContext';
+import { TelegramAPI } from '../../../services/telegram';
 
 const normalizeMenuConfig = (menuConfig?: Bot['menuConfig']) => {
     const buttonsRaw = Array.isArray(menuConfig?.buttons) ? menuConfig!.buttons : [];
@@ -25,9 +25,9 @@ const normalizeMenuConfig = (menuConfig?: Bot['menuConfig']) => {
     };
 };
 
-export const BotMenuEditor = ({ scenarios }: { scenarios: Scenario[] }) => {
+export const BotMenuEditor = ({ scenarios, botId, standalone = false }: { scenarios: Scenario[], botId?: string, standalone?: boolean }) => {
     const [bots, setBots] = useState<Bot[]>([]);
-    const [selectedBotId, setSelectedBotId] = useState<string>('');
+    const [selectedBotId, setSelectedBotId] = useState<string>(botId || '');
     const { showToast } = useToast();
     const configInputRef = useRef<HTMLInputElement>(null);
 
@@ -35,10 +35,13 @@ export const BotMenuEditor = ({ scenarios }: { scenarios: Scenario[] }) => {
         const load = async () => {
             const list = await Data.getBots();
             setBots(list);
-            if (list.length > 0) setSelectedBotId(list[0].id);
+            if (!botId && list.length > 0) setSelectedBotId(list[0].id);
         };
         load();
-    }, []);
+    }, [botId]);
+
+    // If botId prop changes (Studio Mode), update selection
+    useEffect(() => { if (botId) setSelectedBotId(botId); }, [botId]);
 
     const bot = bots.find(b => b.id === selectedBotId);
 
@@ -126,23 +129,18 @@ export const BotMenuEditor = ({ scenarios }: { scenarios: Scenario[] }) => {
     }, {} as Record<number, BotMenuButtonConfig[]>);
 
     return (
-        <div className="flex flex-col lg:flex-row gap-8 bg-[var(--bg-app)] p-4 md:p-8 h-full overflow-y-auto lg:overflow-hidden">
+        <div className={`flex flex-col lg:flex-row gap-8 bg-[var(--bg-app)] p-4 md:p-8 h-full overflow-y-auto lg:overflow-hidden ${standalone ? '' : 'rounded-xl'}`}>
             <input type="file" ref={configInputRef} onChange={handleImportConfig} accept=".json" className="hidden" />
 
-            {/* Visual Preview (Dark Mode Telegram) */}
-            <div className="w-[350px] bg-[#0E1621] rounded-[40px] border-[8px] border-[#18181B] shadow-2xl flex flex-col overflow-hidden shrink-0 h-[700px] relative">
-                {/* Notch */}
+            {/* Visual Preview */}
+            <div className="w-[350px] bg-[#0E1621] rounded-[40px] border-[8px] border-[#18181B] shadow-2xl flex flex-col overflow-hidden shrink-0 h-[700px] relative mx-auto lg:mx-0">
                 <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-6 bg-[#18181B] rounded-b-xl z-20"></div>
-
-                {/* Screen Content */}
                 <div className="bg-[url('https://telegram.org/file/464001088/1/bSWkX5Y-Q7Y/7680076a5933615174')] bg-cover flex-1 p-4 flex flex-col items-center justify-center text-white text-sm">
                     <div className="bg-[#182533] p-3 rounded-lg shadow-sm mt-4 text-xs w-full max-w-[80%] ml-auto text-left opacity-90">
                         {menuConfig.welcomeMessage || "Welcome!"}
                         <div className="text-[9px] text-gray-400 text-right mt-1">10:00 AM</div>
                     </div>
                 </div>
-
-                {/* Keyboard Area */}
                 <div className="bg-[#17212B] p-2 pb-8 grid gap-2 border-t border-[#000000]">
                     {rows.map(rowIdx => (
                         <div key={rowIdx} className="flex gap-2 min-h-[42px]">
@@ -163,15 +161,17 @@ export const BotMenuEditor = ({ scenarios }: { scenarios: Scenario[] }) => {
 
             {/* Config Panel */}
             <div className="flex-1 bg-[var(--bg-panel)] rounded-xl shadow-lg border border-[var(--border-color)] p-8 overflow-y-auto">
-                <div className="flex justify-between items-center mb-8">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
                     <div>
                         <h3 className="font-bold text-2xl text-[var(--text-primary)]">Menu Configuration</h3>
                         <p className="text-sm text-[var(--text-secondary)] mt-1">Customize the persistent keyboard layout</p>
                     </div>
-                    <div className="flex gap-3">
-                        <select className="input w-48 text-sm" value={selectedBotId} onChange={e => setSelectedBotId(e.target.value)}>
-                            {bots.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                        </select>
+                    <div className="flex gap-3 flex-wrap">
+                        {!botId && (
+                            <select className="input w-48 text-sm" value={selectedBotId} onChange={e => setSelectedBotId(e.target.value)}>
+                                {bots.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                            </select>
+                        )}
                         <button onClick={() => configInputRef.current?.click()} className="btn-secondary px-3" title="Import Config"><Upload size={16} /></button>
                         <button onClick={handleExportConfig} className="btn-secondary px-3" title="Export Config"><Download size={16} /></button>
                         <button onClick={handlePublish} className="btn-primary flex items-center gap-2 px-4">

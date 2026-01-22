@@ -7,7 +7,7 @@ import {
     Search, LayoutGrid, User, Plus, Filter, ArrowRight, DollarSign,
     MessageSquare, Zap, List as ListIcon, Star, Phone, Home,
     ChevronRight, MapPin, Calendar, CheckCircle, AlertTriangle, SlidersHorizontal,
-    X, ChevronLeft, ChevronRight as ChevronRightIcon, Image as ImageIcon
+    X, ChevronLeft, ChevronRight as ChevronRightIcon, Image as ImageIcon, History, ShieldCheck, LogOut
 } from 'lucide-react';
 
 const PLACEHOLDER_IMAGE = 'https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?auto=format&fit=crop&q=80&w=1000';
@@ -57,7 +57,7 @@ export const MiniApp = () => {
             } else {
                 // Mock environment for browser preview
                 setIsPreview(true);
-                setTgUser({ first_name: 'Guest', username: 'guest_user' });
+                setTgUser({ first_name: 'Guest', username: 'guest_user', id: 12345, photo_url: '' });
             }
 
             // 2. Load Bot Configuration
@@ -196,8 +196,8 @@ export const MiniApp = () => {
 
                     {tgUser && (
                         <div className="mt-6 flex items-center gap-3 bg-white/10 p-2.5 rounded-xl backdrop-blur-md border border-white/5 shadow-inner">
-                            <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-yellow-400 to-yellow-600 flex items-center justify-center text-black font-bold text-sm shadow-md">
-                                {tgUser.first_name?.[0]}
+                            <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-yellow-400 to-yellow-600 flex items-center justify-center text-black font-bold text-sm shadow-md overflow-hidden">
+                                {tgUser.photo_url ? <img src={tgUser.photo_url} className="w-full h-full object-cover" /> : tgUser.first_name?.[0]}
                             </div>
                             <div className="text-xs">
                                 <p className="text-white font-bold text-sm">Hello, {tgUser.first_name}</p>
@@ -447,7 +447,6 @@ export const MiniApp = () => {
         );
     };
 
-    // ... renderRequest та інші методи залишаються як є ...
     const handleNextStep = async () => {
         if (reqStep === 1) {
             setReqStep(2);
@@ -548,6 +547,77 @@ export const MiniApp = () => {
         </div>
     );
 
+    const renderProfile = () => (
+        <div className="animate-fade-in pb-24 h-full bg-black">
+            <div className="p-6 pt-10 rounded-b-[40px] shadow-lg relative overflow-hidden" style={{ background: `linear-gradient(135deg, ${primaryColor}20 0%, #000000 100%)` }}>
+                <div className="flex flex-col items-center">
+                    <div className="w-24 h-24 rounded-full border-4 border-white/10 shadow-2xl bg-[#1c1c1e] flex items-center justify-center overflow-hidden mb-4 relative">
+                        {tgUser?.photo_url ? (
+                            <img src={tgUser.photo_url} className="w-full h-full object-cover" />
+                        ) : (
+                            <User size={40} className="text-white/50" />
+                        )}
+                        <div className="absolute bottom-0 right-0 w-6 h-6 bg-green-500 rounded-full border-2 border-black"></div>
+                    </div>
+                    <h2 className="text-2xl font-bold text-white">{tgUser?.first_name} {tgUser?.last_name}</h2>
+                    <p className="text-white/50 text-sm mb-4">@{tgUser?.username || 'user'}</p>
+
+                    <div className="flex gap-2">
+                        <span className="px-3 py-1 rounded-full bg-white/10 border border-white/5 text-[10px] text-white font-bold flex items-center gap-1">
+                            <ShieldCheck size={12} className="text-green-500"/> Verified Client
+                        </span>
+                        <span className="px-3 py-1 rounded-full bg-white/10 border border-white/5 text-[10px] text-white font-bold">
+                            ID: {tgUser?.id}
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <div className="px-4 mt-6 space-y-4">
+                <div className="bg-[#1c1c1e] rounded-xl p-4 border border-white/5">
+                    <h3 className="font-bold text-white text-sm mb-4 flex items-center gap-2">
+                        <History size={16} style={{ color: primaryColor }}/> Recent Activity
+                    </h3>
+
+                    {/* Mock Activity Data */}
+                    <div className="space-y-4">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-500">
+                                <Search size={18} />
+                            </div>
+                            <div className="flex-1">
+                                <div className="text-xs text-white/50 mb-0.5">Today, 10:23</div>
+                                <div className="text-sm font-medium text-white">Search: "BMW X5 2020"</div>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-purple-500/10 flex items-center justify-center text-purple-500">
+                                <MessageSquare size={18} />
+                            </div>
+                            <div className="flex-1">
+                                <div className="text-xs text-white/50 mb-0.5">Yesterday, 14:45</div>
+                                <div className="text-sm font-medium text-white">Chat started with Manager</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="bg-[#1c1c1e] rounded-xl p-4 border border-white/5">
+                    <h3 className="font-bold text-white text-sm mb-4 flex items-center gap-2">
+                        <Star size={16} style={{ color: primaryColor }}/> Saved Vehicles
+                    </h3>
+                    <div className="text-center py-6 text-white/30 text-xs">
+                        No saved vehicles yet.
+                    </div>
+                </div>
+
+                <button onClick={() => (window as any).Telegram?.WebApp?.close()} className="w-full py-4 rounded-xl bg-red-500/10 text-red-500 font-bold flex items-center justify-center gap-2 border border-red-500/20 hover:bg-red-500/20 transition-colors">
+                    <LogOut size={18} /> Close App
+                </button>
+            </div>
+        </div>
+    );
+
     const AppIcon = ({ name }: { name: string }) => {
         const props = { size: 24 };
         switch (name) {
@@ -574,7 +644,7 @@ export const MiniApp = () => {
             {view === 'HOME' && renderHome()}
             {view === 'INVENTORY' && renderInventory()}
             {view === 'REQUEST' && renderRequest()}
-            {view === 'PROFILE' && <div className="p-8 text-center text-white/50 pt-20 flex flex-col items-center"><User size={48} className="mb-4 opacity-50" />Profile Coming Soon</div>}
+            {view === 'PROFILE' && renderProfile()}
 
             {/* Gallery Lightbox */}
             {lightboxCar && (
