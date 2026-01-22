@@ -27,7 +27,7 @@ export const AutomationBuilder: React.FC = () => {
     const onConnect = useCallback((params: Connection | Edge) => setEdges((eds) => addEdge(params, eds)), [setEdges]);
 
     return (
-        <div style={{ width: '100%', height: 'calc(100vh - 64px)' }}>
+        <div className="w-full h-[calc(100vh-64px)]">
             <ReactFlow
                 nodes={nodes}
                 edges={edges}

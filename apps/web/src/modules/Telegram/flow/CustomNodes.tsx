@@ -78,8 +78,7 @@ const GenericNode = ({ data, type }: any) => {
                                 type="source"
                                 position={Position.Right}
                                 id={`choice-${i}`}
-                                style={{ top: '50%', right: -6 }}
-                                className="!bg-[#f59e0b] !w-2.5 !h-2.5"
+                                className="!bg-[#f59e0b] !w-2.5 !h-2.5 top-1/2 -right-1.5"
                             />
                         </div>
                     ))}

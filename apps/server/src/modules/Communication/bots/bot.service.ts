@@ -1,12 +1,12 @@
 
 import axios from 'axios';
-// @ts-ignore
 import { BotTemplate, LeadStatus } from '@prisma/client';
 import { prisma } from '../../../services/prisma.js';
 import { type DeepLinkPayload } from '../../../utils/deeplink.utils.js';
 import { renderLeadCard, renderRequestCard } from '../../../services/cardRenderer.js';
 import { runTelegramPipeline } from '../telegram/scenarios/pipeline.js';
 import { telegramOutbox } from '../telegram/messaging/outbox/telegramOutbox.js';
+import { BotRepository } from '../../../repositories/index.js';
 
 
 
@@ -25,13 +25,16 @@ interface BotConfigModel {
 // --- Bot Manager Class ---
 export class BotManager {
     private activeBots: Map<string, BotInstance> = new Map();
+    private botRepo: BotRepository;
 
-    constructor() { }
+    constructor() {
+        this.botRepo = new BotRepository(prisma);
+    }
 
     public async startAll() {
         console.log("🤖 Bot Manager: Loading configuration...");
         try {
-            const configs = await prisma.botConfig.findMany({ where: { isEnabled: true } });
+            const configs = await this.botRepo.findAllActive();
             console.log(`🤖 Found ${configs.length} active bots.`);
             for (const config of configs) {
                 this.startBot(config);
@@ -43,7 +46,7 @@ export class BotManager {
 
     public async restartBot(id: string) {
         this.stopBot(id);
-        const config = await prisma.botConfig.findUnique({ where: { id } });
+        const config = await this.botRepo.findById(id);
         if (config && config.isEnabled) {
             this.startBot(config);
         }

@@ -1,6 +1,9 @@
 import { Router } from 'express';
 import { prisma } from '../../../../services/prisma.js';
+import { BotRepository } from '../../../../repositories/index.js';
 import { runTelegramPipeline } from '../scenarios/pipeline.js';
+
+const botRepo = new BotRepository(prisma);
 
 const router = Router();
 
@@ -8,7 +11,7 @@ router.post('/webhook/:botId', async (req, res) => {
   const { botId } = req.params;
   const secretToken = req.header('X-Telegram-Bot-Api-Secret-Token') || null;
 
-  const bot = await prisma.botConfig.findUnique({ where: { id: botId } });
+  const bot = await botRepo.findById(botId);
   if (!bot || !bot.isEnabled) {
     return res.status(404).json({ error: 'Bot not found' });
   }

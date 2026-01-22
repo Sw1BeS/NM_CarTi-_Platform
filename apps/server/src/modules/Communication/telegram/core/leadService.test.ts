@@ -2,18 +2,23 @@ import { describe, expect, it, vi } from 'vitest';
 
 const leadMock = { id: 'lead_1', payload: {} };
 
+// Mock Repositories
+vi.mock('../../../../repositories/index.js', () => {
+  const LeadRepository = vi.fn();
+  LeadRepository.prototype.findDuplicate = vi.fn(async () => leadMock);
+  LeadRepository.prototype.createLead = vi.fn(async () => leadMock);
+  LeadRepository.prototype.updatePayload = vi.fn(async () => leadMock);
+
+  const RequestRepository = vi.fn();
+  RequestRepository.prototype.createRequest = vi.fn(async () => ({ id: 'req_1', publicId: 'REQ-1' }));
+
+  return { LeadRepository, RequestRepository };
+});
+
 vi.mock('../../../services/prisma.js', () => ({
   prisma: {
-    lead: {
-      findFirst: vi.fn(async () => leadMock),
-      create: vi.fn(),
-      update: vi.fn(async () => leadMock)
-    },
     leadActivity: {
       create: vi.fn(async () => ({ id: 'act_1' }))
-    },
-    b2bRequest: {
-      create: vi.fn(async () => ({ id: 'req_1', publicId: 'REQ-1' }))
     }
   }
 }));

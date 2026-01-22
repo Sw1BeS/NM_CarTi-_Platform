@@ -1,9 +1,14 @@
 import { LeadStatus } from '@prisma/client';
 import { prisma } from '../../../../services/prisma.js';
+import { LeadRepository, RequestRepository } from '../../../../repositories/index.js';
 import { normalizePhone } from '../../../Inventory/normalization/normalizePhone.js';
 import { emitPlatformEvent } from './events/eventEmitter.js';
 import { generatePublicId, mapRequestInput } from '../../../../services/dto.js';
 import { MetaService } from '../../../Integrations/meta/meta.service.js';
+
+
+const leadRepo = new LeadRepository(prisma);
+const requestRepo = new RequestRepository(prisma);
 
 export type LeadCreateInput = {
   botId: string;
@@ -52,56 +57,17 @@ const buildScope = (botId: string, companyId?: string | null) => {
   return { botId };
 };
 
-const findDuplicateLead = async (
-  scope: Record<string, any>,
-  phone?: string | null,
-  userId?: string | null,
-  name?: string | null,
-  days = 14
-) => {
-  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-  if (phone) {
-    const byPhone = await prisma.lead.findFirst({
-      where: {
-        ...scope,
-        phone,
-        createdAt: { gte: since }
-      },
-      orderBy: { createdAt: 'desc' }
-    });
-    if (byPhone) return byPhone;
-  }
-  if (userId) {
-    const byUser = await prisma.lead.findFirst({
-      where: {
-        ...scope,
-        userTgId: userId,
-        createdAt: { gte: since }
-      },
-      orderBy: { createdAt: 'desc' }
-    });
-    if (byUser) return byUser;
-  }
-  if (name && phone) {
-    return prisma.lead.findFirst({
-      where: {
-        ...scope,
-        phone,
-        clientName: name,
-        createdAt: { gte: since }
-      },
-      orderBy: { createdAt: 'desc' }
-    });
-  }
-  return null;
-};
-
 export const createOrMergeLead = async (input: LeadCreateInput, botConfig?: any) => {
   const normalizedPhone = normalizePhone(input.phone || undefined);
   const dedupDays = getDedupWindowDays(botConfig);
   const telegramUserId = resolveTelegramUserId(input);
   const scope = buildScope(input.botId, input.companyId);
-  const dup = await findDuplicateLead(scope, normalizedPhone, telegramUserId, input.name, dedupDays);
+  const dup = await leadRepo.findDuplicate(scope, {
+    phone: normalizedPhone,
+    userTgId: telegramUserId,
+    name: input.name,
+    days: dedupDays
+  });
 
   if (dup) {
     const nextPayload = {
@@ -125,12 +91,8 @@ export const createOrMergeLead = async (input: LeadCreateInput, botConfig?: any)
       }
     }).catch(() => null);
 
-    await prisma.lead.update({
-      where: { id: dup.id },
-      data: {
-        payload: nextPayload
-      }
-    }).catch(() => null);
+
+    await leadRepo.updatePayload(dup.id, nextPayload).catch(() => null);
 
     await emitPlatformEvent({
       companyId: input.companyId,
@@ -147,23 +109,21 @@ export const createOrMergeLead = async (input: LeadCreateInput, botConfig?: any)
     return { lead: dup, isDuplicate: true, request: null };
   }
 
-  const lead = await prisma.lead.create({
-    data: {
-      leadCode: buildLeadCode(),
-      clientName: input.name,
+  const lead = await leadRepo.createLead({
+    clientName: input.name,
+    phone: normalizedPhone || undefined,
+    request: input.request || undefined,
+    userTgId: telegramUserId || undefined,
+    status: LeadStatus.NEW,
+    source: input.source || undefined,
+    botId: input.botId,
+    leadCode: buildLeadCode(),
+    payload: {
+      ...(input.payload || {}),
+      leadType: input.leadType || undefined,
       phone: normalizedPhone || undefined,
-      request: input.request || undefined,
-      userTgId: telegramUserId || undefined,
-      status: LeadStatus.NEW,
-      source: input.source || undefined,
-      botId: input.botId,
-      payload: {
-        ...(input.payload || {}),
-        leadType: input.leadType || undefined,
-        phone: normalizedPhone || undefined,
-        telegramChatId: input.chatId || undefined,
-        telegramUserId: telegramUserId || undefined
-      }
+      telegramChatId: input.chatId || undefined,
+      telegramUserId: telegramUserId || undefined
     }
   });
 
@@ -181,23 +141,16 @@ export const createOrMergeLead = async (input: LeadCreateInput, botConfig?: any)
       language: input.requestData?.language || undefined
     });
 
-    createdRequest = await prisma.b2bRequest.create({
-      data: {
-        ...reqInput,
-        publicId: generatePublicId(),
-        chatId: input.chatId || undefined,
-        companyId: input.companyId || null
-      }
+    createdRequest = await requestRepo.createRequest({
+      ...reqInput,
+      publicId: generatePublicId(),
+      chatId: input.chatId || undefined,
+      companyId: input.companyId || undefined
     });
 
-    await prisma.lead.update({
-      where: { id: lead.id },
-      data: {
-        payload: {
-          ...(lead.payload as any || {}),
-          linkedRequestId: createdRequest.publicId
-        }
-      }
+    await leadRepo.updatePayload(lead.id, {
+      ...(lead.payload as any || {}),
+      linkedRequestId: createdRequest.publicId || createdRequest.id
     });
   }
 

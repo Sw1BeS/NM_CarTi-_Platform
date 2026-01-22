@@ -1,30 +1,31 @@
 
 import { Router } from 'express';
-// @ts-ignore
 import { prisma } from '../../../services/prisma.js';
 import { authenticateToken, requireRole } from '../../../middleware/auth.js';
 import { mapBotOutput, mapBotInput } from './botDto.js';
 import { botManager } from './bot.service.js';
+import { BotRepository } from '../../../repositories/index.js';
 
 const router = Router();
+const botRepo = new BotRepository(prisma);
 
 // --- BOTS ---
 router.use(authenticateToken);
 
 router.get('/bots/active', async (req, res) => {
-    const bots = await prisma.botConfig.findMany({ where: { isEnabled: true } });
+    const bots = await botRepo.findAllActive();
     res.json(bots.map(mapBotOutput));
 });
 
 router.get('/bots', requireRole(['ADMIN', 'MANAGER']), async (req, res) => {
-    const bots = await prisma.botConfig.findMany({ orderBy: { createdAt: 'desc' } });
+    const bots = await botRepo.findAll({});
     res.json(bots.map(mapBotOutput));
 });
 
 router.post('/bots', requireRole(['ADMIN']), async (req, res) => {
     try {
         const { data } = mapBotInput(req.body);
-        const bot = await prisma.botConfig.create({ data });
+        const bot = await botRepo.create(data);
         if (bot.isEnabled) await botManager.restartBot(bot.id);
         res.json(mapBotOutput(bot));
     } catch (e: any) {
@@ -35,16 +36,12 @@ router.post('/bots', requireRole(['ADMIN']), async (req, res) => {
 
 router.put('/bots/:id', requireRole(['ADMIN']), async (req, res) => {
     try {
-        const existing = await prisma.botConfig.findUnique({ where: { id: req.params.id } });
+        const existing = await botRepo.findById(req.params.id);
         if (!existing) return res.status(404).json({ error: 'Bot not found' });
 
         const { data } = mapBotInput(req.body, existing.config);
-        const bot = await prisma.botConfig.update({ where: { id: req.params.id }, data });
+        const bot = await botRepo.update(req.params.id, data);
 
-        if (bot.isEnabled) await botManager.restartBot(bot.id);
-        else botManager.stopAll(); // Ideally stop only this one, simplified access to private method? No, direct access via manager.
-        // Actually botManager.restartBot stops it first. If disabled, restartBot just stops it?
-        // Let's check restartBot logic: stopBot(id) -> find config -> if enabled start. So yes, safe.
         await botManager.restartBot(bot.id);
 
         res.json(mapBotOutput(bot));
@@ -56,13 +53,7 @@ router.put('/bots/:id', requireRole(['ADMIN']), async (req, res) => {
 
 router.delete('/bots/:id', requireRole(['ADMIN']), async (req, res) => {
     try {
-        await prisma.botConfig.delete({ where: { id: req.params.id } });
-        // We can't access stopBot directly since it's private in previous view? 
-        // botManager.restartBot handles stop implicitly.
-        // But the record is gone now, so restartBot will fail to find it.
-        // We need a stop method in manager exposed.
-        // For now, let's assume restartBot handles missing config gracefully? 
-        // viewed code: restartBot calls stopBot first. Then findUnique. If null, does nothing. Correct.
+        await botRepo.delete(req.params.id);
         await botManager.restartBot(req.params.id);
         res.json({ success: true });
     } catch (e: any) {

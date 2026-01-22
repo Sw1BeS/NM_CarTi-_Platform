@@ -6,7 +6,14 @@
 import { prisma } from '../../../services/prisma.js';
 import { getAllWorkspaces, getAllUsers, getUserByEmail } from '../../../services/v41/readService.js';
 import { writeService } from '../../../services/v41/writeService.js';
+import { BotRepository, LeadRepository, RequestRepository, UserRepository, WorkspaceRepository } from '../../../repositories/index.js';
 import bcrypt from 'bcryptjs';
+
+const botRepo = new BotRepository(prisma);
+const leadRepo = new LeadRepository(prisma);
+const requestRepo = new RequestRepository(prisma);
+const userRepo = new UserRepository(prisma);
+const workspaceRepo = new WorkspaceRepository(prisma);
 
 export class SuperadminService {
     /**
@@ -39,12 +46,12 @@ export class SuperadminService {
     async getSystemStats() {
         // Count from V4 tables
         const [companies, users, bots, leads, requests, templates] = await Promise.all([
-            prisma.workspace.count({ where: { deleted_at: null } }),
-            prisma.globalUser.count({ where: { deleted_at: null } }),
-            prisma.botConfig.count(), // BotConfig still has companyId index but no deleted_at?
-            prisma.lead.count(),
-            prisma.b2bRequest.count(),
-            prisma.scenarioTemplate.count()
+            workspaceRepo.countWorkspaces(),
+            userRepo.countUsers(),
+            botRepo.countBots(),
+            leadRepo.countLeads(),
+            requestRepo.countRequests(),
+            prisma.scenarioTemplate.count() // No repo for templates yet, standard prisma call acceptable (<5 rule)
         ]);
 
         // Active companies (with activity in last 30 days)
@@ -112,10 +119,7 @@ export class SuperadminService {
             if (data.password) globalUpdates.password_hash = await bcrypt.hash(data.password, 10);
             if (data.isActive !== undefined) globalUpdates.global_status = data.isActive ? 'active' : 'inactive';
 
-            await prisma.globalUser.update({
-                where: { id: userId },
-                data: globalUpdates
-            });
+            await userRepo.updateUser(userId, globalUpdates);
             updates.globalUser = true;
         }
 
@@ -170,15 +174,7 @@ export class SuperadminService {
 
         const settings = workspace.settings as any || {};
 
-        return prisma.workspace.update({
-            where: { id: companyId },
-            data: {
-                settings: {
-                    ...settings,
-                    plan
-                }
-            }
-        });
+        return workspaceRepo.updateSettings(companyId, { plan });
     }
 
     /**
@@ -191,15 +187,7 @@ export class SuperadminService {
 
         const settings = workspace.settings as any || {};
 
-        return prisma.workspace.update({
-            where: { id: companyId },
-            data: {
-                settings: {
-                    ...settings,
-                    isActive
-                }
-            }
-        });
+        return workspaceRepo.updateSettings(companyId, { isActive });
     }
 
     /**

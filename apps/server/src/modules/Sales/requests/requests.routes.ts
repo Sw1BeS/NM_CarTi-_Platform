@@ -4,6 +4,7 @@ import { Router } from 'express';
 import { prisma } from '../../../services/prisma.js';
 import { authenticateToken, requireRole } from '../../../middleware/auth.js';
 import { generatePublicId, mapRequestInput, mapRequestOutput, mapVariantInput, mapVariantOutput, mapRequestStatusFilter } from '../../../services/dto.js';
+import { RequestRepository, BotRepository } from '../../../repositories/index.js';
 import { renderRequestCard, managerActionsKeyboard } from '../../../services/cardRenderer.js';
 import { telegramOutbox } from '../../Communication/telegram/messaging/outbox/telegramOutbox.js';
 import { generateRequestLink } from '../../../utils/deeplink.utils.js';
@@ -12,6 +13,8 @@ import { validate } from '../../../middleware/validation.js';
 import { createRequestSchema } from '../../../validation/schemas.js';
 
 const router = Router();
+const requestRepo = new RequestRepository(prisma);
+const botRepo = new BotRepository(prisma);
 
 // --- B2B Requests CRUD ---
 router.get('/', authenticateToken, async (req, res) => {
@@ -36,16 +39,12 @@ router.get('/', authenticateToken, async (req, res) => {
     }
 
     try {
-        const [total, items] = await Promise.all([
-            prisma.b2bRequest.count({ where }),
-            prisma.b2bRequest.findMany({
-                where,
-                orderBy: { createdAt: 'desc' },
-                take: limit,
-                skip,
-                include: { variants: true } // Include nested variants
-            })
-        ]);
+        const { items, total } = await requestRepo.findAllRequests({
+            where,
+            orderBy: { createdAt: 'desc' },
+            take: limit,
+            skip
+        });
 
         res.json({
             items: items.map(mapRequestOutput),
@@ -60,41 +59,28 @@ router.get('/', authenticateToken, async (req, res) => {
     }
 });
 
+
+// Create Request
 router.post('/', authenticateToken, requireRole(['ADMIN', 'MANAGER']), validate(createRequestSchema), async (req, res) => {
     try {
-        const { data } = mapRequestInput(req.body);
-        const { variants } = req.body;
-
-        // Handle nested creation
-        if (variants && Array.isArray(variants)) {
-            data.variants = {
-                create: variants.map((v: any) => mapVariantInput(v))
-            };
-        }
-
-        const request = await prisma.b2bRequest.create({
-            data: {
-                ...data,
-                companyId: (req as any).user?.companyId || null,
-                publicId: generatePublicId()
-            },
-            include: { variants: true }
+        const data = req.body;
+        const request = await requestRepo.createRequest({
+            title: data.title || 'New Request',
+            ...data,
+            companyId: (req as any).user?.companyId
         });
 
-        // Meta CAPI Event (preserved from legacy)
+        // Meta CAPI Event (preserved)
         if ((req as any).user?.companyId) {
-            import('../../Integrations/meta.service.js').then(({ sendMetaEvent }) => {
-                sendMetaEvent('SubmitApplication', {
+            import('../../Integrations/meta/meta.service.js').then(({ MetaService }) => {
+                MetaService.getInstance().sendEvent('SubmitApplication', {
                     user: { id: (req as any).user.id },
-                    customData: { requestId: request.publicId }
-                }).catch(console.error);
+                }, { requestId: request.publicId }).catch(console.error);
             });
         }
-
         res.json(mapRequestOutput(request));
     } catch (e: any) {
-        console.error(e);
-        res.status(500).json({ error: 'Failed to create request' });
+        res.status(500).json({ error: e.message });
     }
 });
 
@@ -105,24 +91,15 @@ router.put('/:id', authenticateToken, requireRole(['ADMIN', 'MANAGER', 'OPERATOR
 
         // Update main request
         const data = mapRequestInput(raw);
-        const request = await prisma.b2bRequest.update({
-            where: { id },
-            data,
-            include: { variants: true }
-        });
+        const request = await requestRepo.updateRequest(id, data);
 
-        // Meta CAPI: Purchase Event
         if (data.status === 'WON' && (req as any).user?.companyId) {
-            import('../../Integrations/meta.service.js').then(({ sendMetaEvent }) => {
-                sendMetaEvent('Purchase', {
+            import('../../Integrations/meta/meta.service.js').then(({ MetaService }) => {
+                MetaService.getInstance().sendEvent('Purchase', {
                     user: { id: (req as any).user.id },
-                    customData: { requestId: request.publicId, value: request.budgetMax, currency: 'USD' }
-                }).catch(console.error);
+                }, { requestId: request.publicId, value: request.budgetMax, currency: 'USD' }).catch(console.error);
             });
         }
-
-        // Sync Variants logic would go here if we want to full-sync, 
-        // but typically variants are managed via specific endpoint or separate calls.
 
         res.json(mapRequestOutput(request));
     } catch (e: any) {
@@ -134,7 +111,7 @@ router.put('/:id', authenticateToken, requireRole(['ADMIN', 'MANAGER', 'OPERATOR
 router.delete('/:id', authenticateToken, requireRole(['ADMIN']), async (req, res) => {
     try {
         const { id } = req.params;
-        await prisma.b2bRequest.delete({ where: { id } });
+        await requestRepo.deleteRequest(id);
         res.json({ success: true });
     } catch (e: any) { res.status(500).json({ error: 'Failed to delete request' }); }
 });
@@ -144,12 +121,7 @@ router.post('/:id/variants', authenticateToken, requireRole(['ADMIN', 'MANAGER',
     const { id } = req.params;
     const variantData = mapVariantInput(req.body || {});
     try {
-        const variant = await prisma.requestVariant.create({
-            data: {
-                ...variantData,
-                requestId: id
-            }
-        });
+        const variant = await requestRepo.addVariant(id, variantData);
         res.json(mapVariantOutput(variant));
     } catch (e: any) {
         res.status(500).json({ error: 'Failed to add variant' });
@@ -159,10 +131,11 @@ router.post('/:id/variants', authenticateToken, requireRole(['ADMIN', 'MANAGER',
 // --- Channel publish/update/close ---
 const resolveBot = async (botId?: string) => {
     if (botId) {
-        const bot = await prisma.botConfig.findUnique({ where: { id: botId } });
+        const bot = await botRepo.findById(botId);
         if (bot?.token) return bot;
     }
-    return prisma.botConfig.findFirst({ where: { isEnabled: true } });
+    const bots = await botRepo.findAllActive();
+    return bots[0];
 };
 
 const buildChannelText = (req: any, template?: string) => {
@@ -197,7 +170,7 @@ router.post('/:id/publish-channel', authenticateToken, requireRole(['ADMIN', 'MA
     try {
         const { id } = req.params;
         const { botId, channelId, text, template } = req.body || {};
-        const request = await prisma.b2bRequest.findUnique({ where: { id } });
+        const request = await requestRepo.findById(id);
         if (!request) return res.status(404).json({ error: 'Request not found' });
         const bot = await resolveBot(botId);
         if (!bot?.token) return res.status(400).json({ error: 'Bot not found' });
@@ -221,27 +194,23 @@ router.post('/:id/publish-channel', authenticateToken, requireRole(['ADMIN', 'MA
         });
         const messageId = (sent as any)?.message_id;
 
-        const channelPost = await prisma.channelPost.create({
-            data: {
-                requestId: id,
-                botId: bot.id,
-                channelId: destination,
-                messageId,
-                status: 'ACTIVE',
-                payload: { text: text || reqCard }
-            }
+        const channelPost = await requestRepo.createChannelPost({
+            requestId: id,
+            botId: bot.id,
+            channelId: destination,
+            messageId,
+            status: 'ACTIVE',
+            payload: { text: text || reqCard }
         });
 
-        await prisma.messageLog.create({
-            data: {
-                requestId: id,
-                botId: bot.id,
-                chatId: destination,
-                direction: 'OUTGOING',
-                text: text || reqCard,
-                payload: { type: 'CHANNEL_PUBLISH', messageId }
-            }
-        }).catch((e) => {
+        await requestRepo.logMessage({
+            requestId: id,
+            botId: bot.id,
+            chatId: destination,
+            direction: 'OUTGOING',
+            text: text || reqCard,
+            payload: { type: 'CHANNEL_PUBLISH', messageId }
+        }).catch((e: any) => {
             console.error('[CHANNEL_PUBLISH] MessageLog failed:', e.message || e);
         });
 
@@ -256,7 +225,7 @@ router.put('/:id/channel-post', authenticateToken, requireRole(['ADMIN', 'MANAGE
     try {
         const { id } = req.params;
         const { text, channelId } = req.body || {};
-        const cp = await prisma.channelPost.findFirst({ where: { requestId: id, ...(channelId ? { channelId } : {}) } });
+        const cp = await requestRepo.findChannelPost(id, channelId);
         if (!cp) return res.status(404).json({ error: 'ChannelPost not found' });
         const bot = await resolveBot(cp.botId || undefined);
         if (!bot?.token) return res.status(400).json({ error: 'Bot not found' });
@@ -270,20 +239,18 @@ router.put('/:id/channel-post', authenticateToken, requireRole(['ADMIN', 'MANAGE
             text: nextText,
             companyId: bot.companyId || null
         });
-        const updated = await prisma.channelPost.update({
-            where: { id: cp.id },
-            data: { status: 'UPDATED', payload: { ...(payload || {}), text: nextText } }
+        const updated = await requestRepo.updateChannelPost(cp.id, {
+            status: 'UPDATED',
+            payload: { ...(payload || {}), text: nextText }
         });
-        await prisma.messageLog.create({
-            data: {
-                requestId: id,
-                botId: bot.id,
-                chatId: cp.channelId,
-                direction: 'OUTGOING',
-                text: nextText,
-                payload: { type: 'CHANNEL_UPDATE', messageId: cp.messageId }
-            }
-        }).catch((e) => {
+        await requestRepo.logMessage({
+            requestId: id,
+            botId: bot.id,
+            chatId: cp.channelId,
+            direction: 'OUTGOING',
+            text: nextText,
+            payload: { type: 'CHANNEL_UPDATE', messageId: cp.messageId }
+        }).catch((e: any) => {
             console.error('[CHANNEL_UPDATE] MessageLog failed:', e.message || e);
         });
         res.json({ ok: true, channelPost: updated });
@@ -297,7 +264,7 @@ router.post('/:id/close-channel', authenticateToken, requireRole(['ADMIN', 'MANA
     try {
         const { id } = req.params;
         const { channelId } = req.body || {};
-        const cp = await prisma.channelPost.findFirst({ where: { requestId: id, ...(channelId ? { channelId } : {}) } });
+        const cp = await requestRepo.findChannelPost(id, channelId);
         if (!cp) return res.status(404).json({ error: 'ChannelPost not found' });
         const bot = await resolveBot(cp.botId || undefined);
         if (!bot?.token) return res.status(400).json({ error: 'Bot not found' });
@@ -312,20 +279,18 @@ router.post('/:id/close-channel', authenticateToken, requireRole(['ADMIN', 'MANA
             replyMarkup: { inline_keyboard: [] },
             companyId: bot.companyId || null
         });
-        const updated = await prisma.channelPost.update({
-            where: { id: cp.id },
-            data: { status: 'CLOSED', payload: { ...(payload || {}), closed: true, text: closedText } }
+        const updated = await requestRepo.updateChannelPost(cp.id, {
+            status: 'CLOSED',
+            payload: { ...(payload || {}), closed: true, text: closedText }
         });
-        await prisma.messageLog.create({
-            data: {
-                requestId: id,
-                botId: bot.id,
-                chatId: cp.channelId,
-                direction: 'OUTGOING',
-                text: closedText,
-                payload: { type: 'CHANNEL_CLOSE', messageId: cp.messageId }
-            }
-        }).catch((e) => {
+        await requestRepo.logMessage({
+            requestId: id,
+            botId: bot.id,
+            chatId: cp.channelId,
+            direction: 'OUTGOING',
+            text: closedText,
+            payload: { type: 'CHANNEL_CLOSE', messageId: cp.messageId }
+        }).catch((e: any) => {
             console.error('[CHANNEL_CLOSE] MessageLog failed:', e.message || e);
         });
         res.json({ ok: true, channelPost: updated });

@@ -1,6 +1,9 @@
 import axios from 'axios';
 import crypto from 'crypto';
 import { prisma } from '../../../../services/prisma.js';
+import { BotRepository } from '../../../../repositories/index.js';
+
+const botRepo = new BotRepository(prisma);
 
 const TELEGRAM_API = (token: string) => `https://api.telegram.org/bot${token}`;
 
@@ -12,7 +15,7 @@ const ensureBaseUrl = (value?: string | null) => {
 const generateSecret = () => crypto.randomBytes(24).toString('hex');
 
 export const setWebhookForBot = async (botId: string, opts: { publicBaseUrl?: string; secretToken?: string | null }) => {
-  const bot = await prisma.botConfig.findUnique({ where: { id: botId } });
+  const bot = await botRepo.findById(botId);
   if (!bot?.token) throw new Error('Bot not found');
 
   const config = (bot.config || {}) as any;
@@ -41,16 +44,13 @@ export const setWebhookForBot = async (botId: string, opts: { publicBaseUrl?: st
     webhookSetAt: new Date().toISOString()
   };
 
-  await prisma.botConfig.update({
-    where: { id: bot.id },
-    data: { config: nextConfig }
-  });
+  await botRepo.update(bot.id, { config: nextConfig });
 
   return { webhookUrl: url, secretToken: secret };
 };
 
 export const deleteWebhookForBot = async (botId: string) => {
-  const bot = await prisma.botConfig.findUnique({ where: { id: botId } });
+  const bot = await botRepo.findById(botId);
   if (!bot?.token) throw new Error('Bot not found');
 
   const response = await axios.post(`${TELEGRAM_API(bot.token)}/deleteWebhook`, {
@@ -69,10 +69,7 @@ export const deleteWebhookForBot = async (botId: string) => {
     webhookSecret: undefined
   };
 
-  await prisma.botConfig.update({
-    where: { id: bot.id },
-    data: { config: nextConfig }
-  });
+  await botRepo.update(bot.id, { config: nextConfig });
 
   return { success: true };
 };
