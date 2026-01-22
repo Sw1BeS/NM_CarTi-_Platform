@@ -68,7 +68,7 @@ export default function App() {
                     <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
                     <Route path="/inbox" element={<ProtectedRoute><InboxPage /></ProtectedRoute>} />
                     <Route path="/requests" element={<ProtectedRoute><RequestList /></ProtectedRoute>} />
-                    <Route path="/requests" element={<ProtectedRoute><RequestList /></ProtectedRoute>} />
+
                     <Route path="/telegram" element={<ProtectedRoute><TelegramHub /></ProtectedRoute>} />
                     <Route path="/scenarios" element={<ProtectedRoute><ScenarioBuilder /></ProtectedRoute>} />
                     <Route path="/automations" element={<ProtectedRoute><AutomationBuilder /></ProtectedRoute>} />

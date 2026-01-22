@@ -34,16 +34,16 @@ export const SYSTEM_DICTIONARY_SETS = {
  */
 export const FEATURE_FLAGS = {
     /** Enable workspace scoping middleware (PR-0) */
-    USE_V4_WORKSPACE_SCOPING: process.env.USE_V4_WORKSPACE_SCOPING === 'true',
+    USE_V4_WORKSPACE_SCOPING: true,
 
     /** Enable dual-write to both legacy and v4.1 tables (PR-2) */
-    USE_V4_DUAL_WRITE: process.env.USE_V4_DUAL_WRITE === 'true',
+    USE_V4_DUAL_WRITE: true,
 
     /** Switch reads from legacy to v4.1 tables (PR-4) */
-    USE_V4_READS: process.env.USE_V4_READS === 'true',
+    USE_V4_READS: true,
 
     /** Enable shadow reads for parity checking (PR-4) */
-    USE_V4_SHADOW_READS: process.env.USE_V4_SHADOW_READS === 'true',
+    USE_V4_SHADOW_READS: true,
 } as const;
 
 /**
