@@ -6,7 +6,7 @@ import { ApiClient } from '../../services/apiClient';
 import { DraftsService, DraftRecord } from '../../services/draftsService';
 import { CarListing, TelegramDestination, Bot } from '../../types';
 import { useToast } from '../../contexts/ToastContext';
-import { Send, Image as ImageIcon, Calendar, Eye, X, Check, Plus, Search, Filter } from 'lucide-react';
+import { Send, Image as ImageIcon, Calendar, Eye, X, Check, Plus, Search, Filter, Save } from 'lucide-react';
 import { ContentGenerator } from '../../services/contentGenerator';
 import { TelegramEditor } from '../../components/Editor';
 
@@ -28,6 +28,7 @@ export const ContentPage = () => {
     const [destinations, setDestinations] = useState<TelegramDestination[]>([]);
     const [bots, setBots] = useState<Bot[]>([]);
     const [drafts, setDrafts] = useState<DraftRecord[]>([]);
+    const [savedTemplates, setSavedTemplates] = useState<any[]>([]);
     const [isCreating, setIsCreating] = useState(false);
     const [selectedCar, setSelectedCar] = useState<CarListing | null>(null);
     const [template, setTemplate] = useState<PostTemplate>('IN_STOCK');
@@ -43,16 +44,18 @@ export const ContentPage = () => {
     }, []);
 
     const loadData = async () => {
-        const [inv, dests, botList, draftList] = await Promise.all([
+        const [inv, dests, botList, draftList, tpls] = await Promise.all([
             Data.getInventory(),
             Data.getDestinations(),
             Data.getBots(),
-            DraftsService.getDrafts()
+            DraftsService.getDrafts(),
+            Data.listEntities<any>('post_template').catch(() => [])
         ]);
         setInventory(inv.filter(c => c.status === 'AVAILABLE'));
         setDestinations(dests.filter(d => d.type === 'CHANNEL'));
         setBots(botList.filter(b => b.active));
         setDrafts(draftList);
+        setSavedTemplates(tpls);
     };
 
     const generatePreview = () => {
@@ -150,6 +153,34 @@ export const ContentPage = () => {
         setSelectedDest('');
         setScheduleDate('');
         setPostLang('UA');
+    };
+
+    const saveTemplate = async () => {
+        if (!customText) {
+            showToast("Enter custom text to save", "error");
+            return;
+        }
+        const name = prompt("Template Name:");
+        if (!name) return;
+        try {
+            await Data.saveEntity('post_template', {
+                id: `tpl_${Date.now()}`,
+                name,
+                content: customText,
+                lang: postLang
+            });
+            showToast("Template Saved");
+            loadData();
+        } catch (e: any) {
+            showToast(e.message, 'error');
+        }
+    };
+
+    const loadTemplate = (tpl: any) => {
+        setCustomText(tpl.content);
+        setPostLang(tpl.lang || 'UA');
+        setTemplate('CUSTOM');
+        showToast(`Loaded: ${tpl.name}`);
     };
 
     const filteredInventory = inventory.filter(car =>
@@ -344,11 +375,31 @@ export const ContentPage = () => {
 
                                 {template === 'CUSTOM' && (
                                     <div>
-                                        <label className="text-xs font-bold text-[var(--text-secondary)] uppercase block mb-2">
-                                            Custom Text (use variables like {'{title}'}, {'{price}'}, {'{hashtags}'})
+                                        <label className="text-xs font-bold text-[var(--text-secondary)] uppercase block mb-2 flex justify-between">
+                                            <span>Custom Text</span>
+                                            <button onClick={saveTemplate} className="text-gold-500 flex items-center gap-1 hover:underline">
+                                                <Save size={12}/> Save as Template
+                                            </button>
                                         </label>
+
+                                        {savedTemplates.length > 0 && (
+                                            <select
+                                                className="input text-xs mb-2 py-1.5"
+                                                onChange={e => {
+                                                    const t = savedTemplates.find(x => x.id === e.target.value);
+                                                    if (t) loadTemplate(t);
+                                                }}
+                                                value=""
+                                            >
+                                                <option value="" disabled>Load Saved Template...</option>
+                                                {savedTemplates.map(t => (
+                                                    <option key={t.id} value={t.id}>{t.name} ({t.lang})</option>
+                                                ))}
+                                            </select>
+                                        )}
+
                                         <TelegramEditor
-                                            placeholder="Write your post here..."
+                                            placeholder="Write your post here... Use {title}, {price}, {hashtags}"
                                             initialValue={customText}
                                             onChange={(html, markdown) => setCustomText(markdown)}
                                         />

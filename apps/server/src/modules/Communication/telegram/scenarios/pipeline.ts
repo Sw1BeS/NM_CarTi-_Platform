@@ -9,6 +9,7 @@ import { routeMessage } from '../routing/routeMessage.js';
 import { routeCallback } from '../routing/routeCallback.js';
 import { routeWebApp } from '../routing/routeWebApp.js';
 import { routeInline } from '../routing/routeInline.js';
+import { routeMyChatMember } from '../routing/routeMyChatMember.js';
 
 type PipelineInput = {
   update: any;
@@ -54,6 +55,7 @@ const pipeline = compose([
   dedup,
   enrichContext,
   normalize,
+  routeMyChatMember,
   routeUpdate,
   emitEvent
 ]);

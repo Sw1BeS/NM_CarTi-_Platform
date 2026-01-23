@@ -21,6 +21,7 @@ import { whatsAppRouter } from './modules/Integrations/whatsapp/whatsapp.service
 import { viberRouter } from './modules/Integrations/viber/viber.service.js';
 import { botManager } from './modules/Communication/bots/bot.service.js';
 import { seedAdmin } from './modules/Core/users/user.service.js';
+import { bootstrapVariantB } from './modules/Core/entities/bootstrapVariantB.js';
 import { startContentWorker, stopContentWorker, getWorkerStatus } from './workers/content.worker.js';
 import { mtprotoWorker } from './modules/Integrations/mtproto/mtproto.worker.js';
 import { MTProtoLifeCycle } from './modules/Integrations/mtproto/mtproto.lifecycle.js';
@@ -113,6 +114,7 @@ const startServer = async () => {
 
     // Seed default admin if not exists
     await seedAdmin();
+    await bootstrapVariantB();
 
     // Start Multi-Bot Engine
     botManager.startAll();

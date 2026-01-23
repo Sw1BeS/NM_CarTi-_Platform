@@ -12,7 +12,9 @@ export const AddBotModal = ({ onClose }: { onClose: () => void }) => {
     const [token, setToken] = useState('');
     const [channelId, setChannelId] = useState('');
     const [adminChatId, setAdminChatId] = useState('');
-    const [publicBaseUrl, setPublicBaseUrl] = useState(window.location.origin.replace(/\/$/, ''));
+    // @ts-ignore
+    const envUrl = import.meta.env.VITE_PUBLIC_URL;
+    const [publicBaseUrl, setPublicBaseUrl] = useState(envUrl || window.location.origin.replace(/\/$/, ''));
     const [mode, setMode] = useState<'polling' | 'webhook'>('polling');
     const [saving, setSaving] = useState(false);
     const { showToast } = useToast();
@@ -84,12 +86,15 @@ export const AddBotModal = ({ onClose }: { onClose: () => void }) => {
                                 <option value="webhook">Webhook</option>
                             </select>
                         </div>
-                        {mode === 'webhook' && (
-                            <div>
-                                <label className="text-xs font-bold text-[var(--text-secondary)] uppercase block mb-1">Public Base URL</label>
-                                <input className="input" placeholder="https://your.domain" value={publicBaseUrl} onChange={e => setPublicBaseUrl(e.target.value)} />
-                            </div>
-                        )}
+                        <div>
+                            <label className="text-xs font-bold text-[var(--text-secondary)] uppercase block mb-1">Public Base URL (HTTPS)</label>
+                            <input className="input" placeholder="https://your.domain" value={publicBaseUrl} onChange={e => setPublicBaseUrl(e.target.value)} />
+                            {publicBaseUrl.includes('localhost') && (
+                                <div className="text-[10px] text-amber-500 mt-1 flex items-center gap-1">
+                                    <AlertTriangle size={10} /> Localhost won't work for Telegram Webhooks/Mini Apps
+                                </div>
+                            )}
+                        </div>
                     </div>
 
                     <div className="flex justify-end gap-3 mt-6">
@@ -139,10 +144,28 @@ export const BotSettings = ({ bot }: { bot: Bot }) => {
         } catch (e: any) { showToast(e.message, 'error'); }
     };
 
+    const getMiniAppUrl = () => {
+        if (!form.username) return '';
+        // Assuming default app name is 'app' or 'startapp' parameter
+        return `https://t.me/${form.username}/app`; // Standard deep link
+    };
+
     return (
         <div className="max-w-2xl mx-auto p-8 space-y-8 overflow-y-auto h-full">
             <div className="panel p-6 space-y-6">
-                <h3 className="font-bold text-lg text-[var(--text-primary)] border-b border-[var(--border-color)] pb-4">General Settings</h3>
+                <div className="flex justify-between items-center border-b border-[var(--border-color)] pb-4">
+                    <h3 className="font-bold text-lg text-[var(--text-primary)]">General Settings</h3>
+                    {form.username && (
+                        <a
+                            href={getMiniAppUrl()}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs font-bold text-blue-500 hover:underline flex items-center gap-1"
+                        >
+                            Open Mini App <Globe size={12} />
+                        </a>
+                    )}
+                </div>
                 <div className="grid grid-cols-2 gap-6">
                     <div>
                         <label className="text-xs font-bold text-[var(--text-secondary)] uppercase mb-2 block">Bot Name</label>
