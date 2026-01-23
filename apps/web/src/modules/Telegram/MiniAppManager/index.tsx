@@ -214,6 +214,22 @@ export const MiniAppManager = ({ botId }: { botId: string }) => {
                             ))}
                         </div>
                     </div>
+
+                    {/* Bottom Navigation Bar */}
+                    <div className="absolute bottom-0 left-0 w-full h-16 bg-[#18181B] border-t border-white/5 flex justify-around items-center px-2">
+                         <div className="flex flex-col items-center gap-1 opacity-50 hover:opacity-100 transition-opacity cursor-pointer">
+                             <div className="w-6 h-6 rounded bg-white/10"></div>
+                             <span className="text-[9px] text-white">Home</span>
+                         </div>
+                         <div className="flex flex-col items-center gap-1 opacity-100 cursor-pointer">
+                             <div className="w-6 h-6 rounded bg-blue-500"></div>
+                             <span className="text-[9px] text-blue-400">App</span>
+                         </div>
+                         <div className="flex flex-col items-center gap-1 opacity-50 hover:opacity-100 transition-opacity cursor-pointer">
+                             <div className="w-6 h-6 rounded bg-white/10"></div>
+                             <span className="text-[9px] text-white">Settings</span>
+                         </div>
+                    </div>
                 </div>
             </div>
         </div>

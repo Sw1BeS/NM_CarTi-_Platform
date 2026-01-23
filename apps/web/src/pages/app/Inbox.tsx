@@ -64,7 +64,8 @@ export const InboxPage = () => {
             setBots(botList || []);
             let currentBotId = selectedBotId;
             if (!currentBotId && botList && botList.length > 0) {
-                const active = botList.find((b: any) => b.active);
+                // If we don't have a selection, default to the first active bot
+                const active = botList.find((b: any) => b.isEnabled !== false); // Handle isEnabled or active
                 currentBotId = active ? active.id : botList[0].id;
                 setSelectedBotId(currentBotId);
             }

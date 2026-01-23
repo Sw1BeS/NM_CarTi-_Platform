@@ -238,6 +238,52 @@ export class LeadRepository extends BaseRepository<Lead> {
         return lead;
     }
 
+    async updateLead(id: string, data: {
+        clientName?: string;
+        phone?: string;
+        source?: string;
+        request?: string;
+        status?: LeadStatus;
+        payload?: any;
+    }): Promise<Lead> {
+        const lead = await this.prisma.lead.update({
+            where: { id },
+            data
+        });
+
+        // Dual Write Update
+        try {
+             // Try to find the associated record (Deal)
+             // Strategy: We used lead.id as record.id for the Deal record
+             const record = await this.prisma.record.findFirst({
+                 where: { id: id }
+             });
+
+             if (record) {
+                 const currentAttrs = record.attributes as any;
+                 const newAttrs = { ...currentAttrs };
+
+                 if (data.clientName) newAttrs.title = `Deal: ${data.clientName}`;
+                 if (data.status) newAttrs.status = data.status;
+                 if (data.source) newAttrs.source = data.source;
+                 if (data.request) newAttrs.client_requirements = { text: data.request };
+                 if (data.payload) newAttrs.notes = JSON.stringify(data.payload);
+
+                 await this.prisma.record.update({
+                     where: { workspace_id_id: { workspace_id: record.workspace_id, id } },
+                     data: {
+                         attributes: newAttrs,
+                         updated_at: new Date()
+                     }
+                 });
+             }
+        } catch (e) {
+            console.error('Dual Write Update Failed (Non-blocking):', e);
+        }
+
+        return lead;
+    }
+
     async countByWorkspace(companyId: string): Promise<number> {
         return this.prisma.lead.count({
             where: { bot: { companyId } }

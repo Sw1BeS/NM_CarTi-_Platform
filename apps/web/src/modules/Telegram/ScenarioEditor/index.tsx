@@ -16,14 +16,16 @@ export type { ScenarioEditorProps, MenuDesignerProps } from './types';
 export const AutomationEditor = ({ botId }: { botId: string }) => {
     const [tab, setTab] = useState<'SCENARIOS' | 'MENU'>('SCENARIOS');
     const [bot, setBot] = useState<Bot | null>(null);
+    const [scenarios, setScenarios] = useState<Scenario[]>([]);
 
     useEffect(() => {
-        const loadBot = async () => {
-            const bots = await Data.getBots();
+        const load = async () => {
+            const [bots, scenList] = await Promise.all([Data.getBots(), Data.getScenarios()]);
             const found = bots.find(b => b.id === botId);
             setBot(found || null);
+            setScenarios(scenList || []);
         };
-        loadBot();
+        load();
     }, [botId]);
 
     if (!bot) {
@@ -57,7 +59,7 @@ export const AutomationEditor = ({ botId }: { botId: string }) => {
             {/* Content */}
             <div className="flex-1 overflow-hidden">
                 {tab === 'SCENARIOS' && <ScenarioBuilder botId={botId} />}
-                {tab === 'MENU' && <MenuDesigner bot={bot} />}
+                {tab === 'MENU' && <MenuDesigner bot={bot} scenarios={scenarios} />}
             </div>
         </div>
     );

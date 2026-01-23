@@ -25,7 +25,7 @@ const normalizeMenuConfig = (menuConfig?: Bot['menuConfig']) => {
     };
 };
 
-export const BotMenuEditor = ({ scenarios, botId, standalone = false }: { scenarios: Scenario[], botId?: string, standalone?: boolean }) => {
+export const BotMenuEditor = ({ scenarios = [], botId, standalone = false }: { scenarios?: Scenario[], botId?: string, standalone?: boolean }) => {
     const [bots, setBots] = useState<Bot[]>([]);
     const [selectedBotId, setSelectedBotId] = useState<string>(botId || '');
     const { showToast } = useToast();
