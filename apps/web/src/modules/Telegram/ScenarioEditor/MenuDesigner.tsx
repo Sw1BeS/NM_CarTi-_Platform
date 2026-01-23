@@ -7,18 +7,23 @@ import { Settings, Plus, RefreshCw, UploadCloud, Trash2 } from 'lucide-react';
 
 interface MenuDesignerProps {
     bot: Bot;
+    scenarios?: Scenario[];
     onSync?: () => Promise<void>;
 }
 
-export const MenuDesigner = ({ bot }: MenuDesignerProps) => {
+export const MenuDesigner = ({ bot, scenarios: initialScenarios }: MenuDesignerProps) => {
     const { showToast } = useToast();
     const [menuConfig, setMenuConfig] = useState(bot.menuConfig || { welcomeMessage: '', buttons: [] });
-    const [scenarios, setScenarios] = useState<Scenario[]>([]);
+    const [scenarios, setScenarios] = useState<Scenario[]>(initialScenarios || []);
     const [isSyncing, setIsSyncing] = useState(false);
 
     useEffect(() => {
-        Data.getScenarios().then(setScenarios);
-    }, []);
+        if (!initialScenarios) {
+            Data.getScenarios().then(setScenarios);
+        } else {
+            setScenarios(initialScenarios);
+        }
+    }, [initialScenarios]);
 
     useEffect(() => {
         if (bot.menuConfig) setMenuConfig(bot.menuConfig);

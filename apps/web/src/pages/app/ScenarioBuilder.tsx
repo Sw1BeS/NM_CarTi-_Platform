@@ -114,6 +114,7 @@ export const ScenarioBuilder = ({ studioMode = false, botId }: ScenarioBuilderPr
                         <div className="p-4 border-b border-[var(--border-color)] flex justify-between items-center bg-[var(--bg-input)]">
                             <h3 className="font-bold text-[var(--text-secondary)] text-xs uppercase tracking-wide">Scenarios</h3>
                             <div className="flex gap-1">
+                                <button onClick={() => showToast("AI Generation coming soon!", "info")} className="btn-icon p-1.5 text-purple-400" title="Generate with AI"><Zap size={14} /></button>
                                 <button onClick={() => setTemplateModalOpen(true)} className="btn-icon p-1.5" title="Library"><FolderOpen size={14} /></button>
                                 <button onClick={createScenario} className="btn-icon p-1.5" title="New"><Plus size={14} /></button>
                             </div>
