@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { prisma } from '../services/prisma.js';
 import { parseListingFromUrl } from '../services/parser.js';
+// @ts-ignore
+import { saveProfile } from '../services/parserProfiles.js';
 import { generateRequestLink } from '../utils/deeplink.utils.js';
 import { authenticateToken, requireRole } from '../middleware/auth.js';
 import { ScenarioEngine } from '../modules/Communication/bots/scenario.engine.js';
@@ -16,6 +18,19 @@ router.get('/parse', authenticateToken, requireRole(['SUPER_ADMIN', 'ADMIN']), a
   } catch (e: any) {
     res.status(500).json({ error: e.message || 'parse failed' });
   }
+});
+
+router.post('/parse/profile', authenticateToken, requireRole(['SUPER_ADMIN', 'ADMIN']), async (req, res) => {
+    try {
+        const { domain, selectors } = req.body;
+        if (!domain || !selectors) return res.status(400).json({ error: 'domain and selectors required' });
+
+        await saveProfile(domain, selectors);
+        res.json({ success: true });
+    } catch (e: any) {
+        console.error('Save Profile Error:', e);
+        res.status(500).json({ error: e.message });
+    }
 });
 
 router.get('/simulate/start', authenticateToken, requireRole(['SUPER_ADMIN', 'ADMIN']), async (req, res) => {

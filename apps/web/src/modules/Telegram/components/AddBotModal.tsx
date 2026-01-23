@@ -11,8 +11,10 @@ export const AddBotModal = ({ onClose }: any) => {
     const [token, setToken] = useState('');
     const [channelId, setChannelId] = useState('');
     const [adminChatId, setAdminChatId] = useState('');
-    const [publicBaseUrl, setPublicBaseUrl] = useState(window.location.origin.replace(/\/$/, ''));
+    // Use env var or window origin
+    const [publicBaseUrl, setPublicBaseUrl] = useState(import.meta.env.VITE_API_URL || window.location.origin.replace(/\/$/, ''));
     const [mode, setMode] = useState<'polling' | 'webhook'>('polling');
+    const [showAdvanced, setShowAdvanced] = useState(false);
     const [saving, setSaving] = useState(false);
     const { showToast } = useToast();
 
@@ -83,10 +85,17 @@ export const AddBotModal = ({ onClose }: any) => {
                                 <option value="webhook">Webhook</option>
                             </select>
                         </div>
-                        {mode === 'webhook' && (
-                            <div>
-                                <label className="text-xs font-bold text-[var(--text-secondary)] uppercase block mb-1">Public Base URL</label>
+                    </div>
+
+                    <div className="pt-2">
+                        <button onClick={() => setShowAdvanced(!showAdvanced)} className="text-xs font-bold text-[var(--text-secondary)] hover:text-[var(--text-primary)] flex items-center gap-1">
+                            {showAdvanced ? 'Hide' : 'Show'} Advanced Settings
+                        </button>
+                        {showAdvanced && (
+                             <div className="mt-3 animate-slide-down">
+                                <label className="text-xs font-bold text-[var(--text-secondary)] uppercase block mb-1">Public Base URL (Webhook)</label>
                                 <input className="input" placeholder="https://your.domain" value={publicBaseUrl} onChange={e => setPublicBaseUrl(e.target.value)} />
+                                <p className="text-[10px] text-[var(--text-secondary)] mt-1">Leave as is unless you are using a tunnel or custom domain proxy.</p>
                             </div>
                         )}
                     </div>

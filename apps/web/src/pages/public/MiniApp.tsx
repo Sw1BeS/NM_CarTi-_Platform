@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Data } from '../../services/data';
+import { InventoryService } from '../../services/inventoryService';
 import { Bot, MiniAppConfig, CarListing } from '../../types';
 import { getPublicBots } from '../../services/publicApi';
 import {
@@ -69,8 +69,12 @@ export const MiniApp = () => {
             }
 
             // 3. Load Data
-            const inv = await Data.getInventory();
-            setCars(inv.filter(c => c.status === 'AVAILABLE'));
+            try {
+                const res = await InventoryService.getInventory({ status: 'AVAILABLE', limit: 100 });
+                setCars(res.items);
+            } catch (e) {
+                console.error("Failed to load inventory for Mini App", e);
+            }
         };
         load();
     }, []);

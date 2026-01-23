@@ -7,7 +7,7 @@ import { useToast } from '../../contexts/ToastContext';
 import { useNavigate } from 'react-router-dom';
 import { MatchingService } from '../../services/matchingService';
 import { RequestsService } from '../../services/requestsService';
-import { parseListingFromUrl } from '../../services/parserClient';
+import { parseListingFromUrl, saveParserProfile } from '../../services/parserClient';
 
 export const InventoryPage = () => {
     // Data State
@@ -32,6 +32,7 @@ export const InventoryPage = () => {
     const [quickLeadModal, setQuickLeadModal] = useState<CarListing | null>(null);
     const [importing, setImporting] = useState(false);
     const [importUrl, setImportUrl] = useState('');
+    const [mappingModal, setMappingModal] = useState<{ url: string, domain: string } | null>(null);
 
     const { showToast } = useToast();
     const navigate = useNavigate();
@@ -357,6 +358,18 @@ export const InventoryPage = () => {
                                     if (!importUrl.trim()) return showToast('URL required', 'error');
                                     try {
                                         const parsed = await parseListingFromUrl(importUrl.trim());
+
+                                        if (parsed.confidence === 'low') {
+                                            if (confirm('Confidence is low. Map fields manually?')) {
+                                                 try {
+                                                    const domain = new URL(importUrl.trim()).hostname;
+                                                    setMappingModal({ url: importUrl.trim(), domain });
+                                                    // Don't close import modal yet, let mapping handle it
+                                                    return;
+                                                 } catch(e) {}
+                                            }
+                                        }
+
                                         const now = new Date();
                                         const car: any = {
                                             canonicalId: `imp_${now.getTime()}`,
@@ -393,6 +406,95 @@ export const InventoryPage = () => {
                     </div>
                 </div>
             )}
+
+            {mappingModal && (
+                <MappingModal
+                    url={mappingModal.url}
+                    domain={mappingModal.domain}
+                    onClose={() => setMappingModal(null)}
+                    onSave={async (selectors: any) => {
+                         try {
+                             await saveParserProfile(mappingModal.domain, selectors);
+                             showToast('Profile saved. Retrying...');
+                             const parsed = await parseListingFromUrl(mappingModal.url);
+
+                             const now = new Date();
+                             const car: any = {
+                                 canonicalId: `imp_${now.getTime()}`,
+                                 source: 'EXTERNAL',
+                                 sourceUrl: parsed.url || mappingModal.url,
+                                 title: parsed.title || 'Imported Car',
+                                 price: { amount: parsed.price || 0, currency: (parsed.currency || 'USD') as any },
+                                 year: parsed.year || now.getFullYear(),
+                                 mileage: parsed.mileage || 0,
+                                 location: parsed.location || '',
+                                 thumbnail: parsed.thumbnail || '',
+                                 mediaUrls: parsed.raw?.images || [],
+                                 specs: {
+                                     engine: parsed.raw?.jsonLd?.engine || '',
+                                     fuel: parsed.currency ? '' : '',
+                                     vin: parsed.raw?.jsonLd?.vin || ''
+                                 },
+                                 status: 'AVAILABLE',
+                                 postedAt: now.toISOString()
+                             };
+                             setEditingCar(car);
+                             setIsModalOpen(true);
+                             setMappingModal(null);
+                             setImporting(false);
+                             setImportUrl('');
+                         } catch(e: any) {
+                             showToast(e.message || 'Retry failed', 'error');
+                         }
+                    }}
+                />
+            )}
+        </div>
+    );
+};
+
+const MappingModal = ({ url, domain, onClose, onSave }: any) => {
+    const [selectors, setSelectors] = useState({ title: '', price: '', year: '', mileage: '', description: '' });
+
+    return (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+            <div className="panel w-full max-w-lg p-6 animate-slide-up">
+                <div className="flex justify-between items-center mb-4">
+                    <h3 className="font-bold text-[var(--text-primary)] text-lg">Map Fields: {domain}</h3>
+                    <button onClick={onClose}><X size={20} className="text-[var(--text-secondary)]" /></button>
+                </div>
+                <div className="space-y-3 mb-6">
+                    <p className="text-xs text-[var(--text-secondary)]">Enter CSS selectors for this domain.</p>
+
+                    <div>
+                        <label className="text-xs font-bold text-[var(--text-secondary)] block mb-1">Title Selector</label>
+                        <input className="input" placeholder=".product-title, h1..." value={selectors.title} onChange={e => setSelectors({...selectors, title: e.target.value})} />
+                    </div>
+                    <div>
+                        <label className="text-xs font-bold text-[var(--text-secondary)] block mb-1">Price Selector</label>
+                        <input className="input" placeholder=".price-box, .amount..." value={selectors.price} onChange={e => setSelectors({...selectors, price: e.target.value})} />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                         <div>
+                            <label className="text-xs font-bold text-[var(--text-secondary)] block mb-1">Year Selector</label>
+                            <input className="input" placeholder=".year, .specs li:nth-child(1)..." value={selectors.year} onChange={e => setSelectors({...selectors, year: e.target.value})} />
+                        </div>
+                         <div>
+                            <label className="text-xs font-bold text-[var(--text-secondary)] block mb-1">Mileage Selector</label>
+                            <input className="input" placeholder=".odometer..." value={selectors.mileage} onChange={e => setSelectors({...selectors, mileage: e.target.value})} />
+                        </div>
+                    </div>
+                     <div>
+                        <label className="text-xs font-bold text-[var(--text-secondary)] block mb-1">Description Selector</label>
+                        <input className="input" placeholder=".description-content..." value={selectors.description} onChange={e => setSelectors({...selectors, description: e.target.value})} />
+                    </div>
+                </div>
+
+                <div className="flex justify-end gap-3">
+                    <button onClick={onClose} className="btn-ghost">Cancel</button>
+                    <button onClick={() => onSave(selectors)} className="btn-primary">Save & Retry</button>
+                </div>
+            </div>
         </div>
     );
 };

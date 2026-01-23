@@ -1,5 +1,7 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
+// @ts-ignore
+import { getProfile } from './parserProfiles.js';
 
 type Confidence = 'low' | 'medium' | 'high';
 
@@ -59,6 +61,34 @@ export const parseListingFromUrl = async (url: string): Promise<ParsedListing> =
     const html = resp.data || '';
     const $ = cheerio.load(html);
 
+    // 0. Profile Extraction
+    let profileData: any = {};
+    try {
+        const domain = new URL(url).hostname;
+        const profile = await getProfile(domain);
+        if (profile) {
+            if (profile.title) profileData.title = $(profile.title).first().text().trim();
+            if (profile.price) {
+                 const txt = $(profile.price).first().text().trim();
+                 const pp = parsePrice(txt);
+                 profileData.price = pp.amount;
+                 profileData.currency = pp.currency;
+            }
+            if (profile.year) {
+                 const txt = $(profile.year).first().text().trim();
+                 const m = txt.match(/(19|20)\d{2}/);
+                 if (m) profileData.year = Number(m[0]);
+            }
+            if (profile.mileage) {
+                 const txt = $(profile.mileage).first().text().trim();
+                 profileData.mileage = parseMileage(txt);
+            }
+            if (profile.description) profileData.description = $(profile.description).first().text().trim();
+        }
+    } catch (e) {
+        console.warn('Profile extraction failed', e);
+    }
+
     // 1. Meta Tags (OG, Twitter)
     const title = $('meta[property="og:title"]').attr('content') || $('meta[name="twitter:title"]').attr('content') || $('title').text();
     const image = $('meta[property="og:image"]').attr('content') || $('meta[name="twitter:image"]').attr('content');
@@ -115,17 +145,18 @@ export const parseListingFromUrl = async (url: string): Promise<ParsedListing> =
     }
 
     const payload: ParsedListing = {
-      title: (ldTitle || title || '').trim(),
-      price: finalPrice,
-      currency: finalCurrency,
-      year: finalYear,
-      mileage: finalMileage,
+      title: (profileData.title || ldTitle || title || '').trim(),
+      price: profileData.price || finalPrice,
+      currency: profileData.currency || finalCurrency,
+      year: profileData.year || finalYear,
+      mileage: profileData.mileage || finalMileage,
       location: vehicleLd?.address?.addressLocality,
       thumbnail: ldImage || image,
       url,
       raw: {
         jsonLd: vehicleLd || null,
-        meta: { title, image, description }
+        meta: { title, image, description },
+        profile: profileData
       },
       confidence: 'low'
     };
