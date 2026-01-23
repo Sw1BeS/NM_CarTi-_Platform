@@ -11,7 +11,7 @@ This directory is the canonical documentation set for the Cartie platform.
 - docs/MODULES/
 
 ## Snapshot (2026-01-22)
-- Repo root: /srv/cartie/apps/cartie2_repo
+- Repo root: /srv/cartie
 - Stack: Node.js + TypeScript + Express, Prisma + Postgres, React 19 + Vite 6 + Tailwind 4, Docker Compose + Caddy, GitHub Actions CI
 
 ### High-Level Tree

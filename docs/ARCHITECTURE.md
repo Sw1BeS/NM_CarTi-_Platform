@@ -1,7 +1,7 @@
 # CARTIE PLATFORM ARCHITECTURE
 
 **Last Updated**: 2026-01-22  
-**Repository**: `/srv/cartie/apps/cartie2_repo`
+**Repository**: `/srv/cartie`
 
 ---
 

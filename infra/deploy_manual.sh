@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_DIR="/srv/cartie/apps/cartie2_repo"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 PROJECT="infra2"
-COMPOSE_FILE="/srv/cartie/apps/cartie2_repo/infra/docker-compose.cartie2.prod.yml"
+COMPOSE_FILE="$REPO_DIR/infra/docker-compose.cartie2.prod.yml"
 
 ts_utc() { date -u +%Y-%m-%dT%H:%M:%SZ; }
 die() { echo "[DEPLOY] ERROR: $*" >&2; exit 2; }

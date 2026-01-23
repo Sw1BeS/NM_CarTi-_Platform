@@ -31,7 +31,7 @@
 ## 1) Audit & Evidence Map
 
 ### 1.1 Repository Structure
-*   **Root:** `/srv/cartie/apps/cartie2_repo`
+*   **Root:** `/srv/cartie`
 *   **Backend:** `apps/server` (Express/Prisma)
 *   **Frontend:** `apps/web` (Vite/React)
 *   **Infra:** `infra/` (Docker, Scripts)

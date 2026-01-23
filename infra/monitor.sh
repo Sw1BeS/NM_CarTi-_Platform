@@ -1,12 +1,15 @@
 #!/usr/bin/env bash
-# apps/cartie2_repo/infra/monitor.sh
+# infra/monitor.sh
 set -uo pipefail
 
 # Configuration
 PROJECT="infra2"
 SERVICES=("infra2-web-1" "infra2-api-1" "infra2-db-1")
-COMPOSE_FILE="/srv/cartie/apps/cartie2_repo/infra/docker-compose.cartie2.prod.yml"
-LOG_FILE="/srv/cartie/_logs/monitor.log"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+COMPOSE_FILE="${COMPOSE_FILE:-$ROOT_DIR/infra/docker-compose.cartie2.prod.yml}"
+LOG_FILE="${LOG_FILE:-$ROOT_DIR/_logs/monitor.log}"
 
 # Ensure log dir exists
 mkdir -p "$(dirname "$LOG_FILE")"
@@ -37,7 +40,7 @@ restart_service() {
 
   if [ -n "$service_name" ]; then
     log "🛠️ Attempting to restart service: $service_name"
-    cd /srv/cartie/apps/cartie2_repo || exit 1
+    cd "$ROOT_DIR" || exit 1
     # Using 'up -d' is idempotent and safe; it will recreate if missing
     docker compose -p "$PROJECT" -f "$COMPOSE_FILE" up -d "$service_name" >> "$LOG_FILE" 2>&1
     

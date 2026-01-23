@@ -82,7 +82,7 @@ docker logs infra2-api-1 --tail 50 --follow
 
 ```bash
 # Edit .env in repository root
-cd /srv/cartie/apps/cartie2_repo
+cd /srv/cartie
 nano .env
 
 # Add these lines:
@@ -268,7 +268,7 @@ SEED_DEMO=false  # Set to 'true' for demo bots/inventory
 **After editing `.env`**:
 ```bash
 # Rebuild and restart API container
-cd /srv/cartie/apps/cartie2_repo
+cd /srv/cartie
 ./infra/deploy_prod.sh
 ```
 

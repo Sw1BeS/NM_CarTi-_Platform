@@ -1,12 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_DIR="${REPO_DIR:-/srv/cartie/apps/cartie2_repo}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DEFAULT_REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+REPO_DIR="${REPO_DIR:-$DEFAULT_REPO_DIR}"
 PROJECT="${PROJECT:-infra2}"
 BRANCH="${BRANCH:-main}"
 
 # Use label-derived compose if available; fallback to repo prod compose
-COMPOSE_FALLBACK="${COMPOSE_FALLBACK:-/srv/cartie/apps/cartie2_repo/infra/docker-compose.cartie2.prod.yml}"
+COMPOSE_FALLBACK="${COMPOSE_FALLBACK:-$REPO_DIR/infra/docker-compose.cartie2.prod.yml}"
 
 ts_utc() { date -u +%Y-%m-%dT%H:%M:%SZ; }
 die() { echo "[DEPLOY] ERROR: $*" >&2; exit 2; }

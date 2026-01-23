@@ -6,7 +6,10 @@ set -euo pipefail
 # Idempotent, zero-downtime deployment
 # ========================================
 
-REPO_DIR="${REPO_DIR:-/srv/cartie/apps/cartie2_repo}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DEFAULT_REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+REPO_DIR="${REPO_DIR:-$DEFAULT_REPO_DIR}"
 PROJECT="${PROJECT:-infra2}"
 COMPOSE_FILE="${COMPOSE_FILE:-$REPO_DIR/infra/docker-compose.cartie2.prod.yml}"
 LOG_DIR="/srv/cartie/_logs"

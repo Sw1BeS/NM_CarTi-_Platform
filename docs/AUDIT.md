@@ -2,7 +2,7 @@
 
 **Date:** 2026-01-22
 **Commit:** f64ab53
-**Root:** /srv/cartie/apps/cartie2_repo
+**Root:** /srv/cartie
 
 ## Phase 0: Snapshot
 
