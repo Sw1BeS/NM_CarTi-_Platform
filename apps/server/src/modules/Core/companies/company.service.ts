@@ -217,7 +217,7 @@ export class CompanyService {
             prisma.botConfig.count({ where: { companyId } }),
             prisma.scenario.count({ where: { companyId } }),
             prisma.lead.count({
-                where: { bot: { companyId } }
+                where: { companyId }
             }),
             prisma.b2bRequest.count({ where: { companyId } })
         ]);

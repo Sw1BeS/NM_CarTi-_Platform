@@ -747,16 +747,26 @@ router.get('/proxy', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), async (req, 
 
 // --- Leads ---
 // --- Leads ---
-router.get('/leads', async (req, res) => {
+router.get('/leads', requireRole(['SUPER_ADMIN', 'OWNER', 'ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
     const page = Math.max(1, Number(req.query.page) || 1);
     const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 50));
     const skip = (page - 1) * limit;
+
+    const user = (req as any).user || {};
+    const isSuperadmin = user.role === 'SUPER_ADMIN';
+    const userCompanyId = user.companyId || user.workspaceId;
+    const requestedCompanyId = typeof req.query.companyId === 'string' ? req.query.companyId : undefined;
+    const companyId = isSuperadmin ? requestedCompanyId : userCompanyId;
+    if (!companyId && !isSuperadmin) {
+        return res.status(400).json({ error: 'Company context required' });
+    }
 
     const status = req.query.status as string;
     const source = req.query.source as string;
     const search = req.query.search as string;
 
     const where: any = {};
+    if (companyId) where.companyId = companyId;
     if (status && status !== 'ALL') {
         const dbStatus = mapLeadStatusFilter(status);
         if (dbStatus) where.status = dbStatus;
@@ -790,12 +800,12 @@ router.get('/leads', async (req, res) => {
 });
 
 // --- Integrations & Drafts ---
-router.post('/drafts/import', async (req, res) => {
+router.post('/drafts/import', requireRole(['ADMIN', 'MANAGER']), async (req, res) => {
     const success = await importDraft(req.body);
     res.json({ success });
 });
 
-router.get('/drafts', async (req, res) => {
+router.get('/drafts', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
     const drafts = await prisma.draft.findMany({ orderBy: { createdAt: 'desc' }, take: 50 });
     res.json(drafts);
 });
@@ -863,31 +873,67 @@ router.delete('/drafts/:id', requireRole(['ADMIN', 'MANAGER']), async (req, res)
 });
 
 // --- Leads CRUD ---
-router.post('/leads', async (req, res) => {
+router.post('/leads', requireRole(['SUPER_ADMIN', 'OWNER', 'ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
     try {
+        const user = (req as any).user || {};
+        const isSuperadmin = user.role === 'SUPER_ADMIN';
+        const userCompanyId = user.companyId || user.workspaceId;
+        const requestedCompanyId = typeof (req.body || {}).companyId === 'string' ? (req.body || {}).companyId : undefined;
+        const companyId = isSuperadmin ? (requestedCompanyId || userCompanyId) : userCompanyId;
+        if (!companyId) return res.status(400).json({ error: 'Company context required' });
+
         const { id, ...raw } = req.body || {};
         const mapped = mapLeadCreateInput(raw);
         if (mapped.error) return res.status(400).json({ error: mapped.error });
-        const lead = await prisma.lead.create({ data: mapped.data });
+        const botId = (req.body || {}).botId ? String((req.body || {}).botId) : undefined;
+        if (botId) {
+            const bot = await prisma.botConfig.findUnique({ where: { id: botId }, select: { companyId: true } });
+            if (!bot) return res.status(400).json({ error: 'Invalid botId' });
+            if (!isSuperadmin && bot.companyId !== companyId) return res.status(403).json({ error: 'Forbidden' });
+        }
+
+        const lead = await prisma.lead.create({
+            data: {
+                ...mapped.data,
+                companyId,
+                ...(botId ? { botId } : {})
+            }
+        });
         res.json(mapLeadOutput(lead));
     } catch (e) { console.error(e); res.status(500).json({ error: 'Failed to create lead' }); }
 });
 
-router.put('/leads/:id', async (req, res) => {
+router.put('/leads/:id', requireRole(['SUPER_ADMIN', 'OWNER', 'ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
     try {
+        const user = (req as any).user || {};
+        const isSuperadmin = user.role === 'SUPER_ADMIN';
+        const userCompanyId = user.companyId || user.workspaceId;
+
         const { id: _, ...raw } = req.body || {};
         const { id } = req.params;
         const existing = await prisma.lead.findUnique({ where: { id } });
         if (!existing) return res.status(404).json({ error: 'Lead not found' });
+        if (!isSuperadmin && userCompanyId && existing.companyId !== userCompanyId) {
+            return res.status(403).json({ error: 'Forbidden' });
+        }
         const mapped = mapLeadUpdateInput(raw, existing.payload);
         const lead = await prisma.lead.update({ where: { id }, data: mapped.data });
         res.json(mapLeadOutput(lead));
     } catch (e) { console.error(e); res.status(500).json({ error: 'Failed to update lead' }); }
 });
 
-router.delete('/leads/:id', async (req, res) => {
+router.delete('/leads/:id', requireRole(['SUPER_ADMIN', 'OWNER', 'ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
     try {
         const { id } = req.params;
+        const user = (req as any).user || {};
+        const isSuperadmin = user.role === 'SUPER_ADMIN';
+        const userCompanyId = user.companyId || user.workspaceId;
+
+        if (!isSuperadmin && userCompanyId) {
+            const existing = await prisma.lead.findUnique({ where: { id }, select: { companyId: true } });
+            if (!existing) return res.status(404).json({ error: 'Lead not found' });
+            if (existing.companyId !== userCompanyId) return res.status(403).json({ error: 'Forbidden' });
+        }
         await prisma.lead.delete({ where: { id } });
         res.json({ success: true });
     } catch (e) { res.status(500).json({ error: 'Failed to delete lead' }); }

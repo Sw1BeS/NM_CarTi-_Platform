@@ -8,7 +8,6 @@ import apiRoutes from './routes/apiRoutes.js';
 import entityRoutes from './routes/entityRoutes.js';
 import inventoryRoutes from './modules/Inventory/inventory/inventory.routes.js';
 import requestsRoutes from './modules/Sales/requests/requests.routes.js';
-import botRoutes from './modules/Communication/bots/bot.routes.js';
 import publicRoutes from './routes/publicRoutes.js';
 import companyRoutes from './modules/Core/companies/company.routes.js';
 import templateRoutes from './modules/Core/templates/template.routes.js';
@@ -78,7 +77,6 @@ app.use('/api/templates', templateRoutes); // Stage C: Marketplace
 app.use('/api/integrations', integrationRoutes); // Stage C: Integrations
 app.use('/api/superadmin', superadminRoutes); // Stage C: System admin
 app.use('/api', apiRoutes);
-app.use('/api', botRoutes); // Mount at /api root for /bots, /scenarios etc.
 app.use('/api/qa', qaRoutes);
 app.use('/api/telegram', telegramRoutes);
 

@@ -13,7 +13,29 @@ router.post('/leads', async (req, res) => {
   try {
     const mapped = mapLeadCreateInput(req.body || {});
     if (mapped.error) return res.status(400).json({ error: mapped.error });
-    const lead = await prisma.lead.create({ data: mapped.data });
+    const requestedBotId = (req.body || {}).botId ? String((req.body || {}).botId) : undefined;
+    let companyId: string | null = null;
+    let botId: string | undefined = undefined;
+
+    if (requestedBotId) {
+      const bot = await prisma.botConfig.findUnique({ where: { id: requestedBotId }, select: { id: true, companyId: true } });
+      if (!bot) return res.status(400).json({ error: 'Invalid botId' });
+      botId = bot.id;
+      companyId = bot.companyId;
+    } else {
+      const system = await prisma.workspace.findUnique({ where: { slug: 'system' }, select: { id: true } });
+      companyId = system?.id || (await prisma.workspace.findFirst({ select: { id: true } }))?.id || null;
+    }
+
+    if (!companyId) return res.status(500).json({ error: 'Workspace not configured' });
+
+    const lead = await prisma.lead.create({
+      data: {
+        ...mapped.data,
+        companyId,
+        ...(botId ? { botId } : {})
+      }
+    });
     res.json(mapLeadOutput(lead));
   } catch (e: any) {
     console.error(e);

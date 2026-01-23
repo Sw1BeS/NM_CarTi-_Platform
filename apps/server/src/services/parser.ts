@@ -142,7 +142,10 @@ export const parseListingFromUrl = async (url: string): Promise<ParsedListing> =
     return payload;
 
   } catch (e: any) {
-    console.error('Parse error:', e.message);
+    const message = e?.message || '';
+    if (message && message !== 'Invalid URL') {
+      console.error('Parse error:', message);
+    }
     return {
       url,
       confidence: 'low',

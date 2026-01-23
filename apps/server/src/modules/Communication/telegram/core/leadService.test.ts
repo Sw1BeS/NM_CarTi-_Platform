@@ -15,7 +15,7 @@ vi.mock('../../../../repositories/index.js', () => {
   return { LeadRepository, RequestRepository };
 });
 
-vi.mock('../../../services/prisma.js', () => ({
+vi.mock('../../../../services/prisma.js', () => ({
   prisma: {
     leadActivity: {
       create: vi.fn(async () => ({ id: 'act_1' }))
@@ -23,7 +23,7 @@ vi.mock('../../../services/prisma.js', () => ({
   }
 }));
 
-vi.mock('../events/eventEmitter.js', () => ({
+vi.mock('./events/eventEmitter.js', () => ({
   emitPlatformEvent: vi.fn(async () => undefined)
 }));
 

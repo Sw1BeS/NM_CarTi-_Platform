@@ -52,16 +52,19 @@ const resolveTelegramUserId = (input: LeadCreateInput) => {
   return chatId;
 };
 
-const buildScope = (botId: string, companyId?: string | null) => {
-  if (companyId) return { bot: { companyId } };
-  return { botId };
-};
-
 export const createOrMergeLead = async (input: LeadCreateInput, botConfig?: any) => {
   const normalizedPhone = normalizePhone(input.phone || undefined);
   const dedupDays = getDedupWindowDays(botConfig);
   const telegramUserId = resolveTelegramUserId(input);
-  const scope = buildScope(input.botId, input.companyId);
+  const companyId = input.companyId
+    || (await prisma.botConfig.findUnique({ where: { id: input.botId }, select: { companyId: true } }))?.companyId
+    || null;
+
+  if (!companyId) {
+    throw new Error('companyId is required to create lead');
+  }
+
+  const scope = { companyId };
   const dup = await leadRepo.findDuplicate(scope, {
     phone: normalizedPhone,
     userTgId: telegramUserId,
@@ -95,7 +98,7 @@ export const createOrMergeLead = async (input: LeadCreateInput, botConfig?: any)
     await leadRepo.updatePayload(dup.id, nextPayload).catch(() => null);
 
     await emitPlatformEvent({
-      companyId: input.companyId,
+      companyId,
       botId: input.botId,
       eventType: 'lead.duplicate_merged',
       userId: telegramUserId || undefined,
@@ -110,6 +113,7 @@ export const createOrMergeLead = async (input: LeadCreateInput, botConfig?: any)
   }
 
   const lead = await leadRepo.createLead({
+    companyId,
     clientName: input.name,
     phone: normalizedPhone || undefined,
     request: input.request || undefined,
@@ -145,7 +149,7 @@ export const createOrMergeLead = async (input: LeadCreateInput, botConfig?: any)
       ...reqInput,
       publicId: generatePublicId(),
       chatId: input.chatId || undefined,
-      companyId: input.companyId || undefined
+      companyId
     });
 
     await leadRepo.updatePayload(lead.id, {
@@ -155,7 +159,7 @@ export const createOrMergeLead = async (input: LeadCreateInput, botConfig?: any)
   }
 
   await emitPlatformEvent({
-    companyId: input.companyId,
+    companyId,
     botId: input.botId,
     eventType: 'lead.created',
     userId: telegramUserId || undefined,
@@ -204,4 +208,3 @@ export const createOrMergeLead = async (input: LeadCreateInput, botConfig?: any)
 
   return { lead, isDuplicate: false, request: createdRequest };
 };
-

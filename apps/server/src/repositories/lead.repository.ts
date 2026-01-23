@@ -19,8 +19,9 @@ export class LeadRepository extends BaseRepository<Lead> {
         return et?.id || null;
     }
 
-    // Helper: Resolve workspaceId from botId
-    private async resolveWorkspace(botId?: string): Promise<string | null> {
+    // Helper: Resolve workspaceId from companyId/botId (legacy compatibility)
+    private async resolveWorkspace(companyId?: string | null, botId?: string): Promise<string | null> {
+        if (companyId) return companyId;
         if (!botId) return null;
         const bot = await this.prisma.botConfig.findUnique({ where: { id: botId } });
         return bot?.companyId || null;
@@ -34,7 +35,7 @@ export class LeadRepository extends BaseRepository<Lead> {
     }): Promise<Lead[]> {
         return this.prisma.lead.findMany({
             where: {
-                bot: { companyId },
+                companyId,
                 ...(filters?.status && { status: filters.status as LeadStatus }),
                 ...(filters?.source && { source: filters.source })
             },
@@ -45,7 +46,7 @@ export class LeadRepository extends BaseRepository<Lead> {
     }
 
     async findDuplicate(
-        scope: { botId?: string; bot?: { companyId: string } },
+        scope: { companyId: string },
         criteria: {
             phone?: string | null;
             userTgId?: string | null;
@@ -97,6 +98,7 @@ export class LeadRepository extends BaseRepository<Lead> {
     }
 
     async createLead(data: {
+        companyId: string;
         clientName: string;
         phone?: string;
         source?: string;
@@ -119,7 +121,7 @@ export class LeadRepository extends BaseRepository<Lead> {
 
         // 2. Dual Write to v4.1 (Best Effort)
         try {
-            const workspaceId = await this.resolveWorkspace(data.botId);
+            const workspaceId = await this.resolveWorkspace(data.companyId, data.botId);
             if (workspaceId) {
                 // Upsert Contact
                 let contactId = leadId; // Reuse ID if possible? No, contact is person.
@@ -240,7 +242,7 @@ export class LeadRepository extends BaseRepository<Lead> {
 
     async countByWorkspace(companyId: string): Promise<number> {
         return this.prisma.lead.count({
-            where: { bot: { companyId } }
+            where: { companyId }
         });
     }
 

@@ -191,6 +191,9 @@ model Lead {
   botId    String?
   bot      BotConfig? @relation(fields: [botId], references: [id])
 
+  companyId String
+  workspace Workspace @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
   userTgId   String?
   clientName String
   phone      String?
@@ -206,6 +209,9 @@ model Lead {
   @@index([botId])
   @@index([status])
   @@index([phone])
+  @@index([companyId])
+  @@index([companyId, status])
+  @@index([companyId, createdAt])
   @@index([botId, status])
   @@index([botId, phone, createdAt])
   @@index([userTgId, botId])
@@ -709,6 +715,7 @@ model Workspace {
   normalizationAliases NormalizationAlias[]
   platformEvents       PlatformEvent[]
   mtProtoConnectors    MTProtoConnector[]
+  leads                Lead[]
 
   @@index([deleted_at])
   @@map("workspaces")

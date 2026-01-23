@@ -66,6 +66,9 @@ export class BotManager {
         const instance = new BotInstance(config, deliveryMode, (botId) => {
             console.warn(`🛑 Bot ${botId} stopped due to invalid token`);
             this.activeBots.delete(botId);
+            this.botRepo.updateBotStatus(botId, false).catch(e => {
+                console.error(`Failed to disable bot ${botId} after invalid token:`, e?.message || e);
+            });
         });
         instance.start();
         this.activeBots.set(config.id, instance);
@@ -383,6 +386,8 @@ class BotInstance {
                 const leadCode = `L-${Math.floor(Math.random() * 100000)}`;
                 const lead = await prisma.lead.create({
                     data: {
+                        companyId: this.config.companyId!,
+                        botId: this.config.id,
                         leadCode,
                         clientName: lf.name || 'Клієнт',
                         phone: lf.phone,
