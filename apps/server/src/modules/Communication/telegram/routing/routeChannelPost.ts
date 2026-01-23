@@ -62,6 +62,8 @@ export const routeChannelPost: PipelineMiddleware = async (ctx, next) => {
                   price: `${priceData.amount} ${priceData.currency || 'USD'}`,
                   url: `https://t.me/c/${channelId.replace('-100', '')}/${post.message_id}`,
                   status: 'PENDING',
+                  destination: channelId,
+                  botId: ctx.botId ? String(ctx.botId) : null,
                   metadata: {
                       channelId,
                       messageId: post.message_id,

@@ -4,7 +4,6 @@ import { Router, Request, Response } from 'express';
 import { prisma } from '../services/prisma.js';
 import bcrypt from 'bcryptjs';
 import axios from 'axios';
-import { Prisma } from '@prisma/client';
 import { authenticateToken, requireRole } from '../middleware/auth.js';
 import { getWorkspaceById, getWorkspaceBySlug, getAllUsers } from '../services/v41/readService.js';
 import { botManager } from '../modules/Communication/bots/bot.service.js';
@@ -45,7 +44,18 @@ const resolveCompanyId = async (requestedCompanyId?: string | null, userCompanyI
 
 // --- Bot Management (CRUD) ---
 router.get('/bots', requireRole(['ADMIN', 'MANAGER']), async (req, res) => {
-    const bots = await prisma.botConfig.findMany({ orderBy: { id: 'asc' } });
+    const user = (req as any).user || {};
+    const isSuperadmin = user.role === 'SUPER_ADMIN';
+    const userCompanyId = user.companyId || user.workspaceId;
+    const requestedCompanyId = typeof req.query.companyId === 'string' ? req.query.companyId : undefined;
+    const companyId = isSuperadmin ? requestedCompanyId : userCompanyId;
+
+    if (!companyId && !isSuperadmin) return res.status(400).json({ error: 'Company context required' });
+
+    const bots = await prisma.botConfig.findMany({
+        where: companyId ? { companyId } : {},
+        orderBy: { id: 'asc' }
+    });
     res.json(bots.map(mapBotOutput));
 });
 
@@ -58,7 +68,12 @@ router.post('/bots', requireRole(['ADMIN']), async (req, res) => {
     const cleanAdminChatId = data.adminChatId && String(data.adminChatId).trim() !== '' ? String(data.adminChatId).trim() : null;
 
     try {
-        const companyId = await resolveCompanyId(data.companyId, (req as any).user?.companyId || null);
+        const user = (req as any).user || {};
+        const isSuperadmin = user.role === 'SUPER_ADMIN';
+        const userCompanyId = user.companyId || user.workspaceId || null;
+        const companyId = await resolveCompanyId(isSuperadmin ? data.companyId : null, userCompanyId);
+        if (!companyId && !isSuperadmin) return res.status(400).json({ error: 'Company context required' });
+
         const newBot = await prisma.botConfig.create({
             data: {
                 ...data,
@@ -84,8 +99,16 @@ router.put('/bots/:id', requireRole(['ADMIN']), async (req, res) => {
     const { id } = req.params;
     const existing = await prisma.botConfig.findUnique({ where: { id } });
     if (!existing) return res.status(404).json({ error: 'Bot not found' });
+    const user = (req as any).user || {};
+    const isSuperadmin = user.role === 'SUPER_ADMIN';
+    const userCompanyId = user.companyId || user.workspaceId;
+    if (!isSuperadmin && !userCompanyId) return res.status(400).json({ error: 'Company context required' });
+    if (!isSuperadmin && existing.companyId !== userCompanyId) {
+        return res.status(403).json({ error: 'Forbidden' });
+    }
     const { data } = mapBotInput(req.body || {}, existing.config);
     if ('token' in data && !data.token) return res.status(400).json({ error: 'Token is required' });
+    if (!isSuperadmin) delete data.companyId;
 
     // Sanitize optional fields
     const cleanChannelId = data.channelId && String(data.channelId).trim() !== '' ? String(data.channelId).trim() : null;
@@ -115,6 +138,15 @@ router.put('/bots/:id', requireRole(['ADMIN']), async (req, res) => {
 router.post('/bots/:id/webhook', requireRole(['ADMIN']), async (req, res) => {
     try {
         const { id } = req.params;
+        const user = (req as any).user || {};
+        const isSuperadmin = user.role === 'SUPER_ADMIN';
+        const userCompanyId = user.companyId || user.workspaceId;
+        const bot = await prisma.botConfig.findUnique({ where: { id }, select: { companyId: true } });
+        if (!bot) return res.status(404).json({ error: 'Bot not found' });
+        if (!isSuperadmin && !userCompanyId) return res.status(400).json({ error: 'Company context required' });
+        if (!isSuperadmin && bot.companyId !== userCompanyId) {
+            return res.status(403).json({ error: 'Forbidden' });
+        }
         const { publicBaseUrl, secretToken } = req.body || {};
         const result = await setWebhookForBot(id, { publicBaseUrl, secretToken });
         botManager.restartBot(id).catch(e => console.error('Async Bot Restart Failed:', e));
@@ -128,6 +160,15 @@ router.post('/bots/:id/webhook', requireRole(['ADMIN']), async (req, res) => {
 router.delete('/bots/:id/webhook', requireRole(['ADMIN']), async (req, res) => {
     try {
         const { id } = req.params;
+        const user = (req as any).user || {};
+        const isSuperadmin = user.role === 'SUPER_ADMIN';
+        const userCompanyId = user.companyId || user.workspaceId;
+        const bot = await prisma.botConfig.findUnique({ where: { id }, select: { companyId: true } });
+        if (!bot) return res.status(404).json({ error: 'Bot not found' });
+        if (!isSuperadmin && !userCompanyId) return res.status(400).json({ error: 'Company context required' });
+        if (!isSuperadmin && bot.companyId !== userCompanyId) {
+            return res.status(403).json({ error: 'Forbidden' });
+        }
         await deleteWebhookForBot(id);
         botManager.restartBot(id).catch(e => console.error('Async Bot Restart Failed:', e));
         res.json({ ok: true });
@@ -140,9 +181,17 @@ router.delete('/bots/:id/webhook', requireRole(['ADMIN']), async (req, res) => {
 router.delete('/bots/:id', requireRole(['ADMIN']), async (req, res) => {
     const { id } = req.params;
     try {
+        const user = (req as any).user || {};
+        const isSuperadmin = user.role === 'SUPER_ADMIN';
+        const userCompanyId = user.companyId || user.workspaceId;
+        const bot = await prisma.botConfig.findUnique({ where: { id }, select: { companyId: true } });
+        if (!bot) return res.status(404).json({ error: 'Bot not found' });
+        if (!isSuperadmin && !userCompanyId) return res.status(400).json({ error: 'Company context required' });
+        if (!isSuperadmin && bot.companyId !== userCompanyId) {
+            return res.status(403).json({ error: 'Forbidden' });
+        }
         await prisma.botConfig.delete({ where: { id } });
-        await botManager.stopAll();
-        botManager.startAll().catch(e => console.error("Async Bot Restart All Failed:", e));
+        botManager.restartBot(id).catch(e => console.error("Async Bot Restart Failed:", e));
         res.json({ success: true });
     } catch (e) { res.status(500).json({ error: 'Failed to delete bot' }); }
 });
@@ -161,7 +210,7 @@ const TELEGRAM_METHODS = new Set([
     'getUpdates'
 ]);
 
-const resolveBot = async (token?: string, botId?: string) => {
+const resolveBot = async (token?: string, botId?: string, companyId?: string | null) => {
     if (botId) {
         const bot = await prisma.botConfig.findUnique({ where: { id: botId } });
         return bot?.token ? { token: bot.token, botId: bot.id, bot } : null;
@@ -170,7 +219,12 @@ const resolveBot = async (token?: string, botId?: string) => {
         const bot = await prisma.botConfig.findFirst({ where: { token } });
         return { token, botId: bot?.id, bot: bot || null };
     }
-    const bot = await prisma.botConfig.findFirst({ where: { isEnabled: true } });
+    const bot = await prisma.botConfig.findFirst({
+        where: {
+            isEnabled: true,
+            ...(companyId ? { companyId } : {})
+        }
+    });
     return bot?.token ? { token: bot.token, botId: bot.id, bot } : null;
 };
 
@@ -191,13 +245,20 @@ router.post('/telegram/call', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), asy
         if (!method || !TELEGRAM_METHODS.has(method)) {
             return res.status(400).json({ error: 'Unsupported Telegram method' });
         }
-        const resolved = await resolveBot(token, botId);
+        const user = (req as any).user || {};
+        const isSuperadmin = user.role === 'SUPER_ADMIN';
+        const userCompanyId = user.companyId || user.workspaceId;
+        const requestedCompanyId = isSuperadmin
+            ? (typeof (req.body || {}).companyId === 'string' ? (req.body || {}).companyId : (typeof req.query.companyId === 'string' ? req.query.companyId : undefined))
+            : undefined;
+        const companyId = isSuperadmin ? requestedCompanyId : userCompanyId;
+        if (!companyId && !isSuperadmin) return res.status(400).json({ error: 'Company context required' });
+
+        const resolved = await resolveBot(token, botId, companyId);
         if (!resolved?.token) {
             return res.status(400).json({ error: 'Bot token not found' });
         }
-        const userRole = (req as any).user?.role;
-        const companyId = (req as any).user?.companyId;
-        if (resolved.bot?.companyId && companyId && resolved.bot.companyId !== companyId && userRole !== 'SUPER_ADMIN') {
+        if (resolved.bot?.companyId && companyId && resolved.bot.companyId !== companyId && !isSuperadmin) {
             return res.status(403).json({ error: 'Forbidden' });
         }
 
@@ -319,24 +380,34 @@ router.get('/messages', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), async (re
         const chatId = typeof req.query.chatId === 'string' ? req.query.chatId : undefined;
         const botId = typeof req.query.botId === 'string' ? req.query.botId : undefined;
 
-        const conditions = [];
-        if (chatId) conditions.push(Prisma.sql`"chatId" = ${chatId}`);
-        if (botId) conditions.push(Prisma.sql`"botId" = ${botId}`);
+        const user = (req as any).user || {};
+        const isSuperadmin = user.role === 'SUPER_ADMIN';
+        const userCompanyId = user.companyId || user.workspaceId;
+        const requestedCompanyId = typeof req.query.companyId === 'string' ? req.query.companyId : undefined;
+        const companyId = isSuperadmin ? requestedCompanyId : userCompanyId;
 
-        const whereClause = conditions.length
-            ? Prisma.sql`WHERE ${Prisma.join(conditions, ' AND ')}`
-            : Prisma.sql``;
+        if (!companyId && !isSuperadmin) return res.status(400).json({ error: 'Company context required' });
 
-        const rows = await prisma.$queryRaw<any[]>(Prisma.sql`
-            SELECT "id", "botId", "chatId", "direction", "text", "messageId", "payload", "createdAt"
-            FROM "BotMessage"
-            ${whereClause}
-            ORDER BY "createdAt" DESC
-            LIMIT ${limit}
-        `);
+        if (botId && companyId && !isSuperadmin) {
+            const bot = await prisma.botConfig.findUnique({ where: { id: botId }, select: { companyId: true } });
+            if (!bot) return res.status(404).json({ error: 'Bot not found' });
+            if (bot.companyId !== companyId) return res.status(403).json({ error: 'Forbidden' });
+        }
+
+        const rows = await prisma.botMessage.findMany({
+            where: {
+                ...(chatId ? { chatId } : {}),
+                ...(botId ? { botId } : {}),
+                ...(companyId ? { bot: { companyId } } : {})
+            },
+            orderBy: { createdAt: 'desc' },
+            take: limit
+        });
 
         const messages = rows.map(row => {
-            const payload = row.payload || {};
+            const payload: any = (row.payload && typeof row.payload === 'object' && !Array.isArray(row.payload))
+                ? row.payload
+                : {};
             const fromPayload = payload?.from || payload?.user || {};
             const chatPayload = payload?.chat || {};
             const fromName = fromPayload.first_name || fromPayload.username || (row.direction === 'OUTGOING' ? 'Bot' : 'User');
@@ -412,9 +483,28 @@ router.get('/messages/logs', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), asyn
         const chatId = typeof req.query.chatId === 'string' ? req.query.chatId : undefined;
         const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 100));
 
+        const user = (req as any).user || {};
+        const isSuperadmin = user.role === 'SUPER_ADMIN';
+        const userCompanyId = user.companyId || user.workspaceId;
+        const requestedCompanyId = typeof req.query.companyId === 'string' ? req.query.companyId : undefined;
+        const companyId = isSuperadmin ? requestedCompanyId : userCompanyId;
+        if (!companyId && !isSuperadmin) return res.status(400).json({ error: 'Company context required' });
+
         const where: any = {};
         if (requestId) where.requestId = requestId;
         if (chatId) where.chatId = chatId;
+
+        if (companyId) {
+            const bots = await prisma.botConfig.findMany({
+                where: { companyId },
+                select: { id: true }
+            });
+            const botIds = bots.map(b => b.id);
+            where.OR = [
+                { request: { companyId } },
+                ...(botIds.length ? [{ botId: { in: botIds } }] : [])
+            ];
+        }
 
         const logs = await prisma.messageLog.findMany({
             where,
@@ -440,23 +530,38 @@ router.get('/messages/logs', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), asyn
 router.post('/messages', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
     try {
         const payload = req.body || {};
-        if (!payload.chatId || !payload.text || !payload.direction) {
-            return res.status(400).json({ error: 'chatId, text, and direction are required' });
+        if (!payload.botId || !payload.chatId || !payload.text || !payload.direction) {
+            return res.status(400).json({ error: 'botId, chatId, text, and direction are required' });
         }
-        const botId = payload.botId || '';
-        await prisma.$executeRaw`
-            INSERT INTO "BotMessage" (id, "botId", "chatId", direction, text, "messageId", payload, "createdAt")
-            VALUES (
-                gen_random_uuid()::text,
-                ${String(botId)},
-                ${String(payload.chatId)},
-                ${String(payload.direction)},
-                ${String(payload.text)},
-                ${payload.messageId ?? null},
-                ${JSON.stringify(payload.payload || {})}::jsonb,
-                NOW()
-            )
-        `;
+        const user = (req as any).user || {};
+        const isSuperadmin = user.role === 'SUPER_ADMIN';
+        const userCompanyId = user.companyId || user.workspaceId;
+        const companyId = isSuperadmin ? (payload.companyId || userCompanyId) : userCompanyId;
+
+        if (!companyId && !isSuperadmin) return res.status(400).json({ error: 'Company context required' });
+
+        const botId = String(payload.botId);
+        const bot = await prisma.botConfig.findUnique({ where: { id: botId }, select: { companyId: true } });
+        if (!bot) return res.status(404).json({ error: 'Bot not found' });
+        if (companyId && !isSuperadmin && bot.companyId !== companyId) {
+            return res.status(403).json({ error: 'Forbidden' });
+        }
+
+        const direction = String(payload.direction || '').toUpperCase();
+        if (direction !== 'INCOMING' && direction !== 'OUTGOING') {
+            return res.status(400).json({ error: 'Invalid direction (use INCOMING or OUTGOING)' });
+        }
+
+        await prisma.botMessage.create({
+            data: {
+                botId,
+                chatId: String(payload.chatId),
+                direction: direction as any,
+                text: String(payload.text),
+                messageId: payload.messageId !== undefined && payload.messageId !== null ? Number(payload.messageId) : null,
+                payload: payload.payload || {}
+            }
+        });
         res.json({ success: true });
     } catch (e: any) {
         console.error('[Messages] Insert error:', e.message || e);
@@ -596,15 +701,31 @@ router.post('/messages/send', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), asy
         if (!chatId || !text) {
             return res.status(400).json({ error: 'chatId and text are required' });
         }
-        const resolved = await resolveBot(undefined, botId);
-        if (!resolved?.token) {
-            return res.status(400).json({ error: 'Bot token not found' });
+        const user = (req as any).user || {};
+        const isSuperadmin = user.role === 'SUPER_ADMIN';
+        const userCompanyId = user.companyId || user.workspaceId;
+        const companyId = isSuperadmin ? ((req.body || {}).companyId || userCompanyId) : userCompanyId;
+        if (!companyId && !isSuperadmin) return res.status(400).json({ error: 'Company context required' });
+
+        const bot = botId
+            ? await prisma.botConfig.findUnique({ where: { id: String(botId) } })
+            : await prisma.botConfig.findFirst({
+                where: {
+                    isEnabled: true,
+                    ...(companyId ? { companyId } : {})
+                },
+                orderBy: { createdAt: 'asc' }
+            });
+
+        if (!bot?.token) return res.status(400).json({ error: 'Bot token not found' });
+        if (companyId && !isSuperadmin && bot.companyId !== companyId) {
+            return res.status(403).json({ error: 'Forbidden' });
         }
 
         const result = await integrationService.publishTelegramChannelPost({
-            companyId: (req as any).user?.companyId || '', // Fallback or strict? Ideally from user ctx
-            botToken: resolved.token,
-            botId: resolved.botId,
+            companyId: String(companyId || bot.companyId || ''),
+            botToken: bot.token,
+            botId: bot.id,
             destination: chatId,
             text,
             imageUrl,
@@ -619,15 +740,31 @@ router.post('/messages/send', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), asy
 });
 
 // --- Destinations (derived from messages + bot config) ---
-router.get('/destinations', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), async (_req, res) => {
+router.get('/destinations', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
     try {
-        const bots = await prisma.botConfig.findMany({ where: { isEnabled: true } });
-        const rows = await prisma.$queryRaw<any[]>`
-            SELECT "chatId", "payload"
-            FROM "BotMessage"
-            ORDER BY "createdAt" DESC
-            LIMIT 500
-        `;
+        const user = (req as any).user || {};
+        const isSuperadmin = user.role === 'SUPER_ADMIN';
+        const userCompanyId = user.companyId || user.workspaceId;
+        const requestedCompanyId = typeof req.query.companyId === 'string' ? req.query.companyId : undefined;
+        const companyId = isSuperadmin ? requestedCompanyId : userCompanyId;
+
+        if (!companyId && !isSuperadmin) return res.status(400).json({ error: 'Company context required' });
+
+        const bots = await prisma.botConfig.findMany({
+            where: {
+                isEnabled: true,
+                ...(companyId ? { companyId } : {})
+            }
+        });
+
+        const rows = await prisma.botMessage.findMany({
+            where: {
+                ...(companyId ? { bot: { companyId } } : {})
+            },
+            select: { chatId: true, payload: true },
+            orderBy: { createdAt: 'desc' },
+            take: 500
+        });
 
         const destMap = new Map<string, any>();
 
@@ -657,7 +794,9 @@ router.get('/destinations', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), async
         });
 
         rows.forEach(row => {
-            const payload = row.payload || {};
+            const payload: any = (row.payload && typeof row.payload === 'object' && !Array.isArray(row.payload))
+                ? row.payload
+                : {};
             const chat = payload.chat || {};
             const from = payload.from || {};
             const identifier = row.chatId ? String(row.chatId) : '';
@@ -695,6 +834,9 @@ router.get('/destinations', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), async
 
             records.forEach(record => {
                 const data = (record as any).data || {};
+                const recordCompanyId = data.companyId || data.workspaceId;
+                if (companyId && recordCompanyId && String(recordCompanyId) !== String(companyId)) return;
+                if (companyId && !recordCompanyId && !isSuperadmin) return;
                 const identifier = data.identifier || data.chatId || data.id;
                 if (!identifier || destMap.has(identifier)) return;
 
@@ -801,18 +943,70 @@ router.get('/leads', requireRole(['SUPER_ADMIN', 'OWNER', 'ADMIN', 'MANAGER', 'O
 
 // --- Integrations & Drafts ---
 router.post('/drafts/import', requireRole(['ADMIN', 'MANAGER']), async (req, res) => {
-    const success = await importDraft(req.body);
+    const payload = req.body || {};
+    const user = (req as any).user || {};
+    const isSuperadmin = user.role === 'SUPER_ADMIN';
+    const userCompanyId = user.companyId || user.workspaceId;
+    const requestedCompanyId = typeof payload.companyId === 'string' ? payload.companyId : undefined;
+    const companyId = isSuperadmin ? (requestedCompanyId || userCompanyId) : userCompanyId;
+    if (!companyId && !isSuperadmin) return res.status(400).json({ error: 'Company context required' });
+
+    const requestedBotId = payload.botId ? String(payload.botId) : undefined;
+    const bot = requestedBotId
+        ? await prisma.botConfig.findUnique({ where: { id: requestedBotId }, select: { id: true, companyId: true, isEnabled: true } })
+        : await prisma.botConfig.findFirst({
+            where: {
+                isEnabled: true,
+                ...(companyId ? { companyId } : {})
+            },
+            orderBy: { createdAt: 'asc' },
+            select: { id: true, companyId: true, isEnabled: true }
+        });
+
+    if (!bot) return res.status(400).json({ error: 'Active bot required' });
+    if (!isSuperadmin && companyId && bot.companyId !== companyId) return res.status(403).json({ error: 'Forbidden' });
+
+    const success = await importDraft(payload, bot.id);
     res.json({ success });
 });
 
 router.get('/drafts', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
-    const drafts = await prisma.draft.findMany({ orderBy: { createdAt: 'desc' }, take: 50 });
+    const user = (req as any).user || {};
+    const isSuperadmin = user.role === 'SUPER_ADMIN';
+    const userCompanyId = user.companyId || user.workspaceId;
+    const requestedCompanyId = typeof req.query.companyId === 'string' ? req.query.companyId : undefined;
+    const companyId = isSuperadmin ? requestedCompanyId : userCompanyId;
+    if (!companyId && !isSuperadmin) return res.status(400).json({ error: 'Company context required' });
+
+    const where: any = {};
+    if (companyId) {
+        const bots = await prisma.botConfig.findMany({ where: { companyId }, select: { id: true } });
+        const botIds = bots.map(b => b.id);
+        where.OR = companyId === 'company_system'
+            ? [{ botId: { in: botIds } }, { botId: null }]
+            : [{ botId: { in: botIds } }];
+    }
+
+    const drafts = await prisma.draft.findMany({ where, orderBy: { createdAt: 'desc' }, take: 50 });
     res.json(drafts);
 });
 
 router.post('/drafts', requireRole(['ADMIN', 'MANAGER']), async (req, res) => {
     try {
         const payload = req.body || {};
+        const user = (req as any).user || {};
+        const isSuperadmin = user.role === 'SUPER_ADMIN';
+        const userCompanyId = user.companyId || user.workspaceId;
+        const requestedCompanyId = typeof payload.companyId === 'string' ? payload.companyId : undefined;
+        const companyId = isSuperadmin ? (requestedCompanyId || userCompanyId) : userCompanyId;
+        if (!companyId && !isSuperadmin) return res.status(400).json({ error: 'Company context required' });
+
+        const botId = payload.botId ? String(payload.botId) : null;
+        if (!botId) return res.status(400).json({ error: 'botId is required' });
+        const bot = await prisma.botConfig.findUnique({ where: { id: botId }, select: { companyId: true } });
+        if (!bot) return res.status(400).json({ error: 'Invalid botId' });
+        if (!isSuperadmin && companyId && bot.companyId !== companyId) return res.status(403).json({ error: 'Forbidden' });
+
         const draft = await prisma.draft.create({
             data: {
                 source: payload.source || 'MANUAL',
@@ -822,7 +1016,7 @@ router.post('/drafts', requireRole(['ADMIN', 'MANAGER']), async (req, res) => {
                 description: payload.description ?? payload.text ?? null,
                 status: payload.status || 'DRAFT',
                 destination: payload.destination ?? null,
-                botId: payload.botId ?? null,
+                botId,
                 scheduledAt: payload.scheduledAt ? new Date(payload.scheduledAt) : null,
                 postedAt: payload.postedAt ? new Date(payload.postedAt) : null,
                 metadata: payload.metadata ?? null
@@ -839,6 +1033,28 @@ router.put('/drafts/:id', requireRole(['ADMIN', 'MANAGER']), async (req, res) =>
     try {
         const id = Number(req.params.id);
         const payload = req.body || {};
+        const user = (req as any).user || {};
+        const isSuperadmin = user.role === 'SUPER_ADMIN';
+        const userCompanyId = user.companyId || user.workspaceId;
+        if (!isSuperadmin && !userCompanyId) return res.status(400).json({ error: 'Company context required' });
+
+        const existing = await prisma.draft.findUnique({ where: { id } });
+        if (!existing) return res.status(404).json({ error: 'Draft not found' });
+        if (!isSuperadmin) {
+            if (!existing.botId && userCompanyId !== 'company_system') return res.status(403).json({ error: 'Forbidden' });
+            if (existing.botId) {
+                const bot = await prisma.botConfig.findUnique({ where: { id: existing.botId }, select: { companyId: true } });
+                if (!bot || bot.companyId !== userCompanyId) return res.status(403).json({ error: 'Forbidden' });
+            }
+        }
+
+        if (payload.botId !== undefined && payload.botId !== null) {
+            const nextBotId = String(payload.botId);
+            const bot = await prisma.botConfig.findUnique({ where: { id: nextBotId }, select: { companyId: true } });
+            if (!bot) return res.status(400).json({ error: 'Invalid botId' });
+            if (!isSuperadmin && userCompanyId && bot.companyId !== userCompanyId) return res.status(403).json({ error: 'Forbidden' });
+        }
+
         const draft = await prisma.draft.update({
             where: { id },
             data: {
@@ -864,6 +1080,21 @@ router.put('/drafts/:id', requireRole(['ADMIN', 'MANAGER']), async (req, res) =>
 router.delete('/drafts/:id', requireRole(['ADMIN', 'MANAGER']), async (req, res) => {
     try {
         const id = Number(req.params.id);
+        const user = (req as any).user || {};
+        const isSuperadmin = user.role === 'SUPER_ADMIN';
+        const userCompanyId = user.companyId || user.workspaceId;
+        if (!isSuperadmin && !userCompanyId) return res.status(400).json({ error: 'Company context required' });
+
+        const existing = await prisma.draft.findUnique({ where: { id } });
+        if (!existing) return res.status(404).json({ error: 'Draft not found' });
+        if (!isSuperadmin) {
+            if (!existing.botId && userCompanyId !== 'company_system') return res.status(403).json({ error: 'Forbidden' });
+            if (existing.botId) {
+                const bot = await prisma.botConfig.findUnique({ where: { id: existing.botId }, select: { companyId: true } });
+                if (!bot || bot.companyId !== userCompanyId) return res.status(403).json({ error: 'Forbidden' });
+            }
+        }
+
         await prisma.draft.delete({ where: { id } });
         res.json({ success: true });
     } catch (e: any) {

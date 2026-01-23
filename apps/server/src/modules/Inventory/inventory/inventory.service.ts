@@ -3,7 +3,7 @@ import { DraftSource } from '@prisma/client';
 import { prisma } from '../../../services/prisma.js';
 import { logSystem } from '../../Core/system/systemLog.service.js';
 
-export const importDraft = async (data: any) => {
+export const importDraft = async (data: any, botId: string) => {
     try {
         await prisma.draft.create({
             data: {
@@ -12,7 +12,8 @@ export const importDraft = async (data: any) => {
                 price: data.price,
                 url: data.url,
                 description: data.description,
-                status: 'PENDING'
+                status: 'PENDING',
+                botId
             }
         });
         await logSystem('Extension', 'Import', 'OK', `Imported ${data.title}`);

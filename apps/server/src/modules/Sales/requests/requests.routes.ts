@@ -4,7 +4,7 @@ import { Router } from 'express';
 import { prisma } from '../../../services/prisma.js';
 import { authenticateToken, requireRole } from '../../../middleware/auth.js';
 import { generatePublicId, mapRequestInput, mapRequestOutput, mapVariantInput, mapVariantOutput, mapRequestStatusFilter } from '../../../services/dto.js';
-import { RequestRepository, BotRepository } from '../../../repositories/index.js';
+import { RequestRepository } from '../../../repositories/index.js';
 import { renderRequestCard, managerActionsKeyboard } from '../../../services/cardRenderer.js';
 import { telegramOutbox } from '../../Communication/telegram/messaging/outbox/telegramOutbox.js';
 import { generateRequestLink } from '../../../utils/deeplink.utils.js';
@@ -14,10 +14,16 @@ import { createRequestSchema } from '../../../validation/schemas.js';
 
 const router = Router();
 const requestRepo = new RequestRepository(prisma);
-const botRepo = new BotRepository(prisma);
 
 // --- B2B Requests CRUD ---
 router.get('/', authenticateToken, async (req, res) => {
+    const user = (req as any).user || {};
+    const isSuperadmin = user.role === 'SUPER_ADMIN';
+    const userCompanyId = user.companyId || user.workspaceId;
+    const requestedCompanyId = typeof req.query.companyId === 'string' ? req.query.companyId : undefined;
+    const companyId = isSuperadmin ? requestedCompanyId : userCompanyId;
+    if (!companyId && !isSuperadmin) return res.status(400).json({ error: 'Company context required' });
+
     const page = Math.max(1, Number(req.query.page) || 1);
     const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 50));
     const skip = (page - 1) * limit;
@@ -26,6 +32,7 @@ router.get('/', authenticateToken, async (req, res) => {
     const search = req.query.search as string;
 
     const where: any = {};
+    if (companyId) where.companyId = companyId;
     if (status && status !== 'ALL') {
         const mappedStatus = mapRequestStatusFilter(status);
         if (mappedStatus) where.status = mappedStatus;
@@ -64,14 +71,21 @@ router.get('/', authenticateToken, async (req, res) => {
 router.post('/', authenticateToken, requireRole(['ADMIN', 'MANAGER']), validate(createRequestSchema), async (req, res) => {
     try {
         const data = req.body;
+        const user = (req as any).user || {};
+        const isSuperadmin = user.role === 'SUPER_ADMIN';
+        const userCompanyId = user.companyId || user.workspaceId;
+        const requestedCompanyId = typeof (data || {}).companyId === 'string' ? (data || {}).companyId : undefined;
+        const companyId = isSuperadmin ? (requestedCompanyId || userCompanyId) : userCompanyId;
+        if (!companyId && !isSuperadmin) return res.status(400).json({ error: 'Company context required' });
+
         const request = await requestRepo.createRequest({
             title: data.title || 'New Request',
             ...data,
-            companyId: (req as any).user?.companyId
+            companyId
         });
 
         // Meta CAPI Event (preserved)
-        if ((req as any).user?.companyId) {
+        if (companyId) {
             import('../../Integrations/meta/meta.service.js').then(({ MetaService }) => {
                 MetaService.getInstance().sendEvent('SubmitApplication', {
                     user: { id: (req as any).user.id },
@@ -88,12 +102,23 @@ router.put('/:id', authenticateToken, requireRole(['ADMIN', 'MANAGER', 'OPERATOR
     try {
         const { id: _id, variants, ...raw } = req.body;
         const { id } = req.params;
+        const user = (req as any).user || {};
+        const isSuperadmin = user.role === 'SUPER_ADMIN';
+        const userCompanyId = user.companyId || user.workspaceId;
+        if (!isSuperadmin && !userCompanyId) return res.status(400).json({ error: 'Company context required' });
+
+        const existing = await requestRepo.findById(id);
+        if (!existing) return res.status(404).json({ error: 'Request not found' });
+        if (!isSuperadmin) {
+            if (existing.companyId && existing.companyId !== userCompanyId) return res.status(403).json({ error: 'Forbidden' });
+            if (!existing.companyId && userCompanyId !== 'company_system') return res.status(403).json({ error: 'Forbidden' });
+        }
 
         // Update main request
         const data = mapRequestInput(raw);
         const request = await requestRepo.updateRequest(id, data);
 
-        if (data.status === 'WON' && (req as any).user?.companyId) {
+        if (data.status === 'WON' && (existing.companyId || userCompanyId)) {
             import('../../Integrations/meta/meta.service.js').then(({ MetaService }) => {
                 MetaService.getInstance().sendEvent('Purchase', {
                     user: { id: (req as any).user.id },
@@ -111,6 +136,17 @@ router.put('/:id', authenticateToken, requireRole(['ADMIN', 'MANAGER', 'OPERATOR
 router.delete('/:id', authenticateToken, requireRole(['ADMIN']), async (req, res) => {
     try {
         const { id } = req.params;
+        const user = (req as any).user || {};
+        const isSuperadmin = user.role === 'SUPER_ADMIN';
+        const userCompanyId = user.companyId || user.workspaceId;
+        if (!isSuperadmin && !userCompanyId) return res.status(400).json({ error: 'Company context required' });
+
+        const existing = await requestRepo.findById(id);
+        if (!existing) return res.status(404).json({ error: 'Request not found' });
+        if (!isSuperadmin) {
+            if (existing.companyId && existing.companyId !== userCompanyId) return res.status(403).json({ error: 'Forbidden' });
+            if (!existing.companyId && userCompanyId !== 'company_system') return res.status(403).json({ error: 'Forbidden' });
+        }
         await requestRepo.deleteRequest(id);
         res.json({ success: true });
     } catch (e: any) { res.status(500).json({ error: 'Failed to delete request' }); }
@@ -121,6 +157,18 @@ router.post('/:id/variants', authenticateToken, requireRole(['ADMIN', 'MANAGER',
     const { id } = req.params;
     const variantData = mapVariantInput(req.body || {});
     try {
+        const user = (req as any).user || {};
+        const isSuperadmin = user.role === 'SUPER_ADMIN';
+        const userCompanyId = user.companyId || user.workspaceId;
+        if (!isSuperadmin && !userCompanyId) return res.status(400).json({ error: 'Company context required' });
+
+        const request = await requestRepo.findById(id);
+        if (!request) return res.status(404).json({ error: 'Request not found' });
+        if (!isSuperadmin) {
+            if (request.companyId && request.companyId !== userCompanyId) return res.status(403).json({ error: 'Forbidden' });
+            if (!request.companyId && userCompanyId !== 'company_system') return res.status(403).json({ error: 'Forbidden' });
+        }
+
         const variant = await requestRepo.addVariant(id, variantData);
         res.json(mapVariantOutput(variant));
     } catch (e: any) {
@@ -129,13 +177,20 @@ router.post('/:id/variants', authenticateToken, requireRole(['ADMIN', 'MANAGER',
 });
 
 // --- Channel publish/update/close ---
-const resolveBot = async (botId?: string) => {
+const resolveBot = async (companyId: string | null, botId?: string) => {
     if (botId) {
-        const bot = await botRepo.findById(botId);
-        if (bot?.token) return bot;
+        const bot = await prisma.botConfig.findUnique({ where: { id: botId } });
+        if (!bot?.token) return null;
+        if (companyId && bot.companyId !== companyId) return null;
+        return bot;
     }
-    const bots = await botRepo.findAllActive();
-    return bots[0];
+    return prisma.botConfig.findFirst({
+        where: {
+            isEnabled: true,
+            ...(companyId ? { companyId } : {})
+        },
+        orderBy: { createdAt: 'asc' }
+    });
 };
 
 const buildChannelText = (req: any, template?: string) => {
@@ -172,7 +227,17 @@ router.post('/:id/publish-channel', authenticateToken, requireRole(['ADMIN', 'MA
         const { botId, channelId, text, template } = req.body || {};
         const request = await requestRepo.findById(id);
         if (!request) return res.status(404).json({ error: 'Request not found' });
-        const bot = await resolveBot(botId);
+        const user = (req as any).user || {};
+        const isSuperadmin = user.role === 'SUPER_ADMIN';
+        const userCompanyId = user.companyId || user.workspaceId;
+        if (!isSuperadmin && !userCompanyId) return res.status(400).json({ error: 'Company context required' });
+        if (!isSuperadmin) {
+            if (request.companyId && request.companyId !== userCompanyId) return res.status(403).json({ error: 'Forbidden' });
+            if (!request.companyId && userCompanyId !== 'company_system') return res.status(403).json({ error: 'Forbidden' });
+        }
+
+        const effectiveCompanyId = request.companyId || userCompanyId || null;
+        const bot = await resolveBot(effectiveCompanyId, botId ? String(botId) : undefined);
         if (!bot?.token) return res.status(400).json({ error: 'Bot not found' });
         const destination = channelId || bot.channelId;
         if (!destination) return res.status(400).json({ error: 'ChannelId required' });
@@ -225,9 +290,24 @@ router.put('/:id/channel-post', authenticateToken, requireRole(['ADMIN', 'MANAGE
     try {
         const { id } = req.params;
         const { text, channelId } = req.body || {};
+        const user = (req as any).user || {};
+        const isSuperadmin = user.role === 'SUPER_ADMIN';
+        const userCompanyId = user.companyId || user.workspaceId;
+        if (!isSuperadmin && !userCompanyId) return res.status(400).json({ error: 'Company context required' });
+
+        const request = await requestRepo.findById(id);
+        if (!request) return res.status(404).json({ error: 'Request not found' });
+        if (!isSuperadmin) {
+            if (request.companyId && request.companyId !== userCompanyId) return res.status(403).json({ error: 'Forbidden' });
+            if (!request.companyId && userCompanyId !== 'company_system') return res.status(403).json({ error: 'Forbidden' });
+        }
+
         const cp = await requestRepo.findChannelPost(id, channelId);
         if (!cp) return res.status(404).json({ error: 'ChannelPost not found' });
-        const bot = await resolveBot(cp.botId || undefined);
+        const effectiveCompanyId = request.companyId || userCompanyId || null;
+        const bot = cp.botId
+            ? await resolveBot(effectiveCompanyId, String(cp.botId))
+            : await resolveBot(effectiveCompanyId, undefined);
         if (!bot?.token) return res.status(400).json({ error: 'Bot not found' });
         const payload = (cp.payload as any) || {};
         const nextText = text || payload.text || 'Updated';
@@ -264,9 +344,24 @@ router.post('/:id/close-channel', authenticateToken, requireRole(['ADMIN', 'MANA
     try {
         const { id } = req.params;
         const { channelId } = req.body || {};
+        const user = (req as any).user || {};
+        const isSuperadmin = user.role === 'SUPER_ADMIN';
+        const userCompanyId = user.companyId || user.workspaceId;
+        if (!isSuperadmin && !userCompanyId) return res.status(400).json({ error: 'Company context required' });
+
+        const request = await requestRepo.findById(id);
+        if (!request) return res.status(404).json({ error: 'Request not found' });
+        if (!isSuperadmin) {
+            if (request.companyId && request.companyId !== userCompanyId) return res.status(403).json({ error: 'Forbidden' });
+            if (!request.companyId && userCompanyId !== 'company_system') return res.status(403).json({ error: 'Forbidden' });
+        }
+
         const cp = await requestRepo.findChannelPost(id, channelId);
         if (!cp) return res.status(404).json({ error: 'ChannelPost not found' });
-        const bot = await resolveBot(cp.botId || undefined);
+        const effectiveCompanyId = request.companyId || userCompanyId || null;
+        const bot = cp.botId
+            ? await resolveBot(effectiveCompanyId, String(cp.botId))
+            : await resolveBot(effectiveCompanyId, undefined);
         if (!bot?.token) return res.status(400).json({ error: 'Bot not found' });
         const payload = (cp.payload as any) || {};
         const closedText = `${payload.text || ''}\n\n🚫 Запит закрито`;
