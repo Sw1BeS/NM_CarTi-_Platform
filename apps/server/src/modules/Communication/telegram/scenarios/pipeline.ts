@@ -10,6 +10,7 @@ import { routeCallback } from '../routing/routeCallback.js';
 import { routeWebApp } from '../routing/routeWebApp.js';
 import { routeInline } from '../routing/routeInline.js';
 import { routeMyChatMember } from '../routing/routeMyChatMember.js';
+import { routeChannelPost } from '../routing/routeChannelPost.js';
 
 type PipelineInput = {
   update: any;
@@ -31,6 +32,8 @@ const routeUpdate: PipelineMiddleware = async (ctx, next) => {
       await routeWebApp(ctx);
     } else if (ctx.update?.message) {
       await routeMessage(ctx);
+    } else if (ctx.update?.channel_post) {
+      await routeChannelPost(ctx, async () => {});
     }
   }
 

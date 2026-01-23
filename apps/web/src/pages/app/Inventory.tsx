@@ -33,6 +33,7 @@ export const InventoryPage = () => {
     const [importing, setImporting] = useState(false);
     const [importUrl, setImportUrl] = useState('');
     const [mappingModal, setMappingModal] = useState<{ url: string, domain: string } | null>(null);
+    const [csvFile, setCsvFile] = useState<File | null>(null);
 
     const { showToast } = useToast();
     const navigate = useNavigate();
@@ -343,17 +344,95 @@ export const InventoryPage = () => {
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                     <div className="panel w-full max-w-lg p-6 animate-slide-up">
                         <div className="flex justify-between items-center mb-4">
-                            <h3 className="font-bold text-[var(--text-primary)] text-lg">Import from URL</h3>
+                            <h3 className="font-bold text-[var(--text-primary)] text-lg">Import Inventory</h3>
                             <button onClick={() => setImporting(false)} className="btn-ghost"><X size={20} /></button>
                         </div>
-                        <div className="space-y-3">
-                            <input className="input" placeholder="https://..." value={importUrl} onChange={e => setImportUrl(e.target.value)} />
-                            <p className="text-xs text-[var(--text-secondary)]">Парсинг подтянет заголовок, цену, год, фото и ссылку.</p>
+
+                        <div className="space-y-6">
+                            <div>
+                                <h4 className="text-xs font-bold text-[var(--text-secondary)] uppercase mb-2">Option A: Parse URL</h4>
+                                <div className="space-y-2">
+                                    <input className="input" placeholder="https://..." value={importUrl} onChange={e => setImportUrl(e.target.value)} />
+                                    <p className="text-xs text-[var(--text-secondary)]">Support for AutoRia, OLX, Mobile.de (basic)</p>
+                                </div>
+                            </div>
+
+                            <div className="relative">
+                                <div className="absolute inset-0 flex items-center">
+                                    <div className="w-full border-t border-[var(--border-color)]"></div>
+                                </div>
+                                <div className="relative flex justify-center text-xs uppercase">
+                                    <span className="bg-[var(--bg-surface)] px-2 text-[var(--text-secondary)]">OR</span>
+                                </div>
+                            </div>
+
+                            <div>
+                                <h4 className="text-xs font-bold text-[var(--text-secondary)] uppercase mb-2">Option B: Upload CSV</h4>
+                                <div className="border-2 border-dashed border-[var(--border-color)] rounded-xl p-6 text-center hover:border-gold-500/50 transition-colors cursor-pointer" onClick={() => document.getElementById('csv-upload')?.click()}>
+                                    <input id="csv-upload" type="file" className="hidden" accept=".csv" onChange={e => setCsvFile(e.target.files?.[0] || null)} />
+                                    {csvFile ? (
+                                        <div className="text-gold-500 font-bold">{csvFile.name}</div>
+                                    ) : (
+                                        <div className="text-[var(--text-secondary)]">Click to upload CSV</div>
+                                    )}
+                                </div>
+                                <p className="text-[10px] text-[var(--text-secondary)] mt-2">Required columns: Title, Price, Year. Optional: Mileage, Location.</p>
+                            </div>
                         </div>
-                        <div className="flex justify-end gap-2 mt-4">
+
+                        <div className="flex justify-end gap-2 mt-6">
                             <button onClick={() => setImporting(false)} className="btn-ghost">Cancel</button>
-                            <button
-                                className="btn-primary"
+                            {csvFile ? (
+                                <button className="btn-primary" onClick={async () => {
+                                    if (!csvFile) return;
+                                    const text = await csvFile.text();
+                                    const rows = text.split('\n').map(row => row.split(','));
+                                    const header = rows[0].map(h => h.trim().toLowerCase());
+
+                                    const titleIdx = header.findIndex(h => h.includes('title') || h.includes('name') || h.includes('model'));
+                                    const priceIdx = header.findIndex(h => h.includes('price') || h.includes('cost'));
+                                    const yearIdx = header.findIndex(h => h.includes('year'));
+
+                                    if (titleIdx === -1 || priceIdx === -1) {
+                                        showToast('CSV must have Title and Price columns', 'error');
+                                        return;
+                                    }
+
+                                    let importedCount = 0;
+                                    for (let i = 1; i < rows.length; i++) {
+                                        const row = rows[i];
+                                        if (row.length < header.length) continue;
+
+                                        const title = row[titleIdx]?.trim();
+                                        const priceRaw = row[priceIdx]?.replace(/[^0-9]/g, '') || '0';
+                                        const yearRaw = yearIdx > -1 ? row[yearIdx]?.replace(/[^0-9]/g, '') : '2020';
+
+                                        if (!title) continue;
+
+                                        try {
+                                            await InventoryService.saveCar({
+                                                title,
+                                                price: { amount: parseInt(priceRaw), currency: 'USD' },
+                                                year: parseInt(yearRaw),
+                                                mileage: 0,
+                                                status: 'AVAILABLE',
+                                                source: 'MANUAL',
+                                                canonicalId: `csv_${Date.now()}_${i}`
+                                            });
+                                            importedCount++;
+                                        } catch (e) {}
+                                    }
+
+                                    showToast(`Imported ${importedCount} items`);
+                                    setImporting(false);
+                                    setCsvFile(null);
+                                    loadData();
+                                }}>
+                                    Import CSV
+                                </button>
+                            ) : (
+                                <button
+                                    className="btn-primary"
                                 onClick={async () => {
                                     if (!importUrl.trim()) return showToast('URL required', 'error');
                                     try {

@@ -44,7 +44,8 @@ const DEFAULT_NAV: NavigationItem[] = [
   { id: 'nav_cont', labelKey: 'nav.content', path: '/content', iconName: 'Library', roles: ALL_ROLES, order: 6, visible: true },
   { id: 'nav_scen', labelKey: 'nav.scenarios', path: '/scenarios', iconName: 'Database', roles: ALL_ROLES, order: 7, visible: true },
   { id: 'nav_integrations', labelKey: 'nav.integrations', path: '/integrations', iconName: 'Plug', roles: ALL_ROLES, order: 8, visible: true },
-  { id: 'nav_company', labelKey: 'nav.company', path: '/company', iconName: 'Briefcase', roles: ALL_ROLES, order: 9, visible: true },
+  { id: 'nav_partners', labelKey: 'nav.partners', path: '/partners', iconName: 'Users', roles: ALL_ROLES, order: 9, visible: true },
+  { id: 'nav_company', labelKey: 'nav.company', path: '/company', iconName: 'Briefcase', roles: ALL_ROLES, order: 10, visible: true },
   // { id: 'nav_bots', labelKey: 'nav.bots', path: '/bots', iconName: 'Users', roles: ALL_ROLES, order: 8, visible: true }, // Merged into Scenarios/Communication
   { id: 'nav_sets', labelKey: 'nav.settings', path: '/settings', iconName: 'Settings', roles: ALL_ROLES, order: 99, visible: true }
 ];

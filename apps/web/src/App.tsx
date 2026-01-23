@@ -24,6 +24,7 @@ import { ClientProposal } from './pages/public/ClientProposal';
 import { MiniApp } from './pages/public/MiniApp';
 import { ContentPage } from './pages/app/Content';
 import { ContentCalendarPage } from './pages/app/ContentCalendar';
+import { PartnersPage } from './pages/app/Partners';
 import { CompanySettingsPage } from './pages/app/CompanySettings';
 import { IntegrationsPage } from './pages/app/Integrations';
 import { IntegrationsLayout } from './pages/app/IntegrationsLayout';
@@ -81,6 +82,7 @@ export default function App() {
                     <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
                     <Route path="/content" element={<ProtectedRoute><ContentPage /></ProtectedRoute>} />
                     <Route path="/calendar" element={<ProtectedRoute><ContentCalendarPage /></ProtectedRoute>} />
+                    <Route path="/partners" element={<ProtectedRoute><PartnersPage /></ProtectedRoute>} />
                     <Route path="/company" element={<ProtectedRoute><CompanySettingsPage /></ProtectedRoute>} />
                     <Route path="/integrations" element={<ProtectedRoute><IntegrationsLayout /></ProtectedRoute>}>
                       <Route index element={<IntegrationsPage />} />
