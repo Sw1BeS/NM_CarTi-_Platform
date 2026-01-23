@@ -35,3 +35,11 @@ infra/*.bak.*
 **/*.bak.*
 infra.bak.*
 **/infra.bak.*
+
+# Local/Auto-generated files
+_backup_root/
+_backups/
+apps/*.tgz
+data/
+env/
+.agent/
