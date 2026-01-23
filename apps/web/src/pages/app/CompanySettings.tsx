@@ -149,7 +149,10 @@ export const CompanySettingsPage = () => {
             <div className="flex justify-between items-center">
                 <div>
                     <h1 className="text-2xl font-bold text-[var(--text-primary)]">Company Settings</h1>
-                    <p className="text-sm text-[var(--text-secondary)] mt-1">Manage branding and team</p>
+                    <p className="text-sm text-[var(--text-secondary)] mt-1">
+                        Customize your workspace branding and manage team access.
+                        Branding settings affect how the bot and admin panel appear to your users.
+                    </p>
                 </div>
                 <div className="flex items-center gap-3">
                     <div className={`px-3 py-1 rounded text-xs font-bold ${company?.plan === 'ENTERPRISE' ? 'bg-purple-500/20 text-purple-500' :

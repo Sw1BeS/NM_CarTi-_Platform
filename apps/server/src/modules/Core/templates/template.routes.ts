@@ -100,13 +100,14 @@ router.post('/:id/install', async (req, res) => {
     if (!tpl) return res.status(404).json({ error: 'Template not found' });
 
     try {
+        const structure = tpl.structure as any;
         const scenario = await prisma.scenario.create({
             data: {
                 name: `${tpl.name} (Copy)`,
                 triggerCommand: `start_${Date.now()}`,
                 companyId,
-                nodes: tpl.structure.nodes,
-                entryNodeId: tpl.structure.entryNodeId,
+                nodes: structure?.nodes || [],
+                entryNodeId: structure?.entryNodeId || null,
                 status: 'DRAFT',
                 isActive: false
             }
