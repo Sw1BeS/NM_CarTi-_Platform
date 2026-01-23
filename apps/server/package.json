@@ -14,7 +14,8 @@
     "migrate:v4:seed": "tsx scripts/seed_definitions.ts",
     "migrate:v4:inventory": "tsx scripts/migrate_inventory.ts",
     "migrate:v4:leads": "tsx scripts/migrate_leads.ts",
-    "test": "vitest"
+    "test": "vitest --run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@prisma/client": "^5.10.2",

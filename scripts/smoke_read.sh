@@ -20,6 +20,9 @@ PASSED=0
 FAILED=0
 AUTH_REQUIRED=0
 
+TMP_BODY="/tmp/smoke_read_body.$$"
+trap 'rm -f "$TMP_BODY"' EXIT
+
 request() {
   local method="$1"
   local path="$2"
@@ -32,7 +35,7 @@ request() {
   fi
 
   local status
-  status=$(curl -s -o /tmp/smoke_read_body.$$ -w "%{http_code}" -X "$method" "$url" "${headers[@]}" || echo "000")
+  status=$(curl -s -o "$TMP_BODY" -w "%{http_code}" -X "$method" "$url" "${headers[@]}" || echo "000")
 
   if [ "$status" = "200" ] || [ "$status" = "204" ]; then
     echo "PASS  $label ($method $path) -> $status"
@@ -62,14 +65,15 @@ request GET "/health" "health"
 request GET "/api/system/settings/public" "system settings (public)"
 request GET "/api/public/bots" "public bots"
 request GET "/api/public/requests?page=1&limit=1" "public requests"
+request GET "/api/templates/marketplace" "templates marketplace (public)"
 
 request GET "/api/bots" "bots (protected)"
 request GET "/api/scenarios" "scenarios (protected)"
 request GET "/api/leads" "leads (protected)"
 request GET "/api/requests" "requests (protected)"
-request GET "/api/inventory/cars" "inventory (protected)"
-request GET "/api/companies" "companies (protected)"
-request GET "/api/templates" "templates (protected)"
+request GET "/api/inventory?page=1&limit=1" "inventory (protected)"
+request GET "/api/companies/current" "company current (protected)"
+request GET "/api/templates/installed/list" "templates installed (protected)"
 request GET "/api/integrations" "integrations (protected)"
 request GET "/api/entities/meta" "entity meta (protected)"
 

@@ -32,6 +32,9 @@ AUTH_TOKEN="${AUTH_TOKEN:-}"
 PASSED=0
 FAILED=0
 
+TMP_BODY="/tmp/smoke_write_body.$$"
+trap 'rm -f "$TMP_BODY"' EXIT
+
 post() {
   local path="$1"
   local label="$2"
@@ -44,7 +47,7 @@ post() {
   fi
 
   local status
-  status=$(curl -s -o /tmp/smoke_write_body.$$ -w "%{http_code}" -X POST "$url" "${headers[@]}" -d "$data" || echo "000")
+  status=$(curl -s -o "$TMP_BODY" -w "%{http_code}" -X POST "$url" "${headers[@]}" -d "$data" || echo "000")
 
   if [ "$status" = "200" ] || [ "$status" = "201" ]; then
     echo "PASS  $label (POST $path) -> $status"

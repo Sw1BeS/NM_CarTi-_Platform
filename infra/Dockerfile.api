@@ -4,7 +4,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-cert
 WORKDIR /app/server
 
 COPY apps/server/package*.json ./
-RUN npm install
+RUN npm ci
 
 COPY apps/server/prisma ./prisma
 COPY apps/server/src ./src
