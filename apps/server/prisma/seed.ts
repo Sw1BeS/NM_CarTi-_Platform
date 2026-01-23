@@ -345,10 +345,6 @@ async function main() {
   console.log('🏁 Seed finished.');
 }
 
-async function seedIntegrationsAndDrafts(companyId: string) {
-  // Placeholder if function missing
-}
-
 async function seedMTProto(companyId: string) {
   console.log('📱 Seeding MTProto...');
 
@@ -823,7 +819,7 @@ async function seedRequestsAndLeads(companyId: string) {
   for (const lead of leads) {
     await prisma.lead.upsert({
       where: { id: lead.id },
-      create: { ...lead },
+      create: { ...lead, companyId },
       update: {
         clientName: lead.clientName,
         status: lead.status as any,
