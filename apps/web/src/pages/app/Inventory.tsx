@@ -481,6 +481,7 @@ export const InventoryPage = () => {
                             >
                                 Import
                             </button>
+                            )}
                         </div>
                     </div>
                 </div>
