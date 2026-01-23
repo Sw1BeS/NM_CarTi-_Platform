@@ -63,7 +63,10 @@ export class BotManager {
         const deliveryMode = (config.config as any)?.deliveryMode || 'polling';
         console.log(`🚀 Starting Bot [${config.id}] (${deliveryMode}): ${config.name}`);
 
-        const instance = new BotInstance(config, deliveryMode);
+        const instance = new BotInstance(config, deliveryMode, (botId) => {
+            console.warn(`🛑 Bot ${botId} stopped due to invalid token`);
+            this.activeBots.delete(botId);
+        });
         instance.start();
         this.activeBots.set(config.id, instance);
     }
@@ -92,13 +95,15 @@ export class BotManager {
 class BotInstance {
     private config: BotConfigModel;
     private mode: 'polling' | 'webhook';
+    private onFatalStop?: (botId: string) => void;
     private isRunning: boolean = false;
     private offset: number = 0;
     private timeoutHandle: any = null;
 
-    constructor(config: BotConfigModel, mode: 'polling' | 'webhook') {
+    constructor(config: BotConfigModel, mode: 'polling' | 'webhook', onFatalStop?: (botId: string) => void) {
         this.config = config;
         this.mode = mode;
+        this.onFatalStop = onFatalStop;
     }
 
     public start() {
@@ -143,6 +148,13 @@ class BotInstance {
             }
             await axios.post(`https://api.telegram.org/bot${this.config.token}/setMyCommands`, { commands });
         } catch (e: any) {
+            const status = e?.response?.status;
+            if (status === 401 || status === 404) {
+                console.error(`🚨 Fatal Error for Bot ${this.config.name}: Invalid Token (${status}). Stopping.`);
+                this.stop();
+                this.onFatalStop?.(this.config.id);
+                return;
+            }
             console.error(`⚠️ Failed to register commands for ${this.config.name}: ${e.message}`);
         }
     }
@@ -162,9 +174,11 @@ class BotInstance {
             }
         } catch (e: any) {
             // CRITICAL: Stop bot if token is invalid to prevent server hang/spam
-            if (e.response && e.response.status === 401) {
-                console.error(`🚨 Fatal Error for Bot ${this.config.name}: Invalid Token. Stopping.`);
+            const status = e?.response?.status;
+            if (status === 401 || status === 404) {
+                console.error(`🚨 Fatal Error for Bot ${this.config.name}: Invalid Token (${status}). Stopping.`);
                 this.stop();
+                this.onFatalStop?.(this.config.id);
                 return;
             }
 
