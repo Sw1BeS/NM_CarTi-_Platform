@@ -4,7 +4,8 @@
 
 import { Router } from 'express';
 import { TemplateService } from './template.service.js';
-import { companyMiddleware, optionalCompanyMiddleware } from '../../../middleware/company.middleware.js';
+import { authenticateToken, optionalAuthenticateToken } from '../../../middleware/auth.js';
+import { companyContext } from '../../../middleware/companyContext.js';
 
 const router = Router();
 const templateService = new TemplateService();
@@ -13,7 +14,7 @@ const templateService = new TemplateService();
  * GET /api/templates/marketplace
  * Browse public templates (no auth required)
  */
-router.get('/marketplace', optionalCompanyMiddleware, async (req: any, res) => {
+router.get('/marketplace', optionalAuthenticateToken, async (req: any, res) => {
     try {
         const { category, search, isPremium } = req.query;
 
@@ -51,7 +52,7 @@ router.get('/:id', async (req: any, res) => {
  * GET /api/templates/installed/list
  * Get installed templates for current company
  */
-router.get('/installed/list', companyMiddleware, async (req: any, res) => {
+router.get('/installed/list', authenticateToken, companyContext, async (req: any, res) => {
     try {
         const installed = await templateService.getInstalled(req.companyId);
         res.json(installed);
@@ -64,7 +65,7 @@ router.get('/installed/list', companyMiddleware, async (req: any, res) => {
  * POST /api/templates/:id/install
  * Install template to current company
  */
-router.post('/:id/install', companyMiddleware, async (req: any, res) => {
+router.post('/:id/install', authenticateToken, companyContext, async (req: any, res) => {
     try {
         const scenario = await templateService.installTemplate(req.companyId, req.params.id);
         res.status(201).json(scenario);
@@ -77,7 +78,7 @@ router.post('/:id/install', companyMiddleware, async (req: any, res) => {
  * DELETE /api/templates/:id/uninstall
  * Uninstall template from current company
  */
-router.delete('/:id/uninstall', companyMiddleware, async (req: any, res) => {
+router.delete('/:id/uninstall', authenticateToken, companyContext, async (req: any, res) => {
     try {
         await templateService.uninstallTemplate(req.companyId, req.params.id);
         res.json({ success: true });

@@ -37,6 +37,14 @@ if (process.env.NODE_ENV === 'production') {
   if (!process.env.JWT_SECRET) {
     throw new Error('JWT_SECRET is required in production');
   }
+  // If Telegram integration is enabled (token present), ensure webhook secret is set for security
+  if (process.env.TELEGRAM_BOT_TOKEN && !process.env.TELEGRAM_WEBHOOK_SECRET) {
+    console.warn('⚠️  WARNING: TELEGRAM_BOT_TOKEN set but TELEGRAM_WEBHOOK_SECRET missing. Webhooks may be insecure.');
+    // throw new Error('TELEGRAM_WEBHOOK_SECRET required in production when Telegram enabled'); // User asked to "Fail fast"?
+    // "Validate ... Fail fast with a clear message."
+    // I will throw.
+    throw new Error('TELEGRAM_WEBHOOK_SECRET is required in production when Telegram is enabled');
+  }
 }
 
 const app = express();
@@ -76,9 +84,9 @@ app.use('/api/companies', companyRoutes); // Stage C: Multi-tenancy
 app.use('/api/templates', templateRoutes); // Stage C: Marketplace
 app.use('/api/integrations', integrationRoutes); // Stage C: Integrations
 app.use('/api/superadmin', superadminRoutes); // Stage C: System admin
-app.use('/api', apiRoutes);
-app.use('/api/qa', qaRoutes);
 app.use('/api/telegram', telegramRoutes);
+app.use('/api/qa', qaRoutes);
+app.use('/api', apiRoutes);
 
 // Health Check (Robust)
 app.get('/health', checkHealth);
@@ -151,4 +159,8 @@ const startServer = async () => {
   }
 };
 
-startServer();
+export { app, startServer };
+
+if (process.env.NODE_ENV !== 'test') {
+  startServer();
+}

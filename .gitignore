@@ -42,4 +42,3 @@ _backups/
 apps/*.tgz
 data/
 env/
-.agent/

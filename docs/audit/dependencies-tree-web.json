@@ -1,0 +1,146 @@
+{
+  "version": "0.0.0",
+  "name": "cartie-b2b-&-telegram-hub_v4.2_fixes",
+  "dependencies": {
+    "@lexical/code": {
+      "version": "0.39.0",
+      "resolved": "https://registry.npmjs.org/@lexical/code/-/code-0.39.0.tgz",
+      "overridden": false
+    },
+    "@lexical/link": {
+      "version": "0.39.0",
+      "resolved": "https://registry.npmjs.org/@lexical/link/-/link-0.39.0.tgz",
+      "overridden": false
+    },
+    "@lexical/list": {
+      "version": "0.39.0",
+      "resolved": "https://registry.npmjs.org/@lexical/list/-/list-0.39.0.tgz",
+      "overridden": false
+    },
+    "@lexical/markdown": {
+      "version": "0.39.0",
+      "resolved": "https://registry.npmjs.org/@lexical/markdown/-/markdown-0.39.0.tgz",
+      "overridden": false
+    },
+    "@lexical/react": {
+      "version": "0.39.0",
+      "resolved": "https://registry.npmjs.org/@lexical/react/-/react-0.39.0.tgz",
+      "overridden": false
+    },
+    "@lexical/rich-text": {
+      "version": "0.39.0",
+      "resolved": "https://registry.npmjs.org/@lexical/rich-text/-/rich-text-0.39.0.tgz",
+      "overridden": false
+    },
+    "@lexical/utils": {
+      "version": "0.39.0",
+      "resolved": "https://registry.npmjs.org/@lexical/utils/-/utils-0.39.0.tgz",
+      "overridden": false
+    },
+    "@tailwindcss/postcss": {
+      "version": "4.1.18",
+      "resolved": "https://registry.npmjs.org/@tailwindcss/postcss/-/postcss-4.1.18.tgz",
+      "overridden": false
+    },
+    "@types/dompurify": {
+      "version": "3.0.5",
+      "resolved": "https://registry.npmjs.org/@types/dompurify/-/dompurify-3.0.5.tgz",
+      "overridden": false
+    },
+    "@types/node": {
+      "version": "22.19.7",
+      "resolved": "https://registry.npmjs.org/@types/node/-/node-22.19.7.tgz",
+      "overridden": false
+    },
+    "@vitejs/plugin-react": {
+      "version": "5.1.2",
+      "resolved": "https://registry.npmjs.org/@vitejs/plugin-react/-/plugin-react-5.1.2.tgz",
+      "overridden": false
+    },
+    "autoprefixer": {
+      "version": "10.4.23",
+      "resolved": "https://registry.npmjs.org/autoprefixer/-/autoprefixer-10.4.23.tgz",
+      "overridden": false
+    },
+    "axios": {
+      "version": "1.13.2",
+      "resolved": "https://registry.npmjs.org/axios/-/axios-1.13.2.tgz",
+      "overridden": false
+    },
+    "clsx": {
+      "version": "2.1.1",
+      "resolved": "https://registry.npmjs.org/clsx/-/clsx-2.1.1.tgz",
+      "overridden": false
+    },
+    "dompurify": {
+      "version": "3.3.1",
+      "resolved": "https://registry.npmjs.org/dompurify/-/dompurify-3.3.1.tgz",
+      "overridden": false
+    },
+    "framer-motion": {
+      "version": "12.27.5",
+      "resolved": "https://registry.npmjs.org/framer-motion/-/framer-motion-12.27.5.tgz",
+      "overridden": false
+    },
+    "lexical": {
+      "version": "0.39.0",
+      "resolved": "https://registry.npmjs.org/lexical/-/lexical-0.39.0.tgz",
+      "overridden": false
+    },
+    "lucide-react": {
+      "version": "0.562.0",
+      "resolved": "https://registry.npmjs.org/lucide-react/-/lucide-react-0.562.0.tgz",
+      "overridden": false
+    },
+    "postcss": {
+      "version": "8.5.6",
+      "resolved": "https://registry.npmjs.org/postcss/-/postcss-8.5.6.tgz",
+      "overridden": false
+    },
+    "react-dom": {
+      "version": "19.2.3",
+      "resolved": "https://registry.npmjs.org/react-dom/-/react-dom-19.2.3.tgz",
+      "overridden": false
+    },
+    "react-router-dom": {
+      "version": "7.12.0",
+      "resolved": "https://registry.npmjs.org/react-router-dom/-/react-router-dom-7.12.0.tgz",
+      "overridden": false
+    },
+    "react": {
+      "version": "19.2.3",
+      "resolved": "https://registry.npmjs.org/react/-/react-19.2.3.tgz",
+      "overridden": false
+    },
+    "reactflow": {
+      "version": "11.11.4",
+      "resolved": "https://registry.npmjs.org/reactflow/-/reactflow-11.11.4.tgz",
+      "overridden": false
+    },
+    "recharts": {
+      "version": "3.6.0",
+      "resolved": "https://registry.npmjs.org/recharts/-/recharts-3.6.0.tgz",
+      "overridden": false
+    },
+    "tailwind-merge": {
+      "version": "3.4.0",
+      "resolved": "https://registry.npmjs.org/tailwind-merge/-/tailwind-merge-3.4.0.tgz",
+      "overridden": false
+    },
+    "tailwindcss": {
+      "version": "4.1.18",
+      "resolved": "https://registry.npmjs.org/tailwindcss/-/tailwindcss-4.1.18.tgz",
+      "overridden": false
+    },
+    "typescript": {
+      "version": "5.8.3",
+      "resolved": "https://registry.npmjs.org/typescript/-/typescript-5.8.3.tgz",
+      "overridden": false
+    },
+    "vite": {
+      "version": "6.4.1",
+      "resolved": "https://registry.npmjs.org/vite/-/vite-6.4.1.tgz",
+      "overridden": false
+    }
+  }
+}

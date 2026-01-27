@@ -1,23 +1,20 @@
 import { Request, Response, NextFunction } from 'express';
-import jwt from 'jsonwebtoken';
-
-let JWT_SECRET = process.env.JWT_SECRET;
-if (!JWT_SECRET) {
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error('JWT_SECRET is required in production');
-  }
-  JWT_SECRET = 'dev_secret_key_123';
-}
+import { verifyJwt } from '../config/jwt.js';
 
 export interface AuthRequest extends Request {
   user?: {
-    id: number;
+    userId: string;
+    globalUserId: string;
     role: string;
-    email: string;
-    companyId?: string;
-    workspaceId?: string;
-    workspaceSlug?: string;
+    companyId: string;
+    workspaceId: string;
+    email?: string; // Legacy or debugging
+    iat?: number;
+    exp?: number;
   };
+  // Legacy compatibility fields (will be populated by companyContext)
+  companyId?: string;
+  workspaceId?: string;
 }
 
 export const authenticateToken = (req: Request, res: Response, next: NextFunction) => {
@@ -26,11 +23,29 @@ export const authenticateToken = (req: Request, res: Response, next: NextFunctio
 
   if (!token) return (res as any).status(401).send('Unauthorized');
 
-  jwt.verify(token, JWT_SECRET, (err: any, user: any) => {
-    if (err) return (res as any).status(403).send('Forbidden');
+  try {
+    const user = verifyJwt(token);
     (req as AuthRequest).user = user;
     next();
-  });
+  } catch (err) {
+    return (res as any).status(403).send('Forbidden');
+  }
+};
+
+export const optionalAuthenticateToken = (req: Request, res: Response, next: NextFunction) => {
+  const authHeader = (req as any).headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (!token) return next();
+
+  try {
+    const user = verifyJwt(token);
+    (req as AuthRequest).user = user;
+    next();
+  } catch (err) {
+    // Ignore invalid token in optional auth
+    next();
+  }
 };
 
 export const requireRole = (roles: string[]) => {
@@ -38,8 +53,10 @@ export const requireRole = (roles: string[]) => {
     const authReq = req as AuthRequest;
     const userRole = authReq.user?.role;
 
+    // SUPER_ADMIN override (matches legacy behavior)
+    if (userRole === 'SUPER_ADMIN') return next();
+
     if (!userRole || !roles.includes(userRole)) {
-      // In production, strictly enforce roles.
       return (res as any).status(403).json({ error: 'Insufficient permissions' });
     }
     next();

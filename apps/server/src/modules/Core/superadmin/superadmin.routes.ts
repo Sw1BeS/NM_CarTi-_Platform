@@ -6,19 +6,18 @@
 import { Router } from 'express';
 import { SuperadminService } from './superadmin.service.js';
 import { ClientManagerService } from './client-manager.service.js';
-import { companyMiddleware, requireRole } from '../../../middleware/company.middleware.js';
-import { authenticateToken } from '../../../middleware/auth.js';
-import jwt from 'jsonwebtoken';
+import { companyContext } from '../../../middleware/companyContext.js';
+import { authenticateToken, requireRole } from '../../../middleware/auth.js';
+import { signJwt } from '../../../config/jwt.js';
 
 const router = Router();
 const superadminService = new SuperadminService();
 const clientManagerService = new ClientManagerService();
-const JWT_SECRET = process.env.JWT_SECRET || 'dev_secret_key_123';
 
 // All routes require SUPER_ADMIN role
 router.use(authenticateToken);
-router.use(companyMiddleware);
-router.use(requireRole('SUPER_ADMIN'));
+router.use(companyContext);
+router.use(requireRole(['SUPER_ADMIN']));
 
 /**
  * GET /api/superadmin/companies
@@ -182,12 +181,21 @@ router.post('/impersonate', async (req: any, res) => {
             return res.status(404).json({ error: 'User not found' });
         }
 
-        const token = jwt.sign({
+        // Phase 3 Fix: Determine workspaceId
+        // Prefer explicit companyId from request if provided (override), or user's attached company/workspace
+        const targetWorkspaceId = companyId || user.workspace?.id || user.companyId;
+
+        // Ensure we explicitly include all required fields for the new AuthRequest interface
+        const payload = {
             userId: user.id,
-            email: user.email,
+            globalUserId: user.globalUserId || user.id,
             role: user.role,
-            companyId: companyId || user.companyId
-        }, JWT_SECRET, { expiresIn: expiresIn || '2h' });
+            email: user.email,
+            companyId: targetWorkspaceId,
+            workspaceId: targetWorkspaceId
+        };
+
+        const token = signJwt(payload, { expiresIn: expiresIn || '2h' });
 
         res.json({ token, user });
     } catch (e: any) {
