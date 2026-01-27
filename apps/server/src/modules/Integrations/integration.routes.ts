@@ -4,15 +4,15 @@
 
 import { Router } from 'express';
 import { IntegrationService } from './integration.service.js';
-import { companyMiddleware, requireRole } from '../../middleware/company.middleware.js';
-import { authenticateToken } from '../../middleware/auth.js';
+import { authenticateToken, requireRole } from '../../middleware/auth.js';
+import { companyContext } from '../../middleware/companyContext.js';
 
 const router = Router();
 const integrationService = new IntegrationService();
 
 // All routes require authentication
 router.use(authenticateToken);
-router.use(companyMiddleware);
+router.use(companyContext);
 
 import mtprotoRoutes from './mtproto/mtproto.routes.js';
 router.use('/mtproto', mtprotoRoutes as any);
@@ -187,4 +187,3 @@ router.post('/webhook/trigger', requireRole('OWNER', 'ADMIN'), async (req: any, 
 });
 
 export default router;
-

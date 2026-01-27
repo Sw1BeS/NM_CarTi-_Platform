@@ -148,7 +148,15 @@ router.post('/bots/:id/webhook', requireRole(['ADMIN']), async (req, res) => {
             return res.status(403).json({ error: 'Forbidden' });
         }
         const { publicBaseUrl, secretToken } = req.body || {};
-        const result = await setWebhookForBot(id, { publicBaseUrl, secretToken });
+
+        // Production-friendly fallback: infer base URL from proxy headers when PUBLIC_BASE_URL isn't set.
+        const forwardedProto = (req.headers['x-forwarded-proto'] as string | undefined)?.split(',')[0]?.trim();
+        const forwardedHost = (req.headers['x-forwarded-host'] as string | undefined)?.split(',')[0]?.trim();
+        const host = forwardedHost || req.get('host');
+        const proto = forwardedProto || req.protocol;
+        const inferredBaseUrl = host ? `${proto}://${host}` : undefined;
+
+        const result = await setWebhookForBot(id, { publicBaseUrl: publicBaseUrl || inferredBaseUrl, secretToken });
         botManager.restartBot(id).catch(e => console.error('Async Bot Restart Failed:', e));
         res.json({ ok: true, ...result });
     } catch (e: any) {
@@ -198,6 +206,7 @@ router.delete('/bots/:id', requireRole(['ADMIN']), async (req, res) => {
 
 const TELEGRAM_METHODS = new Set([
     'getMe',
+    'getWebhookInfo',
     'sendMessage',
     'sendPhoto',
     'sendMediaGroup',

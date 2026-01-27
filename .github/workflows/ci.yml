@@ -24,20 +24,17 @@ jobs:
         cache: 'npm'
         cache-dependency-path: '**/package-lock.json'
 
-    - name: Install dependencies (Root)
-      run: npm install
-
     - name: Building Backend
       working-directory: ./apps/server
       run: |
-        npm install
+        npm ci
         npx prisma generate
         npm run build
 
     - name: Building Frontend
       working-directory: ./apps/web
       run: |
-        npm install
+        npm ci
         npm run build
       env:
         # Dummy value for build time, replaced at run time or via Docker build args
@@ -47,3 +44,38 @@ jobs:
       working-directory: ./apps/server
       run: npm test
 
+    - name: Docker Build With Build Metadata
+      run: |
+        set -euo pipefail
+        BUILD_SHA="${GITHUB_SHA}"
+        BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+        echo "BUILD_SHA=$BUILD_SHA"
+        echo "BUILD_TIME=$BUILD_TIME"
+
+        docker build \
+          -f infra/Dockerfile.api \
+          --build-arg BUILD_SHA="$BUILD_SHA" \
+          --build-arg BUILD_TIME="$BUILD_TIME" \
+          -t cartie-api-ci .
+
+        docker build \
+          -f infra/Dockerfile.web \
+          --build-arg BUILD_SHA="$BUILD_SHA" \
+          --build-arg BUILD_TIME="$BUILD_TIME" \
+          -t cartie-web-ci .
+
+        api_sha="$(docker run --rm cartie-api-ci sh -lc 'cat /app/server/BUILD_SHA')"
+        web_sha="$(docker run --rm cartie-web-ci sh -lc 'cat /srv/www/BUILD_SHA')"
+
+        if [ "$api_sha" != "$BUILD_SHA" ]; then
+          echo "API build SHA mismatch: $api_sha != $BUILD_SHA"
+          exit 1
+        fi
+
+        if [ "$web_sha" != "$BUILD_SHA" ]; then
+          echo "WEB build SHA mismatch: $web_sha != $BUILD_SHA"
+          exit 1
+        fi
+
+        echo "✅ Docker images contain the expected build SHA"

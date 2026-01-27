@@ -2,7 +2,7 @@
 import { Router } from 'express';
 import { prisma } from '../../../services/prisma.js';
 import { MTProtoService } from './mtproto.service.js';
-import { requireRole } from '../../../middleware/company.middleware.js';
+import { requireRole } from '../../../middleware/auth.js';
 
 const router = Router();
 

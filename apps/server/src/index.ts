@@ -26,38 +26,20 @@ import { mtprotoWorker } from './modules/Integrations/mtproto/mtproto.worker.js'
 import { MTProtoLifeCycle } from './modules/Integrations/mtproto/mtproto.lifecycle.js';
 import { workspaceContext } from './middleware/workspaceContext.js';
 import { checkHealth } from './modules/Core/health/health.controller.js';
+import { validateEnv } from './config/env.js';
 import process from 'process';
 
 dotenv.config();
 
-if (process.env.NODE_ENV === 'production') {
-  if (!process.env.DATABASE_URL) {
-    throw new Error('DATABASE_URL is required in production');
-  }
-  if (!process.env.JWT_SECRET) {
-    throw new Error('JWT_SECRET is required in production');
-  }
-  // If Telegram integration is enabled (token present), ensure webhook secret is set for security
-  if (process.env.TELEGRAM_BOT_TOKEN && !process.env.TELEGRAM_WEBHOOK_SECRET) {
-    console.warn('⚠️  WARNING: TELEGRAM_BOT_TOKEN set but TELEGRAM_WEBHOOK_SECRET missing. Webhooks may be insecure.');
-    // throw new Error('TELEGRAM_WEBHOOK_SECRET required in production when Telegram enabled'); // User asked to "Fail fast"?
-    // "Validate ... Fail fast with a clear message."
-    // I will throw.
-    throw new Error('TELEGRAM_WEBHOOK_SECRET is required in production when Telegram is enabled');
-  }
-}
+const env = validateEnv();
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = env.PORT;
 
-const corsOriginEnv = process.env.CORS_ORIGIN;
+const corsOriginEnv = env.CORS_ORIGIN;
 const corsOrigins = corsOriginEnv
   ? corsOriginEnv.split(',').map(origin => origin.trim()).filter(Boolean)
   : [];
-
-if (process.env.NODE_ENV === 'production' && corsOrigins.length === 0) {
-  throw new Error('CORS_ORIGIN is required in production');
-}
 
 app.use(cors({
   origin: corsOrigins.length ? corsOrigins : '*',
@@ -70,13 +52,19 @@ app.use(express.json() as any);
 app.use(workspaceContext);
 
 // Routes
-// Public Webhooks (Must be before apiRoutes which has auth)
+// 1) Public Webhooks (must be before /api which has auth)
 app.use('/api/webhooks/whatsapp', whatsAppRouter);
 app.use('/api/webhooks/viber', viberRouter);
+app.use('/api/telegram', telegramRoutes);
 
-app.use('/api/system', systemRoutes);
+// 2) Public Routes
 app.use('/api/public', publicRoutes);
+
+// 3) Auth Routes
 app.use('/api/auth', authRoutes);
+
+// 4) App Routes (auth required inside routers)
+app.use('/api/system', systemRoutes);
 app.use('/api/entities', entityRoutes); // Generic fallback for other entities
 app.use('/api/inventory', inventoryRoutes); // Dedicate Inventory
 app.use('/api/requests', requestsRoutes);
@@ -84,8 +72,9 @@ app.use('/api/companies', companyRoutes); // Stage C: Multi-tenancy
 app.use('/api/templates', templateRoutes); // Stage C: Marketplace
 app.use('/api/integrations', integrationRoutes); // Stage C: Integrations
 app.use('/api/superadmin', superadminRoutes); // Stage C: System admin
-app.use('/api/telegram', telegramRoutes);
 app.use('/api/qa', qaRoutes);
+
+// 5) Legacy/God Router (auth inside router)
 app.use('/api', apiRoutes);
 
 // Health Check (Robust)

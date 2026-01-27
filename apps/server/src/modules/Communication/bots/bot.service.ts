@@ -171,8 +171,14 @@ class BotInstance {
 
             if (res.data.ok) {
                 for (const update of res.data.result) {
-                    this.offset = update.update_id;
-                    await this.processUpdate(update);
+                    try {
+                        await this.processUpdate(update);
+                    } catch (err: any) {
+                        console.error(`Bot Update Error (${this.config.name}):`, err?.message || err);
+                    } finally {
+                        // Always advance offset to avoid getting stuck on a bad update.
+                        this.offset = update.update_id;
+                    }
                 }
             }
         } catch (e: any) {
@@ -199,7 +205,12 @@ class BotInstance {
 
 
     private async processUpdate(update: any) {
-        await runTelegramPipeline({ update, bot: this.config as any, botId: this.config.id, source: 'polling' });
+        try {
+            await runTelegramPipeline({ update, bot: this.config as any, botId: this.config.id, source: 'polling' });
+        } catch (err: any) {
+            // Don't let a single bad update break the polling loop.
+            console.error(`[BotInstance] Pipeline error (${this.config.name}):`, err?.message || err);
+        }
     }
 
     private async ensureSession(update: any) {

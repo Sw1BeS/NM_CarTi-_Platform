@@ -31,24 +31,6 @@ router.get('/marketplace', optionalAuthenticateToken, async (req: any, res) => {
 });
 
 /**
- * GET /api/templates/:id
- * Get template details
- */
-router.get('/:id', async (req: any, res) => {
-    try {
-        const template = await templateService.getById(req.params.id);
-
-        if (!template) {
-            return res.status(404).json({ error: 'Template not found' });
-        }
-
-        res.json(template);
-    } catch (e: any) {
-        res.status(500).json({ error: e.message });
-    }
-});
-
-/**
  * GET /api/templates/installed/list
  * Get installed templates for current company
  */
@@ -84,6 +66,26 @@ router.delete('/:id/uninstall', authenticateToken, companyContext, async (req: a
         res.json({ success: true });
     } catch (e: any) {
         res.status(400).json({ error: e.message });
+    }
+});
+
+/**
+ * GET /api/templates/:id
+ * Get template details
+ *
+ * IMPORTANT: Keep this param route AFTER more specific routes like /installed/list.
+ */
+router.get('/:id', async (req: any, res) => {
+    try {
+        const template = await templateService.getById(req.params.id);
+
+        if (!template) {
+            return res.status(404).json({ error: 'Template not found' });
+        }
+
+        res.json(template);
+    } catch (e: any) {
+        res.status(500).json({ error: e.message });
     }
 });
 

@@ -2,6 +2,14 @@ FROM node:22-alpine AS build
 WORKDIR /app/web
 COPY apps/web/package.json apps/web/package-lock.json* ./
 RUN npm ci
+
+ARG BUILD_SHA=dev
+ARG BUILD_TIME=unknown
+ENV BUILD_SHA=$BUILD_SHA
+ENV BUILD_TIME=$BUILD_TIME
+RUN printf "%s\n" "$BUILD_SHA" > /app/web/BUILD_SHA \
+  && printf "%s\n" "$BUILD_TIME" > /app/web/BUILD_TIME
+
 COPY apps/web/public ./public
 COPY apps/web/src ./src
 COPY apps/web/index.html apps/web/vite.config.ts apps/web/tsconfig.json apps/web/tailwind.config.js apps/web/postcss.config.js ./
@@ -10,3 +18,5 @@ RUN npm run build
 FROM caddy:2-alpine
 COPY infra/Caddyfile /etc/caddy/Caddyfile
 COPY --from=build /app/web/dist /srv/www
+COPY --from=build /app/web/BUILD_SHA /srv/www/BUILD_SHA
+COPY --from=build /app/web/BUILD_TIME /srv/www/BUILD_TIME

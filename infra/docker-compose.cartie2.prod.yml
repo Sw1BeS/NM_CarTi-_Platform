@@ -25,6 +25,9 @@ services:
     build:
       context: ..
       dockerfile: infra/Dockerfile.api
+      args:
+        BUILD_SHA: ${BUILD_SHA:-dev}
+        BUILD_TIME: ${BUILD_TIME:-unknown}
 
     ports:
       - "127.0.0.1:3002:3001"
@@ -47,6 +50,9 @@ services:
     build:
       context: ..
       dockerfile: infra/Dockerfile.web
+      args:
+        BUILD_SHA: ${BUILD_SHA:-dev}
+        BUILD_TIME: ${BUILD_TIME:-unknown}
 
     healthcheck:
       test: ["CMD-SHELL","wget -qO- http://127.0.0.1:8080/api/health >/dev/null 2>&1"]

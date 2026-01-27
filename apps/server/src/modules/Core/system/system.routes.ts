@@ -1,7 +1,7 @@
 
 import { Router } from 'express';
 import { SettingsService } from './settings.service.js';
-import { requireRole } from '../../../middleware/auth.js';
+import { authenticateToken, requireRole } from '../../../middleware/auth.js';
 
 const router = Router();
 
@@ -14,6 +14,9 @@ router.get('/settings/public', async (req, res) => {
         res.status(500).json({ error: 'Failed to load public settings' });
     }
 });
+
+// All routes below require auth
+router.use(authenticateToken);
 
 // Admin full config
 router.get('/settings', requireRole(['ADMIN']), async (req, res) => {

@@ -1,30 +1,45 @@
 import { Request, Response, NextFunction } from 'express';
-import { verifyJwt } from '../config/jwt.js';
+import { verifyJwt, JwtUserPayload } from '../config/jwt.js';
 
 export interface AuthRequest extends Request {
-  user?: {
-    userId: string;
-    globalUserId: string;
-    role: string;
-    companyId: string;
-    workspaceId: string;
-    email?: string; // Legacy or debugging
-    iat?: number;
-    exp?: number;
-  };
+  user?: JwtUserPayload;
   // Legacy compatibility fields (will be populated by companyContext)
   companyId?: string;
   workspaceId?: string;
 }
 
+const normalizeJwtPayload = (raw: any): JwtUserPayload => {
+  const userId = raw?.userId ? String(raw.userId) : '';
+  const role = raw?.role ? String(raw.role) : '';
+  const companyId = raw?.companyId ? String(raw.companyId) : raw?.workspaceId ? String(raw.workspaceId) : '';
+  const workspaceId = raw?.workspaceId ? String(raw.workspaceId) : raw?.companyId ? String(raw.companyId) : '';
+  const globalUserId = raw?.globalUserId ? String(raw.globalUserId) : userId;
+
+  if (!userId || !role || !companyId || !workspaceId) {
+    throw new Error('Invalid token payload');
+  }
+
+  return {
+    userId,
+    globalUserId,
+    role,
+    companyId,
+    workspaceId,
+    email: typeof raw?.email === 'string' ? raw.email : undefined,
+    iat: typeof raw?.iat === 'number' ? raw.iat : undefined,
+    exp: typeof raw?.exp === 'number' ? raw.exp : undefined
+  };
+};
+
 export const authenticateToken = (req: Request, res: Response, next: NextFunction) => {
   const authHeader = (req as any).headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
+  const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.split(' ')[1] : null;
 
   if (!token) return (res as any).status(401).send('Unauthorized');
 
   try {
-    const user = verifyJwt(token);
+    const decoded = verifyJwt(token);
+    const user = normalizeJwtPayload(decoded);
     (req as AuthRequest).user = user;
     next();
   } catch (err) {
@@ -34,12 +49,13 @@ export const authenticateToken = (req: Request, res: Response, next: NextFunctio
 
 export const optionalAuthenticateToken = (req: Request, res: Response, next: NextFunction) => {
   const authHeader = (req as any).headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
+  const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.split(' ')[1] : null;
 
   if (!token) return next();
 
   try {
-    const user = verifyJwt(token);
+    const decoded = verifyJwt(token);
+    const user = normalizeJwtPayload(decoded);
     (req as AuthRequest).user = user;
     next();
   } catch (err) {
@@ -48,7 +64,8 @@ export const optionalAuthenticateToken = (req: Request, res: Response, next: Nex
   }
 };
 
-export const requireRole = (roles: string[]) => {
+export const requireRole = (roles: string[] | string, ...rest: string[]) => {
+  const roleList = Array.isArray(roles) ? roles : [roles, ...rest];
   return (req: Request, res: Response, next: NextFunction) => {
     const authReq = req as AuthRequest;
     const userRole = authReq.user?.role;
@@ -56,7 +73,7 @@ export const requireRole = (roles: string[]) => {
     // SUPER_ADMIN override (matches legacy behavior)
     if (userRole === 'SUPER_ADMIN') return next();
 
-    if (!userRole || !roles.includes(userRole)) {
+    if (!userRole || !roleList.includes(userRole)) {
       return (res as any).status(403).json({ error: 'Insufficient permissions' });
     }
     next();

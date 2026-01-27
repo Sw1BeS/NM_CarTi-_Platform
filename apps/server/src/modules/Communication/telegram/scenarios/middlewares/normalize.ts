@@ -21,13 +21,25 @@ export const normalize: PipelineMiddleware = async (ctx: PipelineContext, next) 
   if (phone) ctx.normalized.phone = phone;
 
   if (text && state.includes('BRAND')) {
-    ctx.normalized.brand = await normalizeBrand(text, { companyId: ctx.companyId });
+    try {
+      ctx.normalized.brand = await normalizeBrand(text, { companyId: ctx.companyId });
+    } catch (e) {
+      console.error('[TelegramPipeline] normalizeBrand failed:', e);
+    }
   }
   if (text && state.includes('MODEL')) {
-    ctx.normalized.model = await normalizeModel(text, { companyId: ctx.companyId });
+    try {
+      ctx.normalized.model = await normalizeModel(text, { companyId: ctx.companyId });
+    } catch (e) {
+      console.error('[TelegramPipeline] normalizeModel failed:', e);
+    }
   }
   if (text && state.includes('CITY')) {
-    ctx.normalized.city = await normalizeCity(text, { companyId: ctx.companyId });
+    try {
+      ctx.normalized.city = await normalizeCity(text, { companyId: ctx.companyId });
+    } catch (e) {
+      console.error('[TelegramPipeline] normalizeCity failed:', e);
+    }
   }
 
   await next();

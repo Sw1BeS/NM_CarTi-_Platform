@@ -23,10 +23,17 @@ const loadFeatureFlags = async () => {
   if (cachedFeatures && Date.now() - cachedFeatures.ts < FEATURE_TTL_MS) {
     return cachedFeatures.features;
   }
-  const settings = await prisma.systemSettings.findFirst({ orderBy: { id: 'desc' } });
-  const features = (settings?.features as Record<string, any>) || {};
-  cachedFeatures = { ts: Date.now(), features };
-  return features;
+  try {
+    const settings = await prisma.systemSettings.findFirst({ orderBy: { id: 'desc' } });
+    const features = (settings?.features as Record<string, any>) || {};
+    cachedFeatures = { ts: Date.now(), features };
+    return features;
+  } catch (e) {
+    console.error('[TelegramPipeline] Failed to load feature flags:', e);
+    const features = {};
+    cachedFeatures = { ts: Date.now(), features };
+    return features;
+  }
 };
 
 const logIncoming = async (botId: string, chatId: string, text: string, messageId?: number | null, payload?: any) => {

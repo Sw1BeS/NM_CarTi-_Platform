@@ -1,19 +1,10 @@
 import { Router, Request, Response } from 'express';
-// @ts-ignore
-import { prisma } from '../../../services/prisma.js';
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
 import { authenticateToken, AuthRequest } from '../../../middleware/auth.js';
-import { getUserByEmail } from '../../../services/v41/readService.js';
+import { getUserByEmail, getWorkspaceById, getWorkspaceBySlug } from '../../../services/v41/readService.js';
+import { signJwt } from '../../../config/jwt.js';
 
 const router = Router();
-let JWT_SECRET = process.env.JWT_SECRET;
-if (!JWT_SECRET) {
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error('JWT_SECRET is required in production');
-  }
-  JWT_SECRET = 'dev_secret_key_123';
-}
 
 router.post('/login', async (req: Request, res: Response) => {
   const { email, password } = (req as any).body;
@@ -30,15 +21,23 @@ router.post('/login', async (req: Request, res: Response) => {
       return (res as any).status(401).json({ error: 'Invalid credentials' });
     }
 
-    // Include both legacy and v4.1 IDs in JWT for compatibility
-    const token = jwt.sign({
+    // Canonical payload: always include companyId + workspaceId.
+    let workspaceId = user.workspace?.id || user.companyId || null;
+    if (!workspaceId) {
+      const systemWorkspace = await getWorkspaceById('company_system') || await getWorkspaceBySlug('system');
+      workspaceId = systemWorkspace?.id || 'company_system';
+    }
+
+    const companyId = user.companyId || workspaceId;
+
+    const token = signJwt({
       userId: user.id,
-      globalUserId: user.globalUserId,
+      globalUserId: user.globalUserId || user.id,
       email: user.email,
       role: user.role,
-      companyId: user.companyId || user.workspace?.id,
-      workspaceId: user.workspace?.id
-    }, JWT_SECRET, { expiresIn: '12h' });
+      companyId,
+      workspaceId
+    }, { expiresIn: '12h' });
 
     (res as any).json({
       token,
@@ -47,7 +46,7 @@ router.post('/login', async (req: Request, res: Response) => {
         name: user.name,
         email: user.email,
         role: user.role,
-        companyId: user.companyId || user.workspace?.id,
+        companyId,
         company: user.workspace ? {
           id: user.workspace.id,
           name: user.workspace.name,

@@ -63,3 +63,11 @@ export const SkeletonTable: React.FC<{ rows?: number; cols?: number }> = ({
         </div>
     );
 };
+
+export const SkeletonLoader: React.FC = () => {
+    return (
+        <div className="w-full max-w-md">
+            <SkeletonCard />
+        </div>
+    );
+};

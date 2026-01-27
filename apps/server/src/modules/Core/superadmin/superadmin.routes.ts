@@ -9,6 +9,7 @@ import { ClientManagerService } from './client-manager.service.js';
 import { companyContext } from '../../../middleware/companyContext.js';
 import { authenticateToken, requireRole } from '../../../middleware/auth.js';
 import { signJwt } from '../../../config/jwt.js';
+import { getWorkspaceById, getWorkspaceBySlug } from '../../../services/v41/readService.js';
 
 const router = Router();
 const superadminService = new SuperadminService();
@@ -181,18 +182,39 @@ router.post('/impersonate', async (req: any, res) => {
             return res.status(404).json({ error: 'User not found' });
         }
 
-        // Phase 3 Fix: Determine workspaceId
-        // Prefer explicit companyId from request if provided (override), or user's attached company/workspace
-        const targetWorkspaceId = companyId || user.workspace?.id || user.companyId;
+        // Phase 3 Fix: Resolve a valid workspaceId/companyId pair.
+        const requestedCompanyId = typeof companyId === 'string' ? companyId : undefined;
 
-        // Ensure we explicitly include all required fields for the new AuthRequest interface
+        let resolvedCompanyId = requestedCompanyId || user.companyId || user.workspace?.id || null;
+        let resolvedWorkspaceId = user.workspace?.id || null;
+
+        if (resolvedCompanyId && (!resolvedWorkspaceId || resolvedWorkspaceId !== resolvedCompanyId)) {
+            const workspace = await getWorkspaceById(resolvedCompanyId);
+            if (workspace) {
+                resolvedWorkspaceId = workspace.id;
+            }
+        }
+
+        if (!resolvedWorkspaceId && resolvedCompanyId) {
+            resolvedWorkspaceId = resolvedCompanyId;
+        }
+        if (!resolvedCompanyId && resolvedWorkspaceId) {
+            resolvedCompanyId = resolvedWorkspaceId;
+        }
+
+        if (!resolvedCompanyId || !resolvedWorkspaceId) {
+            const systemWorkspace = await getWorkspaceById('company_system') || await getWorkspaceBySlug('system');
+            resolvedCompanyId = resolvedCompanyId || systemWorkspace?.id || 'company_system';
+            resolvedWorkspaceId = resolvedWorkspaceId || resolvedCompanyId;
+        }
+
         const payload = {
             userId: user.id,
             globalUserId: user.globalUserId || user.id,
             role: user.role,
             email: user.email,
-            companyId: targetWorkspaceId,
-            workspaceId: targetWorkspaceId
+            companyId: resolvedCompanyId,
+            workspaceId: resolvedWorkspaceId
         };
 
         const token = signJwt(payload, { expiresIn: expiresIn || '2h' });

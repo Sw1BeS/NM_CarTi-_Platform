@@ -16,39 +16,20 @@ router.post('/webhook/:botId', async (req, res) => {
     return res.status(404).json({ error: 'Bot not found' });
   }
 
-  const expected = (bot.config as any)?.webhookSecret;
+  // Phase 1: Keep webhook public (no Bearer token) but require the Telegram secret.
+  // Prefer bot-specific secret, fall back to env secret for legacy bots.
+  const expected = (bot.config as any)?.webhookSecret || process.env.TELEGRAM_WEBHOOK_SECRET || null;
   if (!expected || expected !== secretToken) {
-    return res.status(401).json({ error: 'Unauthorized' });
+    return res.status(403).json({ error: 'Forbidden' });
   }
 
   res.status(200).json({ ok: true });
 
   const update = req.body;
-  const updateIdRaw = update?.update_id;
-  const updateId = typeof updateIdRaw === 'number'
-    ? updateIdRaw
-    : (updateIdRaw !== undefined && updateIdRaw !== null && Number.isFinite(Number(updateIdRaw)) ? Number(updateIdRaw) : null);
 
   setImmediate(async () => {
     try {
-      // Idempotency: skip duplicate updates if Telegram retries
-      if (updateId !== null) {
-        try {
-          await prisma.telegramUpdate.create({
-            data: {
-              botId,
-              updateId,
-              payload: update
-            }
-          });
-        } catch (e: any) {
-          if (e?.code === 'P2002') {
-            return; // already processed
-          }
-          console.error('[TelegramWebhook] Failed to persist update:', e?.message || e);
-        }
-      }
-
+      // Deduplication is handled inside the pipeline middleware.
       await runTelegramPipeline({ update, bot, botId, secretToken, source: 'webhook' });
     } catch (err) {
       console.error('[TelegramWebhook] Pipeline error:', err);

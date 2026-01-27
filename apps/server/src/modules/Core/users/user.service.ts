@@ -35,50 +35,53 @@ const ensureSystemCompany = async () => {
 };
 
 export const seedAdmin = async () => {
+    // check GlobalUser count
+    const count = await prisma.globalUser.count();
+    if (count !== 0) {
+        return;
+    }
+
+    const isProduction = process.env.NODE_ENV === 'production';
+    if (isProduction) {
+        if (!process.env.SEED_ADMIN_PASSWORD) {
+            throw new Error('SEED_ADMIN_PASSWORD is required in production when seeding');
+        }
+        if (!process.env.SEED_SUPERADMIN_PASSWORD) {
+            throw new Error('SEED_SUPERADMIN_PASSWORD is required in production when seeding');
+        }
+    }
+
     const adminEmail = process.env.SEED_ADMIN_EMAIL || 'admin';
     const adminPassword = process.env.SEED_ADMIN_PASSWORD || 'admin';
     const superEmail = process.env.SEED_SUPERADMIN_EMAIL || 'superadmin@cartie.com';
     const superPassword = process.env.SEED_SUPERADMIN_PASSWORD || 'superadmin';
 
-    if (process.env.NODE_ENV === 'production') {
-        if (!process.env.SEED_ADMIN_PASSWORD) {
-            throw new Error('SEED_ADMIN_PASSWORD is required in production');
-        }
-        if (!process.env.SEED_SUPERADMIN_PASSWORD) {
-            throw new Error('SEED_SUPERADMIN_PASSWORD is required in production');
-        }
-    }
+    console.log("🌱 Seeding Admin User...");
+    const hash = await bcrypt.hash(adminPassword, 10);
+    const seedCompanyId = await ensureSystemCompany();
 
-    // check GlobalUser count
-    const count = await prisma.globalUser.count();
-    if (count === 0) {
-        console.log("🌱 Seeding Admin User...");
-        const hash = await bcrypt.hash(adminPassword, 10);
-        const seedCompanyId = await ensureSystemCompany();
+    // SUPER_ADMIN first
+    const superHash = await bcrypt.hash(superPassword, 10);
 
-        // SUPER_ADMIN first
-        const superHash = await bcrypt.hash(superPassword, 10);
+    await writeService.createUserDual({
+        email: superEmail,
+        passwordHash: superHash,
+        name: "Root Super Admin",
+        role: "SUPER_ADMIN",
+        companyId: seedCompanyId
+    });
 
-        await writeService.createUserDual({
-            email: superEmail,
-            passwordHash: superHash,
-            name: "Root Super Admin",
-            role: "SUPER_ADMIN",
-            companyId: seedCompanyId
-        });
+    console.log(`✅ SUPER_ADMIN created: ${superEmail}`);
 
-        console.log(`✅ SUPER_ADMIN created: ${superEmail}`);
+    // ADMIN/OWNER for the workspace
+    await writeService.createUserDual({
+        email: adminEmail,
+        passwordHash: hash,
+        name: "Super Admin",
+        role: "ADMIN",
+        companyId: seedCompanyId
+    });
 
-        // ADMIN/OWNER for the workspace
-        await writeService.createUserDual({
-            email: adminEmail,
-            passwordHash: hash,
-            name: "Super Admin",
-            role: "ADMIN",
-            companyId: seedCompanyId
-        });
-
-        const passwordHint = process.env.NODE_ENV === 'production' ? '[set via SEED_ADMIN_PASSWORD]' : adminPassword;
-        console.log(`✅ Admin created: ${adminEmail} / ${passwordHint}`);
-    }
+    const passwordHint = isProduction ? '[set via SEED_ADMIN_PASSWORD]' : adminPassword;
+    console.log(`✅ Admin created: ${adminEmail} / ${passwordHint}`);
 };

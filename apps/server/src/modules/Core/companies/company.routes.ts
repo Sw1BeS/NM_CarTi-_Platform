@@ -4,13 +4,15 @@
 
 import { Router } from 'express';
 import { CompanyService } from './company.service.js';
-import { companyMiddleware, requireRole } from '../../../middleware/company.middleware.js';
+import { authenticateToken, requireRole } from '../../../middleware/auth.js';
+import { companyContext } from '../../../middleware/companyContext.js';
 
 const router = Router();
 const companyService = new CompanyService();
 
 // All routes require authentication
-router.use(companyMiddleware);
+router.use(authenticateToken);
+router.use(companyContext);
 
 /**
  * GET /api/companies/current

@@ -15,6 +15,14 @@ COMPOSE_FILE="${COMPOSE_FILE:-$REPO_DIR/infra/docker-compose.cartie2.prod.yml}"
 LOG_DIR="/srv/cartie/_logs"
 TS=$(date -u +%Y-%m-%d_%H%M%S)
 LOG_FILE="$LOG_DIR/deploy_${TS}.log"
+ALLOW_DIRTY="${ALLOW_DIRTY:-0}"
+
+# Ensure log directory exists before the first log() call (set -e safe).
+mkdir -p "$LOG_DIR"
+
+# Build metadata (computed in preflight)
+BUILD_SHA="${BUILD_SHA:-}"
+BUILD_TIME="${BUILD_TIME:-}"
 
 # Colors
 RED='\033[0:31m'
@@ -38,9 +46,24 @@ preflight() {
   cd "$REPO_DIR" || die "Cannot cd to $REPO_DIR"
   
   # Check git status
-  if [ -n "$(git status --porcelain 2>/dev/null || true)" ]; then
-    warn "Repo has uncommitted changes. Continuing anyway (manual mode)."
+  local dirty
+  dirty="$(git status --porcelain 2>/dev/null || true)"
+  if [ -n "$dirty" ] && [ "$ALLOW_DIRTY" != "1" ]; then
+    die "Repo has uncommitted changes. Commit/stash them or run with ALLOW_DIRTY=1."
+  elif [ -n "$dirty" ]; then
+    warn "Repo has uncommitted changes. Continuing because ALLOW_DIRTY=1."
   fi
+
+  local base_sha
+  base_sha="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
+  if [ -n "$dirty" ]; then
+    BUILD_SHA="${base_sha}-dirty"
+  else
+    BUILD_SHA="$base_sha"
+  fi
+  BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  export BUILD_SHA BUILD_TIME
+  log "Build metadata: sha=$BUILD_SHA time=$BUILD_TIME"
   
   # Create log dir
   mkdir -p "$LOG_DIR"
@@ -84,6 +107,7 @@ pull_code() {
 build_images() {
   log "Building Docker images..."
   
+  BUILD_SHA="$BUILD_SHA" BUILD_TIME="$BUILD_TIME" \
   docker compose -p "$PROJECT" -f "$COMPOSE_FILE" build api web \
     || die "Docker build failed"
   
@@ -96,6 +120,7 @@ build_images() {
 start_services() {
   log "Starting services (Rolling Update)..."
   
+  BUILD_SHA="$BUILD_SHA" BUILD_TIME="$BUILD_TIME" \
   docker compose -p "$PROJECT" -f "$COMPOSE_FILE" up -d --build --remove-orphans \
     || die "Docker compose up failed"
   
@@ -194,6 +219,62 @@ health_checks() {
 }
 
 # ========================================
+# STEP 7.25: Verify Running Build Metadata
+# ========================================
+verify_build_metadata() {
+  log "Verifying running build metadata..."
+
+  local api_container="${PROJECT}-api-1"
+  local running_sha
+  running_sha="$(docker exec "$api_container" sh -lc 'cat /app/server/BUILD_SHA 2>/dev/null || true' | tr -d '\r\n')"
+
+  if [ -z "$running_sha" ]; then
+    die "Running container has no /app/server/BUILD_SHA"
+  fi
+
+  if [ "$running_sha" != "$BUILD_SHA" ]; then
+    die "Running BUILD_SHA ($running_sha) does not match expected ($BUILD_SHA)"
+  fi
+
+  # Verify health endpoint reports the same build SHA (no jq dependency).
+  local health_sha
+  local health_json
+  health_json="$(curl -s http://127.0.0.1:3002/health)"
+  health_sha="$(
+    HEALTH_JSON="$health_json" node <<'NODE'
+const raw = process.env.HEALTH_JSON || '';
+try {
+  const j = JSON.parse(raw);
+  process.stdout.write(String(j.build?.buildSha || ''));
+} catch (err) {
+  process.stdout.write('');
+}
+NODE
+  )"
+
+  if [ "$health_sha" != "$BUILD_SHA" ]; then
+    die "Health buildSha ($health_sha) does not match expected ($BUILD_SHA)"
+  fi
+
+  log "✅ Running build metadata verified"
+}
+
+# ========================================
+# STEP 7.5: Telegram Smoke Check
+# ========================================
+telegram_smoke_check() {
+  log "Running Telegram smoke check..."
+
+  if [ -x "$REPO_DIR/infra/prod_verify.sh" ]; then
+    bash "$REPO_DIR/infra/prod_verify.sh" \
+      || die "Telegram smoke check failed"
+    log "✅ Telegram smoke check passed"
+  else
+    warn "prod_verify.sh not found or not executable, skipping Telegram smoke check"
+  fi
+}
+
+# ========================================
 # STEP 8: Cleanup Docker Artifacts
 # ========================================
 cleanup_docker() {
@@ -224,6 +305,8 @@ main() {
   run_migrations
   seed_data
   health_checks
+  verify_build_metadata
+  telegram_smoke_check
   cleanup_docker
   
   log "========================================="

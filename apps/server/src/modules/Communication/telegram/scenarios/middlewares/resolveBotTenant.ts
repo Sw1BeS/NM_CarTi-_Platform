@@ -19,7 +19,8 @@ export const resolveBotTenant: PipelineMiddleware = async (ctx: PipelineContext,
 
   const secretToken = ctx.request?.secretToken || undefined;
   if (secretToken !== undefined) {
-    const expected = (ctx.bot.config as any)?.webhookSecret;
+    // Keep consistent with telegram.routes.ts: allow env fallback for legacy bots.
+    const expected = (ctx.bot.config as any)?.webhookSecret || process.env.TELEGRAM_WEBHOOK_SECRET;
     if (!expected || expected !== secretToken) {
       console.warn('[TelegramPipeline] Webhook secret mismatch');
       return;

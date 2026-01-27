@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { prisma } from '../../../services/prisma.js';
 import { botManager } from '../../Communication/bots/bot.service.js';
 import { getWorkerStatus } from '../../../workers/content.worker.js';
+import { getBuildInfo } from '../../../config/buildInfo.js';
 import process from 'process';
 
 export const checkHealth = async (req: Request, res: Response) => {
@@ -19,11 +20,14 @@ export const checkHealth = async (req: Request, res: Response) => {
         dbStatus = 'error';
     }
 
+    const build = getBuildInfo();
+
     const status = {
         status: dbStatus === 'connected' ? 'ok' : 'degraded',
         timestamp: new Date().toISOString(),
         uptime: process.uptime(),
         environment: process.env.NODE_ENV,
+        build,
         database: {
             status: dbStatus,
             latency_ms: dbLatency
