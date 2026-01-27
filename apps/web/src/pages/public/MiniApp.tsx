@@ -70,7 +70,12 @@ export const MiniApp = () => {
 
             // 3. Load Data
             try {
-                const res = await InventoryService.getInventory({ status: 'AVAILABLE', limit: 100 });
+                // Default to 'system' slug if bot config doesn't have specific company mapping exposed yet.
+                // ideally bot.companySlug should be available.
+                // For now assuming 'system' or we need to fetch it.
+                // Actually, let's try to get it from the bot object if we had it, or default to 'system'.
+                const slug = 'system';
+                const res = await import('../../services/publicApi').then(m => m.getPublicInventory(slug));
                 setCars(res.items);
             } catch (e) {
                 console.error("Failed to load inventory for Mini App", e);
@@ -474,11 +479,30 @@ export const MiniApp = () => {
                     username: tgUser?.username
                 }
             };
-            if (tg && tg.initData) {
-                sendLeadPayload(payload);
-            } else {
-                alert("[PREVIEW MODE] Data that would be sent to bot:\n" + JSON.stringify(payload, null, 2));
-                setReqStep(3);
+            // Use Direct API call for reliability
+            try {
+                const slug = 'system'; // TODO: Dynamic slug
+                const requestPayload = {
+                    title: `Request: ${reqData.brand} ${reqData.year}+`,
+                    description: `Budget: ${reqData.budget}\nUser: ${tgUser?.first_name} @${tgUser?.username}`,
+                    budgetMax: Number(reqData.budget),
+                    yearMin: Number(reqData.year),
+                    status: 'NEW',
+                    type: 'BUY',
+                    initData: tg?.initData
+                };
+
+                await import('../../services/publicApi').then(m => m.createPublicRequestWithSlug(slug, requestPayload as any));
+
+                if (tg && tg.initData) {
+                    // Also close/notify telegram
+                    tg.close();
+                } else {
+                    setReqStep(3);
+                }
+            } catch (e) {
+                console.error(e);
+                alert("Failed to submit request.");
             }
         }
     };

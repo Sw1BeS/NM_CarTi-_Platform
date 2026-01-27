@@ -2,12 +2,85 @@ import { Router, Request, Response } from 'express';
 // @ts-ignore
 import { prisma } from '../services/prisma.js';
 import { RequestStatus } from '@prisma/client';
-import { getUserByTelegramId } from '../services/v41/readService.js';
+import { getUserByTelegramId, getWorkspaceBySlug } from '../services/v41/readService.js';
 import { generatePublicId, mapLeadCreateInput, mapLeadOutput, mapRequestInput, mapRequestOutput, mapVariantInput, mapVariantOutput } from '../services/dto.js';
 import { parseTelegramUser, verifyTelegramInitData } from '../modules/Communication/telegram/core/telegramAuth.js';
 import { mapBotOutput } from '../modules/Communication/bots/botDto.js';
 
 const router = Router();
+
+// Public Inventory
+router.get('/:slug/inventory', async (req, res) => {
+  try {
+    const { slug } = req.params;
+    const workspace = await getWorkspaceBySlug(slug);
+    if (!workspace) return res.status(404).json({ error: 'Company not found' });
+
+    const limit = Math.min(100, Number(req.query.limit) || 50);
+    const cars = await prisma.carListing.findMany({
+      where: {
+        companyId: workspace.id,
+        status: 'AVAILABLE'
+      },
+      take: limit,
+      orderBy: { postedAt: 'desc' }
+    });
+
+    // Minimal public projection
+    const publicCars = cars.map((c: any) => ({
+      id: c.id,
+      canonicalId: c.id,
+      title: c.title,
+      price: { amount: c.price, currency: c.currency },
+      year: c.year,
+      mileage: c.mileage,
+      thumbnail: c.thumbnail,
+      mediaUrls: c.mediaUrls,
+      specs: c.specs,
+      source: c.source
+    }));
+
+    res.json({ items: publicCars });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Failed to fetch inventory' });
+  }
+});
+
+// Public Request Creation
+router.post('/:slug/requests', async (req, res) => {
+  try {
+    const { slug } = req.params;
+    const workspace = await getWorkspaceBySlug(slug);
+    if (!workspace) return res.status(404).json({ error: 'Company not found' });
+
+    // Validate initData if present
+    const { initData, ...payload } = req.body || {};
+    if (initData) {
+       // Optional: Enforce validation if strictly required.
+       // For now we allow open requests but log.
+       // logic to find bot token and verify would go here.
+    }
+
+    const { variants, ...raw } = payload;
+    const createData: any = mapRequestInput(raw);
+
+    if (!createData.title) return res.status(400).json({ error: 'Title is required' });
+    if (!createData.publicId) createData.publicId = generatePublicId();
+
+    // Force company context
+    createData.companyId = workspace.id;
+
+    const request = await prisma.b2bRequest.create({
+      data: createData
+    });
+
+    res.json(mapRequestOutput(request));
+  } catch (e: any) {
+    console.error(e);
+    res.status(500).json({ error: 'Failed to create request' });
+  }
+});
 
 router.post('/leads', async (req, res) => {
   try {

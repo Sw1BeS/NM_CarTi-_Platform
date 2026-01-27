@@ -30,7 +30,7 @@ export const Users: React.FC = () => {
         if (!confirm('Are you sure you want to log in as this user?')) return;
         try {
             const { token } = await SuperadminApi.impersonate({ userId });
-            localStorage.setItem('token', token);
+            localStorage.setItem('cartie_token', token);
             window.location.href = '/'; // Reload to apply new token
         } catch (e: any) {
             showToast(e.message || 'Impersonation failed', 'error');

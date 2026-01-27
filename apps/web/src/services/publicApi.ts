@@ -47,6 +47,21 @@ export async function getPublicRequests(): Promise<{ items: B2BRequest[] }> {
   });
 }
 
+export async function getPublicInventory(slug: string): Promise<{ items: any[] }> {
+  return await apiFetch(`/public/${slug}/inventory`, {
+    method: 'GET',
+    skipAuth: true
+  });
+}
+
+export async function createPublicRequestWithSlug(slug: string, payload: Partial<B2BRequest>): Promise<B2BRequest> {
+  return await apiFetch(`/public/${slug}/requests`, {
+    method: 'POST',
+    skipAuth: true,
+    body: JSON.stringify(payload)
+  });
+}
+
 export async function getPublicProposal(id: string): Promise<{ proposal: Proposal | null; variants: Variant[] }> {
   return await apiFetch(`/public/proposals/${id}`, {
     method: 'GET',
