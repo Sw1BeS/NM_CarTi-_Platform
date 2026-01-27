@@ -89,6 +89,7 @@ export interface B2BRequest {
     publicId: string;
     platform: 'TG' | 'WA' | 'IG';
     title: string;
+    type: 'BUY' | 'SELL';
     budgetMin: number;
     budgetMax: number;
     yearMin: number;

@@ -38,6 +38,7 @@ export const updateLeadSchema = createLeadSchema.partial();
 export const createRequestSchema = z.object({
     title: z.string().min(1, 'Title is required'),
     description: z.string().optional(),
+    type: z.enum(['BUY', 'SELL']).default('BUY'),
     budgetMin: z.number().nonnegative().optional(),
     budgetMax: z.number().nonnegative().optional(),
     yearMin: z.number().int().min(1900).optional(),

@@ -42,6 +42,11 @@ enum RequestStatus {
   LOST
 }
 
+enum RequestType {
+  BUY
+  SELL
+}
+
 enum VariantStatus {
   SUBMITTED
   REVIEWED
@@ -258,6 +263,7 @@ model B2bRequest {
   chatId   String?
   content  String? // Original raw text
   status   RequestStatus @default(DRAFT)
+  type     RequestType   @default(BUY)
   priority String        @default("NORMAL")
 
   companyId     String?

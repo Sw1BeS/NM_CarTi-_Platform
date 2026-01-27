@@ -34,6 +34,7 @@ export const RequestList: React.FC = () => {
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [createForm, setCreateForm] = useState({
         title: '',
+        type: 'BUY' as 'BUY' | 'SELL',
         budgetMin: 0,
         budgetMax: 0,
         yearMin: new Date().getFullYear() - 3,
@@ -117,7 +118,7 @@ export const RequestList: React.FC = () => {
             showToast('Title is required', 'error');
             return;
         }
-        if (!createForm.budgetMax || createForm.budgetMax <= 0) {
+        if (createForm.type === 'BUY' && (!createForm.budgetMax || createForm.budgetMax <= 0)) {
             showToast('Budget must be greater than 0', 'error');
             return;
         }
@@ -125,6 +126,7 @@ export const RequestList: React.FC = () => {
         try {
             await RequestsService.createRequest({
                 title: createForm.title,
+                type: createForm.type,
                 description: createForm.description || '',
                 budgetMin: Number(createForm.budgetMin) || 0,
                 budgetMax: Number(createForm.budgetMax),
@@ -139,6 +141,7 @@ export const RequestList: React.FC = () => {
             setIsCreateOpen(false);
             setCreateForm({
                 title: '',
+                type: 'BUY',
                 budgetMin: 0,
                 budgetMax: 0,
                 yearMin: new Date().getFullYear() - 3,
@@ -314,9 +317,18 @@ export const RequestList: React.FC = () => {
                             <button onClick={() => setIsCreateOpen(false)} className="btn-ghost"><X size={20} /></button>
                         </div>
                         <div className="space-y-4">
-                            <div>
-                                <label className="text-xs font-bold text-[var(--text-secondary)] uppercase block mb-1">Title</label>
-                                <input className="input" value={createForm.title} onChange={e => setCreateForm({ ...createForm, title: e.target.value })} placeholder="e.g. BMW X5 2021+" />
+                            <div className="grid grid-cols-3 gap-3">
+                                <div className="col-span-2">
+                                    <label className="text-xs font-bold text-[var(--text-secondary)] uppercase block mb-1">Title</label>
+                                    <input className="input" value={createForm.title} onChange={e => setCreateForm({ ...createForm, title: e.target.value })} placeholder="e.g. BMW X5 2021+" />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-bold text-[var(--text-secondary)] uppercase block mb-1">Type</label>
+                                    <select className="input" value={createForm.type} onChange={e => setCreateForm({ ...createForm, type: e.target.value as any })}>
+                                        <option value="BUY">BUY</option>
+                                        <option value="SELL">SELL</option>
+                                    </select>
+                                </div>
                             </div>
                             <div className="grid grid-cols-2 gap-3">
                                 <div>

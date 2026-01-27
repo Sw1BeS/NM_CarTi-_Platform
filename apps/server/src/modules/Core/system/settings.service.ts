@@ -1,7 +1,5 @@
 
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '../../../services/prisma.js';
 
 export class SettingsService {
     static async getSettings(isPublic = true) {
