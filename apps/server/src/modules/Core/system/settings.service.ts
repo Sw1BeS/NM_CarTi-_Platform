@@ -14,7 +14,15 @@ export class SettingsService {
                 branding: settings.branding,
                 modules: settings.modules,
                 navigation: settings.navigation,
-                features: settings.features // keep compat
+                features: settings.features || {
+                    // Default fallbacks if DB is empty/old
+                    MODULE_SCENARIOS: true,
+                    MODULE_SEARCH: true,
+                    MODULE_CAMPAIGNS: true,
+                    MODULE_COMPANIES: false,
+                    MODULE_CONTENT: true,
+                    MODULE_INTEGRATIONS: false
+                }
             };
         }
 

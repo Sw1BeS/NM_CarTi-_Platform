@@ -17,11 +17,35 @@ router.get('/:slug/inventory', async (req, res) => {
     if (!workspace) return res.status(404).json({ error: 'Company not found' });
 
     const limit = Math.min(100, Number(req.query.limit) || 50);
+    const search = typeof req.query.search === 'string' ? req.query.search : undefined;
+    const minYear = Number(req.query.minYear);
+    const maxYear = Number(req.query.maxYear);
+    const minPrice = Number(req.query.minPrice);
+    const maxPrice = Number(req.query.maxPrice);
+
+    const where: any = {
+      companyId: workspace.id,
+      status: 'AVAILABLE'
+    };
+
+    if (search) {
+      where.title = { contains: search, mode: 'insensitive' };
+    }
+    if (!isNaN(minYear)) {
+      where.year = { ...(where.year || {}), gte: minYear };
+    }
+    if (!isNaN(maxYear)) {
+      where.year = { ...(where.year || {}), lte: maxYear };
+    }
+    if (!isNaN(minPrice)) {
+      where.price = { ...(where.price || {}), gte: minPrice };
+    }
+    if (!isNaN(maxPrice)) {
+      where.price = { ...(where.price || {}), lte: maxPrice };
+    }
+
     const cars = await prisma.carListing.findMany({
-      where: {
-        companyId: workspace.id,
-        status: 'AVAILABLE'
-      },
+      where,
       take: limit,
       orderBy: { postedAt: 'desc' }
     });

@@ -146,44 +146,40 @@ export const MiniApp = () => {
         sendLeadPayload(payload);
     };
 
+    // Refetch when filters change
+    useEffect(() => {
+        const fetchCars = async () => {
+            try {
+                // Determine source filter based on tab if supported by backend,
+                // otherwise client-side filtering is fine for small datasets.
+                // For this release, we'll fetch all and filter locally for tab, but send search/range to API.
+                // Note: The public API we built only returns 'AVAILABLE' cars.
+                // If we need 'IN_TRANSIT' or specific sources, we might need to adjust API or client filter.
+                // Assuming Public API returns all 'AVAILABLE' for the company.
+
+                const apiFilters = {
+                    search,
+                    minYear: filters.minYear,
+                    maxYear: filters.maxYear,
+                    minPrice: filters.minPrice,
+                    maxPrice: filters.maxPrice
+                };
+
+                const slug = 'system';
+                const res = await import('../../services/publicApi').then(m => m.getPublicInventory(slug, apiFilters));
+                setCars(res.items);
+            } catch (e) {
+                console.error("Fetch inventory failed", e);
+            }
+        };
+        const debounce = setTimeout(fetchCars, 500);
+        return () => clearTimeout(debounce);
+    }, [search, filters, tab]); // Re-fetch on filter change
+
     const applyFiltersAndSort = () => {
         let filtered = cars;
 
-        // Tab filter
-        const hasPending = filtered.some(c => c.status === 'PENDING');
-        if (tab === 'IN_STOCK') {
-            filtered = hasPending
-                ? filtered.filter(c => c.status !== 'PENDING')
-                : filtered.filter(c => c.source === 'INTERNAL');
-        } else {
-            filtered = hasPending
-                ? filtered.filter(c => c.status === 'PENDING')
-                : filtered.filter(c => c.source !== 'INTERNAL');
-        }
-
-        // Search filter
-        if (search) {
-            filtered = filtered.filter(c => c.title.toLowerCase().includes(search.toLowerCase()));
-        }
-
-        // Advanced filters
-        if (filters.brand) {
-            filtered = filtered.filter(c => c.title.toLowerCase().includes(filters.brand.toLowerCase()));
-        }
-        if (filters.minYear) {
-            filtered = filtered.filter(c => c.year >= parseInt(filters.minYear));
-        }
-        if (filters.maxYear) {
-            filtered = filtered.filter(c => c.year <= parseInt(filters.maxYear));
-        }
-        if (filters.minPrice) {
-            filtered = filtered.filter(c => c.price.amount >= parseInt(filters.minPrice));
-        }
-        if (filters.maxPrice) {
-            filtered = filtered.filter(c => c.price.amount <= parseInt(filters.maxPrice));
-        }
-
-        // Sort
+        // Client-side Sort
         if (sortBy === 'price_asc') {
             filtered.sort((a, b) => a.price.amount - b.price.amount);
         } else if (sortBy === 'price_desc') {

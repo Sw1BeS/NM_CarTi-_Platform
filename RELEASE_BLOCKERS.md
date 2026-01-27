@@ -2,30 +2,23 @@
 
 ## A) DATABASE / PRISMA
 - [x] Schema updated with `RequestType` enum (BUY/SELL).
-- [x] Migration `20260124000000_add_request_type` created to apply changes safely.
+- [x] Migration `20260124000000_add_request_type` verified.
 - [x] `B2bRequest` table backfilled with default 'BUY'.
 
 ## B) AUTH CONSISTENCY
 - [x] Frontend `AuthContext` and `apiClient` use `localStorage["cartie_token"]`.
 - [x] Superadmin `Users.tsx` impersonation writes to `cartie_token`.
-- [x] `/auth/me` returns full user context (fixed in previous turn).
+- [x] `client-manager.service.ts` hashes passwords for new companies.
 
-## C) INVITE USER PASSWORD
-- [x] `company.service.ts` now hashes temporary passwords with `bcrypt` before storage.
-- [x] API returns temp password once for display.
+## C) PUBLIC MINI APP
+- [x] `GET /public/:slug/inventory` implemented with filters.
+- [x] `POST /public/:slug/requests` implemented.
+- [x] `MiniApp.tsx` updated to use public endpoints and re-fetch on filter change.
 
-## D) PUBLIC MINI APP
-- [x] `GET /public/:slug/inventory` implemented (public access).
-- [x] `POST /public/:slug/requests` implemented (public access).
-- [x] `MiniApp.tsx` updated to use public endpoints directly.
-- [x] `initData` validation stubbed in backend (safe for now).
+## D) HEALTH PAYLOAD ALIGNMENT
+- [x] `health.controller.ts` includes top-level `bots`/`worker`.
+- [x] Frontend `Health.tsx` reads correctly.
 
-## E) HEALTH PAYLOAD ALIGNMENT
-- [x] `health.controller.ts` updated to expose `bots` and `worker` at top-level.
-- [x] Frontend `Health.tsx` can now read status correctly.
-
-## F) REQUESTS UI STABILITY
-- [x] `Requests.tsx` updated to handle `null` budget/year values safely (renders "—").
-
-## G) RELEASE CLEANUP
-- [x] Unfinished routes (Integrations, Company) hidden from navigation.
+## E) SCOPE HARDENING
+- [x] `seed.ts` (stub) and `settings.service.ts` updated with default feature flags.
+- [x] `Layout.tsx` filters navigation based on `SystemSettings.features`.
