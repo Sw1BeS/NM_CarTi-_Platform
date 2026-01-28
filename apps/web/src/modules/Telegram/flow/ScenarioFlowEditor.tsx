@@ -30,6 +30,7 @@ const normalizeToReactFlow = (scenario: Scenario): { nodes: Node[], edges: Edge[
     const rawNodes = (Array.isArray(scenario.nodes) ? scenario.nodes : []) as any[];
 
     rawNodes.forEach((n) => {
+        const hasChoices = Array.isArray(n.content?.choices) && n.content.choices.length > 0;
         // Create Node
         nodes.push({
             id: n.id,
@@ -43,7 +44,7 @@ const normalizeToReactFlow = (scenario: Scenario): { nodes: Node[], edges: Edge[
         const sx = (n.position?.x || 0) + NODE_WIDTH; // Approximate source handle pos (visual only)
 
         // 1. Standard Next Node
-        if (n.nextNodeId) {
+        if (n.nextNodeId && n.type !== 'CONDITION' && !hasChoices) {
             edges.push({
                 id: `e-${sourceId}-${n.nextNodeId}`,
                 source: sourceId,
@@ -81,7 +82,7 @@ const normalizeToReactFlow = (scenario: Scenario): { nodes: Node[], edges: Edge[
         }
 
         // 3. Choice Edges
-        if (n.content?.choices) {
+        if (Array.isArray(n.content?.choices)) {
             n.content.choices.forEach((c: any, idx: number) => {
                 if (c.nextNodeId) {
                     edges.push({
@@ -107,8 +108,9 @@ const serializeFromReactFlow = (nodes: Node[], edges: Edge[], originalScenario: 
         // Reconstruct relations from Edges
         const outEdges = edges.filter(e => e.source === node.id);
 
+        const hasChoices = Array.isArray(content.choices) && content.choices.length > 0;
         let nextNodeId = '';
-        if (node.type !== 'CONDITION' && !content.choices) {
+        if (node.type !== 'CONDITION' && !hasChoices) {
             const standardEdge = outEdges.find(e => !e.sourceHandle);
             if (standardEdge) nextNodeId = standardEdge.target;
         }
@@ -120,7 +122,7 @@ const serializeFromReactFlow = (nodes: Node[], edges: Edge[], originalScenario: 
             if (falseEdge) content.falseNodeId = falseEdge.target;
         }
 
-        if (content.choices) {
+        if (Array.isArray(content.choices)) {
             content.choices = content.choices.map((c: any, idx: number) => {
                 const choiceEdge = outEdges.find(e => e.sourceHandle === `choice-${idx}`);
                 return { ...c, nextNodeId: choiceEdge ? choiceEdge.target : '' };
