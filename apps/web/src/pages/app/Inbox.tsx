@@ -47,6 +47,8 @@ export const InboxPage = () => {
     const [bots, setBots] = useState<any[]>([]);
     const [selectedBotId, setSelectedBotId] = useState<string | undefined>(undefined);
     const [showCarPicker, setShowCarPicker] = useState(false);
+    const [loading, setLoading] = useState(false);
+    const [loadError, setLoadError] = useState<string | null>(null);
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const { user } = useAuth();
@@ -57,24 +59,26 @@ export const InboxPage = () => {
     // ... [Load Logic Unchanged] ...
     useEffect(() => {
         const load = async () => {
-            const [messages, requestRes, botList] = await Promise.all([
-                Data.getMessages({ botId: selectedBotId }),
-                RequestsService.getRequests({ status: 'ALL', limit: 200 }),
-                Data.getBots()
-            ]);
-            setBots(botList || []);
-            let currentBotId = selectedBotId;
-            if (!currentBotId && botList && botList.length > 0) {
-                const active = botList.find((b: any) => b.active);
-                currentBotId = active ? active.id : botList[0].id;
-                setSelectedBotId(currentBotId);
-            }
+            setLoading(true); setLoadError(null);
+            try {
+                const [messages, requestRes, botList] = await Promise.all([
+                    Data.getMessages({ botId: selectedBotId || undefined }),
+                    RequestsService.getRequests({ status: 'ALL', limit: 200 }),
+                    Data.getBots()
+                ]);
+                setBots(botList || []);
+                let currentBotId = selectedBotId;
+                if (currentBotId === undefined && botList && botList.length > 0) {
+                    const active = botList.find((b: any) => b.active);
+                    currentBotId = active ? active.id : botList[0].id;
+                    setSelectedBotId(currentBotId);
+                }
 
-            let finalMessages = messages || [];
-            if (!messages || (currentBotId && messages.length === 0)) {
-                finalMessages = await Data.getMessages({ botId: currentBotId });
-            }
-            setMsgs(finalMessages);
+                let finalMessages = messages || [];
+                if (!messages || (currentBotId && messages.length === 0)) {
+                    finalMessages = await Data.getMessages({ botId: currentBotId || undefined });
+                }
+                setMsgs(finalMessages);
 
             const chatMap = new Map<string, ChatInfo>();
             const reqMap: Record<string, B2BRequest> = {};
@@ -108,10 +112,16 @@ export const InboxPage = () => {
                 }
             });
 
-            const sortedChats = Array.from(chatMap.values()).sort((a, b) =>
-                new Date(b.lastMsg.date).getTime() - new Date(a.lastMsg.date).getTime()
-            );
-            setChats(sortedChats);
+                const sortedChats = Array.from(chatMap.values()).sort((a, b) =>
+                    new Date(b.lastMsg.date).getTime() - new Date(a.lastMsg.date).getTime()
+                );
+                setChats(sortedChats);
+            } catch (e: any) {
+                console.error(e);
+                setLoadError(e?.message || 'Failed to load inbox');
+            } finally {
+                setLoading(false);
+            }
         };
 
         load();
@@ -271,11 +281,13 @@ export const InboxPage = () => {
                     </div>
                     <div>
                         <label className="text-[10px] uppercase text-[var(--text-secondary)] font-bold">Bot</label>
-                        <select className="input mt-1 text-sm" value={selectedBotId} onChange={e => setSelectedBotId(e.target.value || undefined)}>
+                        <select className="input mt-1 text-sm" value={selectedBotId || ''} onChange={e => setSelectedBotId(e.target.value || undefined)}>
+                            <option value="">All bots</option>
                             {bots.map(b => <option key={b.id} value={b.id}>{b.name || b.username || b.id}</option>)}
                         </select>
                     </div>
                     <p className="text-xs text-[var(--text-secondary)]">{filteredChats.length} conversations</p>
+                    {loadError && <p className="text-xs text-red-500">{loadError}</p>}
                 </div>
                 <div className="flex-1 overflow-y-auto">
                     {filteredChats.map(c => (
@@ -312,7 +324,7 @@ export const InboxPage = () => {
                                     {managers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
                                 </select>
                                 <button onClick={() => setShowNotePanel(!showNotePanel)} className={`btn-secondary px-3 py-1.5 text-xs ${internalNote ? 'text-gold-500' : ''}`}><StickyNote size={14} /></button>
-                                <button onClick={async () => { await Data.clearSession(activeChatId); window.location.reload(); }} className="btn-ghost text-xs text-red-500 hover:bg-red-500/10 px-3 py-1.5"><Trash2 size={14} /></button>
+                                <button onClick={async () => { await Data.clearSession(activeChatId); Data._notify('UPDATE_MESSAGES'); showToast('Session cleared'); }} className="btn-ghost text-xs text-red-500 hover:bg-red-500/10 px-3 py-1.5"><Trash2 size={14} /></button>
                             </div>
                         </div>
 
