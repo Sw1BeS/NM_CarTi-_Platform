@@ -45,6 +45,20 @@ export const MiniApp = () => {
     const [reqStep, setReqStep] = useState(1);
     const [reqData, setReqData] = useState({ brand: '', budget: '', year: '' });
 
+    const buildFallbackConfig = (target: string): MiniAppConfig => ({
+        title: 'CarTié',
+        welcomeText: 'Browse our live inventory',
+        layout: 'GRID',
+        primaryColor: '#D4AF37',
+        accentColor: '#111',
+        actions: [
+            { id: 'a_inv', label: 'Inventory', actionType: 'VIEW', value: 'INVENTORY', icon: 'LayoutGrid' },
+            { id: 'a_req', label: 'Request', actionType: 'VIEW', value: 'REQUEST', icon: 'MessageSquare' }
+        ],
+        homeBlocks: [],
+        showcaseSlug: target
+    });
+
     useEffect(() => {
         const load = async () => {
             // 1. Initialize Telegram Web App & Extract start_param
@@ -78,7 +92,10 @@ export const MiniApp = () => {
             const bot = matchedBot || fallbackBot || null;
             if (bot) {
                 setActiveBot(bot);
-                setConfig(bot.miniAppConfig || null);
+                setConfig(bot.miniAppConfig || buildFallbackConfig(resolvedSlug));
+            } else {
+                // No bot configured; still render with fallback to avoid blank screen
+                setConfig(buildFallbackConfig(resolvedSlug));
             }
 
             // 4. Load Data
