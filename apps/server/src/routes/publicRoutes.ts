@@ -3,16 +3,57 @@ import { Router, Request, Response } from 'express';
 import { prisma } from '../services/prisma.js';
 import { RequestStatus } from '@prisma/client';
 import { getUserByTelegramId, getWorkspaceBySlug } from '../services/v41/readService.js';
-import { generatePublicId, mapLeadCreateInput, mapLeadOutput, mapRequestInput, mapRequestOutput, mapVariantInput, mapVariantOutput } from '../services/dto.js';
+import { generatePublicId, mapLeadCreateInput, mapLeadOutput, mapRequestInput, mapRequestOutput, mapVariantInput, mapVariantOutput, mapInventoryOutput } from '../services/dto.js';
 import { parseTelegramUser, verifyTelegramInitData } from '../modules/Communication/telegram/core/telegramAuth.js';
 import { mapBotOutput } from '../modules/Communication/bots/botDto.js';
+import { ShowcaseService } from '../modules/Marketing/showcase/showcase.service.js';
 
 const router = Router();
+const showcaseService = new ShowcaseService();
 
 // Public Inventory
 router.get('/:slug/inventory', async (req, res) => {
   try {
     const { slug } = req.params;
+
+    // Attempt to use ShowcaseService first
+    try {
+        const page = Number(req.query.page) || 1;
+        const limit = Number(req.query.limit) || 20;
+        const search = req.query.search as string | undefined;
+        const minPrice = req.query.minPrice ? Number(req.query.minPrice) : undefined;
+        const maxPrice = req.query.maxPrice ? Number(req.query.maxPrice) : undefined;
+        const minYear = req.query.minYear ? Number(req.query.minYear) : undefined;
+        const maxYear = req.query.maxYear ? Number(req.query.maxYear) : undefined;
+
+        const { showcase, items, total } = await showcaseService.getInventoryForShowcase(slug, {
+            page,
+            limit,
+            search,
+            minPrice,
+            maxPrice,
+            minYear,
+            maxYear
+        });
+
+        if (!showcase.isPublic) {
+            return res.status(404).json({ error: 'Showcase not found' });
+        }
+
+        return res.json({ items: items.map(mapInventoryOutput), total });
+    } catch (e: any) {
+        // Fallback: Check if it's a legacy workspace slug?
+        // Requirement: "One source of truth".
+        // But we should be gentle with backward compat if possible, OR strictly fail.
+        // The plan says: "use ShowcaseService... if slug matches a showcase, use it. If not, fallback or error".
+        // Let's keep the legacy logic as fallback ONLY if showcase not found AND workspace found.
+        if (e.message !== 'Showcase not found') {
+             console.error('[Public Inventory] Error:', e);
+             return res.status(500).json({ error: 'Internal Server Error' });
+        }
+    }
+
+    // LEGACY FALLBACK
     const workspace = await getWorkspaceBySlug(slug);
     if (!workspace) return res.status(404).json({ error: 'Company not found' });
 
@@ -50,7 +91,6 @@ router.get('/:slug/inventory', async (req, res) => {
       orderBy: { postedAt: 'desc' }
     });
 
-    // Minimal public projection
     const publicCars = cars.map((c: any) => ({
       id: c.id,
       canonicalId: c.id,

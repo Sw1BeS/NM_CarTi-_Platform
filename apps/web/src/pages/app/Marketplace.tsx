@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useToast } from '../../contexts/ToastContext';
+import { ApiClient } from '../../services/apiClient';
 import { Store, Search, Download, Check, Star, Grid, List, Filter, Crown } from 'lucide-react';
 
 interface Template {
@@ -34,11 +35,8 @@ export const MarketplacePage = () => {
             if (category !== 'ALL') params.append('category', category);
             if (searchQuery) params.append('search', searchQuery);
 
-            const response = await fetch(`/api/templates/marketplace?${params}`);
-            if (response.ok) {
-                const data = await response.json();
-                setTemplates(data);
-            }
+            const data = await ApiClient.apiFetch(`/templates/marketplace?${params}`);
+            setTemplates(data);
         } catch (e) {
             console.error('Failed to load templates:', e);
         }
@@ -46,14 +44,8 @@ export const MarketplacePage = () => {
 
     const loadInstalled = async () => {
         try {
-            const response = await fetch('/api/templates/installed/list', {
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('cartie_token')}` }
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                setInstalled(new Set(data.map((i: any) => i.templateId)));
-            }
+            const data = await ApiClient.apiFetch('/templates/installed/list');
+            setInstalled(new Set(data.map((i: any) => i.templateId)));
         } catch (e) {
             console.error('Failed to load installed:', e);
         }
@@ -61,18 +53,11 @@ export const MarketplacePage = () => {
 
     const installTemplate = async (templateId: string) => {
         try {
-            const response = await fetch(`/api/templates/${templateId}/install`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('cartie_token')}` }
+            await ApiClient.apiFetch(`/templates/${templateId}/install`, {
+                method: 'POST'
             });
-
-            if (response.ok) {
-                showToast('Template installed!', 'success');
-                loadInstalled();
-            } else {
-                const error = await response.json();
-                showToast(error.error || 'Failed to install', 'error');
-            }
+            showToast('Template installed!', 'success');
+            loadInstalled();
         } catch (e: any) {
             showToast(e.message, 'error');
         }

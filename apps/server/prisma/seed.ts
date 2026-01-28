@@ -129,6 +129,27 @@ async function createUserIfMissing(
   return await (prisma as any).globalUser.findUnique({ where: { id: result.id } })!;
 }
 
+async function seedShowcase(companyId: string) {
+  console.log('🌱 Seeding Showcase...');
+  const systemSlug = 'system';
+  const existing = await prisma.showcase.findUnique({ where: { slug: systemSlug } });
+
+  if (!existing) {
+    await prisma.showcase.create({
+      data: {
+        workspaceId: companyId,
+        name: 'System Default',
+        slug: systemSlug,
+        isPublic: true,
+        rules: { mode: 'FILTER', filters: { status: ['AVAILABLE'] } },
+      }
+    });
+    console.log(`✅ Created default Showcase: ${systemSlug}`);
+  } else {
+    console.log(`ℹ️ Showcase '${systemSlug}' already exists.`);
+  }
+}
+
 async function main() {
   console.log('🌱 Starting seed...');
 
@@ -313,6 +334,9 @@ async function main() {
   await seedEntities();
   await seedTemplates(cartieCompany.id);
   await seedNormalization(cartieCompany.id);
+
+  // 3.1 Seed Showcase (Release Block A)
+  await seedShowcase(systemCompany.id);
 
   // 3.5. Seed Production Data (Scenarios & Normalization)
   console.log('\n📦 Seeding production data...');

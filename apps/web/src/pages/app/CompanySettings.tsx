@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useCompany } from '../../contexts/CompanyContext';
 import { useToast } from '../../contexts/ToastContext';
+import { ApiClient } from '../../services/apiClient';
 import {
     Building2, Palette, Globe, Users, Crown, Upload, X,
     Mail, Shield, Trash2, UserPlus
@@ -51,14 +52,8 @@ export const CompanySettingsPage = () => {
 
     const loadUsers = async () => {
         try {
-            const response = await fetch('/api/companies/current/users', {
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('cartie_token')}` }
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                setUsers(data);
-            }
+            const data = await ApiClient.apiFetch('/companies/current/users');
+            setUsers(data);
         } catch (e) {
             console.error('Failed to load users:', e);
         }
@@ -66,22 +61,12 @@ export const CompanySettingsPage = () => {
 
     const saveBranding = async () => {
         try {
-            const response = await fetch('/api/companies/current/branding', {
+            await ApiClient.apiFetch('/companies/current/branding', {
                 method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('cartie_token')}`
-                },
                 body: JSON.stringify(branding)
             });
-
-            if (response.ok) {
-                showToast('Branding updated!', 'success');
-                refreshCompany();
-            } else {
-                const error = await response.json();
-                showToast(error.error || 'Failed to update', 'error');
-            }
+            showToast('Branding updated!', 'success');
+            refreshCompany();
         } catch (e: any) {
             showToast(e.message, 'error');
         }
@@ -89,24 +74,14 @@ export const CompanySettingsPage = () => {
 
     const inviteUser = async () => {
         try {
-            const response = await fetch('/api/companies/current/users', {
+            await ApiClient.apiFetch('/companies/current/users', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('cartie_token')}`
-                },
                 body: JSON.stringify(inviteData)
             });
-
-            if (response.ok) {
-                showToast('User invited!', 'success');
-                setShowInviteModal(false);
-                setInviteData({ email: '', name: '', role: 'MANAGER' });
-                loadUsers();
-            } else {
-                const error = await response.json();
-                showToast(error.error || 'Failed to invite', 'error');
-            }
+            showToast('User invited!', 'success');
+            setShowInviteModal(false);
+            setInviteData({ email: '', name: '', role: 'MANAGER' });
+            loadUsers();
         } catch (e: any) {
             showToast(e.message, 'error');
         }
@@ -116,18 +91,11 @@ export const CompanySettingsPage = () => {
         if (!confirm('Are you sure you want to remove this user?')) return;
 
         try {
-            const response = await fetch(`/api/companies/current/users/${userId}`, {
-                method: 'DELETE',
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('cartie_token')}` }
+            await ApiClient.apiFetch(`/companies/current/users/${userId}`, {
+                method: 'DELETE'
             });
-
-            if (response.ok) {
-                showToast('User removed', 'success');
-                loadUsers();
-            } else {
-                const error = await response.json();
-                showToast(error.error || 'Failed to remove', 'error');
-            }
+            showToast('User removed', 'success');
+            loadUsers();
         } catch (e: any) {
             showToast(e.message, 'error');
         }
