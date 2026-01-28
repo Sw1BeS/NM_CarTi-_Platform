@@ -13,7 +13,15 @@ export const CampaignManager = ({ bot }: { bot: Bot }) => {
     useEffect(() => {
         const load = async () => {
             const all = await Data.getCampaigns();
-            setCampaigns(all.filter(c => c.botId === bot.id).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+            setCampaigns(
+                all
+                    .filter(c => c.botId === bot.id)
+                    .map(c => ({
+                        ...c,
+                        progress: c.progress || { sent: 0, failed: 0, total: (c.destinationIds || []).length }
+                    }))
+                    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+            );
         };
         load();
         const sub = Data.subscribe('UPDATE_CAMPAIGNS', load);
@@ -70,7 +78,10 @@ export const CampaignManager = ({ bot }: { bot: Bot }) => {
             </div>
 
             <div className="flex-1 overflow-y-auto p-6 grid grid-cols-1 gap-4">
-                {campaigns.map(camp => (
+                {campaigns.map(camp => {
+                    const progress = camp.progress || { sent: 0, failed: 0, total: (camp.destinationIds || []).length || 1 };
+                    const pct = Math.min(100, Math.round((progress.sent / (progress.total || 1)) * 100));
+                    return (
                     <div key={camp.id} className="panel p-5 flex flex-col gap-4 border-l-4 border-l-gold-500">
                         <div className="flex justify-between items-start">
                             <div>
@@ -83,21 +94,21 @@ export const CampaignManager = ({ bot }: { bot: Bot }) => {
                             </div>
                             <div className="text-right">
                                 <div className="text-2xl font-bold text-[var(--text-primary)] tabular-nums">
-                                    {Math.round((camp.progress.sent / (camp.progress.total || 1)) * 100)}%
+                                    {pct}%
                                 </div>
                                 <div className="text-xs text-[var(--text-secondary)]">Completion</div>
                             </div>
                         </div>
                         <div className="h-2 w-full bg-[var(--bg-input)] rounded-full overflow-hidden">
-                            <div className={`h-full transition-all duration-500 ${camp.status === 'FAILED' ? 'bg-red-500' : 'bg-gold-500'}`} style={{ width: `${(camp.progress.sent / (camp.progress.total || 1)) * 100}%` }}></div>
+                            <div className={`h-full transition-all duration-500 ${camp.status === 'FAILED' ? 'bg-red-500' : 'bg-gold-500'}`} style={{ width: `${pct}%` }}></div>
                         </div>
                         <div className="flex gap-4 text-xs text-[var(--text-secondary)]">
-                            <div className="flex items-center gap-1"><Check size={14} className="text-green-500" /> {camp.progress.sent} Sent</div>
-                            <div className="flex items-center gap-1"><AlertTriangle size={14} className="text-red-500" /> {camp.progress.failed} Failed</div>
-                            <div className="flex items-center gap-1"><Users size={14} className="text-blue-500" /> {camp.progress.total} Total</div>
+                            <div className="flex items-center gap-1"><Check size={14} className="text-green-500" /> {progress.sent} Sent</div>
+                            <div className="flex items-center gap-1"><AlertTriangle size={14} className="text-red-500" /> {progress.failed} Failed</div>
+                            <div className="flex items-center gap-1"><Users size={14} className="text-blue-500" /> {progress.total} Total</div>
                         </div>
                     </div>
-                ))}
+                )})}
             </div>
             {isCreateOpen && <CreateCampaignModal onClose={() => setIsCreateOpen(false)} onCreate={handleCreate} />}
         </div>

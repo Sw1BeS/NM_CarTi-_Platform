@@ -12,18 +12,24 @@ export const AudienceManager = ({ bot }: { bot: Bot }) => {
     const { showToast } = useToast();
 
     useEffect(() => {
-        const load = async () => setUsers(await Data.getDestinations());
+        const load = async () => {
+            const list = await Data.getDestinations();
+            // Normalize tags to avoid runtime errors
+            setUsers(list.map(u => ({ ...u, tags: Array.isArray(u.tags) ? u.tags : [] })));
+        };
         load();
         const sub = Data.subscribe('UPDATE_DESTINATIONS', load);
         return sub;
     }, []);
 
-    const filtered = users.filter(u => u.name?.toLowerCase().includes(search.toLowerCase()) || u.identifier.includes(search));
+    const filtered = users.filter(u =>
+        (u.name?.toLowerCase().includes(search.toLowerCase()) || u.identifier.includes(search))
+    );
 
     const handleAddTag = async (tag: string) => {
         if (!editingUser || !tag.trim()) return;
-        if (editingUser.tags.includes(tag)) return;
-        const updated = { ...editingUser, tags: [...editingUser.tags, tag] };
+        if ((editingUser.tags || []).includes(tag)) return;
+        const updated = { ...editingUser, tags: [...(editingUser.tags || []), tag] };
         await Data.saveDestination(updated);
         setEditingUser(updated);
         showToast("Tag added");
@@ -31,7 +37,7 @@ export const AudienceManager = ({ bot }: { bot: Bot }) => {
 
     const removeTag = async (tag: string) => {
         if (!editingUser) return;
-        const updated = { ...editingUser, tags: editingUser.tags.filter(t => t !== tag) };
+        const updated = { ...editingUser, tags: (editingUser.tags || []).filter(t => t !== tag) };
         await Data.saveDestination(updated);
         setEditingUser(updated);
     };

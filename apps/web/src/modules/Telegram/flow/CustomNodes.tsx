@@ -26,13 +26,31 @@ const getNodeStyle = (type: string) => {
     }
 };
 
-const GenericNode = ({ data, type }: any) => {
+const GenericNode = ({ data, type, selected }: any) => {
     const s = getNodeStyle(type);
     const Icon = s.icon;
     const content = data.content || {};
+    const summaries: string[] = [];
+    if (type === 'CONDITION') {
+        summaries.push(`${content.conditionVariable || 'var'} ${content.conditionOperator || 'EQUALS'} ${content.conditionValue ?? ''}`);
+    }
+    if (type === 'DELAY') {
+        summaries.push(`${content.conditionValue || '1000'} ms`);
+    }
+    if (type === 'SEARCH_CARS' || type === 'SEARCH_FALLBACK') {
+        summaries.push([content.brand, content.model, content.budget, content.year].filter(Boolean).join(' / ') || 'uses vars brand/model/budget/year');
+    }
+    if (type === 'CHANNEL_POST' || type === 'REQUEST_BROADCAST' || type === 'OFFER_COLLECT') {
+        const target = content.destinationId || content.destinationVar || 'destination';
+        const req = content.requestIdVar || 'requestId';
+        summaries.push(`dest: ${target} • req: ${req}`);
+    }
+    if (!content.text && ['MESSAGE', 'QUESTION_TEXT', 'QUESTION_CHOICE', 'MENU_REPLY'].includes(type)) {
+        summaries.push('No message set');
+    }
 
     return (
-        <div className={`w-[280px] bg-[#18181B] rounded-xl shadow-lg transition-all group border border-[#27272A] hover:border-gray-500 relative`}>
+        <div className={`w-[280px] bg-[#18181B] rounded-xl shadow-lg transition-all group border ${selected ? 'border-gold-500 shadow-gold-500/30 ring-2 ring-gold-500/40' : 'border-[#27272A] hover:border-gray-500'} relative`}>
             {/* Input Handle */}
             <Handle type="target" position={Position.Top} className="!bg-[#71717A] !w-3 !h-3" />
 
@@ -48,6 +66,11 @@ const GenericNode = ({ data, type }: any) => {
             {/* Body */}
             <div className="p-4 space-y-3">
                 {content.text && <div className="text-sm text-[#E4E4E7] font-medium leading-relaxed line-clamp-3">{content.text}</div>}
+                {!content.text && summaries.length > 0 && (
+                    <div className="text-xs text-[#a1a1aa] font-mono leading-relaxed">
+                        {summaries[0]}
+                    </div>
+                )}
 
                 {content.variableName && (
                     <div className="flex items-center gap-2 bg-amber-900/20 border border-amber-500/20 px-2 py-1.5 rounded text-[10px] text-amber-400 font-mono">
