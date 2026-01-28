@@ -1,7 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { InventoryService } from '../../services/inventoryService';
 import { Bot, MiniAppConfig, CarListing } from '../../types';
 import { getPublicBots, getShowcaseInventory } from '../../services/publicApi';
 import {
@@ -25,6 +24,7 @@ export const MiniApp = () => {
 
     // Inventory State
     const [cars, setCars] = useState<CarListing[]>([]);
+    const [targetSlug, setTargetSlug] = useState<string>('system');
     const [tab, setTab] = useState<InventoryTab>('IN_STOCK');
     const [search, setSearch] = useState('');
     const [showFilters, setShowFilters] = useState(false);
@@ -67,28 +67,30 @@ export const MiniApp = () => {
                 startParam = urlParams.get('tgWebAppStartParam') || urlParams.get('start_param') || '';
             }
 
-            // 2. Load Bot Configuration
+            // 2. Determine Target Slug (priority: URL slug > start_param > system)
+            const resolvedSlug = slug || startParam || 'system';
+            setTargetSlug(resolvedSlug);
+
+            // 3. Load Bot Configuration matched by showcase slug
             const bots = await getPublicBots();
-            const bot = bots.find(b => b.active) || bots[0];
+            const matchedBot = bots.find(b => (b.defaultShowcaseSlug || '').toLowerCase() === resolvedSlug.toLowerCase());
+            const fallbackBot = bots.find(b => b.active) || bots[0];
+            const bot = matchedBot || fallbackBot || null;
             if (bot) {
                 setActiveBot(bot);
                 setConfig(bot.miniAppConfig || null);
             }
 
-            // 3. Determine Target Slug
-            // Priority: URL Path Slug > Telegram Start Param > Default 'system'
-            const targetSlug = slug || startParam || 'system';
-
             // 4. Load Data
             try {
                 // Try Showcase API first
                 try {
-                    const res = await getShowcaseInventory(targetSlug);
+                    const res = await getShowcaseInventory(resolvedSlug);
                     setCars(res.items);
                 } catch (e) {
                     // Fallback to legacy public inventory if showcase not found
-                    console.warn(`Showcase '${targetSlug}' not found, falling back to legacy`, e);
-                    const res = await import('../../services/publicApi').then(m => m.getPublicInventory(targetSlug));
+                    console.warn(`Showcase '${resolvedSlug}' not found, falling back to legacy`, e);
+                    const res = await import('../../services/publicApi').then(m => m.getPublicInventory(resolvedSlug));
                     setCars(res.items);
                 }
             } catch (e) {
@@ -179,12 +181,12 @@ export const MiniApp = () => {
                     maxPrice: filters.maxPrice
                 };
 
-                const targetSlug = slug || 'system';
+                const target = targetSlug || 'system';
                 try {
-                    const res = await getShowcaseInventory(targetSlug, apiFilters);
+                    const res = await getShowcaseInventory(target, apiFilters);
                     setCars(res.items);
                 } catch (e) {
-                     const res = await import('../../services/publicApi').then(m => m.getPublicInventory(targetSlug, apiFilters));
+                     const res = await import('../../services/publicApi').then(m => m.getPublicInventory(target, apiFilters));
                      setCars(res.items);
                 }
             } catch (e) {
@@ -193,7 +195,7 @@ export const MiniApp = () => {
         };
         const debounce = setTimeout(fetchCars, 500);
         return () => clearTimeout(debounce);
-    }, [search, filters, tab]); // Re-fetch on filter change
+    }, [search, filters, tab, targetSlug]); // Re-fetch on filter change
 
     const applyFiltersAndSort = () => {
         let filtered = cars;
