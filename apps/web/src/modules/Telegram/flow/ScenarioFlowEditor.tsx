@@ -151,6 +151,7 @@ export const ScenarioFlowEditor = ({ scenario, onSave, onDelete, onTestRun }: an
     const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
     const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
     const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+    const [scenarioName, setScenarioName] = useState<string>(scenario.name || '');
     const reactFlowWrapper = useRef<HTMLDivElement>(null);
     const { showToast } = useToast();
 
@@ -159,6 +160,7 @@ export const ScenarioFlowEditor = ({ scenario, onSave, onDelete, onTestRun }: an
         const { nodes: n, edges: e } = normalizeToReactFlow(scenario);
         setNodes(n);
         setEdges(e);
+        setScenarioName(scenario.name || '');
         // We don't depend on 'nodes'/'edges' here to avoid loops, only 'scenario.id' ideally
     }, [scenario.id, setNodes, setEdges]);
 
@@ -173,7 +175,7 @@ export const ScenarioFlowEditor = ({ scenario, onSave, onDelete, onTestRun }: an
     };
 
     const handleSave = () => {
-        const updated = serializeFromReactFlow(nodes, edges, scenario);
+        const updated = serializeFromReactFlow(nodes, edges, { ...scenario, name: scenarioName });
         onSave(updated);
     };
 
@@ -235,7 +237,12 @@ export const ScenarioFlowEditor = ({ scenario, onSave, onDelete, onTestRun }: an
         <div className="h-full flex flex-col relative">
             {/* Header */}
             <div className="h-16 bg-[var(--bg-panel)] border-b border-[var(--border-color)] flex justify-between items-center px-6 shadow-sm z-20 shrink-0">
-                <div className="font-bold text-lg text-[var(--text-primary)]">{scenario.name}</div>
+                <input
+                    className="font-bold text-lg text-[var(--text-primary)] bg-transparent border-b-2 border-transparent focus:border-gold-500 w-80 outline-none px-1 py-1"
+                    value={scenarioName}
+                    onChange={(e) => setScenarioName(e.target.value)}
+                    placeholder="Scenario name"
+                />
                 <div className="flex gap-3">
                     <button onClick={onTestRun} className="btn-secondary text-xs flex items-center gap-2"><Play size={14} /> Test</button>
                     <button onClick={handleSave} className="btn-primary py-2 px-6 text-xs flex items-center gap-2 shadow-gold"><Save size={14} /> Save</button>

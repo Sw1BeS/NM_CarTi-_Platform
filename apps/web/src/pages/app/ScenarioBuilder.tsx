@@ -5,6 +5,7 @@ import { Plus, Save, Trash2, ArrowRight, MessageSquare, HelpCircle, Search, User
 import { useToast } from '../../contexts/ToastContext';
 import { ApiClient } from '../../services/apiClient';
 import { BotMenuEditor } from '../../modules/Telegram/components/BotMenuEditor';
+import { ScenarioFlowEditor } from '../../modules/Telegram/flow/ScenarioFlowEditor';
 
 const NODE_WIDTH = 280;
 
@@ -145,7 +146,7 @@ export const ScenarioBuilder = ({ studioMode = false, botId }: ScenarioBuilderPr
             <div className="flex-1 bg-[#050505] relative flex flex-col min-w-0">
                 {view === 'FLOWS' ? (
                     selectedScen ? (
-                        <ScenarioEditor
+                        <ScenarioFlowEditor
                             key={selectedScen.id}
                             scenario={selectedScen}
                             onSave={handleSave}
