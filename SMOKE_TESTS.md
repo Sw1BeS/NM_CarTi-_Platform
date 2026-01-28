@@ -2,6 +2,13 @@
 
 Run these tests manually after deployment to verify the release.
 
+## Quick Scripts
+```bash
+bash verification/routes_smoke_test.sh http://localhost:3000 http://localhost:3001
+AUTH_TOKEN=your_jwt bash verification/routes_smoke_test.sh http://localhost:3000 http://localhost:3001
+bash verification/check_showcase.sh http://localhost:3001/api/showcase/public system
+```
+
 ## 1. Authentication & Session
 1.  **Login:** Go to `/login`. Login with `admin` / `securepassword` (or seeded creds).
 2.  **Verify:** Dashboard loads. Sidebar shows "Super Admin" (or Admin).
@@ -16,7 +23,7 @@ Run these tests manually after deployment to verify the release.
 
 ## 3. Public Mini App (No Auth)
 1.  **Open:** Go to `/p/app` in an Incognito window.
-2.  **Inventory:** Verify list loads (fetch from `/public/system/inventory`).
+2.  **Inventory:** Verify list loads (fetch from `/api/showcase/public/system/inventory`).
 3.  **Filter:** Type "BMW" in search. Verify list updates.
 4.  **Request:** Click "Find". Fill form. Submit.
 5.  **Admin Check:** Login as admin. Go to `/requests`. Verify the new request appears.
