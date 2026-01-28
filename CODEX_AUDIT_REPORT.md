@@ -194,13 +194,13 @@ docker logs infra2-api-1 | grep "MTProto"
 
 ---
 
-## 9) 2026-01-28 Release Audit Plan (Current)
+## 9) 2026-01-28 Release Audit Plan (Updated)
 
-### Order Requested
-1. Dashboard navigation audit (transitions/links)
-2. Bot Menu Editor black screen
-3. Scenario module visual pass
-4. Remaining modules + customization gaps
+### Order Requested (user override: “2, 1, 3, then everything else”)
+1. **Bot Menu Editor** — stability/UX (black screen, menu editing)
+2. **Dashboard navigation** — broken/illogical links
+3. **Scenario module** — visual polish
+4. **Remaining modules** — Inbox/Requests, Mini App, Integrations/Partners/Settings, Content/Calendar, Parser/Messenger
 
 ### Dashboard — Initial Findings
 - Inbox KPI card routes to `/telegram` but should likely route to `/inbox`.
@@ -253,3 +253,64 @@ docker logs infra2-api-1 | grep "MTProto"
 - Settings: several tabs are placeholders (DICT, BACKUP, API, VERSIONS). Users see empty content → confusing.
 - Entities: no pagination; loads entire dataset; JSON render of object fields; no validation; delete has no undo.
 - Company/Partners routes hidden in nav by override, though code exists.
+
+---
+
+## 10) New Requests & Gaps (2026-01-28)
+
+- **Partners module:** keep visible in main layout; verify routes/components still functional and not gated by feature flags or roles. Ensure navigation entry stays in `MainLayout` alongside Integrations/Companies.
+- **Parser for vehicle pages:** need a “URL-to-variables” extractor. Flow: user pastes a car detail URL → system scrapes/extracts fields (price, mileage, VIN, photos, specs) → presents detected variables with values → user maps or corrects fields → mapping cached per URL/domain so re-import skips the mapping step unless user re-runs it.
+- **Messenger format coverage:** Telegram should support all native payloads (emoji, stickers, GIFs, voice/ogg, video, photos, documents). Audit both **Bot API** paths (`BotEngine.sendUnifiedMessage`) and UI (Inbox/Scenarios) to surface attach/send for these types. Avoid feature flags; expose in Settings where configuration is needed.
+- **No feature flags / roles gating:** per request, do not hide modules behind flags; move any toggles into Settings where necessary.
+
+---
+
+## 11) Fix/Improvement Plan From Audit
+
+1) **Bot Menu Editor (done in code)**  
+   - Import fixes to prevent crash; keep testing for menu rendering edge cases.
+
+2) **Dashboard navigation (done in code)**  
+   - KPI cards route to `/inbox` and `/telegram?tab=CAMPAIGNS`; retain BrowserRouter deep links.
+
+3) **Scenario module (done in code)**  
+   - Node summaries, selected highlighting, message placeholders.
+
+4) **Inbox/Requests (in progress)**  
+   - Added loading/error + “All bots” selector + soft session clear. Next: request creation modal (budget/year), pagination/virtualization for large chat lists.
+
+5) **Mini App + Showcase (done in code)**  
+   - Public mini app picks config by `defaultShowcaseSlug`; action editor supports label/type/value/icon and scenario options.
+
+6) **Integrations/Partners/Settings (done in code, needs verify)**  
+   - Navigation unhidden; Settings tabs wired (Dictionaries/Backup/API/Versions). Verify Partners page functions without role/flag guards.
+
+7) **Parser (planned)**  
+   - Backend: add `/api/parser/preview` (fetch + extract via cheerio) and `/api/parser/mapping` (save mapping per domain + URL).  
+   - Frontend: new Settings > Parser page to paste URL, view detected fields, map to entity schema, toggle “remember mapping”.  
+   - Caching: store mapping keyed by domain/template; auto-apply on subsequent imports.
+
+8) **Messenger format coverage (planned)**  
+   - Backend: extend `BotEngine.sendUnifiedMessage` to accept `type: 'text' | 'photo' | 'video' | 'audio' | 'voice' | 'document' | 'animation' | 'sticker'`. Map to Telegram Bot API methods; add file-size guards.  
+   - Frontend: Inbox composer attachments bar for file/photo/video/voice (record), GIF/sticker picker (use Tenor/Telegram sticker set), emoji already present.  
+   - Storage: ensure uploads go through existing file service or TG file_id reuse to avoid storage bloat.
+
+9) **Content/Calendar**  
+   - Consolidate templates: single source (server). Calendar uses same templates; remove localStorage duplication; add conflict detection when scheduling overlapping times.
+
+10) **Entities/Company**  
+   - Add pagination + minimal validation; confirm delete confirms; keep Partners in main nav.
+
+11) **Release hygiene**  
+   - Keep `prisma validate`, web/server builds, routes smoke tests scripted; no feature flags introduced.
+
+---
+
+## 12) Immediate Next Actions (execution)
+
+1. Verify Partners and Integrations pages render post-nav unhide; fix any missing imports/routes.  
+2. Implement parser backend endpoints + Settings UI (minimal, no flags).  
+3. Expand `BotEngine` + Inbox attachments UI for Telegram media types; reuse Telegram `file_id` when available.  
+4. Add request creation modal + pagination to Inbox to finish in-progress item.  
+5. Consolidate Content/Calendar templates to server source of truth.  
+6. Run prisma validate/build/test + smoke scripts; update report with results.
