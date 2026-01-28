@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Data } from '../../../services/data';
 import { Bot, BotMenuButtonConfig, Scenario } from '../../../types';
 import { Plus, Trash2, Upload, Download, UploadCloud, Grid } from 'lucide-react';

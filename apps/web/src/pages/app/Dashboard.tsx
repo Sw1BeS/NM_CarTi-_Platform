@@ -137,14 +137,14 @@ export const Dashboard: React.FC = () => {
                     value={stats.inboxNew}
                     subtext="Messages waiting"
                     icon={MessageCircle}
-                    onClick={() => navigate('/telegram')}
+                    onClick={() => navigate('/inbox')}
                 />
                 <StatCard
                     title="Campaigns"
                     value={stats.campaignsActive}
                     subtext="Running"
                     icon={Send}
-                    onClick={() => navigate('/telegram')}
+                    onClick={() => navigate('/telegram?tab=CAMPAIGNS')}
                 />
                 <StatCard
                     title="Content"

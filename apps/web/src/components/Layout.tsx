@@ -213,7 +213,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout }) => {
               <button onClick={() => navigate('/requests')} className="btn-secondary text-sm py-2 px-4 h-10">
                 <Plus size={16} className="text-gold-500" /> Request
               </button>
-              <button onClick={() => navigate('/telegram')} className="btn-secondary text-sm py-2 px-4 h-10">
+              <button onClick={() => navigate('/telegram?tab=CAMPAIGNS')} className="btn-secondary text-sm py-2 px-4 h-10">
                 <Send size={16} className="text-gold-500" /> Broadcast
               </button>
             </div>

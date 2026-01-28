@@ -3,6 +3,7 @@ import { Data } from '../../services/data';
 import { useToast } from '../../contexts/ToastContext';
 import { Bot, Scenario } from '../../types';
 import { Plus, Bot as BotIcon, Settings, Activity, Smartphone, Wifi, Megaphone, Users, X, LayoutTemplate, GitMerge, Menu, ArrowLeft } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 
 // Modules
 import { MiniAppManager } from '../../modules/Telegram/MiniAppManager/index';
@@ -26,6 +27,7 @@ export const TelegramHub = () => {
 
     // Studio Tabs
     const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'FLOWS' | 'MENU' | 'CAMPAIGNS' | 'AUDIENCE' | 'MINIAPP' | 'SHOWCASES' | 'MTPROTO' | 'SETTINGS'>('OVERVIEW');
+    const [searchParams] = useSearchParams();
 
     const [isAddBotOpen, setIsAddBotOpen] = useState(false);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -53,6 +55,18 @@ export const TelegramHub = () => {
         const sub2 = Data.subscribe('UPDATE_SCENARIOS', load);
         return () => { sub1(); sub2(); };
     }, [selectedBotId]);
+
+    useEffect(() => {
+        const tabParam = searchParams.get('tab');
+        if (!tabParam) return;
+        const normalized = tabParam.toUpperCase();
+        const allowed = ['OVERVIEW', 'FLOWS', 'MENU', 'CAMPAIGNS', 'AUDIENCE', 'MINIAPP', 'SHOWCASES', 'MTPROTO', 'SETTINGS'];
+        if (!allowed.includes(normalized)) return;
+        setActiveTab(normalized as any);
+        if ((normalized === 'FLOWS' || normalized === 'MENU') && viewMode !== 'STUDIO') {
+            setViewMode('STUDIO');
+        }
+    }, [searchParams, viewMode]);
 
     const selectedBot = bots.find(b => b.id === selectedBotId);
 
