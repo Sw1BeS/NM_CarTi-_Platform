@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Data } from '../../../services/data';
-import { Bot, MiniAppConfig } from '../../../types';
+import { Bot, MiniAppConfig, Scenario } from '../../../types';
 import { useToast } from '../../../contexts/ToastContext';
 import { Smartphone, Plus, Trash2, Grid, List as ListIcon, Palette } from 'lucide-react';
 
 export const MiniAppManager = ({ botId }: { botId: string }) => {
     const { showToast } = useToast();
     const [bot, setBot] = useState<Bot | null>(null);
+    const [scenarios, setScenarios] = useState<Scenario[]>([]);
     const [config, setConfig] = useState<MiniAppConfig>({
         isEnabled: true,
         title: 'CarTié',
@@ -26,6 +27,7 @@ export const MiniAppManager = ({ botId }: { botId: string }) => {
             }
         };
         loadBot();
+        Data.getScenarios().then(setScenarios).catch(() => setScenarios([]));
     }, [botId]);
 
     const save = async (newConfig: MiniAppConfig) => {
@@ -48,6 +50,20 @@ export const MiniAppManager = ({ botId }: { botId: string }) => {
     const removeAction = (id: string) => {
         save({ ...config, actions: config.actions.filter(a => a.id !== id) });
     };
+
+    const updateAction = (id: string, updates: Partial<MiniAppConfig['actions'][number]>) => {
+        save({
+            ...config,
+            actions: config.actions.map(a => a.id === id ? { ...a, ...updates } : a)
+        });
+    };
+
+    const scenarioOptions = scenarios.map(s => ({ value: s.id, label: s.name }));
+    const viewValueOptions = [
+        { value: 'INVENTORY', label: 'Inventory' },
+        { value: 'REQUEST', label: 'New Request' },
+        { value: 'PROFILE', label: 'Profile' }
+    ];
 
     return (
         <div className="flex h-full flex-col md:flex-row">
@@ -150,14 +166,18 @@ export const MiniAppManager = ({ botId }: { botId: string }) => {
                             {config.actions.map(act => (
                                 <div
                                     key={act.id}
-                                    className="bg-[var(--bg-input)] p-4 rounded-lg border border-[var(--border-color)] hover:border-gold-500/30 transition-colors group"
+                                    className="bg-[var(--bg-input)] p-4 rounded-lg border border-[var(--border-color)] hover:border-gold-500/30 transition-colors group space-y-3"
                                 >
-                                    <div className="flex justify-between items-start mb-3">
+                                    <div className="flex justify-between items-start">
                                         <div className="flex items-center gap-2">
                                             <div className="w-8 h-8 rounded-full bg-gold-500/10 flex items-center justify-center text-gold-500">
                                                 ⚡
                                             </div>
-                                            <span className="text-sm text-[var(--text-primary)] font-semibold">{act.label}</span>
+                                            <input
+                                                className="input text-sm font-semibold"
+                                                value={act.label}
+                                                onChange={e => updateAction(act.id, { label: e.target.value })}
+                                            />
                                         </div>
                                         <button
                                             onClick={() => removeAction(act.id)}
@@ -166,6 +186,63 @@ export const MiniAppManager = ({ botId }: { botId: string }) => {
                                             <Trash2 size={16} />
                                         </button>
                                     </div>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                        <div>
+                                            <label className="text-[10px] font-bold text-[var(--text-secondary)] uppercase mb-1 block">Action</label>
+                                            <select
+                                                className="input text-sm"
+                                                value={act.actionType}
+                                                onChange={e => updateAction(act.id, { actionType: e.target.value as any, value: '' })}
+                                            >
+                                                <option value="VIEW">Open View</option>
+                                                <option value="SCENARIO">Run Scenario</option>
+                                                <option value="LINK">Open Link</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-bold text-[var(--text-secondary)] uppercase mb-1 block">
+                                                {act.actionType === 'VIEW' ? 'View' : act.actionType === 'SCENARIO' ? 'Scenario' : 'URL / Text'}
+                                            </label>
+                                            {act.actionType === 'SCENARIO' ? (
+                                                <select
+                                                    className="input text-sm"
+                                                    value={act.value}
+                                                    onChange={e => updateAction(act.id, { value: e.target.value })}
+                                                >
+                                                    <option value="">Select scenario...</option>
+                                                    {scenarioOptions.map(opt => (
+                                                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                                    ))}
+                                                </select>
+                                            ) : act.actionType === 'VIEW' ? (
+                                                <select
+                                                    className="input text-sm"
+                                                    value={act.value}
+                                                    onChange={e => updateAction(act.id, { value: e.target.value })}
+                                                >
+                                                    {viewValueOptions.map(v => <option key={v.value} value={v.value}>{v.label}</option>)}
+                                                </select>
+                                            ) : (
+                                                <input
+                                                    className="input text-sm"
+                                                    placeholder="https://..."
+                                                    value={act.value}
+                                                    onChange={e => updateAction(act.id, { value: e.target.value })}
+                                                />
+                                            )}
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-bold text-[var(--text-secondary)] uppercase mb-1 block">Icon (emoji/name)</label>
+                                            <input
+                                                className="input text-sm"
+                                                value={act.icon || ''}
+                                                onChange={e => updateAction(act.id, { icon: e.target.value })}
+                                                placeholder="⚡ or lucide name"
+                                            />
+                                        </div>
+                                    </div>
+
                                     <div className="text-[10px] text-[var(--text-secondary)] font-mono bg-[var(--bg-app)] px-2 py-1 rounded">
                                         {act.actionType}: {act.value || 'Not configured'}
                                     </div>
