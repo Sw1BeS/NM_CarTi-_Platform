@@ -1,30 +1,60 @@
 #!/bin/bash
 # verification/routes_smoke_test.sh
 
+set -euo pipefail
+
 FRONTEND_URL=${1:-"http://localhost:3000"}
 BACKEND_URL=${2:-"http://localhost:3001"}
+AUTH_TOKEN=${AUTH_TOKEN:-""}
 
 echo "Checking Routes..."
 
+check_http() {
+    local name="$1"
+    local url="$2"
+    local expected="$3"
+    local code
+    code=$(curl -sS -o /dev/null -w "%{http_code}" "$url" || true)
+    if [[ "$code" != "$expected" ]]; then
+        echo "❌ $name FAIL (Expected $expected, got $code) - $url"
+        exit 1
+    fi
+    echo "✅ $name OK ($code)"
+}
+
+check_http_multi() {
+    local name="$1"
+    local url="$2"
+    shift 2
+    local code
+    code=$(curl -sS -o /dev/null -w "%{http_code}" "$url" || true)
+    for expected in "$@"; do
+        if [[ "$code" == "$expected" ]]; then
+            echo "✅ $name OK ($code)"
+            return 0
+        fi
+    done
+    echo "❌ $name FAIL (Expected one of: $*, got $code) - $url"
+    exit 1
+}
+
 # 1. Frontend SPA Fallback (if served via Caddy/serve)
-echo "Checking Frontend Root..."
-curl -s -o /dev/null -w "%{http_code}" "$FRONTEND_URL/" | grep "200" && echo "✅ Frontend Root OK" || echo "❌ Frontend Root FAIL"
-
-echo "Checking Frontend Deep Link (SPA Fallback)..."
-curl -s -o /dev/null -w "%{http_code}" "$FRONTEND_URL/settings" | grep "200" && echo "✅ Frontend Deep Link OK" || echo "❌ Frontend Deep Link FAIL"
-
-echo "Checking Frontend Mini App Route..."
-curl -s -o /dev/null -w "%{http_code}" "$FRONTEND_URL/p/app/system" | grep "200" && echo "✅ Frontend Mini App OK" || echo "❌ Frontend Mini App FAIL"
+check_http "Frontend Root" "$FRONTEND_URL/" "200"
+check_http "Frontend Deep Link (SPA Fallback)" "$FRONTEND_URL/settings" "200"
+check_http "Frontend Mini App Route" "$FRONTEND_URL/p/app/system" "200"
 
 # 2. Backend Health
-echo "Checking Backend Health..."
-curl -s -o /dev/null -w "%{http_code}" "$BACKEND_URL/health" | grep "200" && echo "✅ Backend Health OK" || echo "❌ Backend Health FAIL"
+check_http "Backend Health" "$BACKEND_URL/health" "200"
 
-# 3. Public Inventory API
-echo "Checking Public Inventory API..."
-CODE=$(curl -s -o /dev/null -w "%{http_code}" "$BACKEND_URL/api/public/system/inventory")
-if [ "$CODE" == "200" ] || [ "$CODE" == "404" ]; then
-    echo "✅ Public Inventory API Reachable (Code: $CODE)"
+# 3. Auth-protected APIs (verify route protection or data)
+if [[ -n "$AUTH_TOKEN" ]]; then
+    check_http "API /bots (auth)" "$BACKEND_URL/api/bots" "200"
+    check_http "API /showcase (auth)" "$BACKEND_URL/api/showcase" "200"
 else
-    echo "❌ Public Inventory API FAIL (Code: $CODE)"
+    check_http_multi "API /bots (auth protected)" "$BACKEND_URL/api/bots" "401" "403"
+    check_http_multi "API /showcase (auth protected)" "$BACKEND_URL/api/showcase" "401" "403"
+    echo "ℹ️  Set AUTH_TOKEN to validate 200 responses for /api/bots and /api/showcase."
 fi
+
+# 4. Public Showcase Inventory API (canonical)
+check_http_multi "Public Showcase Inventory" "$BACKEND_URL/api/showcase/public/system/inventory" "200" "404"
