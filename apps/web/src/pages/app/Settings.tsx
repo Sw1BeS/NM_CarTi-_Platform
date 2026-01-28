@@ -75,10 +75,10 @@ export const SettingsPage = () => {
                     {activeTab === 'FEATURES' && user?.role === 'SUPER_ADMIN' && <FeaturesTab />}
                     {activeTab === 'GENERAL' && <GeneralTab />}
 
-                    {activeTab === 'DICT' && <div className="text-center text-gray-500 mt-20">Dictionary Editor (Check original impl if needed)</div>}
-                    {activeTab === 'BACKUP' && <div className="text-center text-gray-500 mt-20">Backup Tools</div>}
-                    {activeTab === 'API' && <div className="text-center text-gray-500 mt-20">API Config</div>}
-                    {activeTab === 'VERSIONS' && <div className="text-center text-gray-500 mt-20">Version History</div>}
+                    {activeTab === 'DICT' && <DictionariesTab />}
+                    {activeTab === 'BACKUP' && <BackupTab />}
+                    {activeTab === 'API' && <ApiTab />}
+                    {activeTab === 'VERSIONS' && <VersionsTab />}
                 </div>
             </div>
         </div>
@@ -165,10 +165,6 @@ const DictionariesTab = () => {
         </div>
     );
 };
-
-
-
-
 
 const VersionsTab = () => {
     const { showToast } = useToast();
