@@ -95,6 +95,30 @@ enum UserRole {
   VIEWER
 }
 
+model Showcase {
+  id        String   @id @default(cuid())
+
+  workspaceId String
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  name      String
+  slug      String   @unique
+  isPublic  Boolean  @default(true)
+
+  // Link to Bot (optional)
+  botId     String?
+  bot       BotConfig? @relation(fields: [botId], references: [id])
+
+  // Rules for filtering (JSON)
+  rules     Json     @db.JsonB
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([workspaceId])
+  @@index([botId])
+}
+
 // ========================================
 // Stage C: Multi-Tenancy Models
 // ========================================
@@ -185,6 +209,7 @@ model BotConfig {
   platformEvents  PlatformEvent[]
   telegramUpdates TelegramUpdate[]
   messages        BotMessage[]
+  showcases       Showcase[]
 
   @@index([companyId])
 }
@@ -722,6 +747,7 @@ model Workspace {
   platformEvents       PlatformEvent[]
   mtProtoConnectors    MTProtoConnector[]
   leads                Lead[]
+  showcases            Showcase[]
 
   @@index([deleted_at])
   @@map("workspaces")

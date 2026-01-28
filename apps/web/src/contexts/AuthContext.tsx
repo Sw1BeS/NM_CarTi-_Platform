@@ -63,7 +63,7 @@ export const AuthProvider = ({ children }: React.PropsWithChildren) => {
     const logout = React.useCallback(() => {
         setUser(null);
         localStorage.removeItem('cartie_token');
-        window.location.href = '/#/login';
+        window.location.href = '/login';
     }, []);
 
     useEffect(() => {

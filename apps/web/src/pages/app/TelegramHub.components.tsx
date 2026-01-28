@@ -127,7 +127,8 @@ export const BotSettings = ({ bot }: { bot: Bot }) => {
         try {
             // Respect publicBaseUrl
             const baseUrl = form.publicBaseUrl || window.location.origin;
-            const appUrl = `${baseUrl}/#/p/app`;
+            // Default to 'system' slug for now. In future, allow selecting showcase.
+            const appUrl = `${baseUrl}/p/app/system`;
             await TelegramAPI.setChatMenuButton(form.token, "Open App", appUrl);
             showToast("Menu Button Synced");
         } catch (e: any) { showToast(e.message, 'error'); }

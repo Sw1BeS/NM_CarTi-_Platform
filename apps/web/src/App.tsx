@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { SkeletonLoader } from './components/SkeletonLoader';
 
@@ -64,13 +64,14 @@ export default function App() {
           <CompanyProvider>
             <ToastProvider>
               <WorkerProvider>
-                <HashRouter>
+                <BrowserRouter>
                   <React.Suspense fallback={<div className="flex h-screen items-center justify-center p-4"><SkeletonLoader /></div>}>
                     <Routes>
                       {/* Public Routes */}
                       <Route path="/login" element={<Login />} />
                       <Route path="/p/request" element={<PublicRequest />} />
-                      <Route path="/p/app" element={<MiniApp />} />
+                      <Route path="/p/app" element={<Navigate to="/p/app/system" replace />} />
+                      <Route path="/p/app/:slug" element={<MiniApp />} />
                       <Route path="/p/dealer" element={<DealerPortal />} />
                       <Route path="/p/proposal/:id" element={<ClientProposal />} />
 
@@ -81,7 +82,7 @@ export default function App() {
 
                       <Route path="/telegram" element={<ProtectedRoute><TelegramHub /></ProtectedRoute>} />
                       <Route path="/scenarios" element={<ProtectedRoute><ScenarioBuilder /></ProtectedRoute>} />
-                      <Route path="/automations" element={<ProtectedRoute><AutomationBuilder /></ProtectedRoute>} />
+                      {/* <Route path="/automations" element={<ProtectedRoute><AutomationBuilder /></ProtectedRoute>} /> */}
                       <Route path="/leads" element={<ProtectedRoute><Leads /></ProtectedRoute>} />
                       <Route path="/search" element={<ProtectedRoute><SearchPage /></ProtectedRoute>} />
                       <Route path="/inventory" element={<ProtectedRoute><InventoryPage /></ProtectedRoute>} />
@@ -103,7 +104,7 @@ export default function App() {
                       <Route path="*" element={<NotFound />} />
                     </Routes>
                   </React.Suspense>
-                </HashRouter>
+                </BrowserRouter>
               </WorkerProvider>
             </ToastProvider>
           </CompanyProvider>
