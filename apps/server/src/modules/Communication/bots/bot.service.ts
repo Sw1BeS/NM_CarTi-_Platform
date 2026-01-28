@@ -27,6 +27,7 @@ interface BotConfigModel {
 export class BotManager {
     private activeBots: Map<string, BotInstance> = new Map();
     private botRepo: BotRepository;
+    private lastRestart: Map<string, number> = new Map();
 
     constructor() {
         this.botRepo = new BotRepository(prisma);
@@ -46,6 +47,13 @@ export class BotManager {
     }
 
     public async restartBot(id: string) {
+        const now = Date.now();
+        const last = this.lastRestart.get(id) || 0;
+        if (now - last < 60_000) {
+            console.warn(`⏳ Skip restart for ${id} (throttled)`);
+            return;
+        }
+        this.lastRestart.set(id, now);
         this.stopBot(id);
         const config = await this.botRepo.findById(id);
         if (config && config.isEnabled) {
@@ -157,6 +165,11 @@ class BotInstance {
                 console.error(`🚨 Fatal Error for Bot ${this.config.name}: Invalid Token (${status}). Stopping.`);
                 this.stop();
                 this.onFatalStop?.(this.config.id);
+                return;
+            }
+            // Telegram rate limit (429) is non-fatal; skip logging spam and continue.
+            if (status === 429) {
+                console.warn(`⚠️ Rate limited registering commands for ${this.config.name}; will retry on next restart`);
                 return;
             }
             console.error(`⚠️ Failed to register commands for ${this.config.name}: ${e.message}`);
