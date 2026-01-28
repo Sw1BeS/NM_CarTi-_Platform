@@ -152,7 +152,10 @@ export const ScenarioFlowEditor = ({ scenario, onSave, onDelete, onTestRun }: an
     const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
     const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
     const [scenarioName, setScenarioName] = useState<string>(scenario.name || '');
+    const [scenarioCommand, setScenarioCommand] = useState<string>(scenario.triggerCommand || '');
+    const [scenarioActive, setScenarioActive] = useState<boolean>(!!scenario.isActive);
     const reactFlowWrapper = useRef<HTMLDivElement>(null);
+    const reactFlowInstance = useRef<any>(null);
     const { showToast } = useToast();
 
     // Sync if scenario prop changes externally
@@ -161,6 +164,8 @@ export const ScenarioFlowEditor = ({ scenario, onSave, onDelete, onTestRun }: an
         setNodes(n);
         setEdges(e);
         setScenarioName(scenario.name || '');
+        setScenarioCommand(scenario.triggerCommand || '');
+        setScenarioActive(!!scenario.isActive);
         // We don't depend on 'nodes'/'edges' here to avoid loops, only 'scenario.id' ideally
     }, [scenario.id, setNodes, setEdges]);
 
@@ -175,7 +180,12 @@ export const ScenarioFlowEditor = ({ scenario, onSave, onDelete, onTestRun }: an
     };
 
     const handleSave = () => {
-        const updated = serializeFromReactFlow(nodes, edges, { ...scenario, name: scenarioName });
+        const updated = serializeFromReactFlow(nodes, edges, {
+            ...scenario,
+            name: scenarioName,
+            triggerCommand: scenarioCommand,
+            isActive: scenarioActive
+        });
         onSave(updated);
     };
 
@@ -210,14 +220,17 @@ export const ScenarioFlowEditor = ({ scenario, onSave, onDelete, onTestRun }: an
             const type = event.dataTransfer.getData('application/reactflow');
             if (typeof type === 'undefined' || !type) return;
 
-            // Project coordinates
-            // We need the React Flow Instance to project, but for simplicity let's use client offset
-            // Ideally use useReactFlow() hook inside a provider.
-            // Since we are inside provider below, we might need to move this logic or accept basic relative coords
-            const position = {
-                x: event.clientX - 300, // Offset sidebar
-                y: event.clientY - 100,
-            };
+            const bounds = reactFlowWrapper.current?.getBoundingClientRect();
+            const instance = reactFlowInstance.current;
+            if (!bounds || !instance) {
+                showToast('Canvas not ready', 'error');
+                return;
+            }
+
+            const position = instance.project({
+                x: event.clientX - bounds.left,
+                y: event.clientY - bounds.top
+            });
 
             const newNode: Node = {
                 id: `node_${Date.now()}`,
@@ -237,12 +250,31 @@ export const ScenarioFlowEditor = ({ scenario, onSave, onDelete, onTestRun }: an
         <div className="h-full flex flex-col relative">
             {/* Header */}
             <div className="h-16 bg-[var(--bg-panel)] border-b border-[var(--border-color)] flex justify-between items-center px-6 shadow-sm z-20 shrink-0">
-                <input
-                    className="font-bold text-lg text-[var(--text-primary)] bg-transparent border-b-2 border-transparent focus:border-gold-500 w-80 outline-none px-1 py-1"
-                    value={scenarioName}
-                    onChange={(e) => setScenarioName(e.target.value)}
-                    placeholder="Scenario name"
-                />
+                <div className="flex items-center gap-4">
+                    <input
+                        className="font-bold text-lg text-[var(--text-primary)] bg-transparent border-b-2 border-transparent focus:border-gold-500 w-64 outline-none px-1 py-1"
+                        value={scenarioName}
+                        onChange={(e) => setScenarioName(e.target.value)}
+                        placeholder="Scenario name"
+                    />
+                    <div className="flex items-center gap-1 text-[var(--text-secondary)] text-sm">
+                        <span className="text-xs">/</span>
+                        <input
+                            className="text-sm bg-transparent border-b-2 border-transparent focus:border-gold-500 w-40 outline-none px-1 py-1 font-mono"
+                            value={scenarioCommand}
+                            onChange={(e) => setScenarioCommand(e.target.value.replace(/\s+/g, ''))}
+                            placeholder="trigger_command"
+                        />
+                    </div>
+                    <label className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
+                        <input
+                            type="checkbox"
+                            checked={scenarioActive}
+                            onChange={(e) => setScenarioActive(e.target.checked)}
+                        />
+                        Active
+                    </label>
+                </div>
                 <div className="flex gap-3">
                     <button onClick={onTestRun} className="btn-secondary text-xs flex items-center gap-2"><Play size={14} /> Test</button>
                     <button onClick={handleSave} className="btn-primary py-2 px-6 text-xs flex items-center gap-2 shadow-gold"><Save size={14} /> Save</button>
@@ -265,6 +297,7 @@ export const ScenarioFlowEditor = ({ scenario, onSave, onDelete, onTestRun }: an
                             nodeTypes={CustomNodes}
                             onDragOver={onDragOver}
                             onDrop={onDrop}
+                            onInit={(inst) => { reactFlowInstance.current = inst; }}
                             fitView
                             className="bg-[#050505]"
                             connectionLineStyle={{ stroke: '#cbd5e1' }}

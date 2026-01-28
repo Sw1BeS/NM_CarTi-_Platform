@@ -28,6 +28,18 @@ const MenuDesignerLocal = ({ scenarios }: { scenarios: Scenario[] }) => {
 
 export const PropertiesPanel = ({ node, allNodes, onChange, onDelete, onClose }: any) => {
     const content = node.content || {};
+    const isChoiceNode = node.type === 'QUESTION_CHOICE' || node.type === 'MENU_REPLY';
+    const isQuestionText = node.type === 'QUESTION_TEXT';
+    const isCondition = node.type === 'CONDITION';
+    const isAction = node.type === 'ACTION';
+    const actionTypes = [
+        'NORMALIZE_REQUEST',
+        'CREATE_LEAD',
+        'CREATE_REQUEST',
+        'TAG_USER',
+        'SET_LANG',
+        'NOTIFY_ADMIN'
+    ];
     return (
         <div className="flex flex-col h-full bg-[var(--bg-panel)]">
             <div className="p-5 border-b border-[var(--border-color)] flex justify-between items-center">
@@ -47,9 +59,114 @@ export const PropertiesPanel = ({ node, allNodes, onChange, onDelete, onClose }:
                         onChange={e => onChange({ content: { ...content, text: e.target.value } })}
                     />
                 </div>
-                {/* ... Simplified for brevity, add more fields as needed ... */}
+
+                {isQuestionText && (
+                    <div>
+                        <label className="text-[10px] font-bold text-[var(--text-secondary)] uppercase mb-2 block">Save reply to variable</label>
+                        <input
+                            className="input text-xs font-mono"
+                            placeholder="e.g. user_name"
+                            value={content.variableName || ''}
+                            onChange={e => onChange({ content: { ...content, variableName: e.target.value } })}
+                        />
+                    </div>
+                )}
+
+                {isCondition && (
+                    <div className="space-y-3">
+                        <div>
+                            <label className="text-[10px] font-bold text-[var(--text-secondary)] uppercase mb-2 block">Condition Variable</label>
+                            <input
+                                className="input text-xs font-mono"
+                                placeholder="e.g. user_budget"
+                                value={content.conditionVariable || ''}
+                                onChange={e => onChange({ content: { ...content, conditionVariable: e.target.value } })}
+                            />
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-bold text-[var(--text-secondary)] uppercase mb-2 block">Operator</label>
+                            <select
+                                className="input text-xs font-mono"
+                                value={content.conditionOperator || 'EQUALS'}
+                                onChange={e => onChange({ content: { ...content, conditionOperator: e.target.value } })}
+                            >
+                                <option value="EQUALS">EQUALS</option>
+                                <option value="CONTAINS">CONTAINS</option>
+                                <option value="GT">GT</option>
+                                <option value="LT">LT</option>
+                                <option value="HAS_VALUE">HAS_VALUE</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-bold text-[var(--text-secondary)] uppercase mb-2 block">Value</label>
+                            <input
+                                className="input text-xs font-mono"
+                                placeholder="e.g. 10000"
+                                value={content.conditionValue ?? ''}
+                                onChange={e => onChange({ content: { ...content, conditionValue: e.target.value } })}
+                            />
+                        </div>
+                    </div>
+                )}
+
+                {isAction && (
+                    <div className="space-y-3">
+                        <div>
+                            <label className="text-[10px] font-bold text-[var(--text-secondary)] uppercase mb-2 block">Action Type</label>
+                            <select
+                                className="input text-xs font-mono"
+                                value={content.actionType || ''}
+                                onChange={e => onChange({ content: { ...content, actionType: e.target.value || undefined } })}
+                            >
+                                <option value="">Select action...</option>
+                                {actionTypes.map(t => (
+                                    <option key={t} value={t}>{t}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-bold text-[var(--text-secondary)] uppercase mb-2 block">Destination ID</label>
+                            <input
+                                className="input text-xs font-mono"
+                                placeholder="e.g. scenario_id or tag id"
+                                value={content.destinationId || ''}
+                                onChange={e => onChange({ content: { ...content, destinationId: e.target.value } })}
+                            />
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-bold text-[var(--text-secondary)] uppercase mb-2 block">Destination Var</label>
+                            <input
+                                className="input text-xs font-mono"
+                                placeholder="e.g. botVar"
+                                value={content.destinationVar || ''}
+                                onChange={e => onChange({ content: { ...content, destinationVar: e.target.value } })}
+                            />
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                            <div>
+                                <label className="text-[10px] font-bold text-[var(--text-secondary)] uppercase mb-2 block">Request ID Var</label>
+                                <input
+                                    className="input text-xs font-mono"
+                                    placeholder="e.g. req_id"
+                                    value={content.requestIdVar || ''}
+                                    onChange={e => onChange({ content: { ...content, requestIdVar: e.target.value } })}
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-bold text-[var(--text-secondary)] uppercase mb-2 block">Dealer Chat Var</label>
+                                <input
+                                    className="input text-xs font-mono"
+                                    placeholder="e.g. dealer_chat"
+                                    value={content.dealerChatVar || ''}
+                                    onChange={e => onChange({ content: { ...content, dealerChatVar: e.target.value } })}
+                                />
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {/* For choices */}
-                {(node.type === 'QUESTION_CHOICE' || node.type === 'MENU_REPLY') && (
+                {isChoiceNode && (
                     <div>
                         <label className="text-[10px] font-bold text-[var(--text-secondary)] uppercase mb-3 block">Options</label>
                         <div className="space-y-4">
