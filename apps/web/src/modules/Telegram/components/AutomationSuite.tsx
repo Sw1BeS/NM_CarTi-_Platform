@@ -26,12 +26,14 @@ const MenuDesignerLocal = ({ scenarios }: { scenarios: Scenario[] }) => {
     );
 };
 
-export const PropertiesPanel = ({ node, allNodes, onChange, onDelete, onClose }: any) => {
+export const PropertiesPanel = ({ node, allNodes, onChange, onDelete, onClose, onLinkChange }: any) => {
     const content = node.content || {};
     const isChoiceNode = node.type === 'QUESTION_CHOICE' || node.type === 'MENU_REPLY';
     const isQuestionText = node.type === 'QUESTION_TEXT';
     const isCondition = node.type === 'CONDITION';
     const isAction = node.type === 'ACTION';
+    const isGallery = node.type === 'GALLERY';
+    const hasText = ['MESSAGE', 'QUESTION_TEXT', 'QUESTION_CHOICE', 'MENU_REPLY', 'ACTION', 'CONDITION'].includes(node.type);
     const actionTypes = [
         'NORMALIZE_REQUEST',
         'CREATE_LEAD',
@@ -40,6 +42,12 @@ export const PropertiesPanel = ({ node, allNodes, onChange, onDelete, onClose }:
         'SET_LANG',
         'NOTIFY_ADMIN'
     ];
+    const nodeOptions = (allNodes || []).filter((n: any) => n.id !== node.id);
+    const nodeLabel = (n: any) => {
+        const text = n?.content?.text || '';
+        const short = text ? ` — ${String(text).slice(0, 20)}` : '';
+        return `${n.type} • ${String(n.id).slice(-4)}${short}`;
+    };
     return (
         <div className="flex flex-col h-full bg-[var(--bg-panel)]">
             <div className="p-5 border-b border-[var(--border-color)] flex justify-between items-center">
@@ -50,7 +58,8 @@ export const PropertiesPanel = ({ node, allNodes, onChange, onDelete, onClose }:
                 </div>
             </div>
             <div className="flex-1 overflow-y-auto p-5 space-y-6 custom-scrollbar">
-                <div>
+                {hasText && (
+                    <div>
                     <label className="text-[10px] font-bold text-[var(--text-secondary)] uppercase mb-2 block">Message Text</label>
                     <textarea
                         className="textarea min-h-[120px] font-medium"
@@ -58,7 +67,26 @@ export const PropertiesPanel = ({ node, allNodes, onChange, onDelete, onClose }:
                         value={content.text || ''}
                         onChange={e => onChange({ content: { ...content, text: e.target.value } })}
                     />
-                </div>
+                    </div>
+                )}
+
+                {hasText && (
+                    <div className="space-y-3">
+                        <label className="text-[10px] font-bold text-[var(--text-secondary)] uppercase mb-1 block">Translations</label>
+                        <textarea
+                            className="textarea min-h-[80px] font-medium"
+                            placeholder="RU текст"
+                            value={content.text_ru || ''}
+                            onChange={e => onChange({ content: { ...content, text_ru: e.target.value } })}
+                        />
+                        <textarea
+                            className="textarea min-h-[80px] font-medium"
+                            placeholder="UK текст"
+                            value={content.text_uk || ''}
+                            onChange={e => onChange({ content: { ...content, text_uk: e.target.value } })}
+                        />
+                    </div>
+                )}
 
                 {isQuestionText && (
                     <div>
@@ -69,6 +97,22 @@ export const PropertiesPanel = ({ node, allNodes, onChange, onDelete, onClose }:
                             value={content.variableName || ''}
                             onChange={e => onChange({ content: { ...content, variableName: e.target.value } })}
                         />
+                    </div>
+                )}
+
+                {!isCondition && !isChoiceNode && (
+                    <div>
+                        <label className="text-[10px] font-bold text-[var(--text-secondary)] uppercase mb-2 block">Next Node</label>
+                        <select
+                            className="input text-xs font-mono"
+                            value={node.nextNodeId || ''}
+                            onChange={e => onLinkChange?.({ kind: 'next', targetId: e.target.value || '' })}
+                        >
+                            <option value="">-- None --</option>
+                            {nodeOptions.map((n: any) => (
+                                <option key={n.id} value={n.id}>{nodeLabel(n)}</option>
+                            ))}
+                        </select>
                     </div>
                 )}
 
@@ -105,6 +149,34 @@ export const PropertiesPanel = ({ node, allNodes, onChange, onDelete, onClose }:
                                 value={content.conditionValue ?? ''}
                                 onChange={e => onChange({ content: { ...content, conditionValue: e.target.value } })}
                             />
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                            <div>
+                                <label className="text-[10px] font-bold text-[var(--text-secondary)] uppercase mb-2 block">True →</label>
+                                <select
+                                    className="input text-xs font-mono"
+                                    value={content.trueNodeId || ''}
+                                    onChange={e => onLinkChange?.({ kind: 'true', targetId: e.target.value || '' })}
+                                >
+                                    <option value="">-- None --</option>
+                                    {nodeOptions.map((n: any) => (
+                                        <option key={n.id} value={n.id}>{nodeLabel(n)}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-bold text-[var(--text-secondary)] uppercase mb-2 block">False →</label>
+                                <select
+                                    className="input text-xs font-mono"
+                                    value={content.falseNodeId || ''}
+                                    onChange={e => onLinkChange?.({ kind: 'false', targetId: e.target.value || '' })}
+                                >
+                                    <option value="">-- None --</option>
+                                    {nodeOptions.map((n: any) => (
+                                        <option key={n.id} value={n.id}>{nodeLabel(n)}</option>
+                                    ))}
+                                </select>
+                            </div>
                         </div>
                     </div>
                 )}
@@ -177,10 +249,50 @@ export const PropertiesPanel = ({ node, allNodes, onChange, onDelete, onClose }:
                                         newChoices[i] = { ...c, label: e.target.value, value: e.target.value };
                                         onChange({ content: { ...content, choices: newChoices } });
                                     }} />
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <input className="input text-xs font-mono" placeholder="RU label" value={c.label_ru || ''} onChange={e => {
+                                            const newChoices = [...content.choices];
+                                            newChoices[i] = { ...c, label_ru: e.target.value };
+                                            onChange({ content: { ...content, choices: newChoices } });
+                                        }} />
+                                        <input className="input text-xs font-mono" placeholder="UK label" value={c.label_uk || ''} onChange={e => {
+                                            const newChoices = [...content.choices];
+                                            newChoices[i] = { ...c, label_uk: e.target.value };
+                                            onChange({ content: { ...content, choices: newChoices } });
+                                        }} />
+                                    </div>
+                                    <select
+                                        className="input text-xs font-mono"
+                                        value={c.nextNodeId || ''}
+                                        onChange={e => onLinkChange?.({ kind: 'choice', choiceIndex: i, targetId: e.target.value || '' })}
+                                    >
+                                        <option value="">-- Next Node --</option>
+                                        {nodeOptions.map((n: any) => (
+                                            <option key={n.id} value={n.id}>{nodeLabel(n)}</option>
+                                        ))}
+                                    </select>
                                 </div>
                             ))}
                             <button onClick={() => onChange({ content: { ...content, choices: [...(content.choices || []), { label: 'Option', value: 'Option', nextNodeId: '' }] } })} className="w-full border border-dashed border-[var(--text-secondary)] py-3 text-xs text-[var(--text-secondary)] rounded-xl hover:bg-[var(--bg-input)] hover:text-white transition-colors">+ Add Button</button>
                         </div>
+                    </div>
+                )}
+
+                {isGallery && (
+                    <div className="space-y-3">
+                        <label className="text-[10px] font-bold text-[var(--text-secondary)] uppercase mb-1 block">Gallery Image</label>
+                        <input
+                            className="input text-xs font-mono"
+                            placeholder="Image URL"
+                            value={content.imageUrl || ''}
+                            onChange={e => onChange({ content: { ...content, imageUrl: e.target.value } })}
+                        />
+                        <input
+                            className="input text-xs font-mono"
+                            placeholder="Image Variable (optional)"
+                            value={content.imageVar || ''}
+                            onChange={e => onChange({ content: { ...content, imageVar: e.target.value } })}
+                        />
                     </div>
                 )}
             </div>

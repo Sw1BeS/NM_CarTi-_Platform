@@ -201,6 +201,63 @@ export const ScenarioFlowEditor = ({ scenario, onSave, onDelete, onTestRun }: an
         }));
     };
 
+    const setNodeLink = (nodeId: string, link: { kind: 'next' | 'true' | 'false' | 'choice'; targetId?: string; choiceIndex?: number }) => {
+        setEdges(prev => {
+            const filtered = prev.filter(e => {
+                if (e.source !== nodeId) return true;
+                if (link.kind === 'next') return !!e.sourceHandle;
+                if (link.kind === 'true') return e.sourceHandle !== 'true';
+                if (link.kind === 'false') return e.sourceHandle !== 'false';
+                if (link.kind === 'choice') return e.sourceHandle !== `choice-${link.choiceIndex}`;
+                return true;
+            });
+
+            if (!link.targetId) {
+                return filtered;
+            }
+
+            const edge = {
+                id:
+                    link.kind === 'next'
+                        ? `e-${nodeId}-${link.targetId}`
+                        : link.kind === 'choice'
+                            ? `e-${nodeId}-choice${link.choiceIndex}-${link.targetId}`
+                            : `e-${nodeId}-${link.kind}-${link.targetId}`,
+                source: nodeId,
+                target: link.targetId,
+                type: 'smoothstep' as const,
+                ...(link.kind === 'next' ? { animated: true, style: { stroke: '#52525B' } } : {}),
+                ...(link.kind === 'true' ? { label: 'True', style: { stroke: '#22c55e' }, sourceHandle: 'true' } : {}),
+                ...(link.kind === 'false' ? { label: 'False', style: { stroke: '#ef4444' }, sourceHandle: 'false' } : {}),
+                ...(link.kind === 'choice' ? { style: { stroke: '#f59e0b' }, sourceHandle: `choice-${link.choiceIndex}` } : {})
+            };
+
+            return [...filtered, edge];
+        });
+
+        setNodes(prev => prev.map(n => {
+            if (n.id !== nodeId) return n;
+            const data = { ...(n.data || {}) };
+            if (link.kind === 'next') {
+                return { ...n, data: { ...data, nextNodeId: link.targetId || '' } };
+            }
+            if (link.kind === 'true') {
+                return { ...n, data: { ...data, content: { ...(data.content || {}), trueNodeId: link.targetId || '' } } };
+            }
+            if (link.kind === 'false') {
+                return { ...n, data: { ...data, content: { ...(data.content || {}), falseNodeId: link.targetId || '' } } };
+            }
+            if (link.kind === 'choice') {
+                const choices = Array.isArray(data.content?.choices) ? [...data.content.choices] : [];
+                if (typeof link.choiceIndex === 'number' && choices[link.choiceIndex]) {
+                    choices[link.choiceIndex] = { ...choices[link.choiceIndex], nextNodeId: link.targetId || '' };
+                }
+                return { ...n, data: { ...data, content: { ...(data.content || {}), choices } } };
+            }
+            return n;
+        }));
+    };
+
     const deleteNode = (id: string) => {
         setNodes(nds => nds.filter(n => n.id !== id));
         setEdges(eds => eds.filter(e => e.source !== id && e.target !== id));
@@ -336,6 +393,7 @@ export const ScenarioFlowEditor = ({ scenario, onSave, onDelete, onTestRun }: an
                             onChange={(updates: any) => updateNodeData(selectedNode.id, updates)} // Update handler
                             onDelete={() => deleteNode(selectedNode.id)}
                             onClose={() => setSelectedNodeId(null)}
+                            onLinkChange={(link: any) => setNodeLink(selectedNode.id, link)}
                         />
                     )}
                 </div>
