@@ -109,6 +109,9 @@ model Showcase {
   botId     String?
   bot       BotConfig? @relation(fields: [botId], references: [id])
 
+  // Reverse relation for Default Showcase
+  botDefaultFor BotConfig[] @relation("BotDefaultShowcase")
+
   // Rules for filtering (JSON)
   rules     Json     @db.JsonB
 
@@ -195,6 +198,10 @@ model BotConfig {
   isEnabled    Boolean         @default(true)
   deliveryMode BotDeliveryMode @default(POLLING)
   config       Json?           @db.JsonB
+
+  // Link to Default Showcase
+  defaultShowcaseId String?
+  defaultShowcase   Showcase? @relation("BotDefaultShowcase", fields: [defaultShowcaseId], references: [id])
 
   companyId String
   workspace Workspace @relation(fields: [companyId], references: [id], onDelete: Cascade)

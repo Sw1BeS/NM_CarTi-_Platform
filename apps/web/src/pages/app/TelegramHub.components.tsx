@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { Data } from '../../services/data';
 import { ApiClient } from '../../services/apiClient';
 import { TelegramAPI } from '../../services/telegram';
+import { ShowcaseService } from '../../services/showcaseService';
 import { useToast } from '../../contexts/ToastContext';
-import { Bot } from '../../types';
+import { Bot, Showcase } from '../../types';
 import { DEFAULT_MENU_CONFIG, DEFAULT_MINI_APP_CONFIG } from '../../services/defaults';
 import { AlertTriangle, Activity, Globe, Terminal } from 'lucide-react';
 
@@ -112,11 +113,16 @@ export const AddBotModal = ({ onClose }: { onClose: () => void }) => {
 export const BotSettings = ({ bot }: { bot: Bot }) => {
     const { showToast } = useToast();
     const [form, setForm] = useState(bot);
+    const [showcases, setShowcases] = useState<Showcase[]>([]);
 
     // Diagnostic stats
     const lastError = TelegramAPI.lastError;
 
     useEffect(() => { setForm(bot); }, [bot.id]);
+
+    useEffect(() => {
+        ShowcaseService.getShowcases().then(setShowcases).catch(console.error);
+    }, []);
 
     const save = async () => {
         await Data.saveBot(form);
@@ -147,7 +153,9 @@ export const BotSettings = ({ bot }: { bot: Bot }) => {
 
     const getMiniAppUrl = () => {
         if (!form.username) return '';
-        // Assuming default app name is 'app' or 'startapp' parameter
+        if (form.defaultShowcaseSlug) {
+            return `https://t.me/${form.username}/app?startapp=${form.defaultShowcaseSlug}`;
+        }
         return `https://t.me/${form.username}/app`; // Standard deep link
     };
 
@@ -180,6 +188,27 @@ export const BotSettings = ({ bot }: { bot: Bot }) => {
                 <div>
                     <label className="text-xs font-bold text-[var(--text-secondary)] uppercase mb-2 block">API Token</label>
                     <input className="input font-mono text-sm" type="password" value={form.token} onChange={e => setForm({ ...form, token: e.target.value })} />
+                </div>
+                <div>
+                    <label className="text-xs font-bold text-[var(--text-secondary)] uppercase mb-2 block">Default Showcase</label>
+                    <select
+                        className="input w-full"
+                        value={form.defaultShowcaseId || ''}
+                        onChange={e => {
+                            const sc = showcases.find(s => s.id === e.target.value);
+                            setForm({
+                                ...form,
+                                defaultShowcaseId: e.target.value || undefined,
+                                defaultShowcaseSlug: sc?.slug
+                            });
+                        }}
+                    >
+                        <option value="">-- None (System Default) --</option>
+                        {showcases.map(s => (
+                            <option key={s.id} value={s.id}>{s.name} ({s.slug})</option>
+                        ))}
+                    </select>
+                    <div className="text-[10px] text-[var(--text-secondary)] mt-1">Determines which content loads when opening the Mini App.</div>
                 </div>
                 <div>
                     <label className="text-xs font-bold text-[var(--text-secondary)] uppercase mb-2 block">Public App Base URL</label>

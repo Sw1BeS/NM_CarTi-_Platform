@@ -1,5 +1,6 @@
 
 import { prisma } from '../../../services/prisma.js';
+import { DEFAULT_NAVIGATION } from './defaults.js';
 
 export class SettingsService {
     static async getSettings(isPublic = true) {
@@ -10,10 +11,13 @@ export class SettingsService {
         if (!settings) return null;
 
         if (isPublic) {
+            const nav = settings.navigation as any;
+            const hasNav = nav && nav.items && nav.items.length > 0;
+
             return {
                 branding: settings.branding,
                 modules: settings.modules,
-                navigation: settings.navigation,
+                navigation: hasNav ? settings.navigation : DEFAULT_NAVIGATION,
                 features: settings.features || {
                     // Default fallbacks if DB is empty/old
                     MODULE_SCENARIOS: true,
