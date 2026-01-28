@@ -47,8 +47,9 @@ export const MiniApp = () => {
 
     useEffect(() => {
         const load = async () => {
-            // 1. Initialize Telegram Web App
+            // 1. Initialize Telegram Web App & Extract start_param
             const tg = (window as any).Telegram?.WebApp;
+            let startParam = '';
 
             if (tg && tg.initData) {
                 tg.ready();
@@ -56,10 +57,14 @@ export const MiniApp = () => {
                 tg.enableClosingConfirmation();
                 setTgUser(tg.initDataUnsafe?.user);
                 setIsPreview(false);
+                startParam = tg.initDataUnsafe?.start_param;
             } else {
                 // Mock environment for browser preview
                 setIsPreview(true);
                 setTgUser({ first_name: 'Guest', username: 'guest_user', id: 12345, photo_url: '' });
+                // Check URL params for start_param simulation
+                const urlParams = new URLSearchParams(window.location.search);
+                startParam = urlParams.get('tgWebAppStartParam') || urlParams.get('start_param') || '';
             }
 
             // 2. Load Bot Configuration
@@ -70,17 +75,19 @@ export const MiniApp = () => {
                 setConfig(bot.miniAppConfig || null);
             }
 
-            // 3. Load Data
+            // 3. Determine Target Slug
+            // Priority: URL Path Slug > Telegram Start Param > Default 'system'
+            const targetSlug = slug || startParam || 'system';
+
+            // 4. Load Data
             try {
-                // Use URL slug or fallback to 'system'
-                const targetSlug = slug || 'system';
                 // Try Showcase API first
                 try {
                     const res = await getShowcaseInventory(targetSlug);
                     setCars(res.items);
                 } catch (e) {
                     // Fallback to legacy public inventory if showcase not found
-                    console.warn("Showcase not found, falling back to legacy", e);
+                    console.warn(`Showcase '${targetSlug}' not found, falling back to legacy`, e);
                     const res = await import('../../services/publicApi').then(m => m.getPublicInventory(targetSlug));
                     setCars(res.items);
                 }

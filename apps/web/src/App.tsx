@@ -70,7 +70,8 @@ export default function App() {
                       {/* Public Routes */}
                       <Route path="/login" element={<Login />} />
                       <Route path="/p/request" element={<PublicRequest />} />
-                      <Route path="/p/app" element={<Navigate to="/p/app/system" replace />} />
+                      {/* Allow /p/app to render MiniApp directly to handle start_param */}
+                      <Route path="/p/app" element={<MiniApp />} />
                       <Route path="/p/app/:slug" element={<MiniApp />} />
                       <Route path="/p/dealer" element={<DealerPortal />} />
                       <Route path="/p/proposal/:id" element={<ClientProposal />} />
