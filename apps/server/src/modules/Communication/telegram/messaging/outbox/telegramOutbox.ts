@@ -23,6 +23,13 @@ type SendPhotoParams = OutboxContext & {
   payload?: Record<string, any>;
 };
 
+type SendFileParams = OutboxContext & {
+  file: string;
+  caption?: string;
+  replyMarkup?: any;
+  payload?: Record<string, any>;
+};
+
 type EditMessageParams = OutboxContext & {
   messageId: number;
   text: string;
@@ -75,6 +82,25 @@ class TelegramOutbox {
     return result;
   }
 
+  private async sendAndLog(kind: string, sender: () => Promise<any>, ctx: OutboxContext, caption?: string, extra?: any) {
+    const result = await sender();
+    const messageId = Array.isArray(result) ? result[0]?.message_id : result?.message_id;
+    await logOutgoing(ctx.botId, ctx.chatId, caption || `[${kind}]`, messageId, extra);
+    await emitPlatformEvent({
+      companyId: ctx.companyId,
+      botId: ctx.botId,
+      eventType: 'tg.message.outgoing',
+      userId: ctx.userId,
+      chatId: ctx.chatId,
+      payload: {
+        messageId,
+        text: summarizeText(caption || `[${kind}]`),
+        media: kind
+      }
+    });
+    return result;
+  }
+
   async sendPhoto(params: SendPhotoParams) {
     const { botId, token, chatId, photo, caption, replyMarkup, payload, companyId, userId } = params;
     const result = await TelegramSender.sendPhoto(token, chatId, photo, caption, replyMarkup);
@@ -93,6 +119,66 @@ class TelegramOutbox {
       }
     });
     return result;
+  }
+
+  async sendDocument(params: SendFileParams) {
+    const { botId, token, chatId, file, caption, replyMarkup, payload, companyId, userId } = params;
+    return this.sendAndLog('document',
+      () => TelegramSender.sendDocument(token, chatId, file, caption, replyMarkup),
+      { botId, token, chatId, companyId, userId },
+      caption,
+      { markup: replyMarkup, document: file, ...(payload || {}) }
+    );
+  }
+
+  async sendVideo(params: SendFileParams) {
+    const { botId, token, chatId, file, caption, replyMarkup, payload, companyId, userId } = params;
+    return this.sendAndLog('video',
+      () => TelegramSender.sendVideo(token, chatId, file, caption, replyMarkup),
+      { botId, token, chatId, companyId, userId },
+      caption,
+      { markup: replyMarkup, video: file, ...(payload || {}) }
+    );
+  }
+
+  async sendAudio(params: SendFileParams) {
+    const { botId, token, chatId, file, caption, replyMarkup, payload, companyId, userId } = params;
+    return this.sendAndLog('audio',
+      () => TelegramSender.sendAudio(token, chatId, file, caption, replyMarkup),
+      { botId, token, chatId, companyId, userId },
+      caption,
+      { markup: replyMarkup, audio: file, ...(payload || {}) }
+    );
+  }
+
+  async sendVoice(params: SendFileParams) {
+    const { botId, token, chatId, file, caption, replyMarkup, payload, companyId, userId } = params;
+    return this.sendAndLog('voice',
+      () => TelegramSender.sendVoice(token, chatId, file, caption, replyMarkup),
+      { botId, token, chatId, companyId, userId },
+      caption,
+      { markup: replyMarkup, voice: file, ...(payload || {}) }
+    );
+  }
+
+  async sendAnimation(params: SendFileParams) {
+    const { botId, token, chatId, file, caption, replyMarkup, payload, companyId, userId } = params;
+    return this.sendAndLog('animation',
+      () => TelegramSender.sendAnimation(token, chatId, file, caption, replyMarkup),
+      { botId, token, chatId, companyId, userId },
+      caption,
+      { markup: replyMarkup, animation: file, ...(payload || {}) }
+    );
+  }
+
+  async sendSticker(params: SendFileParams) {
+    const { botId, token, chatId, file, payload, companyId, userId } = params;
+    return this.sendAndLog('sticker',
+      () => TelegramSender.sendSticker(token, chatId, file),
+      { botId, token, chatId, companyId, userId },
+      '[sticker]',
+      { sticker: file, ...(payload || {}) }
+    );
   }
 
   async sendMediaGroup(params: SendMediaGroupParams) {

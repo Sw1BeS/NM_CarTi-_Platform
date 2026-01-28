@@ -237,6 +237,25 @@ class DataService {
     }
 
     async syncMTProto(connectorId: string) { return this.adapter.syncMTProto(connectorId); }
+
+    // --- Parser endpoints ---
+    async previewParser(url: string) {
+        const res = await ApiClient.post('parser/preview', { url });
+        if (!res.ok) throw new Error(res.message || 'Preview failed');
+        return res.data;
+    }
+
+    async getParserMapping(domain: string) {
+        const res = await ApiClient.get(`parser/mapping/${domain}`);
+        if (!res.ok) return null;
+        return (res.data || {}).mapping || null;
+    }
+
+    async saveParserMapping(domain: string, mapping: any, remember = true) {
+        const res = await ApiClient.post('parser/mapping', { domain, mapping, remember });
+        if (!res.ok) throw new Error(res.message || 'Save mapping failed');
+        return res.data;
+    }
 }
 
 export const Data = new DataService();

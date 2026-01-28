@@ -21,7 +21,7 @@ import { VersionSnapshots, ConfigSnapshot } from '../../services/versionSnapshot
 // Actually, VersionsTab was large. Let's keep it here for now or import everything if I extracted it. I missed extracting VersionsTab. I'll stub it or inline simplified version.
 
 export const SettingsPage = () => {
-    const [activeTab, setActiveTab] = useState<'USERS' | 'INTEGRATIONS' | 'TG' | 'FEATURES' | 'DICT' | 'BACKUP' | 'API' | 'VERSIONS' | 'SUPERADMIN' | 'GENERAL'>('USERS');
+    const [activeTab, setActiveTab] = useState<'USERS' | 'INTEGRATIONS' | 'TG' | 'FEATURES' | 'DICT' | 'BACKUP' | 'API' | 'VERSIONS' | 'SUPERADMIN' | 'GENERAL' | 'PARSER'>('USERS');
     const { t } = useLang();
     const { user } = useAuth();
 
@@ -62,6 +62,7 @@ export const SettingsPage = () => {
                             <NavButton active={activeTab === 'BACKUP'} onClick={() => setActiveTab('BACKUP')} icon={HardDrive} label={t('settings.backup')} />
                             <NavButton active={activeTab === 'VERSIONS'} onClick={() => setActiveTab('VERSIONS')} icon={History} label={t('settings.versions')} />
                             <NavButton active={activeTab === 'DICT'} onClick={() => setActiveTab('DICT')} icon={Book} label={t('settings.dict')} />
+                            <NavButton active={activeTab === 'PARSER'} onClick={() => setActiveTab('PARSER')} icon={Database} label="Parser" />
                         </div>
                     </div>
                 </div>
@@ -79,6 +80,7 @@ export const SettingsPage = () => {
                     {activeTab === 'BACKUP' && <BackupTab />}
                     {activeTab === 'API' && <ApiTab />}
                     {activeTab === 'VERSIONS' && <VersionsTab />}
+                    {activeTab === 'PARSER' && <ParserTab />}
                 </div>
             </div>
         </div>
@@ -97,6 +99,95 @@ const NavButton = ({ active, onClick, icon: Icon, label }: any) => (
         {label}
     </button>
 );
+
+const ParserTab = () => {
+    const { showToast } = useToast();
+    const [url, setUrl] = useState('');
+    const [preview, setPreview] = useState<any | null>(null);
+    const [mapping, setMapping] = useState<Record<string, string>>({});
+    const [loading, setLoading] = useState(false);
+
+    const fieldOptions = ['title', 'description', 'price', 'currency', 'mileage', 'year', 'vin', 'city', 'photos', 'url', 'custom'];
+
+    const handlePreview = async () => {
+        if (!url.trim()) return;
+        setLoading(true);
+        try {
+            const res = await Data.previewParser(url.trim());
+            setPreview(res);
+            setMapping(res.cachedMapping || {});
+            showToast('Preview ready', 'success');
+        } catch (e: any) {
+            showToast(e.message || 'Preview failed', 'error');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleSave = async () => {
+        if (!preview?.domain) return;
+        try {
+            await Data.saveParserMapping(preview.domain, mapping, true);
+            showToast('Mapping saved', 'success');
+        } catch (e: any) {
+            showToast(e.message || 'Save failed', 'error');
+        }
+    };
+
+    const detectedVars = Object.entries(preview?.variables || {});
+
+    return (
+        <div className="space-y-6 animate-slide-up max-w-5xl">
+            <div className="panel p-5 flex flex-col md:flex-row gap-3 items-end md:items-center">
+                <div className="flex-1 w-full">
+                    <label className="text-xs font-bold text-[var(--text-secondary)]">Car page URL</label>
+                    <input className="input mt-1" placeholder="https://example.com/car/123" value={url} onChange={e => setUrl(e.target.value)} />
+                </div>
+                <button onClick={handlePreview} className="btn-primary w-full md:w-auto" disabled={loading}>{loading ? 'Parsing...' : 'Preview'}</button>
+            </div>
+
+            {preview && (
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                    <div className="panel p-4 space-y-2">
+                        <div className="text-xs uppercase font-bold text-[var(--text-secondary)]">Detected</div>
+                        <div className="text-sm text-[var(--text-primary)] break-all">{preview.url}</div>
+                        <div className="text-xs text-[var(--text-secondary)]">Domain: {preview.domain}</div>
+                        <div className="text-xs text-[var(--text-secondary)]">Images: {preview.images?.length || 0}</div>
+                    </div>
+                    <div className="panel p-4 lg:col-span-2 space-y-3">
+                        <div className="flex justify-between items-center">
+                            <div>
+                                <div className="text-xs uppercase font-bold text-[var(--text-secondary)]">Mapping</div>
+                                <div className="text-sm text-[var(--text-muted)]">Assign detected fields to your schema. Saved per domain.</div>
+                            </div>
+                            <button onClick={handleSave} className="btn-primary text-sm">Save mapping</button>
+                        </div>
+                        <div className="space-y-3">
+                            {detectedVars.length === 0 && <div className="text-sm text-[var(--text-secondary)]">No variables detected.</div>}
+                            {detectedVars.map(([key, value]) => (
+                                <div key={key} className="flex flex-col md:flex-row md:items-center gap-3 bg-[var(--bg-input)] border border-[var(--border-color)] p-3 rounded-xl">
+                                    <div className="w-full md:w-48">
+                                        <div className="text-xs font-bold text-[var(--text-secondary)] uppercase">{key}</div>
+                                        <div className="text-sm text-[var(--text-primary)] truncate">{String(value ?? '') || '—'}</div>
+                                    </div>
+                                    <div className="flex-1">
+                                        <label className="text-[10px] uppercase text-[var(--text-secondary)]">Map to</label>
+                                        <div className="flex gap-2">
+                                            <select className="input w-40" value={mapping[key] || key} onChange={e => setMapping(prev => ({ ...prev, [key]: e.target.value }))}>
+                                                {fieldOptions.map(opt => <option key={opt} value={opt === 'custom' ? '' : opt}>{opt === 'custom' ? 'Custom…' : opt}</option>)}
+                                            </select>
+                                            <input className="input flex-1" placeholder="Custom field (optional)" value={mapping[key] && !fieldOptions.includes(mapping[key]) ? mapping[key] : ''} onChange={e => setMapping(prev => ({ ...prev, [key]: e.target.value }))} />
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
 
 
 

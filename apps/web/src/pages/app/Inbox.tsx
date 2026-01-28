@@ -49,6 +49,12 @@ export const InboxPage = () => {
     const [showCarPicker, setShowCarPicker] = useState(false);
     const [loading, setLoading] = useState(false);
     const [loadError, setLoadError] = useState<string | null>(null);
+    const [showAttachment, setShowAttachment] = useState(false);
+    const [attachmentType, setAttachmentType] = useState<'photo' | 'document' | 'video' | 'audio' | 'voice' | 'animation' | 'sticker'>('photo');
+    const [attachmentUrl, setAttachmentUrl] = useState('');
+    const [showRequestModal, setShowRequestModal] = useState(false);
+    const [requestForm, setRequestForm] = useState({ title: '', budgetMin: 0, budgetMax: 0, yearMin: 0, yearMax: 0, city: '', description: '' });
+    const [visibleCount, setVisibleCount] = useState(40);
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const { user } = useAuth();
@@ -155,11 +161,26 @@ export const InboxPage = () => {
     }, [msgs, activeChatId]);
 
     const handleReply = async () => {
-        if (!activeChatId || !replyText.trim()) return;
+        if (!activeChatId) return;
         if (!selectedBotId) return showToast(t('inbox.select_bot'), 'error');
+        const hasText = !!replyText.trim();
+        const hasAttachment = !!attachmentUrl.trim();
+        if (!hasText && !hasAttachment) return;
         try {
-            await BotEngine.sendUnifiedMessage('TG', activeChatId, replyText, undefined, selectedBotId);
-            setReplyText('');
+            if (hasAttachment) {
+                await BotEngine.sendTelegramMedia(activeChatId, {
+                    type: attachmentType,
+                    url: attachmentUrl.trim(),
+                    caption: hasText ? replyText : undefined,
+                    botId: selectedBotId
+                }, selectedBotId);
+                setAttachmentUrl('');
+                setShowAttachment(false);
+                setReplyText('');
+            } else if (hasText) {
+                await BotEngine.sendUnifiedMessage('TG', activeChatId, replyText, undefined, selectedBotId);
+                setReplyText('');
+            }
             // Trigger refresh
             Data._notify('UPDATE_MESSAGES');
         } catch (e: any) {
@@ -199,22 +220,39 @@ export const InboxPage = () => {
         }
     };
 
-    const createRequest = async () => {
+    const openRequestModal = () => {
         if (!activeChatId) return;
         if (requestByChat[activeChatId]) return showToast('Request already exists', 'error');
+        const chatInfo = chats.find(c => c.chatId === activeChatId);
+        setRequestForm({
+            title: chatInfo ? `Request from ${chatInfo.lastMsg.from}` : 'New Request',
+            budgetMin: 0, budgetMax: 0, yearMin: 0, yearMax: 0, city: '', description: ''
+        });
+        setShowRequestModal(true);
+    };
+
+    const submitRequest = async () => {
+        if (!activeChatId) return;
         try {
             const chatInfo = chats.find(c => c.chatId === activeChatId);
-            const newReq = await RequestsService.createRequest({
+            const payload = {
                 clientChatId: activeChatId,
-                title: chatInfo ? `Request from ${chatInfo.lastMsg.from}` : 'New Request',
+                title: requestForm.title || (chatInfo ? `Request from ${chatInfo.lastMsg.from}` : 'New Request'),
                 status: RequestStatus.DRAFT,
                 platform: 'TG',
-                budgetMin: 0, budgetMax: 0, yearMin: 0, yearMax: 0, city: '', description: '',
+                budgetMin: Number(requestForm.budgetMin) || 0,
+                budgetMax: Number(requestForm.budgetMax) || 0,
+                yearMin: Number(requestForm.yearMin) || 0,
+                yearMax: Number(requestForm.yearMax) || 0,
+                city: requestForm.city || '',
+                description: requestForm.description || '',
                 createdAt: new Date().toISOString()
-            });
+            };
+            const newReq = await RequestsService.createRequest(payload);
             setRequestByChat(prev => ({ ...prev, [activeChatId]: newReq }));
             if (chatInfo) setChats(prev => prev.map(c => c.chatId === activeChatId ? { ...c, requestId: newReq.id } : c));
             showToast('Request created', 'success');
+            setShowRequestModal(false);
         } catch (e: any) {
             showToast(e.message, 'error');
         }
@@ -262,6 +300,7 @@ export const InboxPage = () => {
         if (filter === 'UNASSIGNED') return !c.assignedTo;
         return true;
     });
+    const visibleChats = filteredChats.slice(0, visibleCount);
     const activeChat = chats.find(c => c.chatId === activeChatId);
     const activeRequest = activeChatId ? requestByChat[activeChatId] : undefined;
 
@@ -290,7 +329,7 @@ export const InboxPage = () => {
                     {loadError && <p className="text-xs text-red-500">{loadError}</p>}
                 </div>
                 <div className="flex-1 overflow-y-auto">
-                    {filteredChats.map(c => (
+                    {visibleChats.map(c => (
                         <div key={c.chatId} onClick={() => setActiveChatId(c.chatId)} className={`p-4 border-b border-[var(--border-color)] cursor-pointer hover:bg-[var(--bg-input)] transition-colors ${activeChatId === c.chatId ? 'bg-gold-500/10 border-l-4 border-l-gold-500' : 'border-l-4 border-l-transparent'}`}>
                             <div className="flex justify-between mb-1">
                                 <span className="font-bold text-sm text-[var(--text-primary)] truncate max-w-[150px]">{c.lastMsg.from}</span>
@@ -300,6 +339,11 @@ export const InboxPage = () => {
                             {c.assignedTo && <div className="flex items-center gap-1 text-[9px] text-blue-500"><UserCheck size={10} /> {managers.find(m => m.id === c.assignedTo)?.name || 'Assigned'}</div>}
                         </div>
                     ))}
+                    {visibleChats.length < filteredChats.length && (
+                        <div className="p-4 flex justify-center bg-[var(--bg-panel)] border-t border-[var(--border-color)]">
+                            <button className="btn-secondary text-xs" onClick={() => setVisibleCount(v => v + 30)}>Load more</button>
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -317,7 +361,7 @@ export const InboxPage = () => {
                             </div>
                             <div className="flex items-center gap-2">
                                 <button onClick={createLead} className="btn-secondary px-2 py-1 text-xs" title="Create Lead"><UserPlus size={14} /></button>
-                                <button onClick={createRequest} className={`btn-secondary px-2 py-1 text-xs ${activeRequest ? 'text-green-500' : ''}`} title={activeRequest ? "Request Exists" : "Create Request"}><FileText size={14} /></button>
+                                <button onClick={openRequestModal} className={`btn-secondary px-2 py-1 text-xs ${activeRequest ? 'text-green-500' : ''}`} title={activeRequest ? "Request Exists" : "Create Request"}><FileText size={14} /></button>
 
                                 <select className="input text-xs px-2 py-1" value={activeChat?.assignedTo || ''} onChange={e => assignChat(activeChatId, e.target.value)}>
                                     <option value="">Unassigned</option>
@@ -376,6 +420,25 @@ export const InboxPage = () => {
                                 </div>
                             )}
 
+                            {showAttachment && (
+                                <div className="p-3 border-b border-[var(--border-color)] bg-[var(--bg-input)] space-y-2">
+                                    <div className="flex flex-col md:flex-row gap-3 items-start md:items-center">
+                                        <select className="input w-full md:w-48" value={attachmentType} onChange={e => setAttachmentType(e.target.value as any)}>
+                                            <option value="photo">Photo</option>
+                                            <option value="video">Video</option>
+                                            <option value="document">Document</option>
+                                            <option value="audio">Audio</option>
+                                            <option value="voice">Voice (ogg)</option>
+                                            <option value="animation">GIF/Animation</option>
+                                            <option value="sticker">Sticker</option>
+                                        </select>
+                                        <input className="input flex-1" placeholder="File URL or Telegram file_id" value={attachmentUrl} onChange={e => setAttachmentUrl(e.target.value)} />
+                                        <button onClick={() => { setAttachmentUrl(''); }} className="btn-secondary text-xs">Clear</button>
+                                    </div>
+                                    <p className="text-[10px] text-[var(--text-secondary)]">Tip: paste a public https:// URL or an existing Telegram file_id to reuse Telegram storage.</p>
+                                </div>
+                            )}
+
                             <div className="p-4 flex gap-3 items-end">
                                 <div className="flex flex-col gap-2">
                                     <button onClick={() => setShowCarPicker(true)} className="btn-secondary w-10 h-10 rounded-full !p-0 flex items-center justify-center shrink-0 text-blue-400 border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20" title="Attach Car">
@@ -395,10 +458,13 @@ export const InboxPage = () => {
                                 />
 
                                 <div className="flex flex-col gap-2">
+                                    <button onClick={() => setShowAttachment(!showAttachment)} className={`btn-secondary w-10 h-10 rounded-full !p-0 flex items-center justify-center shrink-0 ${showAttachment ? 'bg-blue-500 text-white' : ''}`} title="Attach file/photo/video">
+                                        <Paperclip size={18} />
+                                    </button>
                                     <button onClick={() => setShowMacros(!showMacros)} className={`btn-secondary w-10 h-10 rounded-full !p-0 flex items-center justify-center shrink-0 ${showMacros ? 'bg-gold-500 text-black' : ''}`} title="Macros">
                                         <Zap size={18} />
                                     </button>
-                                    <button onClick={handleReply} disabled={!replyText.trim()} className="btn-primary w-10 h-10 rounded-full !p-0 flex items-center justify-center shrink-0 shadow-lg shadow-gold-500/20">
+                                    <button onClick={handleReply} disabled={!replyText.trim() && !attachmentUrl.trim()} className="btn-primary w-10 h-10 rounded-full !p-0 flex items-center justify-center shrink-0 shadow-lg shadow-gold-500/20 disabled:opacity-50">
                                         <Send size={18} />
                                     </button>
                                 </div>
@@ -414,6 +480,54 @@ export const InboxPage = () => {
             </div>
 
             {showCarPicker && <CarPicker onSelect={handleCarSelect} onClose={() => setShowCarPicker(false)} />}
+
+            {showRequestModal && (
+                <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50">
+                    <div className="panel w-full max-w-2xl p-6 space-y-4">
+                        <div className="flex justify-between items-start">
+                            <div>
+                                <h3 className="text-lg font-bold text-[var(--text-primary)]">Create Request</h3>
+                                <p className="text-sm text-[var(--text-secondary)]">Fill optional fields to keep context.</p>
+                            </div>
+                            <button onClick={() => setShowRequestModal(false)} className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]"><X size={18} /></button>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div className="space-y-2">
+                                <label className="text-xs text-[var(--text-secondary)] font-bold">Title</label>
+                                <input className="input" value={requestForm.title} onChange={e => setRequestForm({ ...requestForm, title: e.target.value })} />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-xs text-[var(--text-secondary)] font-bold">City</label>
+                                <input className="input" value={requestForm.city} onChange={e => setRequestForm({ ...requestForm, city: e.target.value })} />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-xs text-[var(--text-secondary)] font-bold">Budget Min</label>
+                                <input type="number" className="input" value={requestForm.budgetMin} onChange={e => setRequestForm({ ...requestForm, budgetMin: Number(e.target.value) })} />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-xs text-[var(--text-secondary)] font-bold">Budget Max</label>
+                                <input type="number" className="input" value={requestForm.budgetMax} onChange={e => setRequestForm({ ...requestForm, budgetMax: Number(e.target.value) })} />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-xs text-[var(--text-secondary)] font-bold">Year Min</label>
+                                <input type="number" className="input" value={requestForm.yearMin} onChange={e => setRequestForm({ ...requestForm, yearMin: Number(e.target.value) })} />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-xs text-[var(--text-secondary)] font-bold">Year Max</label>
+                                <input type="number" className="input" value={requestForm.yearMax} onChange={e => setRequestForm({ ...requestForm, yearMax: Number(e.target.value) })} />
+                            </div>
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-xs text-[var(--text-secondary)] font-bold">Description</label>
+                            <textarea className="textarea h-24" value={requestForm.description} onChange={e => setRequestForm({ ...requestForm, description: e.target.value })} />
+                        </div>
+                        <div className="flex justify-end gap-2 pt-2">
+                            <button onClick={() => setShowRequestModal(false)} className="btn-secondary">Cancel</button>
+                            <button onClick={submitRequest} className="btn-primary">Save Request</button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

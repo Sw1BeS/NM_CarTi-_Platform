@@ -18,12 +18,14 @@ import { telegramOutbox } from '../modules/Communication/telegram/messaging/outb
 import { whatsAppRouter } from '../modules/Integrations/whatsapp/whatsapp.service.js';
 import { viberRouter } from '../modules/Integrations/viber/viber.service.js';
 import showcaseRouter from '../modules/Marketing/showcase/showcase.controller.js';
+import parserRouter from '../modules/Parser/parser.controller.js';
 
 const integrationService = new IntegrationService();
 
 const router = Router();
 
 router.use('/showcase', showcaseRouter);
+router.use('/parser', parserRouter);
 
 router.use(authenticateToken);
 
@@ -212,6 +214,12 @@ const TELEGRAM_METHODS = new Set([
     'getWebhookInfo',
     'sendMessage',
     'sendPhoto',
+    'sendDocument',
+    'sendVideo',
+    'sendAudio',
+    'sendVoice',
+    'sendAnimation',
+    'sendSticker',
     'sendMediaGroup',
     'editMessageText',
     'sendChatAction',
@@ -310,6 +318,39 @@ router.post('/telegram/call', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), asy
             });
             return res.json({ ok: true, result });
         }
+
+        const sendFileLike = async (kind: 'document' | 'video' | 'audio' | 'voice' | 'animation' | 'sticker') => {
+            if (!resolved.botId) return res.status(400).json({ error: 'Bot not registered' });
+            const chatId = String(params?.chat_id || params?.chatId || '');
+            const file = String(params?.document || params?.video || params?.audio || params?.voice || params?.animation || params?.sticker || params?.file || '');
+            if (!chatId || !file) {
+                return res.status(400).json({ error: 'chat_id and file are required' });
+            }
+            const common = {
+                botId: resolved.botId,
+                token: resolved.token,
+                chatId,
+                file,
+                caption: params?.caption || '',
+                replyMarkup: params?.reply_markup,
+                companyId: resolved.bot?.companyId || null
+            };
+            switch (kind) {
+                case 'document': return res.json({ ok: true, result: await telegramOutbox.sendDocument(common) });
+                case 'video': return res.json({ ok: true, result: await telegramOutbox.sendVideo(common) });
+                case 'audio': return res.json({ ok: true, result: await telegramOutbox.sendAudio(common) });
+                case 'voice': return res.json({ ok: true, result: await telegramOutbox.sendVoice(common) });
+                case 'animation': return res.json({ ok: true, result: await telegramOutbox.sendAnimation(common) });
+                case 'sticker': return res.json({ ok: true, result: await telegramOutbox.sendSticker(common) });
+            }
+        };
+
+        if (method === 'sendDocument') return await sendFileLike('document');
+        if (method === 'sendVideo') return await sendFileLike('video');
+        if (method === 'sendAudio') return await sendFileLike('audio');
+        if (method === 'sendVoice') return await sendFileLike('voice');
+        if (method === 'sendAnimation') return await sendFileLike('animation');
+        if (method === 'sendSticker') return await sendFileLike('sticker');
 
         if (method === 'sendMediaGroup') {
             if (!resolved.botId) return res.status(400).json({ error: 'Bot not registered' });

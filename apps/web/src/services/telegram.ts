@@ -49,6 +49,30 @@ export class TelegramService {
     async sendPhoto(token: string, chatId: string, photo: string, caption?: string, keyboard?: any) { 
         return this.call(token, 'sendPhoto', { chat_id: chatId, photo, caption, parse_mode: 'HTML', reply_markup: keyboard }, 'POST'); 
     }
+
+    async sendDocument(token: string, chatId: string, document: string, caption?: string, keyboard?: any) {
+        return this.call(token, 'sendDocument', { chat_id: chatId, document, caption, parse_mode: 'HTML', reply_markup: keyboard }, 'POST');
+    }
+
+    async sendVideo(token: string, chatId: string, video: string, caption?: string, keyboard?: any) {
+        return this.call(token, 'sendVideo', { chat_id: chatId, video, caption, parse_mode: 'HTML', reply_markup: keyboard }, 'POST');
+    }
+
+    async sendAudio(token: string, chatId: string, audio: string, caption?: string, keyboard?: any) {
+        return this.call(token, 'sendAudio', { chat_id: chatId, audio, caption, parse_mode: 'HTML', reply_markup: keyboard }, 'POST');
+    }
+
+    async sendVoice(token: string, chatId: string, voice: string, caption?: string, keyboard?: any) {
+        return this.call(token, 'sendVoice', { chat_id: chatId, voice, caption, parse_mode: 'HTML', reply_markup: keyboard }, 'POST');
+    }
+
+    async sendAnimation(token: string, chatId: string, animation: string, caption?: string, keyboard?: any) {
+        return this.call(token, 'sendAnimation', { chat_id: chatId, animation, caption, parse_mode: 'HTML', reply_markup: keyboard }, 'POST');
+    }
+
+    async sendSticker(token: string, chatId: string, sticker: string) {
+        return this.call(token, 'sendSticker', { chat_id: chatId, sticker }, 'POST');
+    }
     
     async sendMediaGroup(token: string, chatId: string, media: any[]) { 
         return this.call(token, 'sendMediaGroup', { chat_id: chatId, media }, 'POST'); 

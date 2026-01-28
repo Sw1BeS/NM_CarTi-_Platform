@@ -1199,6 +1199,39 @@ export class BotEngine {
         }
     }
 
+    static async sendTelegramMedia(chatId: string, payload: { type: 'photo' | 'document' | 'video' | 'audio' | 'voice' | 'animation' | 'sticker'; url: string; caption?: string; botId?: string; replyMarkup?: any; }, botId?: string) {
+        const bots = await Data.getBots();
+        const active = botId ? bots.find(b => b.id === botId) : bots.find(b => b.active) || bots[0];
+        if (!active) throw new Error('No active bot configured');
+        const token = active.token;
+        switch (payload.type) {
+            case 'photo':
+                await TelegramAPI.sendPhoto(token, chatId, payload.url, payload.caption, payload.replyMarkup);
+                break;
+            case 'document':
+                await TelegramAPI.sendDocument(token, chatId, payload.url, payload.caption, payload.replyMarkup);
+                break;
+            case 'video':
+                await TelegramAPI.sendVideo(token, chatId, payload.url, payload.caption, payload.replyMarkup);
+                break;
+            case 'audio':
+                await TelegramAPI.sendAudio(token, chatId, payload.url, payload.caption, payload.replyMarkup);
+                break;
+            case 'voice':
+                await TelegramAPI.sendVoice(token, chatId, payload.url, payload.caption, payload.replyMarkup);
+                break;
+            case 'animation':
+                await TelegramAPI.sendAnimation(token, chatId, payload.url, payload.caption, payload.replyMarkup);
+                break;
+            case 'sticker':
+                await TelegramAPI.sendSticker(token, chatId, payload.url);
+                break;
+            default:
+                throw new Error('Unsupported media type');
+        }
+        Data._notify('UPDATE_MESSAGES');
+    }
+
     // --- NEW: Send Car Card ---
     static async sendCar(chatId: string, car: CarListing, botId?: string) {
         const bots = await Data.getBots();
