@@ -233,3 +233,23 @@ docker logs infra2-api-1 | grep "MTProto"
 - **Campaign Manager**: assumes `progress` object exists; missing progress can render NaN/throw.
 - **Content vs Calendar**: templates stored in two places (server entity + localStorage); inconsistent UX and sharing.
 - **Layout Nav**: integrations/partners/company routes exist but are hard‑hidden in nav; can feel “missing”.
+
+### Inbox / Leads / Requests (Audit)
+- Inbox loads messages per bot, but no loading state/error fallback; long fetch silently fails.
+- Assign/select bot dropdown has no “All bots”; cross-bot chat history requires manual switching.
+- Clear session button hard-reloads the page; UX rough.
+- Request creation from chat sets `status: DRAFT` only; no modal for budget/year/priority; risk of incomplete requests.
+- No pagination/virtualization for large chat lists; may lag with many chats.
+
+### Inventory / Content / Calendar (Audit)
+- Inventory page: filter button present, but panel not implemented (no filters UI); search only.
+- Content vs Calendar: templates duplicated (entity `post_template` vs localStorage in calendar); risk of divergence.
+- Content: posting uses first active bot/destination; no bot selector; could post to wrong bot.
+- Content: no validation on scheduleDate timezone; uses `new Date(scheduleDate)` (local) — possible timezone drift.
+- Calendar: bulk scheduler uses local storage templates; no server persistence; missing conflict detection (overwrites same time slot silently).
+
+### Integrations / Settings / Entities / Company / Partners (Audit)
+- IntegrationsLayout includes nav link to `/telegram` (cross-link) but main nav hides integrations entirely via feature flag override in Layout; discoverability low.
+- Settings: several tabs are placeholders (DICT, BACKUP, API, VERSIONS). Users see empty content → confusing.
+- Entities: no pagination; loads entire dataset; JSON render of object fields; no validation; delete has no undo.
+- Company/Partners routes hidden in nav by override, though code exists.
