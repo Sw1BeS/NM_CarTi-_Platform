@@ -30,10 +30,29 @@ export const PropertiesPanel = ({ node, allNodes, onChange, onDelete, onClose, o
     const content = node.content || {};
     const isChoiceNode = node.type === 'QUESTION_CHOICE' || node.type === 'MENU_REPLY';
     const isQuestionText = node.type === 'QUESTION_TEXT';
+    const hasVariableName = isQuestionText || isChoiceNode;
     const isCondition = node.type === 'CONDITION';
     const isAction = node.type === 'ACTION';
     const isGallery = node.type === 'GALLERY';
-    const hasText = ['MESSAGE', 'QUESTION_TEXT', 'QUESTION_CHOICE', 'MENU_REPLY', 'ACTION', 'CONDITION'].includes(node.type);
+    const isDelay = node.type === 'DELAY';
+    const isRequestContact = node.type === 'REQUEST_CONTACT';
+    const isSearch = node.type === 'SEARCH_CARS' || node.type === 'SEARCH_FALLBACK';
+    const isChannelPost = node.type === 'CHANNEL_POST';
+    const isBroadcast = node.type === 'REQUEST_BROADCAST';
+    const isOfferCollect = node.type === 'OFFER_COLLECT';
+    const hasText = [
+        'MESSAGE',
+        'QUESTION_TEXT',
+        'QUESTION_CHOICE',
+        'MENU_REPLY',
+        'ACTION',
+        'CONDITION',
+        'REQUEST_CONTACT',
+        'GALLERY',
+        'CHANNEL_POST',
+        'REQUEST_BROADCAST',
+        'OFFER_COLLECT'
+    ].includes(node.type);
     const actionTypes = [
         'NORMALIZE_REQUEST',
         'CREATE_LEAD',
@@ -88,14 +107,36 @@ export const PropertiesPanel = ({ node, allNodes, onChange, onDelete, onClose, o
                     </div>
                 )}
 
-                {isQuestionText && (
+                {isRequestContact && (
+                    <div className="rounded-xl border border-[var(--border-color)] bg-[var(--bg-input)] p-3 text-xs text-[var(--text-secondary)]">
+                        Contact replies are stored in <span className="font-mono text-[var(--text-primary)]">phone</span>.
+                    </div>
+                )}
+
+                {hasVariableName && (
                     <div>
-                        <label className="text-[10px] font-bold text-[var(--text-secondary)] uppercase mb-2 block">Save reply to variable</label>
+                        <label className="text-[10px] font-bold text-[var(--text-secondary)] uppercase mb-2 block">
+                            {isChoiceNode ? 'Save selection to variable' : 'Save reply to variable'}
+                        </label>
                         <input
                             className="input text-xs font-mono"
                             placeholder="e.g. user_name"
                             value={content.variableName || ''}
                             onChange={e => onChange({ content: { ...content, variableName: e.target.value } })}
+                        />
+                    </div>
+                )}
+
+                {isDelay && (
+                    <div>
+                        <label className="text-[10px] font-bold text-[var(--text-secondary)] uppercase mb-2 block">Delay (ms)</label>
+                        <input
+                            type="number"
+                            min="0"
+                            className="input text-xs font-mono"
+                            placeholder="1000"
+                            value={content.conditionValue ?? ''}
+                            onChange={e => onChange({ content: { ...content, conditionValue: e.target.value } })}
                         />
                     </div>
                 )}
@@ -113,6 +154,13 @@ export const PropertiesPanel = ({ node, allNodes, onChange, onDelete, onClose, o
                                 <option key={n.id} value={n.id}>{nodeLabel(n)}</option>
                             ))}
                         </select>
+                    </div>
+                )}
+
+                {isSearch && (
+                    <div className="rounded-xl border border-[var(--border-color)] bg-[var(--bg-input)] p-3 text-xs text-[var(--text-secondary)] space-y-1">
+                        <div>Uses variables: <span className="font-mono text-[var(--text-primary)]">brand</span>, <span className="font-mono text-[var(--text-primary)]">model</span>, <span className="font-mono text-[var(--text-primary)]">budget</span>, <span className="font-mono text-[var(--text-primary)]">year</span>.</div>
+                        <div>Saves results to temp list and <span className="font-mono text-[var(--text-primary)]">found_count</span>.</div>
                     </div>
                 )}
 
@@ -233,6 +281,124 @@ export const PropertiesPanel = ({ node, allNodes, onChange, onDelete, onClose, o
                                     onChange={e => onChange({ content: { ...content, dealerChatVar: e.target.value } })}
                                 />
                             </div>
+                        </div>
+                    </div>
+                )}
+
+                {isChannelPost && (
+                    <div className="space-y-3">
+                        <label className="text-[10px] font-bold text-[var(--text-secondary)] uppercase mb-1 block">Channel Post</label>
+                        <input
+                            className="input text-xs font-mono"
+                            placeholder="Destination ID (channel/chat id)"
+                            value={content.destinationId || ''}
+                            onChange={e => onChange({ content: { ...content, destinationId: e.target.value } })}
+                        />
+                        <input
+                            className="input text-xs font-mono"
+                            placeholder="Destination Var (optional)"
+                            value={content.destinationVar || ''}
+                            onChange={e => onChange({ content: { ...content, destinationVar: e.target.value } })}
+                        />
+                        <div className="grid grid-cols-2 gap-3">
+                            <input
+                                className="input text-xs font-mono"
+                                placeholder="Image URL (optional)"
+                                value={content.imageUrl || ''}
+                                onChange={e => onChange({ content: { ...content, imageUrl: e.target.value } })}
+                            />
+                            <input
+                                className="input text-xs font-mono"
+                                placeholder="Image Var (optional)"
+                                value={content.imageVar || ''}
+                                onChange={e => onChange({ content: { ...content, imageVar: e.target.value } })}
+                            />
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                            <input
+                                className="input text-xs font-mono"
+                                placeholder="Scheduled At (ISO)"
+                                value={content.scheduledAt || ''}
+                                onChange={e => onChange({ content: { ...content, scheduledAt: e.target.value } })}
+                            />
+                            <input
+                                className="input text-xs font-mono"
+                                placeholder="Scheduled At Var (optional)"
+                                value={content.scheduledAtVar || ''}
+                                onChange={e => onChange({ content: { ...content, scheduledAtVar: e.target.value } })}
+                            />
+                        </div>
+                    </div>
+                )}
+
+                {isBroadcast && (
+                    <div className="space-y-3">
+                        <label className="text-[10px] font-bold text-[var(--text-secondary)] uppercase mb-1 block">Request Broadcast</label>
+                        <input
+                            className="input text-xs font-mono"
+                            placeholder="Destination ID (channel/chat id)"
+                            value={content.destinationId || ''}
+                            onChange={e => onChange({ content: { ...content, destinationId: e.target.value } })}
+                        />
+                        <input
+                            className="input text-xs font-mono"
+                            placeholder="Destination Var (optional)"
+                            value={content.destinationVar || ''}
+                            onChange={e => onChange({ content: { ...content, destinationVar: e.target.value } })}
+                        />
+                        <div className="grid grid-cols-2 gap-3">
+                            <input
+                                className="input text-xs font-mono"
+                                placeholder="Request ID Var"
+                                value={content.requestIdVar || ''}
+                                onChange={e => onChange({ content: { ...content, requestIdVar: e.target.value } })}
+                            />
+                            <input
+                                className="input text-xs font-mono"
+                                placeholder="Button Text"
+                                value={content.buttonText || ''}
+                                onChange={e => onChange({ content: { ...content, buttonText: e.target.value } })}
+                            />
+                        </div>
+                    </div>
+                )}
+
+                {isOfferCollect && (
+                    <div className="space-y-3">
+                        <label className="text-[10px] font-bold text-[var(--text-secondary)] uppercase mb-1 block">Offer Collect</label>
+                        <input
+                            className="input text-xs font-mono"
+                            placeholder="Destination ID (chat id)"
+                            value={content.destinationId || ''}
+                            onChange={e => onChange({ content: { ...content, destinationId: e.target.value } })}
+                        />
+                        <div className="grid grid-cols-2 gap-3">
+                            <input
+                                className="input text-xs font-mono"
+                                placeholder="Destination Var (optional)"
+                                value={content.destinationVar || ''}
+                                onChange={e => onChange({ content: { ...content, destinationVar: e.target.value } })}
+                            />
+                            <input
+                                className="input text-xs font-mono"
+                                placeholder="Dealer Chat Var"
+                                value={content.dealerChatVar || ''}
+                                onChange={e => onChange({ content: { ...content, dealerChatVar: e.target.value } })}
+                            />
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                            <input
+                                className="input text-xs font-mono"
+                                placeholder="Request ID Var"
+                                value={content.requestIdVar || ''}
+                                onChange={e => onChange({ content: { ...content, requestIdVar: e.target.value } })}
+                            />
+                            <input
+                                className="input text-xs font-mono"
+                                placeholder="Button Text"
+                                value={content.buttonText || ''}
+                                onChange={e => onChange({ content: { ...content, buttonText: e.target.value } })}
+                            />
                         </div>
                     </div>
                 )}

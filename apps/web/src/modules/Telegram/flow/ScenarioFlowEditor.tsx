@@ -3,7 +3,6 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
 import ReactFlow, {
     useNodesState,
     useEdgesState,
-    addEdge,
     Connection,
     Edge,
     Background,
@@ -169,39 +168,7 @@ export const ScenarioFlowEditor = ({ scenario, onSave, onDelete, onTestRun }: an
         // We don't depend on 'nodes'/'edges' here to avoid loops, only 'scenario.id' ideally
     }, [scenario.id, setNodes, setEdges]);
 
-    const onConnect = useCallback((params: Connection) => setEdges((eds) => addEdge(params, eds)), [setEdges]);
-
-    const handleNodeClick = (_: React.MouseEvent, node: Node) => {
-        setSelectedNodeId(node.id);
-    };
-
-    const handlePaneClick = () => {
-        setSelectedNodeId(null);
-    };
-
-    const handleSave = () => {
-        const updated = serializeFromReactFlow(nodes, edges, {
-            ...scenario,
-            name: scenarioName,
-            triggerCommand: scenarioCommand,
-            isActive: scenarioActive
-        });
-        onSave(updated);
-    };
-
-    // Update Node Data from Properties Panel
-    const updateNodeData = (id: string, updates: any) => {
-        setNodes(nds => nds.map(n => {
-            if (n.id === id) {
-                // If content choices changed, we might need to update handles or edges, 
-                // but usually React Flow handles dynamic handles if the node re-renders.
-                return { ...n, data: { ...n.data, ...updates } };
-            }
-            return n;
-        }));
-    };
-
-    const setNodeLink = (nodeId: string, link: { kind: 'next' | 'true' | 'false' | 'choice'; targetId?: string; choiceIndex?: number }) => {
+    const setNodeLink = useCallback((nodeId: string, link: { kind: 'next' | 'true' | 'false' | 'choice'; targetId?: string; choiceIndex?: number }) => {
         setEdges(prev => {
             const filtered = prev.filter(e => {
                 if (e.source !== nodeId) return true;
@@ -256,7 +223,55 @@ export const ScenarioFlowEditor = ({ scenario, onSave, onDelete, onTestRun }: an
             }
             return n;
         }));
+    }, [setEdges, setNodes]);
+
+    const onConnect = useCallback((params: Connection) => {
+        if (!params.source || !params.target) return;
+        const handle = params.sourceHandle;
+        if (handle === 'true' || handle === 'false') {
+            setNodeLink(params.source, { kind: handle, targetId: params.target });
+            return;
+        }
+        if (handle && handle.startsWith('choice-')) {
+            const idx = Number(handle.split('-')[1]);
+            if (Number.isFinite(idx)) {
+                setNodeLink(params.source, { kind: 'choice', choiceIndex: idx, targetId: params.target });
+                return;
+            }
+        }
+        setNodeLink(params.source, { kind: 'next', targetId: params.target });
+    }, [setNodeLink]);
+
+    const handleNodeClick = (_: React.MouseEvent, node: Node) => {
+        setSelectedNodeId(node.id);
     };
+
+    const handlePaneClick = () => {
+        setSelectedNodeId(null);
+    };
+
+    const handleSave = () => {
+        const updated = serializeFromReactFlow(nodes, edges, {
+            ...scenario,
+            name: scenarioName,
+            triggerCommand: scenarioCommand,
+            isActive: scenarioActive
+        });
+        onSave(updated);
+    };
+
+    // Update Node Data from Properties Panel
+    const updateNodeData = (id: string, updates: any) => {
+        setNodes(nds => nds.map(n => {
+            if (n.id === id) {
+                // If content choices changed, we might need to update handles or edges, 
+                // but usually React Flow handles dynamic handles if the node re-renders.
+                return { ...n, data: { ...n.data, ...updates } };
+            }
+            return n;
+        }));
+    };
+
 
     const deleteNode = (id: string) => {
         setNodes(nds => nds.filter(n => n.id !== id));
@@ -289,11 +304,12 @@ export const ScenarioFlowEditor = ({ scenario, onSave, onDelete, onTestRun }: an
                 y: event.clientY - bounds.top
             });
 
+            const newId = `node_${Date.now()}`;
             const newNode: Node = {
-                id: `node_${Date.now()}`,
+                id: newId,
                 type,
                 position,
-                data: { id: `node_${Date.now()}`, type, content: { text: '' } },
+                data: { id: newId, type, content: { text: '' } },
             };
 
             setNodes((nds) => nds.concat(newNode));
@@ -365,7 +381,23 @@ export const ScenarioFlowEditor = ({ scenario, onSave, onDelete, onTestRun }: an
                             <Panel position="top-left" className="bg-[var(--bg-panel)] p-2 rounded-xl border border-[var(--border-color)] shadow-xl">
                                 <div className="text-[10px] font-bold text-[var(--text-secondary)] uppercase mb-2 px-1">Add Nodes</div>
                                 <div className="grid grid-cols-2 gap-2 w-48">
-                                    {['MESSAGE', 'QUESTION_TEXT', 'QUESTION_CHOICE', 'CONDITION', 'ACTION', 'GALLERY'].map(type => (
+                                    {[
+                                        'MESSAGE',
+                                        'QUESTION_TEXT',
+                                        'QUESTION_CHOICE',
+                                        'MENU_REPLY',
+                                        'REQUEST_CONTACT',
+                                        'ACTION',
+                                        'CONDITION',
+                                        'DELAY',
+                                        'SEARCH_CARS',
+                                        'SEARCH_FALLBACK',
+                                        'GALLERY',
+                                        'CHANNEL_POST',
+                                        'REQUEST_BROADCAST',
+                                        'OFFER_COLLECT',
+                                        'JUMP'
+                                    ].map(type => (
                                         <div
                                             key={type}
                                             draggable

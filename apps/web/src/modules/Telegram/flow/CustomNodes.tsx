@@ -1,7 +1,7 @@
 
 import React, { memo } from 'react';
 import { Handle, Position } from 'reactflow';
-import { MessageSquare, LayoutGrid, Type, MousePointer2, Menu, Zap, Search, Filter, GitMerge, Smartphone, Megaphone, Send, UserCheck, Box, Database, ArrowRight } from 'lucide-react';
+import { MessageSquare, LayoutGrid, Type, MousePointer2, Menu, Zap, Search, Filter, GitMerge, Smartphone, Megaphone, Send, UserCheck, Box, Database, ArrowRight, Clock, CornerDownRight } from 'lucide-react';
 
 // Shared Style Helper
 const getNodeStyle = (type: string) => {
@@ -20,6 +20,8 @@ const getNodeStyle = (type: string) => {
         case 'CHANNEL_POST': return { border: 'border-sky-500', icon: Megaphone, label: 'Channel Post', color: 'text-sky-400', glow: 'shadow-sky-500/20' };
         case 'REQUEST_BROADCAST': return { border: 'border-indigo-500', icon: Send, label: 'Request Broadcast', color: 'text-indigo-400', glow: 'shadow-indigo-500/20' };
         case 'OFFER_COLLECT': return { border: 'border-rose-500', icon: UserCheck, label: 'Offer Collect', color: 'text-rose-400', glow: 'shadow-rose-500/20' };
+        case 'DELAY': return { border: 'border-slate-500', icon: Clock, label: 'Delay', color: 'text-slate-300', glow: 'shadow-slate-500/20' };
+        case 'JUMP': return { border: 'border-zinc-500', icon: CornerDownRight, label: 'Jump', color: 'text-zinc-300', glow: 'shadow-zinc-500/20' };
         default: return { border: 'border-gray-500', icon: Box, label: type, color: 'text-gray-400', glow: '' };
     }
 };
@@ -116,4 +118,6 @@ export const CustomNodes = {
     CHANNEL_POST: memo((props: any) => <GenericNode {...props} type="CHANNEL_POST" />),
     REQUEST_BROADCAST: memo((props: any) => <GenericNode {...props} type="REQUEST_BROADCAST" />),
     OFFER_COLLECT: memo((props: any) => <GenericNode {...props} type="OFFER_COLLECT" />),
+    DELAY: memo((props: any) => <GenericNode {...props} type="DELAY" />),
+    JUMP: memo((props: any) => <GenericNode {...props} type="JUMP" />),
 };

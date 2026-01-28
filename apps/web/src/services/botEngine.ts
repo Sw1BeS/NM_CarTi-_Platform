@@ -821,6 +821,8 @@ export class BotEngine {
                     const target = node.content.conditionValue;
 
                     if (node.content.conditionOperator === 'GT') result = Number(val) > Number(target);
+                    else if (node.content.conditionOperator === 'LT') result = Number(val) < Number(target);
+                    else if (node.content.conditionOperator === 'CONTAINS') result = String(val || '').includes(String(target || ''));
                     else if (node.content.conditionOperator === 'HAS_VALUE') result = !!val && val !== 0 && val !== '';
                     else result = String(val) === String(target);
 
