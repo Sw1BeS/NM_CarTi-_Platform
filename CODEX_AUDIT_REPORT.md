@@ -191,3 +191,45 @@ docker ps
 # Check if clients are initialized (look for log)
 docker logs infra2-api-1 | grep "MTProto"
 ```
+
+---
+
+## 9) 2026-01-28 Release Audit Plan (Current)
+
+### Order Requested
+1. Dashboard navigation audit (transitions/links)
+2. Bot Menu Editor black screen
+3. Scenario module visual pass
+4. Remaining modules + customization gaps
+
+### Dashboard — Initial Findings
+- Inbox KPI card routes to `/telegram` but should likely route to `/inbox`.
+- Campaigns KPI routes to `/telegram` but doesn’t open Broadcasts tab; consider `?tab=CAMPAIGNS` + deep-link handling in TelegramHub.
+- Content KPI routes to `/calendar` (ok). Requests/Inventory routes look correct.
+  - **Fix applied in code**: `/inbox` and `/telegram?tab=CAMPAIGNS` + header “Broadcast” button adjusted.
+
+### Bot Menu Editor — Initial Finding
+- `BotMenuEditor` used `useRef` without importing it; runtime crash can cause a black screen.
+  - **Fix applied in code**: added `useRef` import in `apps/web/src/modules/Telegram/components/BotMenuEditor.tsx`.
+
+### Scenario Module — Visual Audit Notes (Initial)
+- Nodes show very little summary for non‑text types (CONDITION/DELAY/SEARCH/CHANNEL_POST/BROADCAST), so the canvas feels “blank”.
+- Selected node state isn’t visually obvious; quick highlight would improve readability.
+- Long property panel is not grouped; heavy scrolling with mixed sections.
+
+**Quick visual wins (low‑risk):**
+- Show compact summaries in nodes:
+  - CONDITION: `var op value`
+  - DELAY: `ms`
+  - SEARCH: `brand/model/budget/year`
+  - CHANNEL_POST/BROADCAST/OFFER: destination/request vars
+- Add selected‑node border/glow.
+- Add placeholder text for empty message nodes (“No message”).
+
+### Remaining Modules — Initial Findings & Customization Gaps
+- **Mini App Manager**: actions are not editable (label/type/value/icon), only add/remove. Customization is limited to title/welcome/color/layout.
+- **Public Mini App**: config always taken from first active bot; not tied to `slug` or bot’s default showcase. With multiple bots, config can mismatch showcase.
+- **Audience Manager**: assumes `tags` exists; if missing/null from API, can crash when mapping.
+- **Campaign Manager**: assumes `progress` object exists; missing progress can render NaN/throw.
+- **Content vs Calendar**: templates stored in two places (server entity + localStorage); inconsistent UX and sharing.
+- **Layout Nav**: integrations/partners/company routes exist but are hard‑hidden in nav; can feel “missing”.
