@@ -17,10 +17,13 @@ import { setWebhookForBot, deleteWebhookForBot } from '../modules/Communication/
 import { telegramOutbox } from '../modules/Communication/telegram/messaging/outbox/telegramOutbox.js';
 import { whatsAppRouter } from '../modules/Integrations/whatsapp/whatsapp.service.js';
 import { viberRouter } from '../modules/Integrations/viber/viber.service.js';
+import showcaseRouter from '../modules/Marketing/showcase/showcase.controller.js';
 
 const integrationService = new IntegrationService();
 
 const router = Router();
+
+router.use('/showcase', showcaseRouter);
 
 router.use(authenticateToken);
 

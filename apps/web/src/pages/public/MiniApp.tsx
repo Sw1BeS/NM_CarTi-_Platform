@@ -1,8 +1,9 @@
 
 import React, { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 import { InventoryService } from '../../services/inventoryService';
 import { Bot, MiniAppConfig, CarListing } from '../../types';
-import { getPublicBots } from '../../services/publicApi';
+import { getPublicBots, getShowcaseInventory } from '../../services/publicApi';
 import {
     Search, LayoutGrid, User, Plus, Filter, ArrowRight, DollarSign,
     MessageSquare, Zap, List as ListIcon, Star, Phone, Home,
@@ -15,6 +16,7 @@ const PLACEHOLDER_IMAGE = 'https://images.unsplash.com/photo-1533473359331-0135e
 type InventoryTab = 'IN_STOCK' | 'IN_TRANSIT';
 
 export const MiniApp = () => {
+    const { slug } = useParams();
     const [activeBot, setActiveBot] = useState<Bot | null>(null);
     const [config, setConfig] = useState<MiniAppConfig | null>(null);
     const [view, setView] = useState<'HOME' | 'INVENTORY' | 'REQUEST' | 'PROFILE'>('HOME');
@@ -45,8 +47,9 @@ export const MiniApp = () => {
 
     useEffect(() => {
         const load = async () => {
-            // 1. Initialize Telegram Web App
+            // 1. Initialize Telegram Web App & Extract start_param
             const tg = (window as any).Telegram?.WebApp;
+            let startParam = '';
 
             if (tg && tg.initData) {
                 tg.ready();
@@ -54,10 +57,14 @@ export const MiniApp = () => {
                 tg.enableClosingConfirmation();
                 setTgUser(tg.initDataUnsafe?.user);
                 setIsPreview(false);
+                startParam = tg.initDataUnsafe?.start_param;
             } else {
                 // Mock environment for browser preview
                 setIsPreview(true);
                 setTgUser({ first_name: 'Guest', username: 'guest_user', id: 12345, photo_url: '' });
+                // Check URL params for start_param simulation
+                const urlParams = new URLSearchParams(window.location.search);
+                startParam = urlParams.get('tgWebAppStartParam') || urlParams.get('start_param') || '';
             }
 
             // 2. Load Bot Configuration
@@ -68,21 +75,28 @@ export const MiniApp = () => {
                 setConfig(bot.miniAppConfig || null);
             }
 
-            // 3. Load Data
+            // 3. Determine Target Slug
+            // Priority: URL Path Slug > Telegram Start Param > Default 'system'
+            const targetSlug = slug || startParam || 'system';
+
+            // 4. Load Data
             try {
-                // Default to 'system' slug if bot config doesn't have specific company mapping exposed yet.
-                // ideally bot.companySlug should be available.
-                // For now assuming 'system' or we need to fetch it.
-                // Actually, let's try to get it from the bot object if we had it, or default to 'system'.
-                const slug = 'system';
-                const res = await import('../../services/publicApi').then(m => m.getPublicInventory(slug));
-                setCars(res.items);
+                // Try Showcase API first
+                try {
+                    const res = await getShowcaseInventory(targetSlug);
+                    setCars(res.items);
+                } catch (e) {
+                    // Fallback to legacy public inventory if showcase not found
+                    console.warn(`Showcase '${targetSlug}' not found, falling back to legacy`, e);
+                    const res = await import('../../services/publicApi').then(m => m.getPublicInventory(targetSlug));
+                    setCars(res.items);
+                }
             } catch (e) {
                 console.error("Failed to load inventory for Mini App", e);
             }
         };
         load();
-    }, []);
+    }, [slug]);
 
     if (!config) return <div className="h-screen flex items-center justify-center text-white bg-black">Loading App...</div>;
 
@@ -165,9 +179,14 @@ export const MiniApp = () => {
                     maxPrice: filters.maxPrice
                 };
 
-                const slug = 'system';
-                const res = await import('../../services/publicApi').then(m => m.getPublicInventory(slug, apiFilters));
-                setCars(res.items);
+                const targetSlug = slug || 'system';
+                try {
+                    const res = await getShowcaseInventory(targetSlug, apiFilters);
+                    setCars(res.items);
+                } catch (e) {
+                     const res = await import('../../services/publicApi').then(m => m.getPublicInventory(targetSlug, apiFilters));
+                     setCars(res.items);
+                }
             } catch (e) {
                 console.error("Fetch inventory failed", e);
             }

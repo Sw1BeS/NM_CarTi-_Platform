@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useAuth } from './AuthContext';
+import { ApiClient } from '../services/apiClient';
 
 interface Company {
     id: string;
@@ -39,16 +40,8 @@ export const CompanyProvider: React.FC<{ children: ReactNode }> = ({ children })
         }
 
         try {
-            const response = await fetch('/api/companies/current', {
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('cartie_token')}`
-                }
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                setCompany(data);
-            }
+            const data = await ApiClient.apiFetch('/companies/current');
+            setCompany(data);
         } catch (e) {
             console.error('Failed to load company:', e);
         } finally {

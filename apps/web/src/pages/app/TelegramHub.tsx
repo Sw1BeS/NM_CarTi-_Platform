@@ -11,6 +11,7 @@ import { AddBotModal, BotSettings } from './TelegramHub.components';
 import { CampaignManager } from '../../modules/Telegram/components/CampaignManager';
 import { AudienceManager } from '../../modules/Telegram/components/AudienceManager';
 import { BotMenuEditor } from '../../modules/Telegram/components/BotMenuEditor';
+import { ShowcaseManager } from '../../modules/Telegram/components/ShowcaseManager';
 import { ScenarioBuilder } from './ScenarioBuilder'; // We will use a filtered version
 
 /**
@@ -24,7 +25,7 @@ export const TelegramHub = () => {
     const [viewMode, setViewMode] = useState<'STUDIO' | 'CLASSIC'>('STUDIO');
 
     // Studio Tabs
-    const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'FLOWS' | 'MENU' | 'CAMPAIGNS' | 'AUDIENCE' | 'MINIAPP' | 'MTPROTO' | 'SETTINGS'>('OVERVIEW');
+    const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'FLOWS' | 'MENU' | 'CAMPAIGNS' | 'AUDIENCE' | 'MINIAPP' | 'SHOWCASES' | 'MTPROTO' | 'SETTINGS'>('OVERVIEW');
 
     const [isAddBotOpen, setIsAddBotOpen] = useState(false);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -179,6 +180,7 @@ export const TelegramHub = () => {
                                 <TabBtn active={activeTab === 'CAMPAIGNS'} onClick={() => setActiveTab('CAMPAIGNS')} icon={Megaphone} label="Broadcasts" />
                                 <TabBtn active={activeTab === 'AUDIENCE'} onClick={() => setActiveTab('AUDIENCE')} icon={Users} label="Audience" />
                                 <TabBtn active={activeTab === 'MINIAPP'} onClick={() => setActiveTab('MINIAPP')} icon={Smartphone} label="Mini App" />
+                                <TabBtn active={activeTab === 'SHOWCASES'} onClick={() => setActiveTab('SHOWCASES')} icon={LayoutTemplate} label="Showcases" />
                                 <TabBtn active={activeTab === 'MTPROTO'} onClick={() => setActiveTab('MTPROTO')} icon={Wifi} label="Channels" />
                                 <TabBtn active={activeTab === 'SETTINGS'} onClick={() => setActiveTab('SETTINGS')} icon={Settings} label="Settings" />
                             </div>
@@ -202,6 +204,7 @@ export const TelegramHub = () => {
                                 {activeTab === 'CAMPAIGNS' && <CampaignManager bot={selectedBot} />}
                                 {activeTab === 'AUDIENCE' && <AudienceManager bot={selectedBot} />}
                                 {activeTab === 'MINIAPP' && <MiniAppManager botId={selectedBot.id} />}
+                                {activeTab === 'SHOWCASES' && <ShowcaseManager botId={selectedBot.id} />}
                                 {activeTab === 'MTPROTO' && <MTProtoSources botId={selectedBot.id} />}
                                 {activeTab === 'SETTINGS' && <BotSettings bot={selectedBot} />}
                             </div>

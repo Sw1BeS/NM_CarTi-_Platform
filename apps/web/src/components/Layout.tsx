@@ -117,6 +117,14 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout }) => {
     if (item.id === 'nav_company' && !(features as any).MODULE_COMPANIES) return false;
     if (item.id === 'nav_partners' && !(features as any).MODULE_COMPANIES) return false;
 
+    // Explicitly hide Automations in favor of Scenarios
+    if (item.path === '/automations') return false;
+
+    // HIDE FOR RELEASE (Temporary)
+    if (item.id === 'nav_company') return false;
+    if (item.id === 'nav_partners') return false;
+    if (item.id === 'nav_integrations') return false;
+
     return true;
   });
 

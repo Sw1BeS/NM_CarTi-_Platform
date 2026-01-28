@@ -64,6 +64,9 @@ router.post('/login', async (req: Request, res: Response) => {
 router.get('/me', authenticateToken, async (req: Request, res: Response) => {
   const jwtUser = (req as AuthRequest).user;
   try {
+    if (!jwtUser?.email) {
+      return (res as any).status(401).json({ error: 'Unauthorized' });
+    }
     const user = await getUserByEmail(jwtUser.email);
     if (!user) return (res as any).status(404).json({ error: 'User not found' });
 

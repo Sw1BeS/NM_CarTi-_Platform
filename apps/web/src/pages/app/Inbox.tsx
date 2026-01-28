@@ -2,8 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Data } from '../../services/data';
 import { BotEngine } from '../../services/botEngine';
 import { RequestsService } from '../../services/requestsService';
+import { LeadsService } from '../../services/leadsService';
 import { TelegramMessage, ChatMacro, User, B2BRequest, RequestStatus } from '../../types';
-import { Send, Inbox, Trash2, X, Zap, UserCheck, StickyNote, Filter, Paperclip, Car, Smile, Image as ImageIcon } from 'lucide-react';
+import { Send, Inbox, Trash2, X, Zap, UserCheck, StickyNote, Filter, Paperclip, Car, Smile, Image as ImageIcon, UserPlus, FileText } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
 import { useSearchParams } from 'react-router-dom';
@@ -172,7 +173,44 @@ export const InboxPage = () => {
         setShowEmojis(false);
     };
 
-    const assignChat = async (chatId: string, userId: string) => { /* ... [Unchanged] ... */
+    const createLead = async () => {
+        if (!activeChat || !selectedBotId) return;
+        try {
+            await LeadsService.createLead({
+                clientName: activeChat.lastMsg.from,
+                source: 'Telegram',
+                botId: selectedBotId,
+                userTgId: activeChatId || undefined,
+                status: 'NEW'
+            });
+            showToast('Lead created', 'success');
+        } catch (e: any) {
+            showToast(e.message, 'error');
+        }
+    };
+
+    const createRequest = async () => {
+        if (!activeChatId) return;
+        if (requestByChat[activeChatId]) return showToast('Request already exists', 'error');
+        try {
+            const chatInfo = chats.find(c => c.chatId === activeChatId);
+            const newReq = await RequestsService.createRequest({
+                clientChatId: activeChatId,
+                title: chatInfo ? `Request from ${chatInfo.lastMsg.from}` : 'New Request',
+                status: RequestStatus.DRAFT,
+                platform: 'TG',
+                budgetMin: 0, budgetMax: 0, yearMin: 0, yearMax: 0, city: '', description: '',
+                createdAt: new Date().toISOString()
+            });
+            setRequestByChat(prev => ({ ...prev, [activeChatId]: newReq }));
+            if (chatInfo) setChats(prev => prev.map(c => c.chatId === activeChatId ? { ...c, requestId: newReq.id } : c));
+            showToast('Request created', 'success');
+        } catch (e: any) {
+            showToast(e.message, 'error');
+        }
+    };
+
+    const assignChat = async (chatId: string, userId: string) => {
         let req = requestByChat[chatId];
         if (!req) {
             try {
@@ -266,6 +304,9 @@ export const InboxPage = () => {
                                 </div>
                             </div>
                             <div className="flex items-center gap-2">
+                                <button onClick={createLead} className="btn-secondary px-2 py-1 text-xs" title="Create Lead"><UserPlus size={14} /></button>
+                                <button onClick={createRequest} className={`btn-secondary px-2 py-1 text-xs ${activeRequest ? 'text-green-500' : ''}`} title={activeRequest ? "Request Exists" : "Create Request"}><FileText size={14} /></button>
+
                                 <select className="input text-xs px-2 py-1" value={activeChat?.assignedTo || ''} onChange={e => assignChat(activeChatId, e.target.value)}>
                                     <option value="">Unassigned</option>
                                     {managers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
