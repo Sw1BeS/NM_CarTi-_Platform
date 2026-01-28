@@ -48,6 +48,7 @@ export const mapBotInput = (input: any, existingConfig: any = {}) => {
   if ('companyId' in input) data.companyId = input.companyId || null;
   if ('active' in input) data.isEnabled = !!input.active;
   if ('isEnabled' in input) data.isEnabled = !!input.isEnabled;
+  if ('defaultShowcaseId' in input) data.defaultShowcaseId = input.defaultShowcaseId || null;
 
   return { data, config };
 };
@@ -58,6 +59,8 @@ export const mapBotOutput = (bot: any) => {
     id: bot.id,
     name: bot.name,
     username: config.username || bot.name || '',
+    defaultShowcaseId: bot.defaultShowcaseId,
+    defaultShowcaseSlug: bot.defaultShowcase?.slug,
     token: bot.token,
     role: config.role || 'CLIENT',
     active: bot.isEnabled,

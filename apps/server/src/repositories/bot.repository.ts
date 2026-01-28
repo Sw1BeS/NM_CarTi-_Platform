@@ -7,19 +7,19 @@ export class BotRepository extends BaseRepository<BotConfig> {
         super(prisma, 'botConfig');
     }
 
-    async findAllActive(): Promise<BotConfig[]> {
+    async findAllActive(): Promise<any[]> {
         return this.prisma.botConfig.findMany({
             where: { isEnabled: true },
             include: {
-                // scenarios: true, // Removed as per schema (relation might be different or not needed for active bots list)
-                // telegramUpdates: true // optional
+                defaultShowcase: true
             }
         });
     }
 
-    async findByToken(token: string): Promise<BotConfig | null> {
+    async findByToken(token: string): Promise<any> {
         return this.prisma.botConfig.findFirst({
-            where: { token }
+            where: { token },
+            include: { defaultShowcase: true }
         });
     }
 
@@ -28,7 +28,8 @@ export class BotRepository extends BaseRepository<BotConfig> {
         // If needed, we must fetch by companyId separately or adjust schema
         // For now, removing invalid include to fix build
         return this.prisma.botConfig.findUnique({
-            where: { id }
+            where: { id },
+            include: { defaultShowcase: true }
         });
     }
 
@@ -37,6 +38,7 @@ export class BotRepository extends BaseRepository<BotConfig> {
         token: string;
         companyId: string;
         isEnabled?: boolean;
+        defaultShowcaseId?: string;
     }): Promise<BotConfig> {
         return this.prisma.botConfig.create({
             data: {
@@ -46,7 +48,8 @@ export class BotRepository extends BaseRepository<BotConfig> {
                 companyId: data.companyId,
                 isEnabled: data.isEnabled ?? true,
                 template: 'CLIENT_LEAD', // Default template
-                deliveryMode: 'POLLING' // Default mode
+                deliveryMode: 'POLLING', // Default mode
+                defaultShowcaseId: data.defaultShowcaseId
             }
         });
     }

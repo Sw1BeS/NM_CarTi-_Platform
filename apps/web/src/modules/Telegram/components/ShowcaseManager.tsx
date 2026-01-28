@@ -1,27 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { ShowcaseService } from '../../../services/showcaseService';
 import { useToast } from '../../../contexts/ToastContext';
+import { Showcase } from '../../../types';
 import { Plus, Trash2, Edit, ExternalLink, Filter, Save, X } from 'lucide-react';
-
-interface Showcase {
-    id: string;
-    name: string;
-    slug: string;
-    botId?: string;
-    isPublic: boolean;
-    rules: {
-        mode: 'FILTER' | 'MANUAL' | 'HYBRID';
-        filters?: {
-            status?: string[];
-            priceMin?: number;
-            priceMax?: number;
-            yearMin?: number;
-            yearMax?: number;
-        };
-        includeIds?: string[];
-        excludeIds?: string[];
-    };
-}
 
 export const ShowcaseManager = ({ botId }: { botId: string }) => {
     const [items, setItems] = useState<Showcase[]>([]);
