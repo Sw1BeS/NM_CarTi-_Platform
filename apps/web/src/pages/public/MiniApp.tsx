@@ -1,8 +1,9 @@
 
 import React, { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 import { InventoryService } from '../../services/inventoryService';
 import { Bot, MiniAppConfig, CarListing } from '../../types';
-import { getPublicBots } from '../../services/publicApi';
+import { getPublicBots, getShowcaseInventory } from '../../services/publicApi';
 import {
     Search, LayoutGrid, User, Plus, Filter, ArrowRight, DollarSign,
     MessageSquare, Zap, List as ListIcon, Star, Phone, Home,
@@ -15,6 +16,7 @@ const PLACEHOLDER_IMAGE = 'https://images.unsplash.com/photo-1533473359331-0135e
 type InventoryTab = 'IN_STOCK' | 'IN_TRANSIT';
 
 export const MiniApp = () => {
+    const { slug } = useParams();
     const [activeBot, setActiveBot] = useState<Bot | null>(null);
     const [config, setConfig] = useState<MiniAppConfig | null>(null);
     const [view, setView] = useState<'HOME' | 'INVENTORY' | 'REQUEST' | 'PROFILE'>('HOME');
@@ -45,8 +47,9 @@ export const MiniApp = () => {
 
     useEffect(() => {
         const load = async () => {
-            // 1. Initialize Telegram Web App
+            // 1. Initialize Telegram Web App & Extract start_param
             const tg = (window as any).Telegram?.WebApp;
+            let startParam = '';
 
             if (tg && tg.initData) {
                 tg.ready();
@@ -54,10 +57,14 @@ export const MiniApp = () => {
                 tg.enableClosingConfirmation();
                 setTgUser(tg.initDataUnsafe?.user);
                 setIsPreview(false);
+                startParam = tg.initDataUnsafe?.start_param;
             } else {
                 // Mock environment for browser preview
                 setIsPreview(true);
                 setTgUser({ first_name: 'Guest', username: 'guest_user', id: 12345, photo_url: '' });
+                // Check URL params for start_param simulation
+                const urlParams = new URLSearchParams(window.location.search);
+                startParam = urlParams.get('tgWebAppStartParam') || urlParams.get('start_param') || '';
             }
 
             // 2. Load Bot Configuration
@@ -68,16 +75,28 @@ export const MiniApp = () => {
                 setConfig(bot.miniAppConfig || null);
             }
 
-            // 3. Load Data
+            // 3. Determine Target Slug
+            // Priority: URL Path Slug > Telegram Start Param > Default 'system'
+            const targetSlug = slug || startParam || 'system';
+
+            // 4. Load Data
             try {
-                const res = await InventoryService.getInventory({ status: 'AVAILABLE', limit: 100 });
-                setCars(res.items);
+                // Try Showcase API first
+                try {
+                    const res = await getShowcaseInventory(targetSlug);
+                    setCars(res.items);
+                } catch (e) {
+                    // Fallback to legacy public inventory if showcase not found
+                    console.warn(`Showcase '${targetSlug}' not found, falling back to legacy`, e);
+                    const res = await import('../../services/publicApi').then(m => m.getPublicInventory(targetSlug));
+                    setCars(res.items);
+                }
             } catch (e) {
                 console.error("Failed to load inventory for Mini App", e);
             }
         };
         load();
-    }, []);
+    }, [slug]);
 
     if (!config) return <div className="h-screen flex items-center justify-center text-white bg-black">Loading App...</div>;
 
@@ -141,44 +160,45 @@ export const MiniApp = () => {
         sendLeadPayload(payload);
     };
 
+    // Refetch when filters change
+    useEffect(() => {
+        const fetchCars = async () => {
+            try {
+                // Determine source filter based on tab if supported by backend,
+                // otherwise client-side filtering is fine for small datasets.
+                // For this release, we'll fetch all and filter locally for tab, but send search/range to API.
+                // Note: The public API we built only returns 'AVAILABLE' cars.
+                // If we need 'IN_TRANSIT' or specific sources, we might need to adjust API or client filter.
+                // Assuming Public API returns all 'AVAILABLE' for the company.
+
+                const apiFilters = {
+                    search,
+                    minYear: filters.minYear,
+                    maxYear: filters.maxYear,
+                    minPrice: filters.minPrice,
+                    maxPrice: filters.maxPrice
+                };
+
+                const targetSlug = slug || 'system';
+                try {
+                    const res = await getShowcaseInventory(targetSlug, apiFilters);
+                    setCars(res.items);
+                } catch (e) {
+                     const res = await import('../../services/publicApi').then(m => m.getPublicInventory(targetSlug, apiFilters));
+                     setCars(res.items);
+                }
+            } catch (e) {
+                console.error("Fetch inventory failed", e);
+            }
+        };
+        const debounce = setTimeout(fetchCars, 500);
+        return () => clearTimeout(debounce);
+    }, [search, filters, tab]); // Re-fetch on filter change
+
     const applyFiltersAndSort = () => {
         let filtered = cars;
 
-        // Tab filter
-        const hasPending = filtered.some(c => c.status === 'PENDING');
-        if (tab === 'IN_STOCK') {
-            filtered = hasPending
-                ? filtered.filter(c => c.status !== 'PENDING')
-                : filtered.filter(c => c.source === 'INTERNAL');
-        } else {
-            filtered = hasPending
-                ? filtered.filter(c => c.status === 'PENDING')
-                : filtered.filter(c => c.source !== 'INTERNAL');
-        }
-
-        // Search filter
-        if (search) {
-            filtered = filtered.filter(c => c.title.toLowerCase().includes(search.toLowerCase()));
-        }
-
-        // Advanced filters
-        if (filters.brand) {
-            filtered = filtered.filter(c => c.title.toLowerCase().includes(filters.brand.toLowerCase()));
-        }
-        if (filters.minYear) {
-            filtered = filtered.filter(c => c.year >= parseInt(filters.minYear));
-        }
-        if (filters.maxYear) {
-            filtered = filtered.filter(c => c.year <= parseInt(filters.maxYear));
-        }
-        if (filters.minPrice) {
-            filtered = filtered.filter(c => c.price.amount >= parseInt(filters.minPrice));
-        }
-        if (filters.maxPrice) {
-            filtered = filtered.filter(c => c.price.amount <= parseInt(filters.maxPrice));
-        }
-
-        // Sort
+        // Client-side Sort
         if (sortBy === 'price_asc') {
             filtered.sort((a, b) => a.price.amount - b.price.amount);
         } else if (sortBy === 'price_desc') {
@@ -474,11 +494,30 @@ export const MiniApp = () => {
                     username: tgUser?.username
                 }
             };
-            if (tg && tg.initData) {
-                sendLeadPayload(payload);
-            } else {
-                alert("[PREVIEW MODE] Data that would be sent to bot:\n" + JSON.stringify(payload, null, 2));
-                setReqStep(3);
+            // Use Direct API call for reliability
+            try {
+                const slug = 'system'; // TODO: Dynamic slug
+                const requestPayload = {
+                    title: `Request: ${reqData.brand} ${reqData.year}+`,
+                    description: `Budget: ${reqData.budget}\nUser: ${tgUser?.first_name} @${tgUser?.username}`,
+                    budgetMax: Number(reqData.budget),
+                    yearMin: Number(reqData.year),
+                    status: 'NEW',
+                    type: 'BUY',
+                    initData: tg?.initData
+                };
+
+                await import('../../services/publicApi').then(m => m.createPublicRequestWithSlug(slug, requestPayload as any));
+
+                if (tg && tg.initData) {
+                    // Also close/notify telegram
+                    tg.close();
+                } else {
+                    setReqStep(3);
+                }
+            } catch (e) {
+                console.error(e);
+                alert("Failed to submit request.");
             }
         }
     };

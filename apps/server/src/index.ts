@@ -79,6 +79,7 @@ app.use('/api', apiRoutes);
 
 // Health Check (Robust)
 app.get('/health', checkHealth);
+app.get('/api/health', checkHealth);
 
 // Serve Frontend (Vite Build)
 import path from 'path';

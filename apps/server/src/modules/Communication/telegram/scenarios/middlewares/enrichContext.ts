@@ -89,6 +89,33 @@ export const enrichContext: PipelineMiddleware = async (ctx: PipelineContext, ne
         }
       });
 
+      // Auto-create Lead for context
+      try {
+        const existingLead = await prisma.lead.findFirst({
+            where: {
+                botId: ctx.bot.id,
+                userTgId: ctx.userId || ctx.chatId
+            }
+        });
+
+        if (!existingLead && ctx.bot.companyId) {
+            await prisma.lead.create({
+                data: {
+                    botId: ctx.bot.id,
+                    companyId: ctx.bot.companyId,
+                    userTgId: ctx.userId || ctx.chatId,
+                    clientName: message?.from?.first_name || message?.from?.username || 'Unknown User',
+                    source: ctx.bot.name || 'Telegram Bot',
+                    status: 'NEW',
+                    phone: message?.contact?.phone_number || undefined
+                }
+            });
+            console.log(`[TelegramPipeline] Auto-created lead for ${ctx.chatId}`);
+        }
+      } catch(e) {
+          console.error('[TelegramPipeline] Lead creation failed:', e);
+      }
+
       // SendPulse Subscription (Placeholder)
       // Note: We usually don't have email/phone at session start.
       // logic omitted until user data is available

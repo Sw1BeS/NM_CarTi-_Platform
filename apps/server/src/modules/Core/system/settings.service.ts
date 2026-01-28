@@ -1,7 +1,23 @@
 
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../../../services/prisma.js';
+import { DEFAULT_NAVIGATION } from './defaults.js';
 
-const prisma = new PrismaClient();
+const DEFAULT_FEATURES = {
+    // Default fallbacks if DB is empty/old
+    MODULE_SCENARIOS: true,
+    MODULE_SEARCH: true,
+    MODULE_CAMPAIGNS: true,
+    MODULE_COMPANIES: false,
+    MODULE_CONTENT: true,
+    MODULE_INTEGRATIONS: false
+};
+
+const DEFAULT_PUBLIC_SETTINGS = {
+    branding: {},
+    modules: {},
+    navigation: DEFAULT_NAVIGATION,
+    features: DEFAULT_FEATURES
+};
 
 export class SettingsService {
     static async getSettings(isPublic = true) {
@@ -9,14 +25,17 @@ export class SettingsService {
             orderBy: { id: 'desc' }
         });
 
-        if (!settings) return null;
+        if (!settings) return DEFAULT_PUBLIC_SETTINGS;
 
         if (isPublic) {
+            const nav = settings.navigation as any;
+            const hasNav = nav && nav.items && nav.items.length > 0;
+
             return {
-                branding: settings.branding,
-                modules: settings.modules,
-                navigation: settings.navigation,
-                features: settings.features // keep compat
+                branding: settings.branding || {},
+                modules: settings.modules || {},
+                navigation: hasNav ? settings.navigation : DEFAULT_NAVIGATION,
+                features: settings.features || DEFAULT_FEATURES
             };
         }
 

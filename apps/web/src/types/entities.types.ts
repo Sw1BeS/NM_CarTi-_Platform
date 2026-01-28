@@ -89,6 +89,7 @@ export interface B2BRequest {
     publicId: string;
     platform: 'TG' | 'WA' | 'IG';
     title: string;
+    type: 'BUY' | 'SELL';
     budgetMin: number;
     budgetMax: number;
     yearMin: number;
@@ -162,4 +163,26 @@ export interface Company {
     plan: 'FREE' | 'PRO' | 'ENTERPRISE';
     status: 'ACTIVE' | 'INACTIVE';
     createdAt: string;
+}
+
+export interface ShowcaseRules {
+    mode: 'FILTER' | 'MANUAL' | 'HYBRID';
+    filters?: {
+        status?: string[];
+        priceMin?: number;
+        priceMax?: number;
+        yearMin?: number;
+        yearMax?: number;
+    };
+    includeIds?: string[];
+    excludeIds?: string[];
+}
+
+export interface Showcase {
+    id: string;
+    name: string;
+    slug: string;
+    botId?: string;
+    isPublic: boolean;
+    rules: ShowcaseRules;
 }

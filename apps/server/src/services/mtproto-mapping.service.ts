@@ -9,10 +9,8 @@
  * Applies import rules from ChannelSource configuration.
  */
 
-import { PrismaClient } from '@prisma/client';
+import { prisma } from './prisma.js';
 import type { ChannelSource } from '@prisma/client';
-
-const prisma = new PrismaClient();
 
 interface TelegramMessage {
     chatId: string;

@@ -34,6 +34,7 @@ export const RequestList: React.FC = () => {
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [createForm, setCreateForm] = useState({
         title: '',
+        type: 'BUY' as 'BUY' | 'SELL',
         budgetMin: 0,
         budgetMax: 0,
         yearMin: new Date().getFullYear() - 3,
@@ -117,7 +118,7 @@ export const RequestList: React.FC = () => {
             showToast('Title is required', 'error');
             return;
         }
-        if (!createForm.budgetMax || createForm.budgetMax <= 0) {
+        if (createForm.type === 'BUY' && (!createForm.budgetMax || createForm.budgetMax <= 0)) {
             showToast('Budget must be greater than 0', 'error');
             return;
         }
@@ -125,6 +126,7 @@ export const RequestList: React.FC = () => {
         try {
             await RequestsService.createRequest({
                 title: createForm.title,
+                type: createForm.type,
                 description: createForm.description || '',
                 budgetMin: Number(createForm.budgetMin) || 0,
                 budgetMax: Number(createForm.budgetMax),
@@ -139,6 +141,7 @@ export const RequestList: React.FC = () => {
             setIsCreateOpen(false);
             setCreateForm({
                 title: '',
+                type: 'BUY',
                 budgetMin: 0,
                 budgetMax: 0,
                 yearMin: new Date().getFullYear() - 3,
@@ -215,7 +218,7 @@ export const RequestList: React.FC = () => {
                                             <td className="font-mono text-sm text-[var(--text-secondary)]">{r.publicId}</td>
                                             <td>
                                                 <div className="font-bold text-base text-[var(--text-primary)]">{r.title}</div>
-                                                <div className="text-sm text-[var(--text-secondary)] mt-0.5">{r.yearMin}+</div>
+                                                <div className="text-sm text-[var(--text-secondary)] mt-0.5">{r.yearMin ? `${r.yearMin}+` : ''}</div>
                                             </td>
                                             <td>
                                                 <span className={`px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wider ${r.status === RequestStatus.DRAFT ? 'bg-blue-500/10 text-blue-500' :
@@ -230,9 +233,9 @@ export const RequestList: React.FC = () => {
                                                 </span>
                                             </td>
                                             <td className="tabular-nums text-[var(--text-primary)] font-medium text-base">
-                                                ${r.budgetMax.toLocaleString()}
+                                                ${r.budgetMax ? r.budgetMax.toLocaleString() : '—'}
                                             </td>
-                                            <td className="text-[var(--text-secondary)] text-sm">{r.city}</td>
+                                            <td className="text-[var(--text-secondary)] text-sm">{r.city || '—'}</td>
                                             <td>
                                                 <button
                                                     onClick={() => openBroadcast(r)}
@@ -283,8 +286,8 @@ export const RequestList: React.FC = () => {
                                             <h4 className="font-bold text-base text-[var(--text-primary)] mb-4 line-clamp-1">{r.title}</h4>
 
                                             <div className="grid grid-cols-2 gap-3 text-sm text-[var(--text-secondary)] mb-4">
-                                                <div className="flex items-center gap-1.5 bg-[var(--bg-input)] p-2 rounded"><DollarSign size={14} /> {r.budgetMax / 1000}k</div>
-                                                <div className="flex items-center gap-1.5 bg-[var(--bg-input)] p-2 rounded"><Calendar size={14} /> {r.yearMin}+</div>
+                                                <div className="flex items-center gap-1.5 bg-[var(--bg-input)] p-2 rounded"><DollarSign size={14} /> {r.budgetMax ? `${r.budgetMax / 1000}k` : '—'}</div>
+                                                <div className="flex items-center gap-1.5 bg-[var(--bg-input)] p-2 rounded"><Calendar size={14} /> {r.yearMin ? `${r.yearMin}+` : '—'}</div>
                                             </div>
 
                                             {r.variants?.length > 0 && (
@@ -314,9 +317,18 @@ export const RequestList: React.FC = () => {
                             <button onClick={() => setIsCreateOpen(false)} className="btn-ghost"><X size={20} /></button>
                         </div>
                         <div className="space-y-4">
-                            <div>
-                                <label className="text-xs font-bold text-[var(--text-secondary)] uppercase block mb-1">Title</label>
-                                <input className="input" value={createForm.title} onChange={e => setCreateForm({ ...createForm, title: e.target.value })} placeholder="e.g. BMW X5 2021+" />
+                            <div className="grid grid-cols-3 gap-3">
+                                <div className="col-span-2">
+                                    <label className="text-xs font-bold text-[var(--text-secondary)] uppercase block mb-1">Title</label>
+                                    <input className="input" value={createForm.title} onChange={e => setCreateForm({ ...createForm, title: e.target.value })} placeholder="e.g. BMW X5 2021+" />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-bold text-[var(--text-secondary)] uppercase block mb-1">Type</label>
+                                    <select className="input" value={createForm.type} onChange={e => setCreateForm({ ...createForm, type: e.target.value as any })}>
+                                        <option value="BUY">BUY</option>
+                                        <option value="SELL">SELL</option>
+                                    </select>
+                                </div>
                             </div>
                             <div className="grid grid-cols-2 gap-3">
                                 <div>

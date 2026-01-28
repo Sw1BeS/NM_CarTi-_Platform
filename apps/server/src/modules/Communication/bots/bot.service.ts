@@ -20,6 +20,7 @@ interface BotConfigModel {
     adminChatId: string | null;
     companyId?: string | null;
     config?: any;
+    defaultShowcase?: any;
 }
 
 // --- Bot Manager Class ---

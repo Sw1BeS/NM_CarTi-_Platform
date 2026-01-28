@@ -21,6 +21,8 @@ export interface Bot {
     adminChannelId?: string;
     channelId?: string;
     processedUpdateIds?: number[];
+    defaultShowcaseId?: string;
+    defaultShowcaseSlug?: string;
     stats?: {
         processed: number;
         ignored: number;

@@ -1,7 +1,5 @@
 
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '../services/prisma.js';
 
 const TEMPLATES = [
     {
@@ -304,5 +302,8 @@ main()
         process.exit(1);
     })
     .finally(async () => {
+        // process.exit handles disconnect in prisma.ts logic usually, but here explicit is fine.
+        // But since we use singleton, we should probably not disconnect if other things used it.
+        // However, this is a script, so it exits anyway.
         await prisma.$disconnect();
     });

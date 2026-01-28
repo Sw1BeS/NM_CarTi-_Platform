@@ -5,6 +5,7 @@
 
 import { prisma } from '../../../services/prisma.js';
 import { writeService } from '../../../services/v41/writeService.js';
+import bcrypt from 'bcryptjs';
 
 export class ClientManagerService {
     /**
@@ -26,10 +27,11 @@ export class ClientManagerService {
 
         // Create owner user
         const tempPassword = Math.random().toString(36).slice(-10);
+        const hashedPassword = await bcrypt.hash(tempPassword, 10);
 
         const owner = await writeService.createUserDual({
             email: data.ownerEmail,
-            passwordHash: tempPassword,
+            passwordHash: hashedPassword,
             name: data.ownerName || data.ownerEmail.split('@')[0],
             role: 'OWNER',
             companyId: company.id

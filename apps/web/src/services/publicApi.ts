@@ -40,10 +40,50 @@ export async function getPublicBots(): Promise<any[]> {
   });
 }
 
+export async function getShowcaseInventory(slug: string, filters?: any): Promise<{ items: any[]; showcase: any }> {
+  const query = new URLSearchParams();
+  if (filters) {
+    if (filters.search) query.append('search', filters.search);
+    if (filters.minYear) query.append('minYear', filters.minYear);
+    if (filters.maxYear) query.append('maxYear', filters.maxYear);
+    if (filters.minPrice) query.append('minPrice', filters.minPrice);
+    if (filters.maxPrice) query.append('maxPrice', filters.maxPrice);
+    if (filters.page) query.append('page', filters.page);
+    if (filters.limit) query.append('limit', filters.limit);
+  }
+  return await apiFetch(`/showcase/public/${slug}/inventory?${query.toString()}`, {
+    method: 'GET',
+    skipAuth: true
+  });
+}
+
 export async function getPublicRequests(): Promise<{ items: B2BRequest[] }> {
   return await apiFetch('/public/requests', {
     method: 'GET',
     skipAuth: true
+  });
+}
+
+export async function getPublicInventory(slug: string, filters?: any): Promise<{ items: any[] }> {
+  const query = new URLSearchParams();
+  if (filters) {
+    if (filters.search) query.append('search', filters.search);
+    if (filters.minYear) query.append('minYear', filters.minYear);
+    if (filters.maxYear) query.append('maxYear', filters.maxYear);
+    if (filters.minPrice) query.append('minPrice', filters.minPrice);
+    if (filters.maxPrice) query.append('maxPrice', filters.maxPrice);
+  }
+  return await apiFetch(`/public/${slug}/inventory?${query.toString()}`, {
+    method: 'GET',
+    skipAuth: true
+  });
+}
+
+export async function createPublicRequestWithSlug(slug: string, payload: Partial<B2BRequest>): Promise<B2BRequest> {
+  return await apiFetch(`/public/${slug}/requests`, {
+    method: 'POST',
+    skipAuth: true,
+    body: JSON.stringify(payload)
   });
 }
 

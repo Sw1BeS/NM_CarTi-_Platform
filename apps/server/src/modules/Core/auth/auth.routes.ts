@@ -62,8 +62,34 @@ router.post('/login', async (req: Request, res: Response) => {
 });
 
 router.get('/me', authenticateToken, async (req: Request, res: Response) => {
-  const user = (req as AuthRequest).user;
-  (res as any).json(user);
+  const jwtUser = (req as AuthRequest).user;
+  try {
+    if (!jwtUser?.email) {
+      return (res as any).status(401).json({ error: 'Unauthorized' });
+    }
+    const user = await getUserByEmail(jwtUser.email);
+    if (!user) return (res as any).status(404).json({ error: 'User not found' });
+
+    // Consistent shape with /login
+    const companyId = user.companyId || user.workspace?.id;
+    (res as any).json({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      companyId,
+      company: user.workspace ? {
+        id: user.workspace.id,
+        name: user.workspace.name,
+        slug: user.workspace.slug,
+        primaryColor: user.workspace.primaryColor,
+        plan: user.workspace.plan
+      } : null
+    });
+  } catch (e) {
+    console.error(e);
+    (res as any).status(500).json({ error: 'Failed to fetch user context' });
+  }
 });
 
 export default router;

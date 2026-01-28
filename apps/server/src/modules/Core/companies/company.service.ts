@@ -5,6 +5,7 @@
 import { prisma } from '../../../services/prisma.js';
 import { getWorkspaceById, getWorkspaceBySlug, getAllUsers } from '../../../services/v41/readService.js';
 import { writeService } from '../../../services/v41/writeService.js';
+import bcrypt from 'bcryptjs';
 
 export class CompanyService {
     /**
@@ -136,14 +137,18 @@ export class CompanyService {
 
         // Generate temporary password (should send email in production)
         const tempPassword = Math.random().toString(36).slice(-8);
+        const hashedPassword = await bcrypt.hash(tempPassword, 10);
 
-        return writeService.createUserDual({
+        const created = await writeService.createUserDual({
             email: data.email,
-            passwordHash: tempPassword, // In real app, hash this token
+            passwordHash: hashedPassword,
             name: data.name || data.email.split('@')[0],
             role: data.role,
             companyId
         });
+
+        // Return temp password so the API can show it once
+        return { ...created, tempPassword };
     }
 
     /**

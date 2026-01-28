@@ -285,8 +285,10 @@ export class ServerAdapter implements DataAdapter {
             { id: 'nav_cal', labelKey: 'nav.calendar', path: '/calendar', iconName: 'Calendar', visible: true, order: 5, roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OPERATOR', 'USER', 'OWNER', 'DEALER'] },
             { id: 'nav_cont', labelKey: 'nav.content', path: '/content', iconName: 'Library', visible: true, order: 6, roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OPERATOR', 'USER', 'OWNER', 'DEALER'] },
             { id: 'nav_scen', labelKey: 'nav.scenarios', path: '/scenarios', iconName: 'Database', visible: true, order: 7, roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OPERATOR', 'USER', 'OWNER', 'DEALER'] },
-            { id: 'nav_integrations', labelKey: 'nav.integrations', path: '/integrations', iconName: 'Plug', visible: true, order: 8, roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OWNER'] },
-            { id: 'nav_company', labelKey: 'nav.company', path: '/company', iconName: 'Briefcase', visible: true, order: 9, roles: ['SUPER_ADMIN', 'ADMIN', 'OWNER'] },
+            // Integrations: Hidden for Release 1.0 (Only TG/MTProto active via Telegram Hub)
+            // { id: 'nav_integrations', labelKey: 'nav.integrations', path: '/integrations', iconName: 'Plug', visible: true, order: 8, roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OWNER'] },
+            // Company: Hidden for simplified flow
+            // { id: 'nav_company', labelKey: 'nav.company', path: '/company', iconName: 'Briefcase', visible: true, order: 9, roles: ['SUPER_ADMIN', 'ADMIN', 'OWNER'] },
             { id: 'nav_sets', labelKey: 'nav.settings', path: '/settings', iconName: 'Settings', visible: true, order: 99, roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OPERATOR', 'USER', 'OWNER', 'DEALER'] }
         ];
 

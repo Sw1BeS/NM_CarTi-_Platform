@@ -22,14 +22,18 @@ export function getApiBase(): string {
     // 2. Environment variable (Vite)
     // Cast import.meta to any to avoid TS errors in some environments
     const meta = import.meta as any;
-    if (meta.env?.VITE_API_BASE_URL) {
-        return normalizeApiBase(meta.env.VITE_API_BASE_URL);
+    // Standardize on VITE_API_URL, but support legacy VITE_API_BASE_URL
+    const envUrl = meta.env?.VITE_API_URL || meta.env?.VITE_API_BASE_URL;
+    if (envUrl) {
+        return normalizeApiBase(envUrl);
     }
 
     // 3. Local Development Fallback
     // If we are on localhost and NOT on port 8082 (API server), assume API is on 8082
     if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
         if (window.location.port !== '8082') {
+            // Check if we are in a container mapped to 3000 but API is on 8082
+            // or if we are just running vite dev server.
             return `${DEFAULT_LOCAL_FALLBACK}/api`;
         }
     }

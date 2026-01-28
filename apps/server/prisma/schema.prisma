@@ -42,6 +42,11 @@ enum RequestStatus {
   LOST
 }
 
+enum RequestType {
+  BUY
+  SELL
+}
+
 enum VariantStatus {
   SUBMITTED
   REVIEWED
@@ -88,6 +93,33 @@ enum UserRole {
   MANAGER
   DEALER
   VIEWER
+}
+
+model Showcase {
+  id String @id @default(cuid())
+
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  name     String
+  slug     String  @unique
+  isPublic Boolean @default(true)
+
+  // Link to Bot (optional)
+  botId String?
+  bot   BotConfig? @relation("BotShowcases", fields: [botId], references: [id])
+
+  // Reverse relation for Default Showcase
+  botDefaultFor BotConfig[] @relation("BotDefaultShowcase")
+
+  // Rules for filtering (JSON)
+  rules Json @db.JsonB
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([workspaceId])
+  @@index([botId])
 }
 
 // ========================================
@@ -167,6 +199,10 @@ model BotConfig {
   deliveryMode BotDeliveryMode @default(POLLING)
   config       Json?           @db.JsonB
 
+  // Link to Default Showcase
+  defaultShowcaseId String?
+  defaultShowcase   Showcase? @relation("BotDefaultShowcase", fields: [defaultShowcaseId], references: [id])
+
   companyId String
   workspace Workspace @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
@@ -180,6 +216,7 @@ model BotConfig {
   platformEvents  PlatformEvent[]
   telegramUpdates TelegramUpdate[]
   messages        BotMessage[]
+  showcases       Showcase[]       @relation("BotShowcases")
 
   @@index([companyId])
 }
@@ -258,6 +295,7 @@ model B2bRequest {
   chatId   String?
   content  String? // Original raw text
   status   RequestStatus @default(DRAFT)
+  type     RequestType   @default(BUY)
   priority String        @default("NORMAL")
 
   companyId     String?
@@ -425,27 +463,27 @@ model ChannelSource {
 }
 
 model ChannelPost {
-  id        String      @id @default(cuid())
-  
+  id String @id @default(cuid())
+
   // Decoupled Relations
   requestId String?
   request   B2bRequest? @relation(fields: [requestId], references: [id], onDelete: Cascade)
-  
-  draftId   Int?        // Link to content calendar
-  draft     Draft?      @relation(fields: [draftId], references: [id], onDelete: SetNull)
 
-  carId     String?     // Direct link to inventory if not via Request
-  
-  botId     String?
-  bot       BotConfig?  @relation(fields: [botId], references: [id])
-  
+  draftId Int? // Link to content calendar
+  draft   Draft? @relation(fields: [draftId], references: [id], onDelete: SetNull)
+
+  carId String? // Direct link to inventory if not via Request
+
+  botId String?
+  bot   BotConfig? @relation(fields: [botId], references: [id])
+
   channelId String
   messageId Int
-  status    String      @default("ACTIVE") // ACTIVE, UPDATED, CLOSED
-  payload   Json?       @db.JsonB
-  
-  createdAt DateTime    @default(now())
-  updatedAt DateTime    @updatedAt
+  status    String @default("ACTIVE") // ACTIVE, UPDATED, CLOSED
+  payload   Json?  @db.JsonB
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([requestId, channelId])
   @@index([channelId])
@@ -716,6 +754,7 @@ model Workspace {
   platformEvents       PlatformEvent[]
   mtProtoConnectors    MTProtoConnector[]
   leads                Lead[]
+  showcases            Showcase[]
 
   @@index([deleted_at])
   @@map("workspaces")

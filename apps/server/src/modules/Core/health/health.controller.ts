@@ -32,6 +32,10 @@ export const checkHealth = async (req: Request, res: Response) => {
             status: dbStatus,
             latency_ms: dbLatency
         },
+        // Frontend expects these at top level or we align structure.
+        // Lifting for compatibility with Health.tsx
+        bots: botManager.getStatus(),
+        worker: getWorkerStatus(),
         services: {
             bots: botManager.getStatus(),
             contentWorker: getWorkerStatus()
