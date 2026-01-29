@@ -253,6 +253,14 @@ const TabBtn = ({ active, onClick, icon: Icon, label }: any) => (
 
 // Simplified Overview (basic stats)
 const BotOverview = ({ bot }: { bot: Bot }) => {
+    const [tgStats, setTgStats] = useState<any>(null);
+
+    useEffect(() => {
+        ApiClient.get('integrations/mtproto/stats').then(res => {
+            if (res.ok) setTgStats(res.data);
+        }).catch(console.error);
+    }, []);
+
     return (
         <div className="p-6 overflow-y-auto h-full">
             <h2 className="text-2xl font-bold text-[var(--text-primary)] mb-6">Bot Overview</h2>
@@ -262,10 +270,24 @@ const BotOverview = ({ bot }: { bot: Bot }) => {
                 <StatCard title="Messages Sent" value="0" color="purple" />
             </div>
 
+            {tgStats && (
+                <div className="mb-6">
+                    <h3 className="font-bold text-[var(--text-primary)] mb-3 flex items-center gap-2 text-sm uppercase">
+                        <Wifi size={16} className="text-blue-500" /> Telegram Pulse
+                    </h3>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <StatCard title="Imported Cars" value={tgStats.totalCars} color="gold" />
+                        <StatCard title="New (24h)" value={tgStats.newCars} color="green" />
+                        <StatCard title="TG Leads" value={tgStats.totalLeads} color="blue" />
+                        <StatCard title="Active Sources" value={tgStats.activeSources} color="gray" />
+                    </div>
+                </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="panel p-6 bg-[var(--bg-panel)] border border-[var(--border-color)]">
                     <h3 className="font-bold text-[var(--text-primary)] mb-4 flex items-center gap-2">
-                        <Activity size={18} className="text-gold-500"/> Activity
+                        <Activity size={18} className="text-gold-500" /> Activity
                     </h3>
                     <p className="text-sm text-[var(--text-secondary)]">
                         Bot <span className="font-bold text-[var(--text-primary)]">{bot.name}</span> is{' '}
@@ -282,7 +304,7 @@ const BotOverview = ({ bot }: { bot: Bot }) => {
 
                 <div className="panel p-6 bg-[var(--bg-panel)] border border-[var(--border-color)]">
                     <h3 className="font-bold text-[var(--text-primary)] mb-4 flex items-center gap-2">
-                        <Smartphone size={18} className="text-blue-500"/> Mini App Health
+                        <Smartphone size={18} className="text-blue-500" /> Mini App Health
                     </h3>
                     <div className="space-y-3">
                         <div className="flex justify-between text-sm">

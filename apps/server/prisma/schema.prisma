@@ -49,6 +49,7 @@ enum RequestType {
 
 enum VariantStatus {
   SUBMITTED
+  PENDING
   REVIEWED
   APPROVED
   REJECTED
@@ -252,6 +253,7 @@ model Lead {
   @@index([botId, status])
   @@index([botId, phone, createdAt])
   @@index([userTgId, botId])
+  @@index([source])
 }
 
 model LeadActivity {
@@ -401,6 +403,7 @@ model CarListing {
   @@index([companyId, status])
   @@index([companyId, status, createdAt])
   @@index([year, price])
+  @@index([source])
 }
 
 model MTProtoConnector {

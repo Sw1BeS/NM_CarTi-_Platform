@@ -22,6 +22,7 @@ import { botManager } from './modules/Communication/bots/bot.service.js';
 import { seedAdmin } from './modules/Core/users/user.service.js';
 import { bootstrapVariantB } from './modules/Core/entities/bootstrapVariantB.js';
 import { startContentWorker, stopContentWorker, getWorkerStatus } from './workers/content.worker.js';
+import { startScheduler } from './workers/scheduler.js';
 import { mtprotoWorker } from './modules/Integrations/mtproto/mtproto.worker.js';
 import { MTProtoLifeCycle } from './modules/Integrations/mtproto/mtproto.lifecycle.js';
 import { workspaceContext } from './middleware/workspaceContext.js';
@@ -119,6 +120,9 @@ const startServer = async () => {
 
     // Start Content Worker for scheduled posts
     startContentWorker();
+
+    // Start Stage 2 Scheduler (Telegram Sync)
+    startScheduler();
 
     // Start MTProto Live Sync
     mtprotoWorker.startLiveSync();

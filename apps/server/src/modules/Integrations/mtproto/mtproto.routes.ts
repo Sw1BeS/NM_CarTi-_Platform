@@ -26,6 +26,16 @@ router.get('/connectors', async (req: any, res) => {
     }
 });
 
+// GET /api/integrations/mtproto/stats
+router.get('/stats', requireRole('OWNER', 'ADMIN'), async (req: any, res) => {
+    try {
+        const stats = await MTProtoService.getStats();
+        res.json(stats);
+    } catch (e: any) {
+        return errorResponse(res, 500, e.message || 'Stats error', 'MTPROTO_ERROR');
+    }
+});
+
 // POST /api/integrations/mtproto/connectors
 // Create a new connector
 router.post('/connectors', requireRole('OWNER', 'ADMIN'), async (req: any, res) => {
@@ -122,6 +132,34 @@ import { mtprotoWorker } from './mtproto.worker.js';
 
 // ... (existing imports)
 
+// Update Channel Parsing Rules
+router.put('/:connectorId/channels/:sourceId', requireRole('OWNER', 'ADMIN'), async (req: any, res) => {
+    try {
+        const { sourceId } = req.params;
+        const { importRules } = req.body;
+
+        const channel = await MTProtoService.updateChannel(sourceId, { importRules });
+        res.json(channel);
+    } catch (e: any) {
+        return errorResponse(res, 500, e.message || 'Failed to update channel', 'MTPROTO_ERROR');
+    }
+});
+
+// POST /api/integrations/mtproto/:connectorId/channels/:sourceId/sync
+router.post('/:connectorId/channels/:sourceId/sync', requireRole('OWNER', 'ADMIN'), async (req: any, res) => {
+    try {
+        const { connectorId, sourceId } = req.params;
+        // Asynchronously start sync
+        MTProtoService.syncChannel(connectorId, sourceId)
+            .then(result => logger.info(`Manual sync finished for ${sourceId}: ${result.imported} items`))
+            .catch(err => logger.error(`Manual sync failed for ${sourceId}:`, err));
+
+        res.json({ success: true, message: 'Sync started in background' });
+    } catch (e: any) {
+        return errorResponse(res, 500, e.message || 'MTProto error', 'MTPROTO_ERROR');
+    }
+});
+
 // POST /api/integrations/mtproto/:connectorId/sync
 router.post('/:connectorId/sync', requireRole('OWNER', 'ADMIN'), async (req: any, res) => {
     try {
@@ -129,7 +167,9 @@ router.post('/:connectorId/sync', requireRole('OWNER', 'ADMIN'), async (req: any
         // For now, running the global worker cycle is safe enough or we make it targeted
 
         // Let's just trigger the global worker 
-        mtprotoWorker.runBackfill().catch(err => logger.error(err));
+        if (mtprotoWorker) {
+            mtprotoWorker.runBackfill().catch((err: any) => logger.error(err));
+        }
 
         res.json({ success: true, message: 'Sync started' });
     } catch (e: any) {

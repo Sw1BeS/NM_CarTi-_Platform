@@ -253,12 +253,22 @@ export const BotSettings = ({ bot }: { bot: Bot }) => {
                     <label className="text-xs font-bold text-[var(--text-secondary)] uppercase mb-2 block">API Token</label>
                     <input className="input font-mono text-sm" type="password" value={form.token} onChange={e => setForm({ ...form, token: e.target.value })} />
                 </div>
+                <div className="grid grid-cols-2 gap-6">
+                    <div>
+                        <label className="text-xs font-bold text-[var(--text-secondary)] uppercase mb-2 block">Channel ID</label>
+                        <input className="input font-mono text-sm" placeholder="-100..." value={form.channelId || ''} onChange={e => setForm({ ...form, channelId: e.target.value })} />
+                    </div>
+                    <div>
+                        <label className="text-xs font-bold text-[var(--text-secondary)] uppercase mb-2 block">Admin Chat ID</label>
+                        <input className="input font-mono text-sm" placeholder="12345..." value={form.adminChatId || ''} onChange={e => setForm({ ...form, adminChatId: e.target.value })} />
+                    </div>
+                </div>
                 <div>
                     <label className="text-xs font-bold text-[var(--text-secondary)] uppercase mb-2 block">Default Showcase</label>
                     <select
                         className="input w-full"
                         value={form.defaultShowcaseId || ''}
-                            onChange={e => {
+                        onChange={e => {
                             const sc = showcases.find(s => s.id === e.target.value);
                             setForm({
                                 ...form,

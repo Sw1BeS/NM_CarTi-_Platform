@@ -18,6 +18,9 @@ router.use(companyContext);
 import mtprotoRoutes from './mtproto/mtproto.routes.js';
 router.use('/mtproto', mtprotoRoutes as any);
 
+import parsingRoutes from './parsing/parsing.routes.js';
+router.use('/parsing', parsingRoutes as any);
+
 /**
  * GET /api/integrations
  * Get all integrations for company

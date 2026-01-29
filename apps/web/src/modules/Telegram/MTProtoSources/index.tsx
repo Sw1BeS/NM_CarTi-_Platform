@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { ApiClient } from '../../../services/apiClient';
 import { MTProtoConnector } from '../../../types/mtproto.types';
 import { useToast } from '../../../contexts/ToastContext';
-import { Wifi, Plus, Trash2, RefreshCw, AlertTriangle } from 'lucide-react';
+import { Wifi, Plus, Trash2, RefreshCw, AlertTriangle, FileCode } from 'lucide-react';
+import { ParsingRuleEditor } from './ParsingRuleEditor';
 
 export const MTProtoSources = ({ botId }: { botId: string }) => {
     const { showToast } = useToast();
@@ -11,6 +12,7 @@ export const MTProtoSources = ({ botId }: { botId: string }) => {
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [newConnector, setNewConnector] = useState({ name: '', phone: '' });
     const [creating, setCreating] = useState(false);
+    const [editingRulesFor, setEditingRulesFor] = useState<any>(null); // { id, rules, title }
 
     useEffect(() => {
         loadConnectors();
@@ -99,41 +101,16 @@ export const MTProtoSources = ({ botId }: { botId: string }) => {
                 </div>
             ) : (
                 <div className="grid gap-4">
-                    {connectors.map(conn => (
-                        <div
-                            key={conn.id}
-                            className="panel p-4 flex justify-between items-center border-l-4 border-l-gold-500"
-                        >
-                            <div>
-                                <h4 className="font-bold text-[var(--text-primary)]">{conn.name}</h4>
-                                <p className="text-xs text-[var(--text-secondary)] mt-1">
-                                    Status:{' '}
-                                    <span
-                                        className={`font-bold ${conn.status === 'READY'
-                                            ? 'text-green-500'
-                                            : conn.status === 'ERROR'
-                                                ? 'text-red-500'
-                                                : 'text-yellow-500'
-                                            }`}
-                                    >
-                                        {conn.status}
-                                    </span>
-                                </p>
-                                {conn.phone && <p className="text-xs text-[var(--text-muted)] mt-1">Phone: {conn.phone}</p>}
-                            </div>
-                            <div className="flex gap-2">
-                                <button className="btn-secondary px-3 py-1 text-xs">
-                                    <RefreshCw size={14} /> Sync
-                                </button>
-                                <button
-                                    onClick={() => deleteConnector(conn.id)}
-                                    className="text-red-500 hover:bg-red-500/10 p-2 rounded"
-                                >
-                                    <Trash2 size={16} />
-                                </button>
-                            </div>
-                        </div>
-                    ))}
+                    <div className="grid gap-4">
+                        {connectors.map(conn => (
+                            <ConnectorItem
+                                key={conn.id}
+                                connector={conn}
+                                onDelete={() => deleteConnector(conn.id)}
+                                onEditRules={(source) => setEditingRulesFor(source)}
+                            />
+                        ))}
+                    </div>
                 </div>
             )}
 
@@ -194,6 +171,162 @@ export const MTProtoSources = ({ botId }: { botId: string }) => {
                     </div>
                 </div>
             )}
+
+            {/* Parsing Rule Editor Modal */}
+            {editingRulesFor && (
+                <ParsingRuleEditor
+                    initialRules={editingRulesFor.importRules}
+                    sampleText={`Sample message from ${editingRulesFor.title}...\nLine 2\nPrice: $25000\nYear: 2020`}
+                    onClose={() => setEditingRulesFor(null)}
+                    onSave={async (rules) => {
+                        try {
+                            // PUT request to update stats
+                            await ApiClient.put(`integrations/mtproto/${editingRulesFor.connectorId}/channels/${editingRulesFor.id}`, { importRules: rules });
+                            showToast('Rules saved successfully', 'success');
+                            setEditingRulesFor(null);
+                            loadConnectors(); // Refresh to update rules in state if needed
+                        } catch (e) {
+                            showToast('Failed to save rules', 'error');
+                        }
+                    }}
+                />
+            )}
+        </div>
+    );
+};
+
+const ConnectorItem = ({ connector, onDelete, onEditRules }: { connector: MTProtoConnector, onDelete: () => void, onEditRules: (s: any) => void }) => {
+    const { showToast } = useToast();
+    const [channels, setChannels] = useState<any[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [adding, setAdding] = useState(false);
+    const [channelQuery, setChannelQuery] = useState('');
+    const [syncing, setSyncing] = useState<string | null>(null);
+
+    useEffect(() => {
+        loadChannels();
+    }, [connector.id]);
+
+    const loadChannels = async () => {
+        try {
+            const res = await ApiClient.get(`integrations/mtproto/${connector.id}/channels`);
+            if (res.ok) setChannels(res.data);
+        } catch (e) {
+            console.error("Failed to load channels", e);
+        }
+    };
+
+    const handleSync = async (sourceId: string) => {
+        setSyncing(sourceId);
+        try {
+            await ApiClient.post(`integrations/mtproto/${connector.id}/channels/${sourceId}/sync`, {});
+            showToast('Sync started in background', 'success');
+        } catch (e) {
+            showToast('Sync failed', 'error');
+        } finally {
+            setSyncing(null);
+        }
+    };
+
+    const handleAddChannel = async () => {
+        if (!channelQuery) return;
+        setAdding(true);
+        try {
+            // 1. Resolve
+            const resolveRes = await ApiClient.get(`integrations/mtproto/${connector.id}/resolve?query=${channelQuery}`);
+            if (!resolveRes.ok) throw new Error(resolveRes.message);
+
+            const channel = resolveRes.data;
+            if (confirm(`Add channel "${channel.title}"?`)) {
+                await ApiClient.post(`integrations/mtproto/${connector.id}/channels`, {
+                    channel,
+                    importRules: { autoPublish: false }
+                });
+                showToast('Channel added', 'success');
+                setChannelQuery('');
+                loadChannels();
+            }
+        } catch (e: any) {
+            showToast(e.message || 'Failed to add channel', 'error');
+        } finally {
+            setAdding(false);
+        }
+    };
+
+    return (
+        <div className="panel p-0 overflow-hidden border-l-4 border-l-gold-500">
+            {/* Header */}
+            <div className="p-4 bg-[var(--bg-input)] flex justify-between items-center">
+                <div>
+                    <h4 className="font-bold text-[var(--text-primary)]">{connector.name}</h4>
+                    <div className="flex gap-2 text-xs mt-1">
+                        <span className={`font-bold ${connector.status === 'READY' ? 'text-green-500' : 'text-yellow-500'}`}>{connector.status}</span>
+                        <span className="text-[var(--text-muted)]">{connector.phone}</span>
+                    </div>
+                </div>
+                <div className="flex gap-2">
+                    <button
+                        onClick={onDelete}
+                        className="text-red-500 hover:bg-red-500/10 p-2 rounded"
+                    >
+                        <Trash2 size={16} />
+                    </button>
+                </div>
+            </div>
+
+            {/* Channels List */}
+            <div className="p-4 border-t border-[var(--border-color)]">
+                <h5 className="font-bold text-xs uppercase text-[var(--text-secondary)] mb-3 flex justify-between">
+                    Import Sources
+                </h5>
+                <div className="space-y-2 mb-4">
+                    {channels.map((ch: any) => (
+                        <div key={ch.id} className="flex justify-between items-center p-2 rounded bg-[var(--bg-app)] border border-[var(--border-color)]">
+                            <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-full bg-blue-500/20 text-blue-500 flex items-center justify-center font-bold text-xs">TG</div>
+                                <div>
+                                    <div className="font-bold text-sm text-[var(--text-primary)]">{ch.title}</div>
+                                    <div className="text-[10px] text-[var(--text-secondary)]">{ch.username ? '@' + ch.username : 'Private'}</div>
+                                </div>
+                            </div>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => handleSync(ch.id)}
+                                    disabled={!!syncing}
+                                    className="btn-secondary px-2 py-1 text-xs flex items-center gap-1"
+                                >
+                                    <RefreshCw size={12} className={syncing === ch.id ? 'animate-spin' : ''} />
+                                    {syncing === ch.id ? 'Syncing...' : 'Sync'}
+                                </button>
+                                <button
+                                    onClick={() => onEditRules(ch)}
+                                    className="btn-ghost px-2 py-1 text-xs flex items-center gap-1 text-[var(--text-secondary)]"
+                                >
+                                    <FileCode size={12} /> Rules
+                                </button>
+                            </div>
+                        </div>
+                    ))}
+                    {channels.length === 0 && <div className="text-xs text-[var(--text-muted)] italic">No channels added.</div>}
+                </div>
+
+                {/* Add Channel */}
+                <div className="flex gap-2">
+                    <input
+                        className="input text-sm py-1"
+                        placeholder="@channel or t.me/link"
+                        value={channelQuery}
+                        onChange={e => setChannelQuery(e.target.value)}
+                    />
+                    <button
+                        onClick={handleAddChannel}
+                        disabled={adding || !channelQuery}
+                        className="btn-primary px-3 py-1 text-xs whitespace-nowrap"
+                    >
+                        {adding ? 'Checking...' : '+ Add'}
+                    </button>
+                </div>
+            </div>
         </div>
     );
 };

@@ -220,6 +220,19 @@ class BotInstance {
 
 
     private async processUpdate(update: any) {
+        // HACK: Intercept "Offer Flow" before pipeline
+        const msg = update.message || update.callback_query?.message;
+        const chatId = msg?.chat?.id?.toString?.();
+
+        if (chatId) {
+            const session = await this.ensureSession(update);
+            if (session && session.state.startsWith('OFFER_')) {
+                const text = update.message?.text || '';
+                await this.handleOfferFlow(update, chatId, text, session);
+                return; // Skip pipeline
+            }
+        }
+
         try {
             await runTelegramPipeline({ update, bot: this.config as any, botId: this.config.id, source: 'polling' });
         } catch (err: any) {
@@ -255,7 +268,7 @@ class BotInstance {
                 await this.sendMessage(chatId, `🤝 <b>Welcome, Dealer!</b>\n\nYou've been invited to join our partner network.\n\nPlease share your contact to proceed.`, {
                     keyboard: [[{ text: "📱 Share Contact", request_contact: true }]], resize_keyboard: true
                 });
-                await this.updateState(session.id, 'DEALER_ONBOARDING', {
+                await this.updateSession(session.id, 'DEALER_ONBOARDING', {
                     role: 'DEALER',
                     dealerId: payload.id,
                     requestId: payload.metadata?.requestId
@@ -284,8 +297,11 @@ class BotInstance {
                 break;
 
             case 'offer':
-                // Offer notification from dealer to client
-                await this.sendMessage(chatId, `📦 <b>New Offer Available</b>\n\nA dealer has submitted an offer for your request #${payload.id}.\n\nUse /requests to view details.`);
+                // Offer notification from dealer to client OR Dealer entering Offer Flow
+                await this.sendMessage(chatId, `👷 <b>Submit Offer for Request #${payload.id}</b>\n\nPlease enter your price (USD):`);
+                await this.updateSession(session.id, 'OFFER_PRICE', {
+                    offerFlow: { requestId: payload.id }
+                });
                 break;
 
             default:
@@ -310,7 +326,7 @@ class BotInstance {
                 ],
                 resize_keyboard: true
             });
-            await this.updateState(session.id, 'LEAD_MENU', { leadFlow: {} });
+            await this.updateSession(session.id, 'LEAD_MENU', { leadFlow: {} });
         };
 
         if (text === '/start' || text === 'reset') {
@@ -324,7 +340,7 @@ class BotInstance {
         if (text === '/buy' || text === '🚗 Залишити заявку' || state === 'LEAD_MENU') {
             if (backCmd.includes(text.toLowerCase())) return resetToMenu();
             await this.sendMessage(chatId, "Як тебе звати?", { remove_keyboard: true });
-            await this.updateState(session.id, 'LEAD_NAME', { leadFlow: {} });
+            await this.updateSession(session.id, 'LEAD_NAME', { leadFlow: {} });
             return;
         }
 
@@ -334,7 +350,7 @@ class BotInstance {
                 return;
             }
             vars.leadFlow = { ...(vars.leadFlow || {}), name: text };
-            await this.updateState(session.id, 'LEAD_CAR', { ...vars });
+            await this.updateSession(session.id, 'LEAD_CAR', { ...vars });
             await this.sendMessage(chatId, "Яке авто шукаєш? Напиши марку/модель/рік. Напр: BMW X5 2020.");
             return;
         }
@@ -345,7 +361,7 @@ class BotInstance {
                 return;
             }
             vars.leadFlow = { ...(vars.leadFlow || {}), car: text };
-            await this.updateState(session.id, 'LEAD_BUDGET', { ...vars });
+            await this.updateSession(session.id, 'LEAD_BUDGET', { ...vars });
             await this.sendMessage(chatId, "Який бюджет (USD)?");
             return;
         }
@@ -353,14 +369,14 @@ class BotInstance {
         if (state === 'LEAD_BUDGET') {
             const budget = parseInt(text.replace(/[^\d]/g, ''), 10) || 0;
             vars.leadFlow = { ...(vars.leadFlow || {}), budget };
-            await this.updateState(session.id, 'LEAD_CITY', { ...vars });
+            await this.updateSession(session.id, 'LEAD_CITY', { ...vars });
             await this.sendMessage(chatId, "Вкажи місто або локацію:");
             return;
         }
 
         if (state === 'LEAD_CITY') {
             vars.leadFlow = { ...(vars.leadFlow || {}), city: text || '' };
-            await this.updateState(session.id, 'LEAD_CONTACT', { ...vars });
+            await this.updateSession(session.id, 'LEAD_CONTACT', { ...vars });
             await this.sendMessage(chatId, "Надішли номер (кнопка) або впиши вручну:", {
                 keyboard: [[{ text: "📱 Поділитися контактом", request_contact: true }], [{ text: "⬅️ Назад" }]],
                 resize_keyboard: true
@@ -379,7 +395,7 @@ class BotInstance {
                 }
                 vars.leadFlow = { ...(vars.leadFlow || {}), phone };
             }
-            await this.updateState(session.id, 'LEAD_CONFIRM', { ...vars });
+            await this.updateSession(session.id, 'LEAD_CONFIRM', { ...vars });
             const lf = vars.leadFlow;
             const summary = [
                 `🙋‍♂️ Ім'я: ${lf.name}`,
@@ -400,7 +416,7 @@ class BotInstance {
         if (state === 'LEAD_CONFIRM' && msg?.callback_query) {
             const data = msg.callback_query.data;
             if (data === 'LEAD_CONFIRM_BACK') {
-                await this.updateState(session.id, 'LEAD_CONTACT', { ...vars });
+                await this.updateSession(session.id, 'LEAD_CONTACT', { ...vars });
                 await this.sendMessage(chatId, "Онови контакт і підтверди ще раз.", {
                     keyboard: [[{ text: "📱 Поділитися контактом", request_contact: true }], [{ text: "⬅️ Назад" }]],
                     resize_keyboard: true
@@ -441,12 +457,22 @@ class BotInstance {
                 });
 
                 await this.sendMessage(chatId, `✅ Заявку прийнято! Код: ${leadCode}\nМенеджер відповість найближчим часом.`, { remove_keyboard: true });
-                await this.updateState(session.id, 'LEAD_MENU', { leadFlow: {} });
+                await this.updateSession(session.id, 'LEAD_MENU', { leadFlow: {} });
 
                 if (this.config.adminChatId) {
                     const leadCard = renderLeadCard({ clientName: lf.name, phone: lf.phone, request: lf.car, payload: { city: lf.city, budget: lf.budget } });
                     const reqCard = renderRequestCard({ title: lf.car, budgetMax: lf.budget, city: lf.city, publicId: leadCode });
                     await this.sendMessage(this.config.adminChatId, `🔥 Новий лід ${leadCode}\n\n${leadCard}\n\n${reqCard}`);
+                }
+
+                // BROADCAST TO CHANNEL
+                if (this.config.channelId) {
+                    await this.broadcastRequestToChannel({
+                        publicId: leadCode,
+                        title: lf.car,
+                        budgetMax: lf.budget,
+                        city: lf.city
+                    });
                 }
                 return;
             }
@@ -455,7 +481,7 @@ class BotInstance {
         // Fallback contact intent
         if (text === '📞 Зв\'язатися з менеджером') {
             await this.sendMessage(chatId, "Напиши своє питання, менеджер відповість найближчим часом.");
-            await this.updateState(session.id, 'LEAD_SUPPORT');
+            await this.updateSession(session.id, 'LEAD_SUPPORT', undefined);
             return;
         }
         if (state === 'LEAD_SUPPORT') {
@@ -463,12 +489,111 @@ class BotInstance {
             if (this.config.adminChatId) {
                 await this.sendMessage(this.config.adminChatId, `🆘 Запит підтримки від ${msg.from.first_name}: ${text}`);
             }
-            await this.updateState(session.id, 'LEAD_MENU', { leadFlow: {} });
+            await this.updateSession(session.id, 'LEAD_MENU', { leadFlow: {} });
             return;
         }
     }
 
-    private async updateState(sessionId: string, newState: string, variables: any = undefined) {
+    // --- TEMPLATE LOGIC: DEALER OFFER FLOW ---
+    private async handleOfferFlow(msg: any, chatId: string, text: string, session: any) {
+        const state = session.state;
+        const vars = (session.variables as any) || {};
+        const flow = vars.offerFlow || {};
+
+        if (state === 'OFFER_PRICE') {
+            const price = parseInt(text.replace(/[^\d]/g, ''), 10);
+            if (!price || price < 100) {
+                await this.sendMessage(chatId, "⚠️ Please enter a valid price in USD (e.g. 15000).");
+                return;
+            }
+            flow.price = price;
+            await this.updateSession(session.id, 'START', {});
+            await this.sendMessage(chatId, "📝 Add a short description (Color, Mileage, Condition):");
+            return;
+        }
+
+        if (state === 'OFFER_DESC') {
+            if (text.length < 5) {
+                await this.sendMessage(chatId, "Please add a bit more detail.");
+                return;
+            }
+            flow.description = text;
+            await this.updateSession(session.id, 'OFFER_CONFIRM', { offerFlow: flow });
+
+            const summary = `Request: #${flow.requestId}\nPrice: $${flow.price}\nDesc: ${flow.description}`;
+
+            await this.sendMessage(chatId, `✅ <b>Confirm Offer?</b>\n\n${summary}`, {
+                inline_keyboard: [[
+                    { text: '🚀 Submit Offer', callback_data: 'OFFER_SUBMIT' },
+                    { text: '❌ Cancel', callback_data: 'OFFER_CANCEL' }
+                ]]
+            });
+            return;
+        }
+
+        if (state === 'OFFER_CONFIRM' && msg?.callback_query) {
+            const data = msg.callback_query.data;
+            if (data === 'OFFER_SUBMIT') {
+                // Create Request Variant
+                try {
+                    // Check if request exists
+                    const req = await prisma.b2bRequest.findFirst({ where: { publicId: flow.requestId } });
+                    if (!req) throw new Error("Request not found");
+
+                    await prisma.requestVariant.create({
+                        data: {
+                            requestId: req.id,
+                            price: flow.price,
+                            title: flow.description,
+                            status: 'PENDING',
+                            source: 'TELEGRAM_BOT',
+                            // authorId removed as it doesn't exist in schema
+                        }
+                    });
+
+                    await this.sendMessage(chatId, "✅ Offer submitted successfully! We will notify you if selected.", { remove_keyboard: true });
+                    await this.updateSession(session.id, 'START', {});
+
+                    // Notify Admin
+                    if (this.config.adminChatId) {
+                        await this.sendMessage(this.config.adminChatId, `📦 <b>New Offer</b> for #${req.publicId}\nPrice: $${flow.price}\nFrom: ${chatId}`);
+                    }
+                } catch (e) {
+                    logger.error("Failed to submit offer:", e);
+                    await this.sendMessage(chatId, "❌ System Error. Please try again.");
+                }
+                return;
+            }
+            if (data === 'OFFER_CANCEL') {
+                await this.sendMessage(chatId, "❌ Cancelled.");
+                await this.updateSession(session.id, 'START', {});
+                return;
+            }
+        }
+    }
+
+    private async broadcastRequestToChannel(request: any) {
+        if (!this.config.channelId) return;
+
+        const text = `📋 <b>NEW REQUEST ${request.publicId ? '#' + request.publicId : ''}</b>\n\n` +
+            `🚗 <b>${request.title}</b>\n` +
+            `💰 Budget: ${request.budgetMax ? '$' + request.budgetMax : 'Negotiable'}\n` +
+            `📍 ${request.city || 'Ukraine'}\n\n` +
+            `👇 <b>Have this car? Submit offer:</b>`;
+
+        const link = `https://t.me/${this.config.name}?start=offer_${request.publicId}`;
+
+        await telegramOutbox.sendMessage({
+            botId: this.config.id,
+            token: this.config.token,
+            chatId: this.config.channelId,
+            text,
+            replyMarkup: {
+                inline_keyboard: [[{ text: "🚀 Submit Offer", url: link }]]
+            }
+        });
+    }
+    private async updateSession(sessionId: string, newState: string, variables?: any) {
         await prisma.botSession.update({
             where: { id: sessionId },
             data: {
