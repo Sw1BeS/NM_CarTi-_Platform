@@ -1,8 +1,15 @@
 import type { BotConfig } from '@prisma/client';
 
+const stripTrailingSlash = (s: string) => s.replace(/\/+$/, '');
+
 export const buildMiniAppUrl = (bot: BotConfig, filters: Record<string, any>) => {
   const config = (bot.config || {}) as any;
-  const baseUrl = config?.miniAppConfig?.url || config?.miniAppConfig?.baseUrl || config?.publicBaseUrl || process.env.MINIAPP_URL;
+
+  const baseUrl = config?.miniAppConfig?.url
+    || config?.miniAppConfig?.baseUrl
+    || config?.publicBaseUrl
+    || process.env.MINIAPP_URL;
+
   if (!baseUrl) return '';
 
   let url: URL;
@@ -13,14 +20,20 @@ export const buildMiniAppUrl = (bot: BotConfig, filters: Record<string, any>) =>
   }
 
   const slug = config?.defaultShowcaseSlug || config?.miniAppConfig?.showcaseSlug || 'system';
-  const hasMiniAppPath = url.pathname.includes('/p/app/');
-  if (!url.pathname || url.pathname === '/') {
-    url.pathname = `/p/app/${slug}`;
-  } else if (!hasMiniAppPath && /\/p\/app\/?$/.test(url.pathname)) {
-    url.pathname = url.pathname.replace(/\/p\/app\/?$/, `/p/app/${slug}`);
-  } else if (!hasMiniAppPath && !url.pathname.endsWith('/')) {
-    // Preserve custom path; do not auto-append if user provided full path
-  }
+
+  // If the path already includes /p/app/{slug}, keep it; otherwise, ensure exactly one /p/app/{slug}
+  const path = stripTrailingSlash(url.pathname || '');
+  const match = path.match(/\/p\/app\/([^/]+)$/);
+
+  if (!/\/p\/app\//.test(path)) {
+    url.pathname = `${stripTrailingSlash(path || '')}/p/app/${slug}`.replace(/\/+/g, '/');
+  } else if (!match) {
+    // has /p/app but no slug -> append slug
+    url.pathname = `${path}/p/app/${slug}`.replace(/\/+/g, '/');
+  } else if (match[1] && match[1] !== slug) {
+    // different slug present: respect existing one
+    url.pathname = path;
+  } // else: already correct
 
   Object.entries(filters || {}).forEach(([key, value]) => {
     if (value === undefined || value === null || value === '') return;

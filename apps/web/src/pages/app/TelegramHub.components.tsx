@@ -8,6 +8,32 @@ import { Bot, Showcase } from '../../types';
 import { DEFAULT_MENU_CONFIG, DEFAULT_MINI_APP_CONFIG } from '../../services/defaults';
 import { AlertTriangle, Activity, Globe, Terminal } from 'lucide-react';
 
+const stripTrailingSlash = (s: string) => s.replace(/\/+$/, '');
+
+const resolveBaseUrl = (raw: string) => {
+    const input = (raw || '').trim();
+    try {
+        const url = new URL(input);
+        // If user pasted full miniapp link (/p/app/:slug), keep origin as base
+        const hasMini = /\/p\/app\//.test(url.pathname);
+        return {
+            base: hasMini ? url.origin : stripTrailingSlash(url.origin + url.pathname),
+            detectedSlug: (() => {
+                const m = url.pathname.match(/\/p\/app\/([^/]+)$/);
+                return m?.[1] || undefined;
+            })()
+        };
+    } catch {
+        return { base: stripTrailingSlash(input), detectedSlug: undefined };
+    }
+};
+
+const buildMiniAppUrl = (baseUrl: string, slug: string) => {
+    const base = stripTrailingSlash(baseUrl || '');
+    if (/\/p\/app\//.test(base)) return base; // already a full miniapp url
+    return `${base}/p/app/${slug}`;
+};
+
 export const AddBotModal = ({ onClose }: { onClose: () => void }) => {
     const [name, setName] = useState('');
     const [token, setToken] = useState('');
@@ -20,8 +46,6 @@ export const AddBotModal = ({ onClose }: { onClose: () => void }) => {
     const [saving, setSaving] = useState(false);
     const { showToast } = useToast();
 
-    const buildMiniAppUrl = (baseUrl: string, slug: string) => `${baseUrl.replace(/\/$/, '')}/p/app/${slug}`;
-
     const handleAdd = async () => {
         if (!name.trim() || !token.trim()) {
             showToast('Name and token are required', 'error');
@@ -29,9 +53,10 @@ export const AddBotModal = ({ onClose }: { onClose: () => void }) => {
         }
         setSaving(true);
         try {
-            const slug = 'system';
-            const baseUrl = (publicBaseUrl || window.location.origin).replace(/\/$/, '');
-            const miniAppUrl = buildMiniAppUrl(baseUrl, slug);
+            const fallbackSlug = 'system';
+            const { base, detectedSlug } = resolveBaseUrl(publicBaseUrl || window.location.origin);
+            const slug = detectedSlug || fallbackSlug;
+            const miniAppUrl = buildMiniAppUrl(base, slug);
             const menuConfig = {
                 ...DEFAULT_MENU_CONFIG,
                 buttons: DEFAULT_MENU_CONFIG.buttons.map(btn =>
@@ -53,7 +78,7 @@ export const AddBotModal = ({ onClose }: { onClose: () => void }) => {
                 adminChatId: adminChatId || undefined,
                 deliveryMode: mode === 'webhook' ? 'webhook' : 'polling',
                 config: {
-                    publicBaseUrl: baseUrl || undefined,
+                    publicBaseUrl: base || undefined,
                     deliveryMode: mode,
                     menuConfig,
                     miniAppConfig
@@ -140,12 +165,11 @@ export const BotSettings = ({ bot }: { bot: Bot }) => {
         ShowcaseService.getShowcases().then(setShowcases).catch(console.error);
     }, []);
 
-    const buildMiniAppUrl = (baseUrl: string, slug: string) => `${baseUrl.replace(/\/$/, '')}/p/app/${slug}`;
-
     const normalizeMiniAppConfig = (draft: Bot) => {
-        const slug = draft.defaultShowcaseSlug || 'system';
-        const baseUrl = (draft.publicBaseUrl || window.location.origin).replace(/\/$/, '');
-        const miniAppUrl = buildMiniAppUrl(baseUrl, slug);
+        const fallbackSlug = draft.defaultShowcaseSlug || 'system';
+        const { base, detectedSlug } = resolveBaseUrl(draft.publicBaseUrl || window.location.origin);
+        const slug = detectedSlug || fallbackSlug;
+        const miniAppUrl = buildMiniAppUrl(base, slug);
         const menuConfig = {
             ...(draft.menuConfig || DEFAULT_MENU_CONFIG),
             buttons: (draft.menuConfig?.buttons || DEFAULT_MENU_CONFIG.buttons).map(btn =>
@@ -159,7 +183,7 @@ export const BotSettings = ({ bot }: { bot: Bot }) => {
             url: miniAppUrl,
             showcaseSlug: slug
         };
-        return { ...draft, publicBaseUrl: baseUrl, menuConfig, miniAppConfig, defaultShowcaseSlug: slug };
+        return { ...draft, publicBaseUrl: base, menuConfig, miniAppConfig, defaultShowcaseSlug: slug };
     };
 
     const save = async () => {
