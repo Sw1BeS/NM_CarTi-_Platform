@@ -156,6 +156,12 @@ class Sender {
       text
     }).catch(() => null);
   }
+
+  async getFile(token: string, fileId: string) {
+    return this.call<{ file_id: string; file_unique_id: string; file_size?: number; file_path?: string }>(
+      token, 'getFile', { file_id: fileId }
+    );
+  }
 }
 
 export const TelegramSender = new Sender();

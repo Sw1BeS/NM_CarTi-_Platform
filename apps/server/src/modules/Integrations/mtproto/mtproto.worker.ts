@@ -6,12 +6,43 @@ import { processParsedMessage } from '../../../services/mtproto-mapping.service.
 // @ts-ignore
 import { v4 as uuidv4 } from 'uuid';
 import { logger } from '../../../utils/logger.js';
+import fs from 'fs';
+import path from 'path';
 
 /**
  * Worker to backfill messages from configured channels
  */
 export class MTProtoWorker {
     private isRunning = false;
+
+    private async saveMedia(connectorId: string, msg: any): Promise<string | null> {
+        if (!msg.media) return null;
+        try {
+            // Only download photos for now to save space/bandwidth
+            // msg.media className check
+            if (msg.media.className !== 'MessageMediaPhoto') return null;
+
+            const buffer = await MTProtoService.downloadMedia(connectorId, msg);
+            if (!buffer || buffer.length === 0) return null;
+
+            const dateStr = new Date().toISOString().split('T')[0];
+            // Assuming running from apps/server
+            const uploadDir = path.join(process.cwd(), 'uploads', 'mtproto', dateStr);
+
+            if (!fs.existsSync(uploadDir)) {
+                fs.mkdirSync(uploadDir, { recursive: true });
+            }
+
+            const filename = `${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
+            const filepath = path.join(uploadDir, filename);
+            fs.writeFileSync(filepath, buffer);
+
+            return `/uploads/mtproto/${dateStr}/${filename}`;
+        } catch (e) {
+            logger.error('[MTProtoWorker] Failed to save media', e);
+            return null;
+        }
+    }
 
     async runBackfill() {
         if (this.isRunning) {
@@ -63,15 +94,20 @@ export class MTProtoWorker {
 
             let count = 0;
             for (const msg of messages) {
-                if (!msg.message) continue; // Skip empty messages (service messages)
+                if (!msg.message && !msg.media) continue; // Skip empty messages (service messages)
+
+                let mediaUrl: string | null = null;
+                if (msg.media) {
+                    mediaUrl = await this.saveMedia(source.connectorId, msg);
+                }
 
                 // Convert MTProto message to our standard format
                 const telegramMessage = {
                     chatId: source.channelId,
                     messageId: msg.id,
-                    text: msg.message,
+                    text: msg.message || '',
                     date: new Date(msg.date * 1000), // Convert Unix timestamp to Date
-                    mediaUrls: [], // TODO: Extract media URLs from msg.media
+                    mediaUrls: mediaUrl ? [mediaUrl] : [],
                     mediaGroupKey: msg.groupedId?.toString() || undefined
                 };
 
@@ -148,13 +184,18 @@ export class MTProtoWorker {
     }
 
     private async syncMessage(source: any, msg: any) {
+        let mediaUrl: string | null = null;
+        if (msg.media) {
+            mediaUrl = await this.saveMedia(source.connectorId, msg);
+        }
+
         // Convert live message to standard format
         const telegramMessage = {
             chatId: source.channelId,
             messageId: msg.id,
-            text: msg.message,
+            text: msg.message || '',
             date: new Date(msg.date * 1000),
-            mediaUrls: [],
+            mediaUrls: mediaUrl ? [mediaUrl] : [],
             mediaGroupKey: msg.groupedId?.toString() || undefined
         };
 

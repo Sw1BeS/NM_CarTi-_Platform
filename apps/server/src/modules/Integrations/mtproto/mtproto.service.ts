@@ -241,4 +241,20 @@ export class MTProtoService {
         client.addEventHandler(handler, new NewMessage({}));
         // TODO: EditMessage support
     }
+
+    /**
+     * Download Media
+     */
+    static async downloadMedia(connectorId: string, message: any) {
+        const client = await this.getClient(connectorId);
+        await client.connect();
+
+        try {
+            const buffer = await client.downloadMedia(message, {});
+            return buffer;
+        } catch (e: any) {
+            logger.error(e);
+            return null; // Don't crash on media failure
+        }
+    }
 }

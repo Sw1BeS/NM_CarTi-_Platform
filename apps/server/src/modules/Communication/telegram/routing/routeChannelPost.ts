@@ -3,6 +3,10 @@ import { prisma } from '../../../../services/prisma.js';
 import { logger } from '../../../../utils/logger.js';
 // @ts-ignore
 import { parsePrice, parseMileage } from '../../../../services/textParserUtils.js';
+import fs from 'fs';
+import path from 'path';
+import axios from 'axios';
+import { TelegramSender } from '../messaging/telegramSender.js';
 
 export const routeChannelPost: PipelineMiddleware = async (ctx, next) => {
   const update = ctx.update;
@@ -11,6 +15,8 @@ export const routeChannelPost: PipelineMiddleware = async (ctx, next) => {
   if (!post) {
     return next();
   }
+
+  logger.info(`[Telegram] Received channel post: ${post.message_id} from ${post.chat?.title} (${post.chat?.id})`);
 
   // We have a channel post.
   // 1. Identify Channel
@@ -43,10 +49,46 @@ export const routeChannelPost: PipelineMiddleware = async (ctx, next) => {
           let thumbnail = undefined;
           if (post.photo && post.photo.length > 0) {
               // Get largest photo file_id
-              // In a real scenario, we'd need to download it or store the file_id.
-              // We'll store the file_id as a placeholder url "tg://file_id"
               const largest = post.photo[post.photo.length - 1];
-              thumbnail = `tg_file_id:${largest.file_id}`;
+
+              if (ctx.bot?.token) {
+                  try {
+                      const fileInfo = await TelegramSender.getFile(ctx.bot.token, largest.file_id);
+                      if (fileInfo.file_path) {
+                          const url = `https://api.telegram.org/file/bot${ctx.bot.token}/${fileInfo.file_path}`;
+                          const dateStr = new Date().toISOString().split('T')[0];
+                          // Assuming running from apps/server
+                          const uploadDir = path.join(process.cwd(), 'uploads', 'bot', dateStr);
+                          if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+
+                          const ext = path.extname(fileInfo.file_path) || '.jpg';
+                          const filename = `${largest.file_id}${ext}`;
+                          const filepath = path.join(uploadDir, filename);
+
+                          const writer = fs.createWriteStream(filepath);
+                          const response = await axios({
+                              url,
+                              method: 'GET',
+                              responseType: 'stream'
+                          });
+                          response.data.pipe(writer);
+
+                          await new Promise<void>((resolve, reject) => {
+                              writer.on('finish', () => resolve());
+                              writer.on('error', reject);
+                          });
+
+                          thumbnail = `/uploads/bot/${dateStr}/${filename}`;
+                      } else {
+                          thumbnail = `tg_file_id:${largest.file_id}`;
+                      }
+                  } catch (e) {
+                      logger.error('[Telegram] Failed to download channel post image', e);
+                      thumbnail = `tg_file_id:${largest.file_id}`;
+                  }
+              } else {
+                  thumbnail = `tg_file_id:${largest.file_id}`;
+              }
           }
 
           // Check for duplicates?
