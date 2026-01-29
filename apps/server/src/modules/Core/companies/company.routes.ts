@@ -37,7 +37,7 @@ router.get('/current', async (req: any, res) => {
  * PUT /api/companies/current/branding
  * Update company branding (ADMIN+ only)
  */
-router.put('/current/branding', requireRole('OWNER', 'ADMIN'), async (req: any, res) => {
+router.put('/current/branding', requireRole(['OWNER', 'ADMIN']), async (req: any, res) => {
     try {
         const { name, logo, primaryColor, domain } = req.body;
 
@@ -58,7 +58,7 @@ router.put('/current/branding', requireRole('OWNER', 'ADMIN'), async (req: any, 
  * GET /api/companies/current/users
  * Get company users
  */
-router.get('/current/users', requireRole('OWNER', 'ADMIN', 'MANAGER'), async (req: any, res) => {
+router.get('/current/users', requireRole(['OWNER', 'ADMIN', 'MANAGER']), async (req: any, res) => {
     try {
         const users = await companyService.getUsers(req.companyId);
         res.json(users);
@@ -71,7 +71,7 @@ router.get('/current/users', requireRole('OWNER', 'ADMIN', 'MANAGER'), async (re
  * POST /api/companies/current/users
  * Invite user to company (ADMIN+ only)
  */
-router.post('/current/users', requireRole('OWNER', 'ADMIN'), async (req: any, res) => {
+router.post('/current/users', requireRole(['OWNER', 'ADMIN']), async (req: any, res) => {
     try {
         const { email, name, role } = req.body;
 
@@ -91,7 +91,7 @@ router.post('/current/users', requireRole('OWNER', 'ADMIN'), async (req: any, re
  * PUT /api/companies/current/users/:userId/role
  * Update user role (OWNER+ only)
  */
-router.put('/current/users/:userId/role', requireRole('OWNER'), async (req: any, res) => {
+router.put('/current/users/:userId/role', requireRole(['OWNER']), async (req: any, res) => {
     try {
         const { userId } = req.params;
         const { role } = req.body;
@@ -111,7 +111,7 @@ router.put('/current/users/:userId/role', requireRole('OWNER'), async (req: any,
  * DELETE /api/companies/current/users/:userId
  * Remove user from company (OWNER+ only)
  */
-router.delete('/current/users/:userId', requireRole('OWNER'), async (req: any, res) => {
+router.delete('/current/users/:userId', requireRole(['OWNER']), async (req: any, res) => {
     try {
         const { userId } = req.params;
 

@@ -27,7 +27,7 @@ router.get('/connectors', async (req: any, res) => {
 });
 
 // GET /api/integrations/mtproto/stats
-router.get('/stats', requireRole('OWNER', 'ADMIN'), async (req: any, res) => {
+router.get('/stats', requireRole(['OWNER', 'ADMIN']), async (req: any, res) => {
     try {
         const stats = await MTProtoService.getStats();
         res.json(stats);
@@ -38,7 +38,7 @@ router.get('/stats', requireRole('OWNER', 'ADMIN'), async (req: any, res) => {
 
 // POST /api/integrations/mtproto/connectors
 // Create a new connector
-router.post('/connectors', requireRole('OWNER', 'ADMIN'), async (req: any, res) => {
+router.post('/connectors', requireRole(['OWNER', 'ADMIN']), async (req: any, res) => {
     try {
         const { name, apiId, apiHash } = req.body;
 
@@ -60,7 +60,7 @@ router.post('/connectors', requireRole('OWNER', 'ADMIN'), async (req: any, res) 
 });
 
 // DELETE /api/integrations/mtproto/connectors/:id
-router.delete('/connectors/:id', requireRole('OWNER', 'ADMIN'), async (req: any, res) => {
+router.delete('/connectors/:id', requireRole(['OWNER', 'ADMIN']), async (req: any, res) => {
     try {
         await MTProtoService.disconnect(req.params.id);
         await prisma.mTProtoConnector.delete({ where: { id: req.params.id } });
@@ -71,7 +71,7 @@ router.delete('/connectors/:id', requireRole('OWNER', 'ADMIN'), async (req: any,
 });
 
 // POST /api/integrations/mtproto/auth/send-code
-router.post('/auth/send-code', requireRole('OWNER', 'ADMIN'), async (req: any, res) => {
+router.post('/auth/send-code', requireRole(['OWNER', 'ADMIN']), async (req: any, res) => {
     try {
         const { connectorId, phone } = req.body;
         const { phoneCodeHash, isCodeViaApp } = await MTProtoService.sendCode(connectorId, phone);
@@ -82,7 +82,7 @@ router.post('/auth/send-code', requireRole('OWNER', 'ADMIN'), async (req: any, r
 });
 
 // POST /api/integrations/mtproto/auth/sign-in
-router.post('/auth/sign-in', requireRole('OWNER', 'ADMIN'), async (req: any, res) => {
+router.post('/auth/sign-in', requireRole(['OWNER', 'ADMIN']), async (req: any, res) => {
     try {
         const { connectorId, phone, code, phoneCodeHash, password } = req.body;
         await MTProtoService.signIn(connectorId, phone, code, phoneCodeHash, password);
@@ -95,7 +95,7 @@ router.post('/auth/sign-in', requireRole('OWNER', 'ADMIN'), async (req: any, res
 // --- Channel Sources ---
 
 // GET /api/integrations/mtproto/:connectorId/channels
-router.get('/:connectorId/channels', requireRole('OWNER', 'ADMIN'), async (req: any, res) => {
+router.get('/:connectorId/channels', requireRole(['OWNER', 'ADMIN']), async (req: any, res) => {
     try {
         const channels = await MTProtoService.getChannelSources(req.params.connectorId);
         res.json(channels);
@@ -105,7 +105,7 @@ router.get('/:connectorId/channels', requireRole('OWNER', 'ADMIN'), async (req: 
 });
 
 // GET /api/integrations/mtproto/:connectorId/resolve
-router.get('/:connectorId/resolve', requireRole('OWNER', 'ADMIN'), async (req: any, res) => {
+router.get('/:connectorId/resolve', requireRole(['OWNER', 'ADMIN']), async (req: any, res) => {
     try {
         const { query } = req.query;
         if (!query) throw new Error('Query required');
@@ -118,7 +118,7 @@ router.get('/:connectorId/resolve', requireRole('OWNER', 'ADMIN'), async (req: a
 });
 
 // POST /api/integrations/mtproto/:connectorId/channels
-router.post('/:connectorId/channels', requireRole('OWNER', 'ADMIN'), async (req: any, res) => {
+router.post('/:connectorId/channels', requireRole(['OWNER', 'ADMIN']), async (req: any, res) => {
     try {
         const { channel, importRules } = req.body;
         const result = await MTProtoService.addChannelSource(req.params.connectorId, channel, importRules);
@@ -133,7 +133,7 @@ import { mtprotoWorker } from './mtproto.worker.js';
 // ... (existing imports)
 
 // Update Channel Parsing Rules
-router.put('/:connectorId/channels/:sourceId', requireRole('OWNER', 'ADMIN'), async (req: any, res) => {
+router.put('/:connectorId/channels/:sourceId', requireRole(['OWNER', 'ADMIN']), async (req: any, res) => {
     try {
         const { sourceId } = req.params;
         const { importRules } = req.body;
@@ -146,7 +146,7 @@ router.put('/:connectorId/channels/:sourceId', requireRole('OWNER', 'ADMIN'), as
 });
 
 // POST /api/integrations/mtproto/:connectorId/channels/:sourceId/sync
-router.post('/:connectorId/channels/:sourceId/sync', requireRole('OWNER', 'ADMIN'), async (req: any, res) => {
+router.post('/:connectorId/channels/:sourceId/sync', requireRole(['OWNER', 'ADMIN']), async (req: any, res) => {
     try {
         const { connectorId, sourceId } = req.params;
         // Asynchronously start sync
@@ -161,7 +161,7 @@ router.post('/:connectorId/channels/:sourceId/sync', requireRole('OWNER', 'ADMIN
 });
 
 // POST /api/integrations/mtproto/:connectorId/sync
-router.post('/:connectorId/sync', requireRole('OWNER', 'ADMIN'), async (req: any, res) => {
+router.post('/:connectorId/sync', requireRole(['OWNER', 'ADMIN']), async (req: any, res) => {
     try {
         // Trigger generic backfill (or could target specific connector if refactored)
         // For now, running the global worker cycle is safe enough or we make it targeted
@@ -178,7 +178,7 @@ router.post('/:connectorId/sync', requireRole('OWNER', 'ADMIN'), async (req: any
 });
 
 // DELETE /api/integrations/mtproto/channels/:id
-router.delete('/channels/:id', requireRole('OWNER', 'ADMIN'), async (req: any, res) => {
+router.delete('/channels/:id', requireRole(['OWNER', 'ADMIN']), async (req: any, res) => {
     try {
         await MTProtoService.deleteChannelSource(req.params.id);
         res.json({ success: true });

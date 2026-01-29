@@ -7,7 +7,8 @@ const router = Router();
 
 // POST /api/parsing/preview
 // Test a parsing template against sample text
-router.post('/preview', requireRole('OWNER', 'ADMIN'), async (req: any, res) => {
+// Available to all authenticated users
+router.post('/preview', async (req: any, res) => {
     try {
         const { text, template } = req.body;
 
