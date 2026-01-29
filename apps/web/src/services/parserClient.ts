@@ -25,11 +25,13 @@ export const parseListingFromUrl = async (url: string) => {
     year: variables.year,
     mileage: variables.mileage,
     location: variables.location,
+    variables,
     confidence: computeConfidence(variables),
     raw: {
       meta: payload.meta,
       images,
-      mapping: payload.cachedMapping
+      mapping: payload.cachedMapping,
+      variables
     }
   };
 };

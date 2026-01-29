@@ -395,3 +395,4 @@ docker logs infra2-api-1 | grep "MTProto"
 - Builds re-run: `apps/server npm run build` ✅, `apps/web npm run build` ✅.
 - Health route fix: moved `/api/health` above `/api` router to keep it public (previously 401 due to auth middleware).
 - Post-deploy health check: `/api/health` now 200 unauthenticated.
+- Parser mapping UI: Inventory import now uses variable-mapping table (no CSS selectors); server supports `mode: fieldMap` and applies mapping to extracted variables.

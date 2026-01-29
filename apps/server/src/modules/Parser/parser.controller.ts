@@ -76,8 +76,28 @@ const extractVariables = (html: string, url: string) => {
     };
 };
 
-const applyMapping = (html: string, mapping: Record<string, any> | null, base: ReturnType<typeof extractVariables>) => {
-    if (!mapping || typeof mapping !== 'object') return base;
+const applyFieldMap = (mapping: Record<string, any>, base: ReturnType<typeof extractVariables>) => {
+    const fields = mapping?.fields && typeof mapping.fields === 'object' ? mapping.fields : {};
+    const next = { ...(base.variables || {}) } as Record<string, any>;
+
+    Object.entries(fields).forEach(([targetKey, sourceKey]) => {
+        if (!sourceKey || typeof sourceKey !== 'string') return;
+        if (sourceKey === 'images') {
+            if (targetKey === 'images') {
+                (next as any).images = base.images || [];
+            }
+            return;
+        }
+        const value = (base.variables as any)?.[sourceKey];
+        if (value !== undefined && value !== null && value !== '') {
+            (next as any)[targetKey] = value;
+        }
+    });
+
+    return { ...base, variables: next };
+};
+
+const applySelectorMap = (html: string, mapping: Record<string, any>, base: ReturnType<typeof extractVariables>) => {
     const $ = load(html || '');
     const readText = (selector?: string) => {
         if (!selector || typeof selector !== 'string') return '';
@@ -120,6 +140,12 @@ const applyMapping = (html: string, mapping: Record<string, any> | null, base: R
     }
 
     return { ...base, variables: next };
+};
+
+const applyMapping = (html: string, mapping: Record<string, any> | null, base: ReturnType<typeof extractVariables>) => {
+    if (!mapping || typeof mapping !== 'object') return base;
+    if (mapping.mode === 'fieldMap') return applyFieldMap(mapping, base);
+    return applySelectorMap(html, mapping, base);
 };
 
 const getSettingsModules = async () => {

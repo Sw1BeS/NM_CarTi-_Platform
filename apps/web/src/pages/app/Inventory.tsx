@@ -33,7 +33,7 @@ export const InventoryPage = () => {
     const [quickLeadModal, setQuickLeadModal] = useState<CarListing | null>(null);
     const [importing, setImporting] = useState(false);
     const [importUrl, setImportUrl] = useState('');
-    const [mappingModal, setMappingModal] = useState<{ url: string, domain: string } | null>(null);
+    const [mappingModal, setMappingModal] = useState<{ url: string, domain: string, variables: Record<string, any>, images?: string[] } | null>(null);
     const [csvFile, setCsvFile] = useState<File | null>(null);
 
     const { showToast } = useToast();
@@ -441,7 +441,12 @@ export const InventoryPage = () => {
                                             if (confirm('Confidence is low. Map fields manually?')) {
                                                  try {
                                                     const domain = new URL(importUrl.trim()).hostname;
-                                                    setMappingModal({ url: importUrl.trim(), domain });
+                                                    setMappingModal({
+                                                        url: importUrl.trim(),
+                                                        domain,
+                                                        variables: parsed.variables || {},
+                                                        images: parsed.raw?.images || []
+                                                    });
                                                     // Don't close import modal yet, let mapping handle it
                                                     return;
                                                  } catch(e) {}
@@ -488,8 +493,9 @@ export const InventoryPage = () => {
 
             {mappingModal && (
                 <MappingModal
-                    url={mappingModal.url}
                     domain={mappingModal.domain}
+                    variables={mappingModal.variables}
+                    images={mappingModal.images}
                     onClose={() => setMappingModal(null)}
                     onSave={async (selectors: any) => {
                          try {
@@ -532,46 +538,75 @@ export const InventoryPage = () => {
     );
 };
 
-const MappingModal = ({ url, domain, onClose, onSave }: any) => {
-    const [selectors, setSelectors] = useState({ title: '', price: '', year: '', mileage: '', description: '' });
+const MappingModal = ({ domain, variables, images, onClose, onSave }: any) => {
+    const targetFields = [
+        { key: 'title', label: 'Title' },
+        { key: 'price', label: 'Price' },
+        { key: 'currency', label: 'Currency' },
+        { key: 'year', label: 'Year' },
+        { key: 'mileage', label: 'Mileage' },
+        { key: 'location', label: 'Location' },
+        { key: 'description', label: 'Description' },
+        { key: 'vin', label: 'VIN' },
+        { key: 'url', label: 'Source URL' },
+        { key: 'images', label: 'Images' }
+    ];
+
+    const sourceKeys = Object.keys(variables || {});
+    if (!sourceKeys.includes('images')) sourceKeys.push('images');
+
+    const [mapping, setMapping] = useState<Record<string, string>>(() => {
+        const next: Record<string, string> = {};
+        targetFields.forEach(f => {
+            if (sourceKeys.includes(f.key)) next[f.key] = f.key;
+        });
+        return next;
+    });
+
+    const previewValue = (key: string) => {
+        if (!key) return '';
+        if (key === 'images') return `${(images || []).length} images`;
+        const value = variables?.[key];
+        if (value === undefined || value === null) return '';
+        if (typeof value === 'object') return JSON.stringify(value);
+        return String(value);
+    };
 
     return (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
-            <div className="panel w-full max-w-lg p-6 animate-slide-up">
+            <div className="panel w-full max-w-2xl p-6 animate-slide-up">
                 <div className="flex justify-between items-center mb-4">
                     <h3 className="font-bold text-[var(--text-primary)] text-lg">Map Fields: {domain}</h3>
                     <button onClick={onClose}><X size={20} className="text-[var(--text-secondary)]" /></button>
                 </div>
-                <div className="space-y-3 mb-6">
-                    <p className="text-xs text-[var(--text-secondary)]">Enter CSS selectors for this domain.</p>
+                <p className="text-xs text-[var(--text-secondary)] mb-4">
+                    Choose which extracted variable should fill each inventory field.
+                </p>
 
-                    <div>
-                        <label className="text-xs font-bold text-[var(--text-secondary)] block mb-1">Title Selector</label>
-                        <input className="input" placeholder=".product-title, h1..." value={selectors.title} onChange={e => setSelectors({...selectors, title: e.target.value})} />
-                    </div>
-                    <div>
-                        <label className="text-xs font-bold text-[var(--text-secondary)] block mb-1">Price Selector</label>
-                        <input className="input" placeholder=".price-box, .amount..." value={selectors.price} onChange={e => setSelectors({...selectors, price: e.target.value})} />
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                         <div>
-                            <label className="text-xs font-bold text-[var(--text-secondary)] block mb-1">Year Selector</label>
-                            <input className="input" placeholder=".year, .specs li:nth-child(1)..." value={selectors.year} onChange={e => setSelectors({...selectors, year: e.target.value})} />
+                <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-2">
+                    {targetFields.map(field => (
+                        <div key={field.key} className="grid grid-cols-3 gap-3 items-center">
+                            <div className="text-xs font-bold text-[var(--text-secondary)] uppercase">{field.label}</div>
+                            <select
+                                className="input text-sm"
+                                value={mapping[field.key] || ''}
+                                onChange={e => setMapping({ ...mapping, [field.key]: e.target.value })}
+                            >
+                                <option value="">— not mapped —</option>
+                                {sourceKeys.map(k => (
+                                    <option key={k} value={k}>{k}</option>
+                                ))}
+                            </select>
+                            <div className="text-xs text-[var(--text-secondary)] truncate" title={previewValue(mapping[field.key] || '')}>
+                                {previewValue(mapping[field.key] || '') || '—'}
+                            </div>
                         </div>
-                         <div>
-                            <label className="text-xs font-bold text-[var(--text-secondary)] block mb-1">Mileage Selector</label>
-                            <input className="input" placeholder=".odometer..." value={selectors.mileage} onChange={e => setSelectors({...selectors, mileage: e.target.value})} />
-                        </div>
-                    </div>
-                     <div>
-                        <label className="text-xs font-bold text-[var(--text-secondary)] block mb-1">Description Selector</label>
-                        <input className="input" placeholder=".description-content..." value={selectors.description} onChange={e => setSelectors({...selectors, description: e.target.value})} />
-                    </div>
+                    ))}
                 </div>
 
-                <div className="flex justify-end gap-3">
+                <div className="flex justify-end gap-3 mt-6">
                     <button onClick={onClose} className="btn-ghost">Cancel</button>
-                    <button onClick={() => onSave(selectors)} className="btn-primary">Save & Retry</button>
+                    <button onClick={() => onSave({ mode: 'fieldMap', fields: mapping })} className="btn-primary">Save Mapping</button>
                 </div>
             </div>
         </div>
