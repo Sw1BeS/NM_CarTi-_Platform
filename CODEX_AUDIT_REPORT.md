@@ -394,3 +394,4 @@ docker logs infra2-api-1 | grep "MTProto"
 - Leads from Telegram: store telegram username/name in payload and source = TELEGRAM (no longer bot name).
 - Builds re-run: `apps/server npm run build` ✅, `apps/web npm run build` ✅.
 - Health route fix: moved `/api/health` above `/api` router to keep it public (previously 401 due to auth middleware).
+- Post-deploy health check: `/api/health` now 200 unauthenticated.
