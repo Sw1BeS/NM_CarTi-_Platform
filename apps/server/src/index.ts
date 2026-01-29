@@ -76,12 +76,12 @@ app.use('/api/integrations', integrationRoutes); // Stage C: Integrations
 app.use('/api/superadmin', superadminRoutes); // Stage C: System admin
 app.use('/api/qa', qaRoutes);
 
-// 5) Legacy/God Router (auth inside router)
-app.use('/api', apiRoutes);
-
 // Health Check (Robust)
 app.get('/health', checkHealth);
 app.get('/api/health', checkHealth);
+
+// 5) Legacy/God Router (auth inside router)
+app.use('/api', apiRoutes);
 
 // Serve Frontend (Vite Build)
 import path from 'path';

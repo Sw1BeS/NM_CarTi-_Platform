@@ -393,3 +393,4 @@ docker logs infra2-api-1 | grep "MTProto"
 - Mini App URLs: default menu “Open App” uses MINI_APP_URL placeholder, bot save computes `{publicBaseUrl}/p/app/{slug}`, buildMiniAppUrl now appends slug; defaultShowcaseSlug persisted in config for server use.
 - Leads from Telegram: store telegram username/name in payload and source = TELEGRAM (no longer bot name).
 - Builds re-run: `apps/server npm run build` ✅, `apps/web npm run build` ✅.
+- Health route fix: moved `/api/health` above `/api` router to keep it public (previously 401 due to auth middleware).
