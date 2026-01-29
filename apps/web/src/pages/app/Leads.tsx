@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { LeadsService } from '../../services/leadsService';
-import { Lead, LeadStatus } from '../../types';
+import { RequestsService } from '../../services/requestsService';
+import { Lead, LeadStatus, RequestStatus } from '../../types';
 import { Plus, X, ChevronRight, List as ListIcon, LayoutGrid, ChevronLeft, Search } from 'lucide-react';
 import { useToast } from '../../contexts/ToastContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
 export const Leads: React.FC = () => {
     const [leads, setLeads] = useState<Lead[]>([]);
@@ -21,8 +22,17 @@ export const Leads: React.FC = () => {
 
     const { showToast } = useToast();
     const [formData, setFormData] = useState({ name: '', goal: '', source: 'MANUAL', notes: '', linkedRequestId: '' });
+    const [searchParams, setSearchParams] = useSearchParams();
 
     useEffect(() => { loadLeads(); }, [page, search, statusFilter]);
+    useEffect(() => {
+        if (searchParams.get('create') === '1') {
+            setIsModalOpen(true);
+            const next = new URLSearchParams(searchParams);
+            next.delete('create');
+            setSearchParams(next, { replace: true });
+        }
+    }, [searchParams, setSearchParams]);
 
     const loadLeads = async () => {
         setLoading(true);
@@ -69,6 +79,29 @@ export const Leads: React.FC = () => {
                 showToast('Update failed', 'error');
                 loadLeads(); // Revert on fail
             }
+        }
+    };
+
+    const shareAsRequest = async (lead: Lead) => {
+        try {
+            await RequestsService.createRequest({
+                title: lead.goal || `Request from ${lead.name || 'Lead'}`,
+                type: 'BUY',
+                description: lead.notes || '',
+                budgetMin: 0,
+                budgetMax: 0,
+                yearMin: new Date().getFullYear() - 5,
+                yearMax: new Date().getFullYear() + 1,
+                city: 'Kyiv',
+                priority: 'NORMAL',
+                status: LeadStatus.NEW === lead.status ? RequestStatus.DRAFT : RequestStatus.COLLECTING_VARIANTS,
+                clientChatId: lead.telegramChatId,
+                assigneeId: undefined
+            } as any);
+            showToast('Shared as request', 'success');
+            setViewMode('LIST');
+        } catch (e: any) {
+            showToast(e.message || 'Failed to create request', 'error');
         }
     };
 
@@ -121,15 +154,16 @@ export const Leads: React.FC = () => {
 
                 {viewMode === 'LIST' ? (
                     <div className="panel overflow-hidden h-full p-0 flex flex-col">
-                        <div className="table-container flex-1">
-                            <table className="table">
+                        <div className="table-container flex-1 overflow-x-auto">
+                            <table className="table min-w-[900px]">
                                 <thead>
                                     <tr>
                                         <th>Client</th>
-                                        <th>Source</th>
+                                        <th className="hidden md:table-cell">Source</th>
                                         <th>Interest</th>
-                                        <th>Last Active</th>
+                                        <th className="hidden lg:table-cell">Last Active</th>
                                         <th>Status</th>
+                                        <th>Actions</th>
                                         <th></th>
                                     </tr>
                                 </thead>
@@ -144,12 +178,15 @@ export const Leads: React.FC = () => {
                                                     <div>
                                                         <div className="font-bold text-[var(--text-primary)]">{l.name}</div>
                                                         <div className="text-[10px] text-[var(--text-secondary)] font-mono">{l.phone || l.telegramUsername || 'No contact'}</div>
+                                                        <div className="text-[10px] text-[var(--text-secondary)] mt-1 md:hidden">
+                                                            {l.source} • {l.lastInteractionAt ? new Date(l.lastInteractionAt).toLocaleDateString() : 'New'}
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td><span className="text-[10px] uppercase font-bold tracking-wider text-[var(--text-secondary)]">{l.source}</span></td>
+                                            <td className="hidden md:table-cell"><span className="text-[10px] uppercase font-bold tracking-wider text-[var(--text-secondary)]">{l.source}</span></td>
                                             <td className="text-[var(--text-primary)]">{l.goal || '—'}</td>
-                                            <td className="text-xs text-[var(--text-secondary)] tabular-nums">
+                                            <td className="text-xs text-[var(--text-secondary)] tabular-nums hidden lg:table-cell">
                                                 {l.lastInteractionAt ? new Date(l.lastInteractionAt).toLocaleDateString() : 'New'}
                                             </td>
                                             <td onClick={e => e.stopPropagation()}>
@@ -166,6 +203,14 @@ export const Leads: React.FC = () => {
                                                     <option value="WON">WON</option>
                                                     <option value="LOST">LOST</option>
                                                 </select>
+                                            </td>
+                                            <td>
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); shareAsRequest(l); }}
+                                                    className="btn-secondary text-xs px-3 py-1.5"
+                                                >
+                                                    Share as Request
+                                                </button>
                                             </td>
                                             <td className="text-right">
                                                 <ChevronRight size={16} className="text-[var(--text-muted)] group-hover:text-gold-500 transition-colors" />

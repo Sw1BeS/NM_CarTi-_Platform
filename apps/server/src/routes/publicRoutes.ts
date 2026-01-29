@@ -7,6 +7,8 @@ import { generatePublicId, mapLeadCreateInput, mapLeadOutput, mapRequestInput, m
 import { parseTelegramUser, verifyTelegramInitData } from '../modules/Communication/telegram/core/telegramAuth.js';
 import { mapBotOutput } from '../modules/Communication/bots/botDto.js';
 import { ShowcaseService } from '../modules/Marketing/showcase/showcase.service.js';
+import { logger } from '../utils/logger.js';
+import { errorResponse } from '../utils/errorResponse.js';
 
 const router = Router();
 const showcaseService = new ShowcaseService();
@@ -37,7 +39,7 @@ router.get('/:slug/inventory', async (req, res) => {
         });
 
         if (!showcase.isPublic) {
-            return res.status(404).json({ error: 'Showcase not found' });
+            return errorResponse(res, 404, 'Showcase not found');
         }
 
         return res.json({ items: items.map(mapInventoryOutput), total });
@@ -48,14 +50,14 @@ router.get('/:slug/inventory', async (req, res) => {
         // The plan says: "use ShowcaseService... if slug matches a showcase, use it. If not, fallback or error".
         // Let's keep the legacy logic as fallback ONLY if showcase not found AND workspace found.
         if (e.message !== 'Showcase not found') {
-             console.error('[Public Inventory] Error:', e);
-             return res.status(500).json({ error: 'Internal Server Error' });
+             logger.error('[Public Inventory] Error:', e);
+             return errorResponse(res, 500, 'Internal Server Error');
         }
     }
 
     // LEGACY FALLBACK
     const workspace = await getWorkspaceBySlug(slug);
-    if (!workspace) return res.status(404).json({ error: 'Company not found' });
+    if (!workspace) return errorResponse(res, 404, 'Company not found');
 
     const limit = Math.min(100, Number(req.query.limit) || 50);
     const search = typeof req.query.search === 'string' ? req.query.search : undefined;
@@ -106,8 +108,8 @@ router.get('/:slug/inventory', async (req, res) => {
 
     res.json({ items: publicCars });
   } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: 'Failed to fetch inventory' });
+    logger.error(e);
+    errorResponse(res, 500, 'Failed to fetch inventory');
   }
 });
 
@@ -116,7 +118,7 @@ router.post('/:slug/requests', async (req, res) => {
   try {
     const { slug } = req.params;
     const workspace = await getWorkspaceBySlug(slug);
-    if (!workspace) return res.status(404).json({ error: 'Company not found' });
+    if (!workspace) return errorResponse(res, 404, 'Company not found');
 
     // Validate initData if present
     const { initData, ...payload } = req.body || {};
@@ -129,7 +131,7 @@ router.post('/:slug/requests', async (req, res) => {
     const { variants, ...raw } = payload;
     const createData: any = mapRequestInput(raw);
 
-    if (!createData.title) return res.status(400).json({ error: 'Title is required' });
+    if (!createData.title) return errorResponse(res, 400, 'Title is required');
     if (!createData.publicId) createData.publicId = generatePublicId();
 
     // Force company context
@@ -141,22 +143,22 @@ router.post('/:slug/requests', async (req, res) => {
 
     res.json(mapRequestOutput(request));
   } catch (e: any) {
-    console.error(e);
-    res.status(500).json({ error: 'Failed to create request' });
+    logger.error(e);
+    errorResponse(res, 500, 'Failed to create request');
   }
 });
 
 router.post('/leads', async (req, res) => {
   try {
     const mapped = mapLeadCreateInput(req.body || {});
-    if (mapped.error) return res.status(400).json({ error: mapped.error });
+    if (mapped.error) return errorResponse(res, 400, mapped.error);
     const requestedBotId = (req.body || {}).botId ? String((req.body || {}).botId) : undefined;
     let companyId: string | null = null;
     let botId: string | undefined = undefined;
 
     if (requestedBotId) {
       const bot = await prisma.botConfig.findUnique({ where: { id: requestedBotId }, select: { id: true, companyId: true } });
-      if (!bot) return res.status(400).json({ error: 'Invalid botId' });
+      if (!bot) return errorResponse(res, 400, 'Invalid botId');
       botId = bot.id;
       companyId = bot.companyId;
     } else {
@@ -164,7 +166,7 @@ router.post('/leads', async (req, res) => {
       companyId = system?.id || (await prisma.workspace.findFirst({ select: { id: true } }))?.id || null;
     }
 
-    if (!companyId) return res.status(500).json({ error: 'Workspace not configured' });
+    if (!companyId) return errorResponse(res, 500, 'Workspace not configured');
 
     const lead = await prisma.lead.create({
       data: {
@@ -175,8 +177,8 @@ router.post('/leads', async (req, res) => {
     });
     res.json(mapLeadOutput(lead));
   } catch (e: any) {
-    console.error(e);
-    res.status(500).json({ error: 'Failed to create lead' });
+    logger.error(e);
+    errorResponse(res, 500, 'Failed to create lead');
   }
 });
 
@@ -185,7 +187,7 @@ router.post('/requests', async (req, res) => {
     const { variants, ...raw } = req.body || {};
     const createData: any = mapRequestInput(raw);
     if (!createData.title) {
-      return res.status(400).json({ error: 'Title is required' });
+      return errorResponse(res, 400, 'Title is required');
     }
     if (!createData.publicId) createData.publicId = generatePublicId();
     if (variants && Array.isArray(variants)) {
@@ -197,8 +199,8 @@ router.post('/requests', async (req, res) => {
     });
     res.json(mapRequestOutput(request));
   } catch (e: any) {
-    console.error(e);
-    res.status(500).json({ error: 'Failed to create request' });
+    logger.error(e);
+    errorResponse(res, 500, 'Failed to create request');
   }
 });
 
@@ -214,14 +216,14 @@ router.post('/requests/:id/variants', async (req, res) => {
     });
     res.json(mapVariantOutput(variant));
   } catch (e: any) {
-    console.error(e);
-    res.status(500).json({ error: 'Failed to add variant' });
+    logger.error(e);
+    errorResponse(res, 500, 'Failed to add variant');
   }
 });
 
 router.post('/dealer/session', async (req, res) => {
   const { initData } = req.body || {};
-  if (!initData) return res.status(400).json({ error: 'initData is required' });
+  if (!initData) return errorResponse(res, 400, 'initData is required');
 
   const bots = await prisma.botConfig.findMany({
     where: { isEnabled: true },
@@ -229,18 +231,18 @@ router.post('/dealer/session', async (req, res) => {
   });
 
   const verified = bots.some(bot => verifyTelegramInitData(initData, bot.token));
-  if (!verified) return res.status(401).json({ error: 'Invalid Telegram init data' });
+  if (!verified) return errorResponse(res, 401, 'Invalid Telegram init data');
 
   const tgUser = parseTelegramUser(initData);
-  if (!tgUser?.id) return res.status(400).json({ error: 'Invalid Telegram user payload' });
+  if (!tgUser?.id) return errorResponse(res, 400, 'Invalid Telegram user payload');
 
   const telegramUserId = Number(tgUser.id);
   // Use read abstraction
   const user = await getUserByTelegramId(telegramUserId);
-  if (!user || !user.isActive) return res.status(403).json({ error: 'Access denied' });
+  if (!user || !user.isActive) return errorResponse(res, 403, 'Access denied');
 
   if (!['DEALER', 'ADMIN', 'SUPER_ADMIN'].includes(user.role)) {
-    return res.status(403).json({ error: 'Partner access only' });
+    return errorResponse(res, 403, 'Partner access only');
   }
 
   res.json({
@@ -296,8 +298,8 @@ router.get('/requests', async (req, res) => {
       totalPages: Math.ceil(total / limit)
     });
   } catch (e: any) {
-    console.error(e);
-    res.status(500).json({ error: 'Failed to fetch public requests' });
+    logger.error(e);
+    errorResponse(res, 500, 'Failed to fetch public requests');
   }
 });
 
@@ -348,10 +350,10 @@ router.get('/proposals/:id', async (req, res) => {
       return res.json({ ok: true, proposal: null, variants: [mapVariantOutput(variant)] });
     }
 
-    res.status(404).json({ error: 'Proposal not found' });
+    errorResponse(res, 404, 'Proposal not found');
   } catch (e: any) {
-    console.error(e);
-    res.status(500).json({ error: 'Failed to fetch proposal' });
+    logger.error(e);
+    errorResponse(res, 500, 'Failed to fetch proposal');
   }
 });
 
@@ -361,7 +363,7 @@ router.post('/proposals/:id/view', async (req, res) => {
     const record = await prisma.entityRecord.findFirst({
       where: { id, entity: { slug: 'b2b_proposal' } }
     });
-    if (!record) return res.status(404).json({ error: 'Proposal not found' });
+    if (!record) return errorResponse(res, 404, 'Proposal not found');
 
     const data = (record.data && typeof record.data === 'object') ? (record.data as any) : {};
     const views = Number(data.views || 0) + 1;
@@ -374,8 +376,8 @@ router.post('/proposals/:id/view', async (req, res) => {
 
     res.json({ ok: true, views });
   } catch (e: any) {
-    console.error(e);
-    res.status(500).json({ error: 'Failed to update views' });
+    logger.error(e);
+    errorResponse(res, 500, 'Failed to update views');
   }
 });
 
@@ -383,12 +385,12 @@ router.post('/proposals/:id/feedback', async (req, res) => {
   try {
     const { id } = req.params;
     const { variantId, type } = req.body || {};
-    if (!variantId || !type) return res.status(400).json({ error: 'variantId and type are required' });
+    if (!variantId || !type) return errorResponse(res, 400, 'variantId and type are required');
 
     const record = await prisma.entityRecord.findFirst({
       where: { id, entity: { slug: 'b2b_proposal' } }
     });
-    if (!record) return res.status(404).json({ error: 'Proposal not found' });
+    if (!record) return errorResponse(res, 404, 'Proposal not found');
 
     const data = (record.data && typeof record.data === 'object') ? (record.data as any) : {};
     const clientFeedback = { ...(data.clientFeedback || {}), [variantId]: type };
@@ -401,8 +403,8 @@ router.post('/proposals/:id/feedback', async (req, res) => {
 
     res.json({ ok: true });
   } catch (e: any) {
-    console.error(e);
-    res.status(500).json({ error: 'Failed to save feedback' });
+    logger.error(e);
+    errorResponse(res, 500, 'Failed to save feedback');
   }
 });
 

@@ -3,6 +3,8 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, FileText, Users, Send, Settings, ArrowRight, X } from 'lucide-react';
 import { Data } from '../services/data';
+import { useAuth } from '../contexts/AuthContext';
+import { canAccessRoute } from '../config/permissions';
 
 interface CommandPaletteProps {
     isOpen: boolean;
@@ -13,6 +15,8 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
     const navigate = useNavigate();
     const [query, setQuery] = useState('');
     const [results, setResults] = useState<any[]>([]);
+    const { user } = useAuth();
+    const role = user?.role as any;
 
     useEffect(() => {
         if (isOpen) {
@@ -24,13 +28,16 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
     useEffect(() => {
         const fetchResults = async () => {
             if (!query) {
-                setResults([
+                const baseNav = [
                     { type: 'NAV', label: 'Go to Dashboard', icon: <Search size={14}/>, path: '/' },
                     { type: 'NAV', label: 'Go to Requests', icon: <FileText size={14}/>, path: '/requests' },
                     { type: 'NAV', label: 'Go to Leads', icon: <Users size={14}/>, path: '/leads' },
                     { type: 'NAV', label: 'Go to Telegram Hub', icon: <Send size={14}/>, path: '/telegram' },
                     { type: 'NAV', label: 'Go to Settings', icon: <Settings size={14}/>, path: '/settings' },
-                ]);
+                    { type: 'ACTION', label: 'New Request', icon: <FileText size={14}/>, path: '/requests?create=1' },
+                    { type: 'ACTION', label: 'New Lead', icon: <Users size={14}/>, path: '/leads?create=1' },
+                ].filter(item => canAccessRoute(role || 'VIEWER', item.path));
+                setResults(baseNav);
                 return;
             }
 

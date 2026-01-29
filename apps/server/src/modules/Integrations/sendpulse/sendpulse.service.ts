@@ -1,6 +1,7 @@
 
 import axios from 'axios';
 import { logSystem } from '../../Core/system/systemLog.service.js';
+import { logger } from '../../../utils/logger.js';
 
 export class SendPulseService {
     private static instance: SendPulseService;
@@ -29,7 +30,7 @@ export class SendPulseService {
                 return this.token;
             }
         } catch (e: any) {
-            console.error('SendPulse Auth Error:', e.message);
+            logger.error('SendPulse Auth Error:', e.message);
         }
         return null;
     }

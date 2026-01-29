@@ -1,5 +1,6 @@
 import { PipelineMiddleware } from '../core/types.js';
 import { prisma } from '../../../../services/prisma.js';
+import { logger } from '../../../../utils/logger.js';
 // @ts-ignore
 import { parsePrice, parseMileage } from '../../../../services/textParserUtils.js';
 
@@ -73,9 +74,9 @@ export const routeChannelPost: PipelineMiddleware = async (ctx, next) => {
                   }
               }
           });
-          console.log(`[Telegram] Imported draft from channel ${channelId}`);
+          logger.info(`[Telegram] Imported draft from channel ${channelId}`);
       } catch (e) {
-          console.error('[Telegram] Failed to create draft from post', e);
+          logger.error('[Telegram] Failed to create draft from post', e);
       }
   }
 

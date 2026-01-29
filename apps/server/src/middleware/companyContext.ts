@@ -1,5 +1,6 @@
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from './auth.js';
+import { errorResponse } from '../utils/errorResponse.js';
 
 /**
  * Adapter to populate legacy req.companyId and req.workspaceId from the authenticated user.
@@ -7,7 +8,7 @@ import { AuthRequest } from './auth.js';
  */
 export const companyContext = (req: AuthRequest, res: Response, next: NextFunction) => {
     if (!req.user) {
-        return (res as any).status(401).json({ error: 'Authentication required for company context' });
+        return errorResponse(res, 401, 'Authentication required for company context');
     }
 
     // 1. Default from token
@@ -26,7 +27,7 @@ export const companyContext = (req: AuthRequest, res: Response, next: NextFuncti
     // If not superadmin, companyId is required for routes that use this middleware
     if (!req.companyId && req.user.role !== 'SUPER_ADMIN') {
         // Some legacy routes might fail if they expect companyId
-        return (res as any).status(403).json({ error: 'Company context missing' });
+        return errorResponse(res, 403, 'Company context missing');
     }
 
     next();

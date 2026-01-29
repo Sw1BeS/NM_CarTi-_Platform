@@ -6,6 +6,7 @@ import { useToast } from '../../contexts/ToastContext';
 import { ApiClient } from '../../services/apiClient';
 import { BotMenuEditor } from '../../modules/Telegram/components/BotMenuEditor';
 import { ScenarioFlowEditor } from '../../modules/Telegram/flow/ScenarioFlowEditor';
+import { EmptyState } from '../../components/EmptyState';
 
 const NODE_WIDTH = 280;
 
@@ -120,18 +121,29 @@ export const ScenarioBuilder = ({ studioMode = false, botId }: ScenarioBuilderPr
                             </div>
                         </div>
                         <div className="flex-1 overflow-y-auto custom-scrollbar">
-                            {scenarios.map(s => (
-                                <div key={s.id} onClick={() => setSelectedId(s.id)} className={`p-4 border-b border-[var(--border-color)] cursor-pointer transition-all hover:bg-[var(--bg-input)] border-l-4 ${selectedId === s.id ? 'bg-[var(--bg-input)] border-l-gold-500' : 'border-l-transparent'} flex justify-between group`}>
-                                    <div className="flex-1 min-w-0">
-                                        <div className={`font-bold text-sm truncate ${selectedId === s.id ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}`}>{s.name}</div>
-                                        <div className="flex justify-between items-center mt-2">
-                                            <code className="text-[10px] text-[var(--text-secondary)] bg-[var(--bg-app)] border border-[var(--border-color)] px-1.5 py-0.5 rounded font-mono">/{s.triggerCommand}</code>
-                                            <span className={`w-2 h-2 rounded-full shadow-[0_0_8px] ${s.isActive ? 'bg-green-500 shadow-green-500/50' : 'bg-[#3F3F46] shadow-transparent'}`}></span>
+                            {scenarios.length === 0 ? (
+                                <EmptyState
+                                    icon={<GitMerge size={28} />}
+                                    title="No flows yet"
+                                    description="Create a new flow or start from a template."
+                                    actionLabel="New Flow"
+                                    action={createScenario}
+                                    className="py-10"
+                                />
+                            ) : (
+                                scenarios.map(s => (
+                                    <div key={s.id} onClick={() => setSelectedId(s.id)} className={`p-4 border-b border-[var(--border-color)] cursor-pointer transition-all hover:bg-[var(--bg-input)] border-l-4 ${selectedId === s.id ? 'bg-[var(--bg-input)] border-l-gold-500' : 'border-l-transparent'} flex justify-between group`}>
+                                        <div className="flex-1 min-w-0">
+                                            <div className={`font-bold text-sm truncate ${selectedId === s.id ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}`}>{s.name}</div>
+                                            <div className="flex justify-between items-center mt-2">
+                                                <code className="text-[10px] text-[var(--text-secondary)] bg-[var(--bg-app)] border border-[var(--border-color)] px-1.5 py-0.5 rounded font-mono">/{s.triggerCommand}</code>
+                                                <span className={`w-2 h-2 rounded-full shadow-[0_0_8px] ${s.isActive ? 'bg-green-500 shadow-green-500/50' : 'bg-[#3F3F46] shadow-transparent'}`}></span>
+                                            </div>
                                         </div>
+                                        <button onClick={(e) => { e.stopPropagation(); handleDeleteScenario(s.id); }} className="opacity-0 group-hover:opacity-100 text-red-500 p-2"><Trash2 size={14} /></button>
                                     </div>
-                                    <button onClick={(e) => { e.stopPropagation(); handleDeleteScenario(s.id); }} className="opacity-0 group-hover:opacity-100 text-red-500 p-2"><Trash2 size={14} /></button>
-                                </div>
-                            ))}
+                                ))
+                            )}
                         </div>
                     </div>
                 ) : (
@@ -146,18 +158,24 @@ export const ScenarioBuilder = ({ studioMode = false, botId }: ScenarioBuilderPr
             <div className="flex-1 bg-[#050505] relative flex flex-col min-w-0">
                 {view === 'FLOWS' ? (
                     selectedScen ? (
-                        <ScenarioFlowEditor
-                            key={selectedScen.id}
-                            scenario={selectedScen}
-                            onSave={handleSave}
-                            onDelete={() => handleDeleteScenario(selectedScen.id)}
-                            onTestRun={() => handleTestRun(selectedScen)}
-                        />
-                    ) : (
-                        <div className="h-full flex flex-col items-center justify-center text-[var(--text-secondary)] bg-[var(--bg-app)]">
-                            <GitMerge size={64} className="mb-6 opacity-20" />
-                            <p className="text-lg font-medium">Select a flow or create new</p>
-                            <button onClick={() => setTemplateModalOpen(true)} className="mt-6 btn-secondary px-6">Open Library</button>
+                    <ScenarioFlowEditor
+                        key={selectedScen.id}
+                        scenario={selectedScen}
+                        onSave={handleSave}
+                        onDelete={() => handleDeleteScenario(selectedScen.id)}
+                        onTestRun={() => handleTestRun(selectedScen)}
+                    />
+                ) : (
+                        <div className="h-full flex flex-col items-center justify-center bg-[var(--bg-app)]">
+                            <EmptyState
+                                icon={<GitMerge size={48} />}
+                                title="No flow selected"
+                                description="Pick an existing flow or start with a template from the library."
+                                actionLabel="Open Library"
+                                action={() => setTemplateModalOpen(true)}
+                                className="max-w-lg"
+                            />
+                            <button onClick={createScenario} className="mt-3 btn-primary px-6">New Flow</button>
                         </div>
                     )
                 ) : (

@@ -30,10 +30,16 @@ export const MiniAppManager = ({ botId }: { botId: string }) => {
         Data.getScenarios().then(setScenarios).catch(() => setScenarios([]));
     }, [botId]);
 
+    const buildMiniAppUrl = (baseUrl: string, slug: string) => `${baseUrl.replace(/\/$/, '')}/p/app/${slug}`;
+
     const save = async (newConfig: MiniAppConfig) => {
         if (!bot) return;
-        setConfig(newConfig);
-        await Data.saveBot({ ...bot, miniAppConfig: newConfig });
+        const slug = bot.defaultShowcaseSlug || 'system';
+        const baseUrl = (bot.publicBaseUrl || window.location.origin).replace(/\/$/, '');
+        const miniAppUrl = newConfig.url || buildMiniAppUrl(baseUrl, slug);
+        const merged = { ...newConfig, url: miniAppUrl, showcaseSlug: slug };
+        setConfig(merged);
+        await Data.saveBot({ ...bot, miniAppConfig: merged });
         showToast('Mini App config saved');
     };
 

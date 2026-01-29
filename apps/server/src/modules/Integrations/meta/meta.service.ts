@@ -1,5 +1,6 @@
 import { logSystem } from '../../Core/system/systemLog.service.js';
 import axios from 'axios';
+import { logger } from '../../../utils/logger.js';
 
 export class MetaService {
     private static instance: MetaService;
@@ -13,7 +14,7 @@ export class MetaService {
 
     async sendEvent(eventName: string, userData: any, customData: any) {
         if (!this.pixelId || !this.accessToken) {
-            console.warn('Meta Pixel ID or Access Token missing');
+            logger.warn('Meta Pixel ID or Access Token missing');
             return;
         }
 

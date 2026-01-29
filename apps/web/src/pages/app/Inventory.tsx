@@ -8,6 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import { MatchingService } from '../../services/matchingService';
 import { RequestsService } from '../../services/requestsService';
 import { parseListingFromUrl, saveParserProfile } from '../../services/parserClient';
+import { PageHeader } from '../../components/ui/PageHeader';
 
 export const InventoryPage = () => {
     // Data State
@@ -151,22 +152,20 @@ export const InventoryPage = () => {
 
     return (
         <div className="space-y-8 h-full flex flex-col relative">
-            <div className="flex justify-between items-center shrink-0">
-                <div>
-                    <h1 className="text-2xl font-medium text-[var(--text-primary)]">Inventory</h1>
-                    <p className="text-sm text-[var(--text-secondary)]">
-                        {totalItems} vehicles • Page {page} of {totalPages}
-                    </p>
-                </div>
-                <div className="flex gap-2">
-                    <button onClick={() => setImporting(true)} className="btn-secondary">
-                        <Plus size={18} /> Import URL
-                    </button>
-                    <button onClick={() => { setEditingCar(null); setIsModalOpen(true); }} className="btn-primary">
-                        <Plus size={20} /> Add Car
-                    </button>
-                </div>
-            </div>
+            <PageHeader
+                title="Inventory"
+                subtitle={`${totalItems} vehicles • Page ${page} of ${totalPages}`}
+                actions={(
+                    <>
+                        <button onClick={() => setImporting(true)} className="btn-secondary">
+                            <Plus size={18} /> Import URL
+                        </button>
+                        <button onClick={() => { setEditingCar(null); setIsModalOpen(true); }} className="btn-primary">
+                            <Plus size={20} /> Add Car
+                        </button>
+                    </>
+                )}
+            />
 
             <div className="flex gap-4 shrink-0 items-center">
                 <div className="flex-1 relative">
@@ -245,11 +244,11 @@ export const InventoryPage = () => {
                                     </div>
                                 </div>
                             </div>
-                            <div className="bg-[var(--bg-input)] p-4 flex justify-between items-center border-t border-[var(--border-color)] gap-3">
-                                <button onClick={() => setAttachModal(car)} className="flex-1 text-sm text-[var(--text-secondary)] hover:text-gold-500 font-medium flex items-center justify-center gap-2 border-r border-[var(--border-color)] pr-2 transition-colors">
+                            <div className="bg-[var(--bg-input)] p-4 flex flex-col sm:flex-row justify-between items-center border-t border-[var(--border-color)] gap-2">
+                                <button onClick={() => setAttachModal(car)} className="flex-1 w-full sm:w-auto text-sm text-[var(--text-secondary)] hover:text-gold-500 font-medium flex items-center justify-center gap-2 sm:border-r border-[var(--border-color)] sm:pr-2 transition-colors">
                                     <Link size={14} /> Attach
                                 </button>
-                                <button onClick={() => setQuickLeadModal(car)} className="flex-1 text-sm text-[var(--text-secondary)] hover:text-gold-500 font-medium flex items-center justify-center gap-2 transition-colors">
+                                <button onClick={() => setQuickLeadModal(car)} className="flex-1 w-full sm:w-auto text-sm text-[var(--text-secondary)] hover:text-gold-500 font-medium flex items-center justify-center gap-2 transition-colors">
                                     <UserPlus size={14} /> Interest
                                 </button>
                             </div>

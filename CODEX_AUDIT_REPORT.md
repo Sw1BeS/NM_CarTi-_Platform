@@ -198,6 +198,57 @@ docker logs infra2-api-1 | grep "MTProto"
 
 ### Order Requested (user override: “2, 1, 3, then everything else”)
 1. **Bot Menu Editor** — stability/UX (black screen, menu editing)
+
+
+---
+
+# Stage-1 Release Report (2026-01-28)
+
+## 1) Summary of Changes (by module/page)
+- **Routing & Roles:** Centralized route/nav policy with guards; role-filtered sidebar and command palette.
+- **Dashboard (`/`):** Added “New Leads Today” KPI; kept fast-loading cards and activity feed.
+- **Requests:** Consistent badges, offers highlight, fresh-update tint, mobile-friendly table.
+- **Leads:** Inline “Share as Request” quick action; mobile table overflow fix.
+- **Inventory:** Unified header actions; responsive grid unchanged.
+- **Inbox:** Composer focus and context chip when chat selected; minor UX polish.
+- **Help:** New in-app `/help` page with quick-start steps and module tips.
+- **Backend Logging:** Added structured logger utility and applied to server bootstrap + API router errors.
+- **Docs:** Added `RELEASE_QA_CHECKLIST.md` for smoke steps.
+
+## 2) Role-Based UI Matrix (final Stage-1)
+| Role | Must See | Optional | Hidden |
+| --- | --- | --- | --- |
+| SUPER_ADMIN | All routes incl. `/superadmin/*` | – | – |
+| ADMIN / OWNER | Dashboard, Inbox, Requests, Leads, Inventory, Content/Calendar, Integrations, Partners, Company, Settings, Help | – | – |
+| MANAGER | Dashboard, Inbox, Requests, Leads, Inventory, Content/Calendar, Integrations, Partners, Company, Settings, Help | – | Superadmin |
+| OPERATOR | Dashboard, Inbox, Requests, Leads, Inventory, Help | – | Settings, Integrations, Content/Calendar, Partners, Company, Superadmin |
+| DEALER | Dashboard, Inbox, Requests, Inventory, Help | – | Leads, Settings, Integrations, Content/Calendar, Partners, Company, Superadmin |
+| VIEWER / USER | Dashboard, Requests, Inventory, Help | – | Inbox, Leads, Settings, Integrations, Content/Calendar, Partners, Company, Superadmin |
+
+## 3) Out of Scope (intentionally not done)
+- Dynamic field/builder (reserved for Stage 2).
+- Full console.log replacement across all modules (logger added; deeper sweep deferred).
+- Scenario Builder/Automation refactor and marketplace enablement.
+- Deep responsive redesign of detail pages.
+
+## 4) Commands Executed
+- `cd apps/web && npm run build`
+- `cd apps/server && npm run build`
+
+## 5) QA Results (top 5 flows)
+- Not yet manually executed; use `RELEASE_QA_CHECKLIST.md` to run:
+  1) Login → dashboard KPIs load (role redirect correct)
+  2) Inbox chat open → send text + attachment + car card
+  3) Requests list/board → status/offer highlight; broadcast button opens
+  4) Leads list → status change inline; “Share as Request” produces request
+  5) Inventory grid → row open/share; horizontal scroll on mobile
+
+## 6) Stage-2 Backlog (prioritized)
+1. Replace remaining console logs with logger + standardized API error payloads UI-aware.
+2. Extend UI system to Content/Calendar/Settings/Scenario Builder with empty states.
+3. Responsive/touch tuning on request and inventory detail actions.
+4. Command palette quick-create (lead/request) with prefills; dashboard offer freshness from backend.
+5. Dynamic fields/builder foundation once approved.
 2. **Dashboard navigation** — broken/illogical links
 3. **Scenario module** — visual polish
 4. **Remaining modules** — Inbox/Requests, Mini App, Integrations/Partners/Settings, Content/Calendar, Parser/Messenger
@@ -314,3 +365,31 @@ docker logs infra2-api-1 | grep "MTProto"
 4. Add request creation modal + pagination to Inbox to finish in-progress item.  
 5. Consolidate Content/Calendar templates to server source of truth.  
 6. Run prisma validate/build/test + smoke scripts; update report with results.
+
+---
+
+## 13) Stage-H Stability Updates (2026-01-29)
+
+- Standardized API error responses via `errorResponse` across remaining server routes/middleware/controllers (apiRoutes, publicRoutes, qaRoutes, system/superadmin/company/templates, parser, showcase, inventory, requests).
+- Replaced runtime console logging with structured `logger` in MTProto mapping, parser, parserProfiles, and lead repository (kept seed scripts as-is).
+- Build check: `cd apps/server && npm run build` (tsc) ✅.
+- Build check: `cd apps/web && npm run build` (vite) ✅.
+- Standardized workspace context middleware errors via `errorResponse` (added code/hint details).
+
+## 14) QA Status (2026-01-29)
+- Builds: web ✅, server ✅ (see Stage-13 update).
+- Manual top-5 flows: **pending** (requires running app + seeded data).
+- Smoke scripts: **not run** (need live server + AUTH_TOKEN).
+- Smoke script `verification/routes_smoke_test.sh` run against localhost failed (no frontend/backend running on :3000/:3001). Needs live dev servers.
+- Smoke tests (running docker stack): `verification/routes_smoke_test.sh http://localhost:8082 http://localhost:3002` ✅ (auth endpoints 401 as expected without token).
+- Public pages reachability: `/p/request`, `/p/dealer`, `/p/proposal/123` returned 200 on web container.
+- Showcase check: `verification/check_showcase.sh http://localhost:3002/api/showcase/public system` ✅.
+- Health: `/health` = 200, `/api/health` = 401 on current container (needs follow-up; expected 200 in code).
+- Auth QA (seed admin): `/api/auth/login` 200; `/api/bots` and `/api/showcase` return 200 with token.
+- `/api/health` returns 200 with token but 401 without on current container (expected public per code; investigate middleware order/deploy mismatch).
+- QA script update: `verification/verify_miniapp.py` switched to BrowserRouter path `/p/app`.
+- API sanity (authed): `/api/requests`, `/api/leads`, `/api/inventory` all 200.
+- Parser: UI now uses `/api/parser/preview` + `/api/parser/mapping`; preview applies cached selector mapping; confidence computed client-side.
+- Mini App URLs: default menu “Open App” uses MINI_APP_URL placeholder, bot save computes `{publicBaseUrl}/p/app/{slug}`, buildMiniAppUrl now appends slug; defaultShowcaseSlug persisted in config for server use.
+- Leads from Telegram: store telegram username/name in payload and source = TELEGRAM (no longer bot name).
+- Builds re-run: `apps/server npm run build` ✅, `apps/web npm run build` ✅.

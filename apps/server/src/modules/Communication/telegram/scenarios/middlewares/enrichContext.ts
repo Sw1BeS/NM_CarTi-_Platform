@@ -1,5 +1,6 @@
 import { prisma } from '../../../../../services/prisma.js';
 import type { PipelineContext, PipelineMiddleware } from '../../core/types.js';
+import { logger } from '../../../../../utils/logger.js';
 
 const getUpdateType = (update: any) => {
   if (update?.inline_query) return 'inline_query';
@@ -29,7 +30,7 @@ const loadFeatureFlags = async () => {
     cachedFeatures = { ts: Date.now(), features };
     return features;
   } catch (e) {
-    console.error('[TelegramPipeline] Failed to load feature flags:', e);
+    logger.error('[TelegramPipeline] Failed to load feature flags:', e);
     const features = {};
     cachedFeatures = { ts: Date.now(), features };
     return features;
@@ -52,7 +53,7 @@ const logIncoming = async (botId: string, chatId: string, text: string, messageI
       )
     `;
   } catch (e) {
-    console.error('[TelegramPipeline] Failed to log incoming message:', e);
+    logger.error('[TelegramPipeline] Failed to log incoming message:', e);
   }
 };
 
@@ -99,21 +100,30 @@ export const enrichContext: PipelineMiddleware = async (ctx: PipelineContext, ne
         });
 
         if (!existingLead && ctx.bot.companyId) {
+            const from = message?.from;
+            const telegramUsername = from?.username ? String(from.username) : undefined;
+            const telegramName = [from?.first_name, from?.last_name].filter(Boolean).join(' ').trim() || undefined;
             await prisma.lead.create({
                 data: {
                     botId: ctx.bot.id,
                     companyId: ctx.bot.companyId,
                     userTgId: ctx.userId || ctx.chatId,
-                    clientName: message?.from?.first_name || message?.from?.username || 'Unknown User',
-                    source: ctx.bot.name || 'Telegram Bot',
+                    clientName: telegramName || (telegramUsername ? `@${telegramUsername}` : 'Unknown User'),
+                    source: 'TELEGRAM',
                     status: 'NEW',
-                    phone: message?.contact?.phone_number || undefined
+                    phone: message?.contact?.phone_number || undefined,
+                    payload: {
+                        telegramUsername,
+                        name: telegramName || (telegramUsername ? `@${telegramUsername}` : undefined),
+                        telegramChatId: ctx.chatId,
+                        telegramUserId: ctx.userId
+                    }
                 }
             });
-            console.log(`[TelegramPipeline] Auto-created lead for ${ctx.chatId}`);
+            logger.info(`[TelegramPipeline] Auto-created lead for ${ctx.chatId}`);
         }
       } catch(e) {
-          console.error('[TelegramPipeline] Lead creation failed:', e);
+          logger.error('[TelegramPipeline] Lead creation failed:', e);
       }
 
       // SendPulse Subscription (Placeholder)

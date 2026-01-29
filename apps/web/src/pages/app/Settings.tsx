@@ -16,6 +16,7 @@ import { getApiBase, setApiBase } from '../../services/apiConfig';
 import { UsersTab } from './settings/UsersTab';
 import { IntegrationsTab } from './settings/IntegrationsTab';
 import { SuperAdminTab, FeaturesTab, TelegramDiagnosticsTab } from './settings/SuperAdminTabs';
+import { PageHeader } from '../../components/ui/PageHeader';
 // Reuse existing internal components or move them too
 import { VersionSnapshots, ConfigSnapshot } from '../../services/versionSnapshots'; // Assuming these exist, kept internal to Settings if not moved yet.
 // Actually, VersionsTab was large. Let's keep it here for now or import everything if I extracted it. I missed extracting VersionsTab. I'll stub it or inline simplified version.
@@ -27,10 +28,7 @@ export const SettingsPage = () => {
 
     return (
         <div className="space-y-8 max-w-7xl mx-auto h-[calc(100vh-120px)] flex flex-col">
-            <div>
-                <h1 className="text-2xl font-medium text-[var(--text-primary)] tracking-tight">{t('nav.settings')}</h1>
-                <p className="text-sm text-[var(--text-secondary)] mt-1">{t('settings.subtitle')}</p>
-            </div>
+            <PageHeader title={t('nav.settings')} subtitle={t('settings.subtitle')} />
 
             <div className="panel overflow-hidden flex-1 flex flex-col md:flex-row shadow-2xl">
                 {/* Sidebar */}

@@ -1,6 +1,7 @@
 import dotenv from 'dotenv';
 import { prisma } from '../services/prisma.js';
 import { startContentWorker, stopContentWorker } from './content.worker.js';
+import { logger } from '../utils/logger.js';
 
 dotenv.config();
 
@@ -16,7 +17,7 @@ const run = async () => {
 };
 
 run().catch((error) => {
-  console.error('[ContentWorkerRunner] Failed to start:', error);
+  logger.error('[ContentWorkerRunner] Failed to start:', error);
   process.exit(1);
 });
 

@@ -1,6 +1,7 @@
 import { PrismaClient, Lead, LeadStatus, Prisma } from '@prisma/client';
 import { BaseRepository } from './base.repository.js';
 import { generateULID } from '../utils/ulid.js';
+import { logger } from '../utils/logger.js';
 
 /**
  * LeadRepository with Dual Write (Legacy Lead + v4.1 Record/Contact)
@@ -182,7 +183,7 @@ export class LeadRepository extends BaseRepository<Lead> {
                 }
             }
         } catch (e) {
-            console.error('Dual Write Failed (Non-blocking):', e);
+            logger.error('Dual Write Failed (Non-blocking):', e);
         }
 
         return lead;
@@ -208,7 +209,7 @@ export class LeadRepository extends BaseRepository<Lead> {
                 });
             }
         } catch (e) {
-            console.error('Dual Update Payload Failed:', e);
+            logger.error('Dual Update Payload Failed:', e);
         }
 
         return lead;
@@ -234,7 +235,7 @@ export class LeadRepository extends BaseRepository<Lead> {
                 });
             }
         } catch (e) {
-            console.error('Dual Update Status Failed:', e);
+            logger.error('Dual Update Status Failed:', e);
         }
 
         return lead;

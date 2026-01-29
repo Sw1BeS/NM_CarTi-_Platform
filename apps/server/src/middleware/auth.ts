@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { verifyJwt, JwtUserPayload } from '../config/jwt.js';
+import { errorResponse } from '../utils/errorResponse.js';
 
 export interface AuthRequest extends Request {
   user?: JwtUserPayload;
@@ -35,7 +36,7 @@ export const authenticateToken = (req: Request, res: Response, next: NextFunctio
   const authHeader = (req as any).headers['authorization'];
   const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.split(' ')[1] : null;
 
-  if (!token) return (res as any).status(401).send('Unauthorized');
+  if (!token) return errorResponse(res, 401, 'Unauthorized');
 
   try {
     const decoded = verifyJwt(token);
@@ -43,7 +44,7 @@ export const authenticateToken = (req: Request, res: Response, next: NextFunctio
     (req as AuthRequest).user = user;
     next();
   } catch (err) {
-    return (res as any).status(403).send('Forbidden');
+    return errorResponse(res, 403, 'Forbidden');
   }
 };
 
@@ -74,7 +75,7 @@ export const requireRole = (roles: string[] | string, ...rest: string[]) => {
     if (userRole === 'SUPER_ADMIN') return next();
 
     if (!userRole || !roleList.includes(userRole)) {
-      return (res as any).status(403).json({ error: 'Insufficient permissions' });
+      return errorResponse(res, 403, 'Insufficient permissions');
     }
     next();
   };

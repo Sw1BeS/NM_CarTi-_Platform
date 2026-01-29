@@ -3,12 +3,13 @@ import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, FileText, Search, Users,
-  Send, LogOut, Menu, Settings as SettingsIcon, X, Plus, Radio, MessageCircle, Bell, Car, Sparkles, Briefcase, Database, Calendar, Library, Globe, Plug
+  Send, LogOut, Menu, Settings as SettingsIcon, X, Plus, Radio, MessageCircle, Bell, Car, Sparkles, Briefcase, Database, Calendar, Library, Globe, Plug, Info
 } from 'lucide-react';
 import { User, NavigationItem } from '../types';
 import { useLang } from '../contexts/LanguageContext';
 import { CommandPalette } from './CommandPalette';
 import { Data } from '../services/data';
+import { roleNav } from '../config/permissions';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -29,26 +30,9 @@ const ICON_MAP: Record<string, any> = {
   'Database': Database,
   'Calendar': Calendar,
   'Library': Library,
-  'Plug': Plug
+  'Plug': Plug,
+  'Info': Info
 };
-
-const ALL_ROLES = ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OPERATOR', 'USER', 'OWNER', 'DEALER'];
-
-const DEFAULT_NAV: NavigationItem[] = [
-  { id: 'nav_dash', labelKey: 'nav.dashboard', path: '/', iconName: 'LayoutDashboard', roles: ALL_ROLES, order: 0, visible: true },
-  { id: 'nav_inbox', labelKey: 'nav.inbox', path: '/inbox', iconName: 'MessageCircle', roles: ALL_ROLES, order: 1, visible: true },
-  { id: 'nav_req', labelKey: 'nav.requests', path: '/requests', iconName: 'FileText', roles: ALL_ROLES, order: 2, visible: true },
-  { id: 'nav_inv', labelKey: 'nav.inventory', path: '/inventory', iconName: 'Car', roles: ALL_ROLES, order: 3, visible: true },
-  { id: 'nav_tele', labelKey: 'nav.telegram', path: '/telegram', iconName: 'Send', roles: ALL_ROLES, order: 4, visible: true },
-  { id: 'nav_cal', labelKey: 'nav.calendar', path: '/calendar', iconName: 'Calendar', roles: ALL_ROLES, order: 5, visible: true },
-  { id: 'nav_cont', labelKey: 'nav.content', path: '/content', iconName: 'Library', roles: ALL_ROLES, order: 6, visible: true },
-  { id: 'nav_scen', labelKey: 'nav.scenarios', path: '/scenarios', iconName: 'Database', roles: ALL_ROLES, order: 7, visible: true },
-  { id: 'nav_integrations', labelKey: 'nav.integrations', path: '/integrations', iconName: 'Plug', roles: ALL_ROLES, order: 8, visible: true },
-  { id: 'nav_partners', labelKey: 'nav.partners', path: '/partners', iconName: 'Users', roles: ALL_ROLES, order: 9, visible: true },
-  { id: 'nav_company', labelKey: 'nav.company', path: '/company', iconName: 'Briefcase', roles: ALL_ROLES, order: 10, visible: true },
-  // { id: 'nav_bots', labelKey: 'nav.bots', path: '/bots', iconName: 'Users', roles: ALL_ROLES, order: 8, visible: true }, // Merged into Scenarios/Communication
-  { id: 'nav_sets', labelKey: 'nav.settings', path: '/settings', iconName: 'Settings', roles: ALL_ROLES, order: 99, visible: true }
-];
 
 export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout }) => {
   const navigate = useNavigate();
@@ -60,7 +44,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout }) => {
   const [notifications, setNotifications] = useState<any[]>([]);
   const [showNotif, setShowNotif] = useState(false);
   const [showLang, setShowLang] = useState(false);
-  const [navItems, setNavItems] = useState<NavigationItem[]>([]);
+  const [navItems, setNavItems] = useState<NavigationItem[]>(roleNav((user?.role as any) || 'VIEWER'));
   const [features, setFeatures] = useState({});
 
   const unreadCount = notifications.filter(n => !n.read).length;
@@ -71,16 +55,26 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout }) => {
     return [];
   };
 
+  const mergeNav = (backendNav: NavigationItem[], role?: string) => {
+    const base = role ? roleNav(role as any) : roleNav('VIEWER');
+    const map = new Map<string, NavigationItem>();
+    base.forEach(item => map.set(item.id || item.path || item.labelKey || '', item));
+    backendNav.forEach((item, idx) => {
+      const key = item.id || item.path || item.labelKey || `custom_${idx}`;
+      const existing = map.get(key);
+      map.set(key, { ...(existing || {}), ...item });
+    });
+    return Array.from(map.values())
+      .filter(it => it.visible !== false && (!it.roles || (role ? it.roles.includes(role as any) : true)))
+      .sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
+  };
+
   useEffect(() => {
     const load = async () => {
       setNotifications(await Data.getNotifications());
       const settings = await Data.getSettings();
       const backendNav = normalizeNav(settings.navigation);
-      const mergedNav = [...backendNav];
-      DEFAULT_NAV.forEach(item => {
-        if (!mergedNav.find(n => n.id === item.id)) mergedNav.push(item);
-      });
-      setNavItems(mergedNav.sort((a: any, b: any) => (a.order ?? 999) - (b.order ?? 999)));
+      setNavItems(mergeNav(backendNav, user?.role));
       setFeatures(settings.features || {});
     };
 
@@ -89,11 +83,11 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout }) => {
     const unsub2 = Data.subscribe('UPDATE_SETTINGS', async () => {
       const settings = await Data.getSettings();
       const backendNav = normalizeNav(settings.navigation);
-      setNavItems(backendNav.length > 0 ? backendNav.sort((a: any, b: any) => (a.order ?? 999) - (b.order ?? 999)) : DEFAULT_NAV);
+      setNavItems(mergeNav(backendNav, user?.role));
       setFeatures(settings.features || {});
     });
     return () => { unsub1(); unsub2(); };
-  }, []);
+  }, [user?.role]);
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {

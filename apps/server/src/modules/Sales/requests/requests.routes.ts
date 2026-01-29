@@ -11,6 +11,8 @@ import { generateRequestLink } from '../../../utils/deeplink.utils.js';
 
 import { validate } from '../../../middleware/validation.js';
 import { createRequestSchema } from '../../../validation/schemas.js';
+import { logger } from '../../../utils/logger.js';
+import { errorResponse } from '../../../utils/errorResponse.js';
 
 const router = Router();
 const requestRepo = new RequestRepository(prisma);
@@ -22,7 +24,7 @@ router.get('/', authenticateToken, async (req, res) => {
     const userCompanyId = user.companyId || user.workspaceId;
     const requestedCompanyId = typeof req.query.companyId === 'string' ? req.query.companyId : undefined;
     const companyId = isSuperadmin ? requestedCompanyId : userCompanyId;
-    if (!companyId && !isSuperadmin) return res.status(400).json({ error: 'Company context required' });
+    if (!companyId && !isSuperadmin) return errorResponse(res, 400, 'Company context required', 'COMPANY_REQUIRED');
 
     const page = Math.max(1, Number(req.query.page) || 1);
     const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 50));
@@ -61,8 +63,8 @@ router.get('/', authenticateToken, async (req, res) => {
             totalPages: Math.ceil(total / limit)
         });
     } catch (e: any) {
-        console.error(e);
-        res.status(500).json({ error: 'Failed to fetch requests' });
+        logger.error(e);
+        errorResponse(res, 500, 'Failed to fetch requests');
     }
 });
 
@@ -76,7 +78,7 @@ router.post('/', authenticateToken, requireRole(['ADMIN', 'MANAGER']), validate(
         const userCompanyId = user.companyId || user.workspaceId;
         const requestedCompanyId = typeof (data || {}).companyId === 'string' ? (data || {}).companyId : undefined;
         const companyId = isSuperadmin ? (requestedCompanyId || userCompanyId) : userCompanyId;
-        if (!companyId && !isSuperadmin) return res.status(400).json({ error: 'Company context required' });
+        if (!companyId && !isSuperadmin) return errorResponse(res, 400, 'Company context required', 'COMPANY_REQUIRED');
 
         const request = await requestRepo.createRequest({
             title: data.title || 'New Request',
@@ -89,12 +91,12 @@ router.post('/', authenticateToken, requireRole(['ADMIN', 'MANAGER']), validate(
             import('../../Integrations/meta/meta.service.js').then(({ MetaService }) => {
                 MetaService.getInstance().sendEvent('SubmitApplication', {
                     user: { id: (req as any).user.id },
-                }, { requestId: request.publicId }).catch(console.error);
+                }, { requestId: request.publicId }).catch(logger.error);
             });
         }
         res.json(mapRequestOutput(request));
     } catch (e: any) {
-        res.status(500).json({ error: e.message });
+        errorResponse(res, 500, e.message);
     }
 });
 
@@ -105,13 +107,13 @@ router.put('/:id', authenticateToken, requireRole(['ADMIN', 'MANAGER', 'OPERATOR
         const user = (req as any).user || {};
         const isSuperadmin = user.role === 'SUPER_ADMIN';
         const userCompanyId = user.companyId || user.workspaceId;
-        if (!isSuperadmin && !userCompanyId) return res.status(400).json({ error: 'Company context required' });
+        if (!isSuperadmin && !userCompanyId) return errorResponse(res, 400, 'Company context required', 'COMPANY_REQUIRED');
 
         const existing = await requestRepo.findById(id);
-        if (!existing) return res.status(404).json({ error: 'Request not found' });
+        if (!existing) return errorResponse(res, 404, 'Request not found');
         if (!isSuperadmin) {
-            if (existing.companyId && existing.companyId !== userCompanyId) return res.status(403).json({ error: 'Forbidden' });
-            if (!existing.companyId && userCompanyId !== 'company_system') return res.status(403).json({ error: 'Forbidden' });
+            if (existing.companyId && existing.companyId !== userCompanyId) return errorResponse(res, 403, 'Forbidden');
+            if (!existing.companyId && userCompanyId !== 'company_system') return errorResponse(res, 403, 'Forbidden');
         }
 
         // Update main request
@@ -122,14 +124,14 @@ router.put('/:id', authenticateToken, requireRole(['ADMIN', 'MANAGER', 'OPERATOR
             import('../../Integrations/meta/meta.service.js').then(({ MetaService }) => {
                 MetaService.getInstance().sendEvent('Purchase', {
                     user: { id: (req as any).user.id },
-                }, { requestId: request.publicId, value: request.budgetMax, currency: 'USD' }).catch(console.error);
+                }, { requestId: request.publicId, value: request.budgetMax, currency: 'USD' }).catch(logger.error);
             });
         }
 
         res.json(mapRequestOutput(request));
     } catch (e: any) {
-        console.error(e);
-        res.status(500).json({ error: 'Failed to update request' });
+        logger.error(e);
+        errorResponse(res, 500, 'Failed to update request');
     }
 });
 
@@ -139,17 +141,17 @@ router.delete('/:id', authenticateToken, requireRole(['ADMIN']), async (req, res
         const user = (req as any).user || {};
         const isSuperadmin = user.role === 'SUPER_ADMIN';
         const userCompanyId = user.companyId || user.workspaceId;
-        if (!isSuperadmin && !userCompanyId) return res.status(400).json({ error: 'Company context required' });
+        if (!isSuperadmin && !userCompanyId) return errorResponse(res, 400, 'Company context required', 'COMPANY_REQUIRED');
 
         const existing = await requestRepo.findById(id);
-        if (!existing) return res.status(404).json({ error: 'Request not found' });
+        if (!existing) return errorResponse(res, 404, 'Request not found');
         if (!isSuperadmin) {
-            if (existing.companyId && existing.companyId !== userCompanyId) return res.status(403).json({ error: 'Forbidden' });
-            if (!existing.companyId && userCompanyId !== 'company_system') return res.status(403).json({ error: 'Forbidden' });
+            if (existing.companyId && existing.companyId !== userCompanyId) return errorResponse(res, 403, 'Forbidden');
+            if (!existing.companyId && userCompanyId !== 'company_system') return errorResponse(res, 403, 'Forbidden');
         }
         await requestRepo.deleteRequest(id);
         res.json({ success: true });
-    } catch (e: any) { res.status(500).json({ error: 'Failed to delete request' }); }
+    } catch (e: any) { errorResponse(res, 500, 'Failed to delete request'); }
 });
 
 // --- Variant Management Sub-Routes ---
@@ -160,19 +162,19 @@ router.post('/:id/variants', authenticateToken, requireRole(['ADMIN', 'MANAGER',
         const user = (req as any).user || {};
         const isSuperadmin = user.role === 'SUPER_ADMIN';
         const userCompanyId = user.companyId || user.workspaceId;
-        if (!isSuperadmin && !userCompanyId) return res.status(400).json({ error: 'Company context required' });
+        if (!isSuperadmin && !userCompanyId) return errorResponse(res, 400, 'Company context required', 'COMPANY_REQUIRED');
 
         const request = await requestRepo.findById(id);
-        if (!request) return res.status(404).json({ error: 'Request not found' });
+        if (!request) return errorResponse(res, 404, 'Request not found');
         if (!isSuperadmin) {
-            if (request.companyId && request.companyId !== userCompanyId) return res.status(403).json({ error: 'Forbidden' });
-            if (!request.companyId && userCompanyId !== 'company_system') return res.status(403).json({ error: 'Forbidden' });
+            if (request.companyId && request.companyId !== userCompanyId) return errorResponse(res, 403, 'Forbidden');
+            if (!request.companyId && userCompanyId !== 'company_system') return errorResponse(res, 403, 'Forbidden');
         }
 
         const variant = await requestRepo.addVariant(id, variantData);
         res.json(mapVariantOutput(variant));
     } catch (e: any) {
-        res.status(500).json({ error: 'Failed to add variant' });
+        errorResponse(res, 500, 'Failed to add variant');
     }
 });
 
@@ -226,21 +228,21 @@ router.post('/:id/publish-channel', authenticateToken, requireRole(['ADMIN', 'MA
         const { id } = req.params;
         const { botId, channelId, text, template } = req.body || {};
         const request = await requestRepo.findById(id);
-        if (!request) return res.status(404).json({ error: 'Request not found' });
+        if (!request) return errorResponse(res, 404, 'Request not found');
         const user = (req as any).user || {};
         const isSuperadmin = user.role === 'SUPER_ADMIN';
         const userCompanyId = user.companyId || user.workspaceId;
-        if (!isSuperadmin && !userCompanyId) return res.status(400).json({ error: 'Company context required' });
+        if (!isSuperadmin && !userCompanyId) return errorResponse(res, 400, 'Company context required', 'COMPANY_REQUIRED');
         if (!isSuperadmin) {
-            if (request.companyId && request.companyId !== userCompanyId) return res.status(403).json({ error: 'Forbidden' });
-            if (!request.companyId && userCompanyId !== 'company_system') return res.status(403).json({ error: 'Forbidden' });
+            if (request.companyId && request.companyId !== userCompanyId) return errorResponse(res, 403, 'Forbidden');
+            if (!request.companyId && userCompanyId !== 'company_system') return errorResponse(res, 403, 'Forbidden');
         }
 
         const effectiveCompanyId = request.companyId || userCompanyId || null;
         const bot = await resolveBot(effectiveCompanyId, botId ? String(botId) : undefined);
-        if (!bot?.token) return res.status(400).json({ error: 'Bot not found' });
+        if (!bot?.token) return errorResponse(res, 400, 'Bot not found');
         const destination = channelId || bot.channelId;
-        if (!destination) return res.status(400).json({ error: 'ChannelId required' });
+        if (!destination) return errorResponse(res, 400, 'ChannelId required');
 
         const reqCard = buildChannelText(request, template);
         const botUsername = bot.config ? (bot.config as any).username : undefined;
@@ -276,13 +278,13 @@ router.post('/:id/publish-channel', authenticateToken, requireRole(['ADMIN', 'MA
             text: text || reqCard,
             payload: { type: 'CHANNEL_PUBLISH', messageId }
         }).catch((e: any) => {
-            console.error('[CHANNEL_PUBLISH] MessageLog failed:', e.message || e);
+            logger.error('[CHANNEL_PUBLISH] MessageLog failed:', e.message || e);
         });
 
         res.json({ ok: true, channelPost });
     } catch (e: any) {
-        console.error(e);
-        res.status(500).json({ error: 'Failed to publish' });
+        logger.error(e);
+        errorResponse(res, 500, 'Failed to publish');
     }
 });
 
@@ -293,22 +295,22 @@ router.put('/:id/channel-post', authenticateToken, requireRole(['ADMIN', 'MANAGE
         const user = (req as any).user || {};
         const isSuperadmin = user.role === 'SUPER_ADMIN';
         const userCompanyId = user.companyId || user.workspaceId;
-        if (!isSuperadmin && !userCompanyId) return res.status(400).json({ error: 'Company context required' });
+        if (!isSuperadmin && !userCompanyId) return errorResponse(res, 400, 'Company context required', 'COMPANY_REQUIRED');
 
         const request = await requestRepo.findById(id);
-        if (!request) return res.status(404).json({ error: 'Request not found' });
+        if (!request) return errorResponse(res, 404, 'Request not found');
         if (!isSuperadmin) {
-            if (request.companyId && request.companyId !== userCompanyId) return res.status(403).json({ error: 'Forbidden' });
-            if (!request.companyId && userCompanyId !== 'company_system') return res.status(403).json({ error: 'Forbidden' });
+            if (request.companyId && request.companyId !== userCompanyId) return errorResponse(res, 403, 'Forbidden');
+            if (!request.companyId && userCompanyId !== 'company_system') return errorResponse(res, 403, 'Forbidden');
         }
 
         const cp = await requestRepo.findChannelPost(id, channelId);
-        if (!cp) return res.status(404).json({ error: 'ChannelPost not found' });
+        if (!cp) return errorResponse(res, 404, 'ChannelPost not found');
         const effectiveCompanyId = request.companyId || userCompanyId || null;
         const bot = cp.botId
             ? await resolveBot(effectiveCompanyId, String(cp.botId))
             : await resolveBot(effectiveCompanyId, undefined);
-        if (!bot?.token) return res.status(400).json({ error: 'Bot not found' });
+        if (!bot?.token) return errorResponse(res, 400, 'Bot not found');
         const payload = (cp.payload as any) || {};
         const nextText = text || payload.text || 'Updated';
         await telegramOutbox.editMessageText({
@@ -331,12 +333,12 @@ router.put('/:id/channel-post', authenticateToken, requireRole(['ADMIN', 'MANAGE
             text: nextText,
             payload: { type: 'CHANNEL_UPDATE', messageId: cp.messageId }
         }).catch((e: any) => {
-            console.error('[CHANNEL_UPDATE] MessageLog failed:', e.message || e);
+            logger.error('[CHANNEL_UPDATE] MessageLog failed:', e.message || e);
         });
         res.json({ ok: true, channelPost: updated });
     } catch (e: any) {
-        console.error(e);
-        res.status(500).json({ error: 'Failed to update post' });
+        logger.error(e);
+        errorResponse(res, 500, 'Failed to update post');
     }
 });
 
@@ -347,22 +349,22 @@ router.post('/:id/close-channel', authenticateToken, requireRole(['ADMIN', 'MANA
         const user = (req as any).user || {};
         const isSuperadmin = user.role === 'SUPER_ADMIN';
         const userCompanyId = user.companyId || user.workspaceId;
-        if (!isSuperadmin && !userCompanyId) return res.status(400).json({ error: 'Company context required' });
+        if (!isSuperadmin && !userCompanyId) return errorResponse(res, 400, 'Company context required', 'COMPANY_REQUIRED');
 
         const request = await requestRepo.findById(id);
-        if (!request) return res.status(404).json({ error: 'Request not found' });
+        if (!request) return errorResponse(res, 404, 'Request not found');
         if (!isSuperadmin) {
-            if (request.companyId && request.companyId !== userCompanyId) return res.status(403).json({ error: 'Forbidden' });
-            if (!request.companyId && userCompanyId !== 'company_system') return res.status(403).json({ error: 'Forbidden' });
+            if (request.companyId && request.companyId !== userCompanyId) return errorResponse(res, 403, 'Forbidden');
+            if (!request.companyId && userCompanyId !== 'company_system') return errorResponse(res, 403, 'Forbidden');
         }
 
         const cp = await requestRepo.findChannelPost(id, channelId);
-        if (!cp) return res.status(404).json({ error: 'ChannelPost not found' });
+        if (!cp) return errorResponse(res, 404, 'ChannelPost not found');
         const effectiveCompanyId = request.companyId || userCompanyId || null;
         const bot = cp.botId
             ? await resolveBot(effectiveCompanyId, String(cp.botId))
             : await resolveBot(effectiveCompanyId, undefined);
-        if (!bot?.token) return res.status(400).json({ error: 'Bot not found' });
+        if (!bot?.token) return errorResponse(res, 400, 'Bot not found');
         const payload = (cp.payload as any) || {};
         const closedText = `${payload.text || ''}\n\n🚫 Запит закрито`;
         await telegramOutbox.editMessageText({
@@ -386,12 +388,12 @@ router.post('/:id/close-channel', authenticateToken, requireRole(['ADMIN', 'MANA
             text: closedText,
             payload: { type: 'CHANNEL_CLOSE', messageId: cp.messageId }
         }).catch((e: any) => {
-            console.error('[CHANNEL_CLOSE] MessageLog failed:', e.message || e);
+            logger.error('[CHANNEL_CLOSE] MessageLog failed:', e.message || e);
         });
         res.json({ ok: true, channelPost: updated });
     } catch (e: any) {
-        console.error(e);
-        res.status(500).json({ error: 'Failed to close post' });
+        logger.error(e);
+        errorResponse(res, 500, 'Failed to close post');
     }
 });
 

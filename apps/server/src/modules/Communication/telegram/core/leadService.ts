@@ -5,6 +5,7 @@ import { normalizePhone } from '../../../Inventory/normalization/normalizePhone.
 import { emitPlatformEvent } from './events/eventEmitter.js';
 import { generatePublicId, mapRequestInput } from '../../../../services/dto.js';
 import { MetaService } from '../../../Integrations/meta/meta.service.js';
+import { logger } from '../../../../utils/logger.js';
 
 
 const leadRepo = new LeadRepository(prisma);
@@ -16,6 +17,8 @@ export type LeadCreateInput = {
   chatId?: string | null;
   userId?: string | null;
   name: string;
+  telegramUsername?: string | null;
+  telegramName?: string | null;
   phone?: string | null;
   email?: string | null;
   request?: string | null;
@@ -52,6 +55,17 @@ const resolveTelegramUserId = (input: LeadCreateInput) => {
   return chatId;
 };
 
+const normalizeLeadName = (input: LeadCreateInput) => {
+  const raw = String(input.name || '').trim();
+  const generic = new Set(['client', 'user', 'unknown', 'unknown user']);
+  const telegramName = String(input.telegramName || '').trim();
+  const telegramUsername = String(input.telegramUsername || '').trim().replace(/^@/, '');
+  if (raw && !generic.has(raw.toLowerCase())) return raw;
+  if (telegramName) return telegramName;
+  if (telegramUsername) return `@${telegramUsername}`;
+  return raw || 'Client';
+};
+
 export const createOrMergeLead = async (input: LeadCreateInput, botConfig?: any) => {
   const normalizedPhone = normalizePhone(input.phone || undefined);
   const dedupDays = getDedupWindowDays(botConfig);
@@ -77,7 +91,8 @@ export const createOrMergeLead = async (input: LeadCreateInput, botConfig?: any)
       ...(dup.payload as any || {}),
       lastInteractionAt: new Date().toISOString(),
       telegramChatId: input.chatId || (dup.payload as any)?.telegramChatId,
-      telegramUserId: telegramUserId || (dup.payload as any)?.telegramUserId
+      telegramUserId: telegramUserId || (dup.payload as any)?.telegramUserId,
+      telegramUsername: input.telegramUsername || (dup.payload as any)?.telegramUsername
     };
 
     await prisma.leadActivity.create({
@@ -114,7 +129,7 @@ export const createOrMergeLead = async (input: LeadCreateInput, botConfig?: any)
 
   const lead = await leadRepo.createLead({
     companyId,
-    clientName: input.name,
+    clientName: normalizeLeadName(input),
     phone: normalizedPhone || undefined,
     request: input.request || undefined,
     userTgId: telegramUserId || undefined,
@@ -124,10 +139,12 @@ export const createOrMergeLead = async (input: LeadCreateInput, botConfig?: any)
     leadCode: buildLeadCode(),
     payload: {
       ...(input.payload || {}),
+      name: normalizeLeadName(input),
       leadType: input.leadType || undefined,
       phone: normalizedPhone || undefined,
       telegramChatId: input.chatId || undefined,
-      telegramUserId: telegramUserId || undefined
+      telegramUserId: telegramUserId || undefined,
+      telegramUsername: input.telegramUsername || undefined
     }
   });
 
@@ -180,7 +197,7 @@ export const createOrMergeLead = async (input: LeadCreateInput, botConfig?: any)
     content_ids: [lead.id],
     value: 0,
     currency: 'USD'
-  }).catch(console.error);
+  }).catch(logger.error);
 
   // SendPulse Integration - Add lead to mailing list
   if (normalizedPhone || input.payload?.email) {
@@ -200,10 +217,10 @@ export const createOrMergeLead = async (input: LeadCreateInput, botConfig?: any)
             phone: normalizedPhone || '',
             source: input.source || 'TELEGRAM',
             leadId: lead.id
-          }).catch(console.error);
+          }).catch(logger.error);
         }
-      }).catch(console.error);
-    }).catch(console.error);
+      }).catch(logger.error);
+    }).catch(logger.error);
   }
 
   return { lead, isDuplicate: false, request: createdRequest };

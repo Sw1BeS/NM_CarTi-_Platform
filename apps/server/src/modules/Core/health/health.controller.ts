@@ -3,6 +3,7 @@ import { prisma } from '../../../services/prisma.js';
 import { botManager } from '../../Communication/bots/bot.service.js';
 import { getWorkerStatus } from '../../../workers/content.worker.js';
 import { getBuildInfo } from '../../../config/buildInfo.js';
+import { logger } from '../../../utils/logger.js';
 import process from 'process';
 
 export const checkHealth = async (req: Request, res: Response) => {
@@ -16,7 +17,7 @@ export const checkHealth = async (req: Request, res: Response) => {
         dbLatency = Date.now() - dbStart;
         dbStatus = 'connected';
     } catch (e) {
-        console.error('Health Check DB Error:', e);
+        logger.error('Health Check DB Error:', e);
         dbStatus = 'error';
     }
 

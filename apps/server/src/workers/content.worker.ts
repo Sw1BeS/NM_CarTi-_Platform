@@ -8,6 +8,7 @@
 import cron from 'node-cron';
 import { prisma } from '../services/prisma.js';
 import { telegramOutbox } from '../modules/Communication/telegram/messaging/outbox/telegramOutbox.js';
+import { logger } from '../utils/logger.js';
 
 interface ScheduledPost {
     id: string;
@@ -49,10 +50,10 @@ async function publishPost(post: ScheduledPost, botToken: string, companyId?: st
             });
         }
 
-        console.log(`[ContentWorker] Published post ${post.id} to ${post.destination}`);
+        logger.info(`[ContentWorker] Published post ${post.id} to ${post.destination}`);
         return result;
     } catch (e: any) {
-        console.error(`[ContentWorker] Failed to publish ${post.id}:`, e.message);
+        logger.error(`[ContentWorker] Failed to publish ${post.id}:`, e.message);
         throw e;
     }
 }
@@ -62,7 +63,7 @@ async function publishPost(post: ScheduledPost, botToken: string, companyId?: st
  */
 async function processScheduledPosts(): Promise<void> {
     if (isRunning) {
-        console.log('[ContentWorker] Already running, skipping...');
+        logger.info('[ContentWorker] Already running, skipping...');
         return;
     }
 
@@ -87,11 +88,11 @@ async function processScheduledPosts(): Promise<void> {
         });
 
         if (duePosts.length === 0) {
-            console.log('[ContentWorker] No posts due');
+            logger.info('[ContentWorker] No posts due');
             return;
         }
 
-        console.log(`[ContentWorker] Found ${duePosts.length} posts to publish`);
+        logger.info(`[ContentWorker] Found ${duePosts.length} posts to publish`);
 
         for (const draft of duePosts) {
             try {
@@ -101,7 +102,7 @@ async function processScheduledPosts(): Promise<void> {
                 });
 
                 if (!bot || !bot.token) {
-                    console.error(`[ContentWorker] Bot not found for draft ${draft.id}`);
+                    logger.error(`[ContentWorker] Bot not found for draft ${draft.id}`);
                     await prisma.draft.update({
                         where: { id: draft.id },
                         data: {
@@ -147,13 +148,13 @@ async function processScheduledPosts(): Promise<void> {
                     });
                 }
 
-                console.log(`[ContentWorker] ✅ Successfully published ${draft.id}`);
+                logger.info(`[ContentWorker] ✅ Successfully published ${draft.id}`);
 
                 // Rate limiting - wait 1 second between posts
                 await new Promise(r => setTimeout(r, 1000));
 
             } catch (e: any) {
-                console.error(`[ContentWorker] Error publishing ${draft.id}:`, e);
+                logger.error(`[ContentWorker] Error publishing ${draft.id}:`, e);
 
                 await prisma.draft.update({
                     where: { id: draft.id },
@@ -166,7 +167,7 @@ async function processScheduledPosts(): Promise<void> {
         }
 
     } catch (e) {
-        console.error('[ContentWorker] Critical error:', e);
+        logger.error('[ContentWorker] Critical error:', e);
     } finally {
         isRunning = false;
     }
@@ -177,17 +178,17 @@ async function processScheduledPosts(): Promise<void> {
  */
 export function startContentWorker(): void {
     if (cronTask) {
-        console.log('[ContentWorker] Already running');
+        logger.info('[ContentWorker] Already running');
         return;
     }
 
     // Run every minute
     cronTask = cron.schedule('* * * * *', async () => {
-        console.log('[ContentWorker] Checking for scheduled posts...');
+        logger.info('[ContentWorker] Checking for scheduled posts...');
         await processScheduledPosts();
     });
 
-    console.log('[ContentWorker] 🚀 Started (runs every minute)');
+    logger.info('[ContentWorker] 🚀 Started (runs every minute)');
 
     // Run immediately on start
     processScheduledPosts();
@@ -200,7 +201,7 @@ export function stopContentWorker(): void {
     if (cronTask) {
         cronTask.stop();
         cronTask = null;
-        console.log('[ContentWorker] ⏹️ Stopped');
+        logger.info('[ContentWorker] ⏹️ Stopped');
     }
 }
 

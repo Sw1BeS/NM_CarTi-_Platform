@@ -35,6 +35,7 @@ const BASE_TRANSLATIONS: Record<Language, Record<string, string>> = {
         'nav.marketplace': 'Marketplace',
         'nav.integrations': 'Integrations',
         'nav.company': 'Company',
+        'nav.help': 'Help',
 
         // Login
         'login.title': 'Enterprise Access',
@@ -355,6 +356,7 @@ const BASE_TRANSLATIONS: Record<Language, Record<string, string>> = {
         'nav.marketplace': 'Маркетплейс',
         'nav.integrations': 'Интеграции',
         'nav.company': 'Компания',
+        'nav.help': 'Помощь',
 
         // Вход
         'login.title': 'Вход в систему',
@@ -673,6 +675,7 @@ const BASE_TRANSLATIONS: Record<Language, Record<string, string>> = {
         'nav.marketplace': 'Маркетплейс',
         'nav.integrations': 'Інтеграції',
         'nav.company': 'Компанія',
+        'nav.help': 'Допомога',
 
         // Вхід
         'login.title': 'Вхід до системи',

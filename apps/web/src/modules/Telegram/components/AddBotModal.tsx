@@ -18,6 +18,8 @@ export const AddBotModal = ({ onClose }: any) => {
     const [saving, setSaving] = useState(false);
     const { showToast } = useToast();
 
+    const buildMiniAppUrl = (baseUrl: string, slug: string) => `${baseUrl.replace(/\/$/, '')}/p/app/${slug}`;
+
     const handleAdd = async () => {
         if (!name.trim() || !token.trim()) {
             showToast('Name and token are required', 'error');
@@ -25,23 +27,37 @@ export const AddBotModal = ({ onClose }: any) => {
         }
         setSaving(true);
         try {
+            const slug = 'system';
+            const baseUrl = (publicBaseUrl || window.location.origin).replace(/\/$/, '');
+            const miniAppUrl = buildMiniAppUrl(baseUrl, slug);
+            const menuConfig = {
+                ...DEFAULT_MENU_CONFIG,
+                buttons: DEFAULT_MENU_CONFIG.buttons.map(btn =>
+                    btn.type === 'LINK' && btn.value === '{{MINI_APP_URL}}'
+                        ? { ...btn, value: miniAppUrl }
+                        : btn
+                )
+            };
+            const miniAppConfig = { ...DEFAULT_MINI_APP_CONFIG, url: miniAppUrl, showcaseSlug: slug };
+
             const bot = await Data.saveBot({
                 name: name.trim(),
                 username: name.trim().toLowerCase().replace(/\s+/g, '_'),
                 token: token.trim(),
                 role: 'CLIENT',
                 active: true,
+                defaultShowcaseSlug: slug,
                 channelId: channelId || undefined,
                 adminChatId: adminChatId || undefined,
                 deliveryMode: mode === 'webhook' ? 'webhook' : 'polling',
                 config: {
-                    publicBaseUrl: publicBaseUrl || undefined,
+                    publicBaseUrl: baseUrl || undefined,
                     deliveryMode: mode,
-                    menuConfig: DEFAULT_MENU_CONFIG,
-                    miniAppConfig: DEFAULT_MINI_APP_CONFIG
+                    menuConfig,
+                    miniAppConfig
                 },
-                menuConfig: DEFAULT_MENU_CONFIG,
-                miniAppConfig: DEFAULT_MINI_APP_CONFIG,
+                menuConfig,
+                miniAppConfig,
                 processedUpdateIds: [],
                 stats: { processed: 0, ignored: 0, errors: 0, lastRun: '' }
             } as any);

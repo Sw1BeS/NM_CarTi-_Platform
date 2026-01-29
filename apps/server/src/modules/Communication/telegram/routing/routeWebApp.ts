@@ -72,6 +72,9 @@ export const routeWebApp = async (ctx: PipelineContext) => {
   const lang = langOverride
     ? resolveLang({ ...ctx, locale: String(langOverride) } as PipelineContext)
     : resolveLang(ctx);
+  const from = ctx.update?.message?.from;
+  const telegramUsername = String((payload.meta as any)?.username || from?.username || '').trim() || undefined;
+  const telegramName = String((payload.meta as any)?.name || [from?.first_name, from?.last_name].filter(Boolean).join(' ') || '').trim() || undefined;
 
   if (payload.type === 'interest_click') {
     await emitPlatformEvent({
@@ -103,9 +106,11 @@ export const routeWebApp = async (ctx: PipelineContext) => {
     chatId: ctx.chatId,
     userId: ctx.userId,
     name: String(name || 'Client'),
+    telegramUsername,
+    telegramName,
     phone: phone || fields.phone || undefined,
     request: requestTitle || undefined,
-    source: ctx.bot.name || 'Telegram',
+    source: 'TELEGRAM',
     payload: {
       brand,
       model,

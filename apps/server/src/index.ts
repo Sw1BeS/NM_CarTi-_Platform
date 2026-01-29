@@ -28,6 +28,8 @@ import { workspaceContext } from './middleware/workspaceContext.js';
 import { checkHealth } from './modules/Core/health/health.controller.js';
 import { validateEnv } from './config/env.js';
 import process from 'process';
+import { logger } from './utils/logger.js';
+import { errorResponse } from './utils/errorResponse.js';
 
 dotenv.config();
 
@@ -97,7 +99,7 @@ app.use(express.static(clientBuildPath));
 app.get('*', (req, res) => {
   // Pass through if asking for API that doesn't exist (optional, or let 404 handled by client)
   if (req.path.startsWith('/api')) {
-    return res.status(404).json({ error: 'API endpoint not found' });
+    return errorResponse(res, 404, 'API endpoint not found');
   }
   res.sendFile(path.join(clientBuildPath, 'index.html'));
 });
@@ -106,7 +108,7 @@ app.get('*', (req, res) => {
 const startServer = async () => {
   try {
     await prisma.$connect();
-    console.log('✅ Database connected');
+    logger.info('Database connected');
 
     // Seed default admin if not exists
     await seedAdmin();
@@ -125,16 +127,16 @@ const startServer = async () => {
     await MTProtoLifeCycle.initAll();
 
     const server = app.listen(PORT, () => {
-      console.log(`🚀 Server running on http://localhost:${PORT}`);
+      logger.info(`Server running on http://localhost:${PORT}`);
     });
 
     // Graceful Shutdown
     const shutdown = async () => {
-      console.log('🛑 SIGTERM received: closing HTTP server & Bots');
+      logger.warn('SIGTERM received: closing HTTP server & Bots');
       botManager.stopAll();
       stopContentWorker();
       server.close(() => {
-        console.log('HTTP server closed');
+        logger.info('HTTP server closed');
         prisma.$disconnect();
         process.exit(0);
       });
@@ -144,7 +146,7 @@ const startServer = async () => {
     process.on('SIGINT', shutdown);
 
   } catch (error) {
-    console.error('❌ Server startup failed:', error);
+    logger.error('Server startup failed', error);
     process.exit(1);
   }
 };

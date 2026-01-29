@@ -25,6 +25,7 @@ export const mapBotInput = (input: any, existingConfig: any = {}) => {
   if ('role' in input) setConfigValue(config, 'role', input.role);
   if ('menuConfig' in input) setConfigValue(config, 'menuConfig', input.menuConfig);
   if ('miniAppConfig' in input) setConfigValue(config, 'miniAppConfig', input.miniAppConfig);
+  if ('defaultShowcaseSlug' in input) setConfigValue(config, 'defaultShowcaseSlug', input.defaultShowcaseSlug);
   if ('stats' in input) setConfigValue(config, 'stats', input.stats);
   if ('processedUpdateIds' in input) setConfigValue(config, 'processedUpdateIds', input.processedUpdateIds);
   if ('lastUpdateId' in input) setConfigValue(config, 'lastUpdateId', input.lastUpdateId);
@@ -60,7 +61,7 @@ export const mapBotOutput = (bot: any) => {
     name: bot.name,
     username: config.username || bot.name || '',
     defaultShowcaseId: bot.defaultShowcaseId,
-    defaultShowcaseSlug: bot.defaultShowcase?.slug,
+    defaultShowcaseSlug: bot.defaultShowcase?.slug || config.defaultShowcaseSlug,
     token: bot.token,
     role: config.role || 'CLIENT',
     active: bot.isEnabled,

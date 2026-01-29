@@ -9,6 +9,8 @@ import { useToast } from '../../contexts/ToastContext';
 import { Send, Image as ImageIcon, Calendar, Eye, X, Check, Plus, Search, Filter, Save } from 'lucide-react';
 import { ContentGenerator } from '../../services/contentGenerator';
 import { TelegramEditor } from '../../components/Editor';
+import { PageHeader } from '../../components/ui/PageHeader';
+import { EmptyState } from '../../components/EmptyState';
 
 type PostTemplate = 'IN_STOCK' | 'IN_TRANSIT' | 'CUSTOM';
 
@@ -189,21 +191,18 @@ export const ContentPage = () => {
 
     return (
         <div className="flex flex-col h-[calc(100vh-100px)] gap-6">
-            {/* Header */}
-            <div className="panel p-6 shrink-0">
-                <div className="flex justify-between items-center">
-                    <div>
-                        <h1 className="text-2xl font-bold text-[var(--text-primary)]">Content Manager</h1>
-                        <p className="text-sm text-[var(--text-secondary)] mt-1">Create and schedule channel posts</p>
-                    </div>
+            <PageHeader
+                title="Content Manager"
+                subtitle="Create and schedule channel posts"
+                actions={
                     <button
                         onClick={() => setIsCreating(true)}
                         className="btn-primary px-6 py-3 flex items-center gap-2"
                     >
                         <Plus size={18} /> New Post
                     </button>
-                </div>
-            </div>
+                }
+            />
 
             {/* Drafts List */}
             <div className="panel flex-1 overflow-hidden p-6">
@@ -261,8 +260,14 @@ export const ContentPage = () => {
                         );
                     })}
                     {drafts.length === 0 && (
-                        <div className="col-span-full text-center py-12 text-[var(--text-secondary)]">
-                            No drafts yet. Create your first post!
+                        <div className="col-span-full">
+                            <EmptyState
+                                icon={<ImageIcon size={32} />}
+                                title="No drafts yet"
+                                description="Pull a car from inventory and send your first post to a channel."
+                                actionLabel="New Post"
+                                action={() => setIsCreating(true)}
+                            />
                         </div>
                     )}
                 </div>

@@ -3,6 +3,7 @@ import { prisma } from '../../../services/prisma.js';
 import { getWorkspaceById, getWorkspaceBySlug } from '../../../services/v41/readService.js';
 import { writeService } from '../../../services/v41/writeService.js';
 import bcrypt from 'bcryptjs';
+import { logger } from '../../../utils/logger.js';
 
 const ensureSystemCompany = async () => {
     // Use read abstraction to find system workspace
@@ -56,7 +57,7 @@ export const seedAdmin = async () => {
     const superEmail = process.env.SEED_SUPERADMIN_EMAIL || 'superadmin@cartie.com';
     const superPassword = process.env.SEED_SUPERADMIN_PASSWORD || 'superadmin';
 
-    console.log("🌱 Seeding Admin User...");
+    logger.info("🌱 Seeding Admin User...");
     const hash = await bcrypt.hash(adminPassword, 10);
     const seedCompanyId = await ensureSystemCompany();
 
@@ -71,7 +72,7 @@ export const seedAdmin = async () => {
         companyId: seedCompanyId
     });
 
-    console.log(`✅ SUPER_ADMIN created: ${superEmail}`);
+    logger.info(`✅ SUPER_ADMIN created: ${superEmail}`);
 
     // ADMIN/OWNER for the workspace
     await writeService.createUserDual({
@@ -83,5 +84,5 @@ export const seedAdmin = async () => {
     });
 
     const passwordHint = isProduction ? '[set via SEED_ADMIN_PASSWORD]' : adminPassword;
-    console.log(`✅ Admin created: ${adminEmail} / ${passwordHint}`);
+    logger.info(`✅ Admin created: ${adminEmail} / ${passwordHint}`);
 };

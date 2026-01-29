@@ -11,6 +11,7 @@
 
 import { prisma } from './prisma.js';
 import type { ChannelSource } from '@prisma/client';
+import { logger } from '../utils/logger.js';
 
 interface TelegramMessage {
     chatId: string;
@@ -183,14 +184,14 @@ export async function processParsedMessage(
         // Extract car data from message
         const carData = extractCarData(message.text || '');
         if (!carData) {
-            console.log(`[MTProto Mapping] No car data in message ${message.messageId}`);
+            logger.info(`[MTProto Mapping] No car data in message ${message.messageId}`);
             return;
         }
 
         // Apply import rules
         const { shouldImport, transformedData } = applyImportRules(carData, rules);
         if (!shouldImport) {
-            console.log(`[MTProto Mapping] Message ${message.messageId} filtered out by rules`);
+            logger.info(`[MTProto Mapping] Message ${message.messageId} filtered out by rules`);
             return;
         }
 
@@ -201,7 +202,7 @@ export async function processParsedMessage(
         });
 
         if (!connector) {
-            console.error(`[MTProto Mapping] Connector ${channelSource.connectorId} not found`);
+            logger.error(`[MTProto Mapping] Connector ${channelSource.connectorId} not found`);
             return;
         }
 
@@ -214,7 +215,7 @@ export async function processParsedMessage(
         });
 
         if (existing) {
-            console.log(`[MTProto Mapping] Car from message ${message.messageId} already imported`);
+            logger.info(`[MTProto Mapping] Car from message ${message.messageId} already imported`);
             return;
         }
 
@@ -249,9 +250,9 @@ export async function processParsedMessage(
             }
         });
 
-        console.log(`✅ [MTProto Mapping] Created CarListing from message ${message.messageId} (${transformedData.title})`);
+        logger.info(`✅ [MTProto Mapping] Created CarListing from message ${message.messageId} (${transformedData.title})`);
     } catch (error) {
-        console.error(`[MTProto Mapping] Error processing message ${message.messageId}:`, error);
+        logger.error(`[MTProto Mapping] Error processing message ${message.messageId}:`, error);
     }
 }
 
@@ -271,7 +272,7 @@ export async function processBatch(
             await processParsedMessage(message, channelSource);
             imported++;
         } catch (error) {
-            console.error(`[MTProto Mapping] Batch error:`, error);
+            logger.error(`[MTProto Mapping] Batch error:`, error);
             errors++;
         }
     }

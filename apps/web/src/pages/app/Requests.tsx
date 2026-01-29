@@ -9,6 +9,9 @@ import { createDeepLinkKeyboard, buildDeepLink } from '../../services/deeplink';
 import { B2BRequest, RequestStatus, TelegramDestination, Bot } from '../../types';
 import { Plus, List as ListIcon, LayoutGrid, Search as SearchIcon, Filter, DollarSign, Calendar, ChevronRight, ChevronLeft, Send, X } from 'lucide-react';
 import { useToast } from '../../contexts/ToastContext';
+import { useSearchParams } from 'react-router-dom';
+import { PageHeader } from '../../components/ui/PageHeader';
+import { StatusBadge } from '../../components/ui/StatusBadge';
 
 export const RequestList: React.FC = () => {
     const [requests, setRequests] = useState<B2BRequest[]>([]);
@@ -44,8 +47,17 @@ export const RequestList: React.FC = () => {
         priority: 'NORMAL' as B2BRequest['priority']
     });
     const [creating, setCreating] = useState(false);
+    const [searchParams, setSearchParams] = useSearchParams();
 
     useEffect(() => { loadRequests(); }, [page, search, statusFilter]);
+    useEffect(() => {
+        if (searchParams.get('create') === '1') {
+            setIsCreateOpen(true);
+            const next = new URLSearchParams(searchParams);
+            next.delete('create');
+            setSearchParams(next, { replace: true });
+        }
+    }, [searchParams, setSearchParams]);
     useEffect(() => {
         const load = async () => {
             const [dests, botList] = await Promise.all([Data.getDestinations(), Data.getBots()]);
@@ -161,23 +173,21 @@ export const RequestList: React.FC = () => {
 
     return (
         <div className="space-y-8 h-[calc(100vh-140px)] flex flex-col">
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 shrink-0">
-                <div>
-                    <h1 className="text-2xl font-medium text-[var(--text-primary)] tracking-tight">Requests</h1>
-                    <p className="text-sm text-[var(--text-secondary)] mt-1">
-                        {totalItems} Requests • Sourcing pipeline
-                    </p>
-                </div>
-                <div className="flex gap-3">
-                    <div className="bg-[var(--bg-input)] p-1.5 rounded-xl flex border border-[var(--border-color)]">
-                        <button onClick={() => setViewMode('LIST')} className={`p-2.5 rounded-lg transition-all ${viewMode === 'LIST' ? 'bg-[var(--bg-panel)] text-gold-500 shadow-sm' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}><ListIcon size={20} /></button>
-                        <button onClick={() => setViewMode('BOARD')} className={`p-2.5 rounded-lg transition-all ${viewMode === 'BOARD' ? 'bg-[var(--bg-panel)] text-gold-500 shadow-sm' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}><LayoutGrid size={20} /></button>
-                    </div>
-                    <button className="btn-primary" onClick={() => setIsCreateOpen(true)}>
-                        <Plus size={20} /> New Request
-                    </button>
-                </div>
-            </div>
+            <PageHeader
+                title="Requests"
+                subtitle={`${totalItems} Requests • Sourcing pipeline`}
+                actions={(
+                    <>
+                        <div className="bg-[var(--bg-input)] p-1.5 rounded-xl flex border border-[var(--border-color)]">
+                            <button onClick={() => setViewMode('LIST')} className={`p-2.5 rounded-lg transition-all ${viewMode === 'LIST' ? 'bg-[var(--bg-panel)] text-gold-500 shadow-sm' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}><ListIcon size={20} /></button>
+                            <button onClick={() => setViewMode('BOARD')} className={`p-2.5 rounded-lg transition-all ${viewMode === 'BOARD' ? 'bg-[var(--bg-panel)] text-gold-500 shadow-sm' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}><LayoutGrid size={20} /></button>
+                        </div>
+                        <button className="btn-primary" onClick={() => setIsCreateOpen(true)}>
+                            <Plus size={20} /> New Request
+                        </button>
+                    </>
+                )}
+            />
 
             <div className="flex gap-4 shrink-0">
                 <div className="relative flex-1">
@@ -199,44 +209,48 @@ export const RequestList: React.FC = () => {
 
                 {viewMode === 'LIST' ? (
                     <div className="panel overflow-hidden h-full p-0 flex flex-col">
-                        <div className="table-container flex-1">
-                            <table className="table">
+                        <div className="table-container flex-1 overflow-x-auto">
+                            <table className="table min-w-[900px]">
                                 <thead>
                                     <tr>
-                                        <th>ID</th>
+                                        <th className="hidden md:table-cell">ID</th>
                                         <th>Title</th>
                                         <th>Status</th>
-                                        <th>Budget</th>
-                                        <th>City</th>
-                                        <th>Broadcast</th>
+                                        <th>Offers</th>
+                                        <th className="hidden md:table-cell">Budget</th>
+                                        <th className="hidden lg:table-cell">City</th>
+                                        <th className="hidden lg:table-cell">Broadcast</th>
                                         <th></th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {requests.map(r => (
-                                        <tr key={r.id} className="group cursor-pointer">
-                                            <td className="font-mono text-sm text-[var(--text-secondary)]">{r.publicId}</td>
+                                    {requests.map(r => {
+                                        const updatedAt = new Date(r.updatedAt || r.createdAt);
+                                        const isFresh = Date.now() - updatedAt.getTime() < 1000 * 60 * 60 * 24;
+                                        const offersCount = Array.isArray(r.variants) ? r.variants.length : 0;
+                                        return (
+                                        <tr key={r.id} className={`group cursor-pointer ${isFresh ? 'bg-amber-500/5' : ''}`}>
+                                            <td className="font-mono text-sm text-[var(--text-secondary)] hidden md:table-cell">{r.publicId}</td>
                                             <td>
                                                 <div className="font-bold text-base text-[var(--text-primary)]">{r.title}</div>
                                                 <div className="text-sm text-[var(--text-secondary)] mt-0.5">{r.yearMin ? `${r.yearMin}+` : ''}</div>
+                                                <div className="text-xs text-[var(--text-secondary)] mt-1 md:hidden">
+                                                    {r.city || '—'} • ${r.budgetMax ? r.budgetMax.toLocaleString() : '—'}
+                                                </div>
                                             </td>
                                             <td>
-                                                <span className={`px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wider ${r.status === RequestStatus.DRAFT ? 'bg-blue-500/10 text-blue-500' :
-                                                    r.status === RequestStatus.COLLECTING_VARIANTS ? 'bg-amber-500/10 text-amber-400' :
-                                                        r.status === RequestStatus.SHORTLIST ? 'bg-purple-500/10 text-purple-400' :
-                                                            r.status === RequestStatus.CONTACT_SHARED ? 'bg-teal-500/10 text-teal-400' :
-                                                                r.status === RequestStatus.WON ? 'bg-green-500/10 text-green-500' :
-                                                                    r.status === RequestStatus.LOST ? 'bg-red-500/10 text-red-500' :
-                                                                        'bg-[var(--bg-input)] text-[var(--text-secondary)]'
-                                                    }`}>
-                                                    {r.status.replace(/_/g, ' ')}
+                                                <StatusBadge status={r.status} />
+                                            </td>
+                                            <td className="text-sm font-semibold text-[var(--text-primary)]">
+                                                <span className={`px-2 py-1 rounded-lg border ${offersCount ? 'border-gold-500/30 bg-gold-500/10 text-gold-400' : 'border-[var(--border-color)] text-[var(--text-secondary)]'}`}>
+                                                    {offersCount} {offersCount === 1 ? 'offer' : 'offers'}
                                                 </span>
                                             </td>
-                                            <td className="tabular-nums text-[var(--text-primary)] font-medium text-base">
+                                            <td className="tabular-nums text-[var(--text-primary)] font-medium text-base hidden md:table-cell">
                                                 ${r.budgetMax ? r.budgetMax.toLocaleString() : '—'}
                                             </td>
-                                            <td className="text-[var(--text-secondary)] text-sm">{r.city || '—'}</td>
-                                            <td>
+                                            <td className="text-[var(--text-secondary)] text-sm hidden lg:table-cell">{r.city || '—'}</td>
+                                            <td className="hidden lg:table-cell">
                                                 <button
                                                     onClick={() => openBroadcast(r)}
                                                     className="btn-secondary text-xs px-3 py-1.5 flex items-center gap-1"
@@ -245,12 +259,21 @@ export const RequestList: React.FC = () => {
                                                 </button>
                                             </td>
                                             <td className="text-right">
-                                                <button className="text-[var(--text-secondary)] group-hover:text-gold-500 transition-colors">
-                                                    <ChevronRight size={20} />
-                                                </button>
+                                                <div className="flex items-center justify-end gap-2">
+                                                    <button
+                                                        onClick={() => openBroadcast(r)}
+                                                        className="btn-secondary text-[10px] px-2 py-1 lg:hidden"
+                                                    >
+                                                        <Send size={12} />
+                                                    </button>
+                                                    <button className="text-[var(--text-secondary)] group-hover:text-gold-500 transition-colors">
+                                                        <ChevronRight size={20} />
+                                                    </button>
+                                                </div>
                                             </td>
                                         </tr>
-                                    ))}
+                                        );
+                                    })}
                                 </tbody>
                             </table>
                         </div>

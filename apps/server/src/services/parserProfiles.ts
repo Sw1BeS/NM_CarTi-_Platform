@@ -1,6 +1,7 @@
 
 // @ts-ignore
 import { prisma } from './prisma.js';
+import { logger } from '../utils/logger.js';
 
 export interface ParserSelectors {
     title?: string;
@@ -20,7 +21,7 @@ export const getProfile = async (domain: string): Promise<ParserSelectors | null
         const modules = settings.modules as any;
         return modules.parserProfiles?.[domain] || null;
     } catch (e) {
-        console.error('Failed to get parser profile', e);
+        logger.error('Failed to get parser profile', e);
         return null;
     }
 };
@@ -45,7 +46,7 @@ export const saveProfile = async (domain: string, selectors: ParserSelectors) =>
         }
         return true;
     } catch (e) {
-         console.error('Failed to save parser profile', e);
+         logger.error('Failed to save parser profile', e);
          throw e;
     }
 };

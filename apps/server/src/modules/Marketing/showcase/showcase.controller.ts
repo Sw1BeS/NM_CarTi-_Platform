@@ -2,6 +2,8 @@ import { Router } from 'express';
 import { ShowcaseService } from './showcase.service.js';
 import { authenticateToken, requireRole } from '../../../middleware/auth.js';
 import { mapInventoryOutput } from '../../../services/dto.js';
+import { logger } from '../../../utils/logger.js';
+import { errorResponse } from '../../../utils/errorResponse.js';
 
 const router = Router();
 const service = new ShowcaseService();
@@ -31,7 +33,7 @@ router.get('/public/:slug/inventory', async (req, res) => {
         });
 
         if (!showcase.isPublic) {
-            return res.status(404).json({ error: 'Showcase not found' });
+            return errorResponse(res, 404, 'Showcase not found');
         }
 
         res.json({
@@ -46,9 +48,9 @@ router.get('/public/:slug/inventory', async (req, res) => {
             limit
         });
     } catch (e: any) {
-        if (e.message === 'Showcase not found') return res.status(404).json({ error: 'Showcase not found' });
-        console.error('[Showcase Public API Error]:', e);
-        res.status(500).json({ error: 'Internal Server Error' });
+        if (e.message === 'Showcase not found') return errorResponse(res, 404, 'Showcase not found');
+        logger.error('[Showcase Public API Error]:', e);
+        errorResponse(res, 500, 'Internal Server Error');
     }
 });
 
@@ -79,15 +81,15 @@ router.post('/', requireRole(['ADMIN', 'MANAGER']), async (req, res) => {
         });
         res.json(item);
     } catch (e: any) {
-        if (e.code === 'P2002') return res.status(400).json({ error: 'Slug already exists' });
-        res.status(500).json({ error: e.message });
+        if (e.code === 'P2002') return errorResponse(res, 400, 'Slug already exists');
+        errorResponse(res, 500, e.message);
     }
 });
 
 router.get('/:id', async (req, res) => {
     const item = await service.getShowcaseById(req.params.id);
-    if (!item) return res.status(404).json({ error: 'Not found' });
-    if (item.workspaceId !== (req as any).user.workspaceId) return res.status(403).json({ error: 'Forbidden' });
+    if (!item) return errorResponse(res, 404, 'Not found');
+    if (item.workspaceId !== (req as any).user.workspaceId) return errorResponse(res, 403, 'Forbidden');
     res.json(item);
 });
 
@@ -97,13 +99,13 @@ router.put('/:id', requireRole(['ADMIN', 'MANAGER']), async (req, res) => {
         const user = (req as any).user;
 
         const existing = await service.getShowcaseById(id);
-        if (!existing) return res.status(404).json({ error: 'Not found' });
-        if (existing.workspaceId !== user.workspaceId) return res.status(403).json({ error: 'Forbidden' });
+        if (!existing) return errorResponse(res, 404, 'Not found');
+        if (existing.workspaceId !== user.workspaceId) return errorResponse(res, 403, 'Forbidden');
 
         const updated = await service.updateShowcase(id, req.body);
         res.json(updated);
     } catch (e: any) {
-        res.status(500).json({ error: e.message });
+        errorResponse(res, 500, e.message);
     }
 });
 
@@ -113,13 +115,13 @@ router.delete('/:id', requireRole(['ADMIN']), async (req, res) => {
         const user = (req as any).user;
 
         const existing = await service.getShowcaseById(id);
-        if (!existing) return res.status(404).json({ error: 'Not found' });
-        if (existing.workspaceId !== user.workspaceId) return res.status(403).json({ error: 'Forbidden' });
+        if (!existing) return errorResponse(res, 404, 'Not found');
+        if (existing.workspaceId !== user.workspaceId) return errorResponse(res, 403, 'Forbidden');
 
         await service.deleteShowcase(id);
         res.json({ success: true });
     } catch (e: any) {
-        res.status(500).json({ error: e.message });
+        errorResponse(res, 500, e.message);
     }
 });
 

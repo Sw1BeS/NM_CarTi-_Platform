@@ -6,6 +6,7 @@
 import { prisma } from '../../services/prisma.js';
 import axios from 'axios';
 import { telegramOutbox } from '../Communication/telegram/messaging/outbox/telegramOutbox.js';
+import { logger } from '../../utils/logger.js';
 
 export class IntegrationService {
     /**
@@ -119,7 +120,7 @@ export class IntegrationService {
         const { apiUserId, apiSecret, listId } = integration.config as any;
 
         if (!apiUserId || !apiSecret || !listId) {
-            console.error('[SendPulse] Missing credentials or listId');
+            logger.error('[SendPulse] Missing credentials or listId');
             return { success: false, error: 'Missing configuration' };
         }
 
@@ -139,7 +140,7 @@ export class IntegrationService {
 
             return { success: true };
         } catch (e: any) {
-            console.error('[SendPulse] Error:', e.message);
+            logger.error('[SendPulse] Error:', e.message);
             return { success: false, error: e.message };
         }
     }
@@ -157,7 +158,7 @@ export class IntegrationService {
         const { pixelId, accessToken, testCode } = integration.config as any;
 
         if (!pixelId || !accessToken) {
-            console.error('[Meta Pixel] Missing pixelId or accessToken');
+            logger.error('[Meta Pixel] Missing pixelId or accessToken');
             return { success: false, error: 'Missing configuration' };
         }
 
@@ -189,10 +190,10 @@ export class IntegrationService {
                 payload
             );
 
-            console.log('[Meta Pixel] Event sent:', eventName);
+            logger.info(`[Meta Pixel] Event sent: ${eventName}`);
             return { success: true };
         } catch (e: any) {
-            console.error('[Meta Pixel] Error:', e.response?.data?.error?.message || e.message);
+            logger.error('[Meta Pixel] Error:', e.response?.data?.error?.message || e.message);
             return { success: false, error: e.response?.data?.error?.message || e.message };
         }
     }
@@ -262,7 +263,7 @@ export class IntegrationService {
         const { spreadsheetId, credentials } = integration.config as any;
 
         // TODO: Implement Google Sheets API
-        console.log('[Google Sheets] Export to:', spreadsheetId, 'Sheet:', sheetName);
+        logger.info(`[Google Sheets] Export to: ${spreadsheetId} Sheet: ${sheetName || 'default'}`);
 
         return { success: true, rowsAdded: data.length };
     }
@@ -304,7 +305,7 @@ export class IntegrationService {
 
             return { success: true, result };
         } catch (e: any) {
-            console.error('[IntegrationService] Telegram publish error:', e.message || e);
+            logger.error('[IntegrationService] Telegram publish error:', e.message || e);
             throw new Error(e.message || 'Failed to publish to Telegram');
         }
     }

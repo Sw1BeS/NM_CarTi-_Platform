@@ -10,6 +10,8 @@ import {
     Check, Clock, AlertCircle
 } from 'lucide-react';
 import { ContentGenerator } from '../../services/contentGenerator';
+import { PageHeader } from '../../components/ui/PageHeader';
+import { EmptyState } from '../../components/EmptyState';
 
 type PostTemplate = 'IN_STOCK' | 'IN_TRANSIT' | 'CUSTOM';
 type ViewMode = 'GRID' | 'CALENDAR' | 'DAY';
@@ -232,13 +234,10 @@ export const ContentCalendarPage = () => {
 
     return (
         <div className="flex flex-col h-[calc(100vh-100px)] gap-6">
-            {/* Header */}
-            <div className="panel p-6 shrink-0">
-                <div className="flex justify-between items-center">
-                    <div>
-                        <h1 className="text-2xl font-bold text-[var(--text-primary)]">Content Calendar</h1>
-                        <p className="text-sm text-[var(--text-secondary)] mt-1">Schedule posts across the week</p>
-                    </div>
+            <PageHeader
+                title="Content Calendar"
+                subtitle="Schedule posts across the week"
+                actions={
                     <div className="flex items-center gap-3">
                         <button
                             onClick={() => setShowTemplateEditor(true)}
@@ -255,29 +254,38 @@ export const ContentCalendarPage = () => {
                         <div className="flex bg-[var(--bg-input)] rounded-lg p-1 border border-[var(--border-color)]">
                             <button
                                 onClick={() => setViewMode('CALENDAR')}
-                                className={`px-3 py-1.5 rounded text-xs font-bold transition-colors ${viewMode === 'CALENDAR' ? 'bg-gold-500 text-black' : 'text-[var(--text-secondary)]'
-                                    }`}
+                                className={`px-3 py-1.5 rounded text-xs font-bold transition-colors ${viewMode === 'CALENDAR' ? 'bg-gold-500 text-black' : 'text-[var(--text-secondary)]'}`}
                             >
                                 <CalendarIcon size={14} className="inline mr-1" /> Week
                             </button>
                             <button
                                 onClick={() => setViewMode('DAY')}
-                                className={`px-3 py-1.5 rounded text-xs font-bold transition-colors ${viewMode === 'DAY' ? 'bg-gold-500 text-black' : 'text-[var(--text-secondary)]'
-                                    }`}
+                                className={`px-3 py-1.5 rounded text-xs font-bold transition-colors ${viewMode === 'DAY' ? 'bg-gold-500 text-black' : 'text-[var(--text-secondary)]'}`}
                             >
                                 <CalendarIcon size={14} className="inline mr-1" /> Day
                             </button>
                             <button
                                 onClick={() => setViewMode('GRID')}
-                                className={`px-3 py-1.5 rounded text-xs font-bold transition-colors ${viewMode === 'GRID' ? 'bg-gold-500 text-black' : 'text-[var(--text-secondary)]'
-                                    }`}
+                                className={`px-3 py-1.5 rounded text-xs font-bold transition-colors ${viewMode === 'GRID' ? 'bg-gold-500 text-black' : 'text-[var(--text-secondary)]'}`}
                             >
                                 <List size={14} className="inline mr-1" /> Queue
                             </button>
                         </div>
                     </div>
+                }
+            />
+
+            {drafts.length === 0 && (
+                <div className="panel flex-1 flex items-center justify-center">
+                    <EmptyState
+                        icon={<CalendarIcon size={32} />}
+                        title="No scheduled posts yet"
+                        description="Pick cars and destinations to fill your week. You can bulk schedule multiple posts at once."
+                        actionLabel="Bulk Schedule"
+                        action={() => setShowBulkScheduler(true)}
+                    />
                 </div>
-            </div>
+            )}
 
             {/* Calendar View */}
             {viewMode === 'CALENDAR' && (

@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { logSystem } from '../../Core/system/systemLog.service.js';
+import { logger } from '../../../utils/logger.js';
 
 export class ViberService {
     private static instance: ViberService;
@@ -29,7 +30,7 @@ viberRouter.post('/', async (req, res) => {
         await ViberService.getInstance().handleWebhook(req.body);
         res.sendStatus(200);
     } catch (e) {
-        console.error(e);
+        logger.error(e);
         res.sendStatus(500);
     }
 });

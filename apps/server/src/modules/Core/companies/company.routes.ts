@@ -6,6 +6,7 @@ import { Router } from 'express';
 import { CompanyService } from './company.service.js';
 import { authenticateToken, requireRole } from '../../../middleware/auth.js';
 import { companyContext } from '../../../middleware/companyContext.js';
+import { errorResponse } from '../../../utils/errorResponse.js';
 
 const router = Router();
 const companyService = new CompanyService();
@@ -23,12 +24,12 @@ router.get('/current', async (req: any, res) => {
         const company = await companyService.getById(req.companyId);
 
         if (!company) {
-            return res.status(404).json({ error: 'Company not found' });
+            return errorResponse(res, 404, 'Company not found');
         }
 
         res.json(company);
     } catch (e: any) {
-        res.status(500).json({ error: e.message });
+        errorResponse(res, 500, e.message);
     }
 });
 
@@ -49,7 +50,7 @@ router.put('/current/branding', requireRole('OWNER', 'ADMIN'), async (req: any, 
 
         res.json(company);
     } catch (e: any) {
-        res.status(400).json({ error: e.message });
+        errorResponse(res, 400, e.message);
     }
 });
 
@@ -62,7 +63,7 @@ router.get('/current/users', requireRole('OWNER', 'ADMIN', 'MANAGER'), async (re
         const users = await companyService.getUsers(req.companyId);
         res.json(users);
     } catch (e: any) {
-        res.status(500).json({ error: e.message });
+        errorResponse(res, 500, e.message);
     }
 });
 
@@ -75,14 +76,14 @@ router.post('/current/users', requireRole('OWNER', 'ADMIN'), async (req: any, re
         const { email, name, role } = req.body;
 
         if (!email || !role) {
-            return res.status(400).json({ error: 'Email and role are required' });
+            return errorResponse(res, 400, 'Email and role are required');
         }
 
         const user = await companyService.inviteUser(req.companyId, { email, name, role });
 
         res.status(201).json(user);
     } catch (e: any) {
-        res.status(400).json({ error: e.message });
+        errorResponse(res, 400, e.message);
     }
 });
 
@@ -96,13 +97,13 @@ router.put('/current/users/:userId/role', requireRole('OWNER'), async (req: any,
         const { role } = req.body;
 
         if (!role) {
-            return res.status(400).json({ error: 'Role is required' });
+            return errorResponse(res, 400, 'Role is required');
         }
 
         const user = await companyService.updateUserRole(req.companyId, userId, role);
         res.json(user);
     } catch (e: any) {
-        res.status(400).json({ error: e.message });
+        errorResponse(res, 400, e.message);
     }
 });
 
@@ -117,7 +118,7 @@ router.delete('/current/users/:userId', requireRole('OWNER'), async (req: any, r
         await companyService.removeUser(req.companyId, userId);
         res.json({ success: true });
     } catch (e: any) {
-        res.status(400).json({ error: e.message });
+        errorResponse(res, 400, e.message);
     }
 });
 
@@ -130,7 +131,7 @@ router.get('/current/stats', async (req: any, res) => {
         const stats = await companyService.getStats(req.companyId);
         res.json(stats);
     } catch (e: any) {
-        res.status(500).json({ error: e.message });
+        errorResponse(res, 500, e.message);
     }
 });
 

@@ -10,6 +10,7 @@ import { companyContext } from '../../../middleware/companyContext.js';
 import { authenticateToken, requireRole } from '../../../middleware/auth.js';
 import { signJwt } from '../../../config/jwt.js';
 import { getWorkspaceById, getWorkspaceBySlug } from '../../../services/v41/readService.js';
+import { errorResponse } from '../../../utils/errorResponse.js';
 
 const router = Router();
 const superadminService = new SuperadminService();
@@ -29,7 +30,7 @@ router.get('/companies', async (req: any, res) => {
         const companies = await superadminService.getAllCompanies();
         res.json(companies);
     } catch (e: any) {
-        res.status(500).json({ error: e.message });
+        errorResponse(res, 500, e.message);
     }
 });
 
@@ -42,7 +43,7 @@ router.post('/companies', async (req: any, res) => {
         const { name, slug, plan, ownerEmail, ownerName } = req.body;
 
         if (!name || !slug || !ownerEmail) {
-            return res.status(400).json({ error: 'name, slug, and ownerEmail are required' });
+            return errorResponse(res, 400, 'name, slug, and ownerEmail are required');
         }
 
         const result = await clientManagerService.createCompany({
@@ -55,7 +56,7 @@ router.post('/companies', async (req: any, res) => {
 
         res.status(201).json(result);
     } catch (e: any) {
-        res.status(400).json({ error: e.message });
+        errorResponse(res, 400, e.message);
     }
 });
 
@@ -68,7 +69,7 @@ router.delete('/companies/:id', async (req: any, res) => {
         await clientManagerService.deleteCompany(req.params.id);
         res.json({ success: true });
     } catch (e: any) {
-        res.status(400).json({ error: e.message });
+        errorResponse(res, 400, e.message);
     }
 });
 
@@ -81,13 +82,13 @@ router.put('/companies/:id/plan', async (req: any, res) => {
         const { plan } = req.body;
 
         if (!plan) {
-            return res.status(400).json({ error: 'plan is required' });
+            return errorResponse(res, 400, 'plan is required');
         }
 
         const company = await superadminService.updateCompanyPlan(req.params.id, plan);
         res.json(company);
     } catch (e: any) {
-        res.status(400).json({ error: e.message });
+        errorResponse(res, 400, e.message);
     }
 });
 
@@ -100,13 +101,13 @@ router.put('/companies/:id/status', async (req: any, res) => {
         const { isActive } = req.body;
 
         if (typeof isActive !== 'boolean') {
-            return res.status(400).json({ error: 'isActive must be boolean' });
+            return errorResponse(res, 400, 'isActive must be boolean');
         }
 
         const company = await superadminService.toggleCompanyStatus(req.params.id, isActive);
         res.json(company);
     } catch (e: any) {
-        res.status(400).json({ error: e.message });
+        errorResponse(res, 400, e.message);
     }
 });
 
@@ -126,7 +127,7 @@ router.get('/users', async (req: any, res) => {
 
         res.json(users);
     } catch (e: any) {
-        res.status(500).json({ error: e.message });
+        errorResponse(res, 500, e.message);
     }
 });
 
@@ -138,12 +139,12 @@ router.post('/users', async (req: any, res) => {
     try {
         const { email, password, role, companyId, name, isActive } = req.body;
         if (!email || !password || !role || !companyId) {
-            return res.status(400).json({ error: 'email, password, role, companyId are required' });
+            return errorResponse(res, 400, 'email, password, role, companyId are required');
         }
         const user = await superadminService.createUser({ email, password, role, companyId, name, isActive });
         res.status(201).json(user);
     } catch (e: any) {
-        res.status(400).json({ error: e.message });
+        errorResponse(res, 400, e.message);
     }
 });
 
@@ -157,7 +158,7 @@ router.put('/users/:id', async (req: any, res) => {
         const user = await superadminService.updateUser(id, req.body || {});
         res.json(user);
     } catch (e: any) {
-        res.status(400).json({ error: e.message });
+        errorResponse(res, 400, e.message);
     }
 });
 
@@ -169,7 +170,7 @@ router.post('/impersonate', async (req: any, res) => {
     try {
         const { userId, email, companyId, role, expiresIn } = req.body || {};
         if (!userId && !email) {
-            return res.status(400).json({ error: 'userId or email is required' });
+            return errorResponse(res, 400, 'userId or email is required');
         }
 
         const user = await superadminService.findUser({
@@ -179,7 +180,7 @@ router.post('/impersonate', async (req: any, res) => {
         });
 
         if (!user) {
-            return res.status(404).json({ error: 'User not found' });
+            return errorResponse(res, 404, 'User not found');
         }
 
         // Phase 3 Fix: Resolve a valid workspaceId/companyId pair.
@@ -221,7 +222,7 @@ router.post('/impersonate', async (req: any, res) => {
 
         res.json({ token, user });
     } catch (e: any) {
-        res.status(400).json({ error: e.message });
+        errorResponse(res, 400, e.message);
     }
 });
 
@@ -234,7 +235,7 @@ router.get('/stats', async (req: any, res) => {
         const stats = await superadminService.getSystemStats();
         res.json(stats);
     } catch (e: any) {
-        res.status(500).json({ error: e.message });
+        errorResponse(res, 500, e.message);
     }
 });
 
@@ -247,7 +248,7 @@ router.post('/templates', async (req: any, res) => {
         const { name, category, description, thumbnail, structure, isPremium } = req.body;
 
         if (!name || !category || !description || !structure) {
-            return res.status(400).json({ error: 'name, category, description, and structure are required' });
+            return errorResponse(res, 400, 'name, category, description, and structure are required');
         }
 
         const template = await superadminService.createMarketplaceTemplate({
@@ -261,7 +262,7 @@ router.post('/templates', async (req: any, res) => {
 
         res.status(201).json(template);
     } catch (e: any) {
-        res.status(400).json({ error: e.message });
+        errorResponse(res, 400, e.message);
     }
 });
 
@@ -275,7 +276,7 @@ router.get('/logs', async (req: any, res) => {
         const logs = await superadminService.getSystemLogs(limit);
         res.json(logs);
     } catch (e: any) {
-        res.status(500).json({ error: e.message });
+        errorResponse(res, 500, e.message);
     }
 });
 

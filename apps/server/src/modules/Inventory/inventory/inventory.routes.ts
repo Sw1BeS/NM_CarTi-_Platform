@@ -5,6 +5,8 @@ import { prisma } from '../../../services/prisma.js';
 import { authenticateToken, requireRole } from '../../../middleware/auth.js';
 import { mapInventoryInput, mapInventoryOutput } from '../../../services/dto.js';
 import { CarRepository } from '../../../repositories/index.js';
+import { errorResponse } from '../../../utils/errorResponse.js';
+import { logger } from '../../../utils/logger.js';
 
 const router = Router();
 const carRepo = new CarRepository(prisma);
@@ -19,7 +21,7 @@ router.get('/', async (req, res) => {
     const userCompanyId = user.companyId || user.workspaceId;
     const requestedCompanyId = typeof req.query.companyId === 'string' ? req.query.companyId : undefined;
     const companyId = isSuperadmin ? requestedCompanyId : userCompanyId;
-    if (!companyId && !isSuperadmin) return res.status(400).json({ error: 'Company context required' });
+    if (!companyId && !isSuperadmin) return errorResponse(res, 400, 'Company context required', 'COMPANY_REQUIRED');
 
     const page = Math.max(1, Number(req.query.page) || 1);
     const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 50));
@@ -86,7 +88,7 @@ router.post('/', requireRole(['ADMIN', 'MANAGER']), async (req, res) => {
         const userCompanyId = user.companyId || user.workspaceId;
         const requestedCompanyId = typeof (req.body || {}).companyId === 'string' ? (req.body || {}).companyId : undefined;
         const companyId = isSuperadmin ? (requestedCompanyId || userCompanyId) : userCompanyId;
-        if (!companyId && !isSuperadmin) return res.status(400).json({ error: 'Company context required' });
+        if (!companyId && !isSuperadmin) return errorResponse(res, 400, 'Company context required', 'COMPANY_REQUIRED');
 
         const mapped = mapInventoryInput(req.body || {});
         const car = await carRepo.createCar({
@@ -95,8 +97,8 @@ router.post('/', requireRole(['ADMIN', 'MANAGER']), async (req, res) => {
         });
         res.json(mapInventoryOutput(car));
     } catch (e: any) {
-        console.error('[Inventory POST Error]:', e);
-        res.status(500).json({ error: 'Failed to create car: ' + e.message });
+        logger.error('[Inventory POST Error]:', e);
+        errorResponse(res, 500, `Failed to create car: ${e.message}`);
     }
 });
 
@@ -106,13 +108,13 @@ router.put('/:id', requireRole(['ADMIN', 'MANAGER']), async (req, res) => {
         const user = (req as any).user || {};
         const isSuperadmin = user.role === 'SUPER_ADMIN';
         const userCompanyId = user.companyId || user.workspaceId;
-        if (!isSuperadmin && !userCompanyId) return res.status(400).json({ error: 'Company context required' });
+        if (!isSuperadmin && !userCompanyId) return errorResponse(res, 400, 'Company context required', 'COMPANY_REQUIRED');
 
         const existing = await carRepo.findById(id);
-        if (!existing) return res.status(404).json({ error: 'Car not found' });
+        if (!existing) return errorResponse(res, 404, 'Car not found');
         if (!isSuperadmin) {
-            if (existing.companyId && existing.companyId !== userCompanyId) return res.status(403).json({ error: 'Forbidden' });
-            if (!existing.companyId && userCompanyId !== 'company_system') return res.status(403).json({ error: 'Forbidden' });
+            if (existing.companyId && existing.companyId !== userCompanyId) return errorResponse(res, 403, 'Forbidden');
+            if (!existing.companyId && userCompanyId !== 'company_system') return errorResponse(res, 403, 'Forbidden');
         }
 
         const { id: _id, createdAt, updatedAt, ...raw } = req.body;
@@ -121,8 +123,8 @@ router.put('/:id', requireRole(['ADMIN', 'MANAGER']), async (req, res) => {
         const car = await carRepo.updateCar(id, updateData);
         res.json(mapInventoryOutput(car));
     } catch (e: any) {
-        console.error('[Inventory PUT Error]:', e);
-        res.status(500).json({ error: 'Failed to update car: ' + e.message });
+        logger.error('[Inventory PUT Error]:', e);
+        errorResponse(res, 500, `Failed to update car: ${e.message}`);
     }
 });
 
@@ -132,20 +134,20 @@ router.delete('/:id', requireRole(['ADMIN']), async (req, res) => {
         const user = (req as any).user || {};
         const isSuperadmin = user.role === 'SUPER_ADMIN';
         const userCompanyId = user.companyId || user.workspaceId;
-        if (!isSuperadmin && !userCompanyId) return res.status(400).json({ error: 'Company context required' });
+        if (!isSuperadmin && !userCompanyId) return errorResponse(res, 400, 'Company context required', 'COMPANY_REQUIRED');
 
         const existing = await carRepo.findById(id);
-        if (!existing) return res.status(404).json({ error: 'Car not found' });
+        if (!existing) return errorResponse(res, 404, 'Car not found');
         if (!isSuperadmin) {
-            if (existing.companyId && existing.companyId !== userCompanyId) return res.status(403).json({ error: 'Forbidden' });
-            if (!existing.companyId && userCompanyId !== 'company_system') return res.status(403).json({ error: 'Forbidden' });
+            if (existing.companyId && existing.companyId !== userCompanyId) return errorResponse(res, 403, 'Forbidden');
+            if (!existing.companyId && userCompanyId !== 'company_system') return errorResponse(res, 403, 'Forbidden');
         }
 
         await carRepo.deleteCar(id);
         res.json({ success: true });
     } catch (e: any) {
-        console.error('[Inventory DELETE Error]:', e);
-        res.status(500).json({ error: 'Failed to delete car: ' + e.message });
+        logger.error('[Inventory DELETE Error]:', e);
+        errorResponse(res, 500, `Failed to delete car: ${e.message}`);
     }
 });
 

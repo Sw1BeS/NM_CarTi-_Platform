@@ -16,8 +16,8 @@ def test_miniapp(page: Page):
         body='[{"id": "bot1", "active": true, "name": "Test Bot", "miniAppConfig": {"title": "Test Car Store", "welcomeText": "Welcome!", "primaryColor": "#D4AF37", "layout": "GRID", "actions": []}}]'
     ))
 
-    # Navigate to MiniApp
-    page.goto("http://localhost:5173/#/p/app")
+    # Navigate to MiniApp (BrowserRouter)
+    page.goto("http://localhost:5173/p/app")
 
     # Assert Title
     expect(page.get_by_text("Test Car Store")).to_be_visible()

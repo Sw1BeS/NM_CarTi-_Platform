@@ -1,5 +1,6 @@
 import { prisma } from '../../../../../services/prisma.js';
 import type { PipelineContext, PipelineMiddleware } from '../../core/types.js';
+import { logger } from '../../../../../utils/logger.js';
 
 export const resolveBotTenant: PipelineMiddleware = async (ctx: PipelineContext, next) => {
   if (!ctx.bot && ctx.botId) {
@@ -7,7 +8,7 @@ export const resolveBotTenant: PipelineMiddleware = async (ctx: PipelineContext,
   }
 
   if (!ctx.bot) {
-    console.error('[TelegramPipeline] Bot not resolved');
+    logger.error('[TelegramPipeline] Bot not resolved');
     return;
   }
 
@@ -22,7 +23,7 @@ export const resolveBotTenant: PipelineMiddleware = async (ctx: PipelineContext,
     // Keep consistent with telegram.routes.ts: allow env fallback for legacy bots.
     const expected = (ctx.bot.config as any)?.webhookSecret || process.env.TELEGRAM_WEBHOOK_SECRET;
     if (!expected || expected !== secretToken) {
-      console.warn('[TelegramPipeline] Webhook secret mismatch');
+      logger.warn('[TelegramPipeline] Webhook secret mismatch');
       return;
     }
   }

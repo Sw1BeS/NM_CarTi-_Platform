@@ -1,4 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
+import { logger } from '../utils/logger.js';
+import { errorResponse } from '../utils/errorResponse.js';
 
 /**
  * Extended Express Request with workspace context
@@ -87,10 +89,7 @@ export async function workspaceContext(
                     });
 
                     if (!workspace || workspace.deleted_at) {
-                        res.status(404).json({
-                            error: 'Workspace not found',
-                            code: 'WORKSPACE_NOT_FOUND'
-                        });
+                        errorResponse(res, 404, 'Workspace not found', 'WORKSPACE_NOT_FOUND');
                         return;
                     }
 
@@ -98,7 +97,7 @@ export async function workspaceContext(
                 }
             } catch (err) {
                 // Workspace table not created yet - skip
-                console.warn('Workspace resolution skipped (v4.1 tables not created yet)');
+                logger.warn('Workspace resolution skipped (v4.1 tables not created yet)');
             }
         }
 
@@ -114,11 +113,8 @@ export async function workspaceContext(
 
         next();
     } catch (error) {
-        console.error('Workspace context middleware error:', error);
-        res.status(500).json({
-            error: 'Failed to resolve workspace context',
-            code: 'WORKSPACE_CONTEXT_ERROR'
-        });
+        logger.error('Workspace context middleware error:', error);
+        errorResponse(res, 500, 'Failed to resolve workspace context', 'WORKSPACE_CONTEXT_ERROR');
         return;
     }
 }
@@ -139,11 +135,13 @@ export function requireWorkspace(
     next: NextFunction
 ): void {
     if (!req.workspaceId) {
-        return res.status(400).json({
-            error: 'Workspace context required',
-            code: 'WORKSPACE_REQUIRED',
-            hint: 'Provide X-Workspace-Slug header or use workspace subdomain'
-        }) as any;
+        return errorResponse(
+            res,
+            400,
+            'Workspace context required',
+            'WORKSPACE_REQUIRED',
+            { hint: 'Provide X-Workspace-Slug header or use workspace subdomain' }
+        ) as any;
     }
     next();
 }

@@ -7,6 +7,7 @@ import { useToast } from '../../../contexts/ToastContext';
 import { useLang } from '../../../contexts/LanguageContext';
 import { useAuth } from '../../../contexts/AuthContext';
 import { TelegramAPI } from '../../../services/telegram';
+import { EmptyState } from '../../../components/EmptyState';
 
 export const SuperAdminTab = () => {
     const { showToast } = useToast();
@@ -52,12 +53,25 @@ export const SuperAdminTab = () => {
                     <p className="text-sm text-[var(--text-secondary)] mt-1">{t('superadmin.desc')}</p>
                 </div>
             </div>
-            {/* ... Content abbreviated ... */}
-            <div className="panel p-4">
-                <div className="text-center text-[var(--text-secondary)]">
-                    SuperAdmin User Management would go here.
+            {loading ? (
+                <div className="panel p-6 text-sm text-[var(--text-secondary)]">Loading...</div>
+            ) : filteredUsers.length === 0 ? (
+                <div className="panel">
+                    <EmptyState
+                        icon={<Plus size={28} />}
+                        title="No users found"
+                        description="Create a user or adjust filters to see results."
+                        actionLabel="Create User"
+                        action={() => setCreateModal(true)}
+                    />
                 </div>
-            </div>
+            ) : (
+                <div className="panel p-4">
+                    <div className="text-center text-[var(--text-secondary)]">
+                        SuperAdmin User Management would go here.
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
@@ -128,19 +142,29 @@ export const TelegramDiagnosticsTab = () => {
     return (
         <div className="space-y-6 animate-slide-up">
             <h3 className="text-xl font-medium text-[var(--text-primary)]">{t('settings.tg.title')}</h3>
-            <div className="space-y-4">
-                {bots.map(b => (
-                    <div key={b.id} className="panel p-5">
-                        <div className="flex justify-between items-start mb-4">
-                            <div>
-                                <h4 className="font-bold text-[var(--text-primary)]">{b.name}</h4>
-                                <code className="text-xs text-[var(--text-secondary)] bg-[var(--bg-input)] px-2 py-1 rounded">{b.token.substring(0, 10)}...</code>
+            {bots.length === 0 ? (
+                <div className="panel">
+                    <EmptyState
+                        icon={<LogIn size={28} />}
+                        title="No bots connected"
+                        description="Connect a bot in Telegram Hub to run diagnostics."
+                    />
+                </div>
+            ) : (
+                <div className="space-y-4">
+                    {bots.map(b => (
+                        <div key={b.id} className="panel p-5">
+                            <div className="flex justify-between items-start mb-4">
+                                <div>
+                                    <h4 className="font-bold text-[var(--text-primary)]">{b.name}</h4>
+                                    <code className="text-xs text-[var(--text-secondary)] bg-[var(--bg-input)] px-2 py-1 rounded">{b.token.substring(0, 10)}...</code>
+                                </div>
+                                <button onClick={() => checkBot(b.token)} className="btn-secondary text-xs">Ping API</button>
                             </div>
-                            <button onClick={() => checkBot(b.token)} className="btn-secondary text-xs">Ping API</button>
                         </div>
-                    </div>
-                ))}
-            </div>
+                    ))}
+                </div>
+            )}
         </div>
     );
 };

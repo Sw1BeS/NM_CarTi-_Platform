@@ -5,6 +5,7 @@ import { Plus, X } from 'lucide-react';
 import { useToast } from '../../../contexts/ToastContext';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useLang } from '../../../contexts/LanguageContext';
+import { EmptyState } from '../../../components/EmptyState';
 
 export const UsersTab = () => {
     const [users, setUsers] = useState<User[]>([]);
@@ -52,22 +53,34 @@ export const UsersTab = () => {
                 </button>
             </div>
 
-            <div className="grid grid-cols-1 gap-4">
-                {users.map(u => (
-                    <div key={u.id} className="panel p-4 flex justify-between items-center">
-                        <div className="flex items-center gap-4">
-                            <div className="w-10 h-10 rounded-full bg-[var(--bg-input)] flex items-center justify-center font-bold text-[var(--text-secondary)] border border-[var(--border-color)]">
-                                {u.name?.[0]?.toUpperCase() || 'U'}
+            {users.length === 0 ? (
+                <div className="panel">
+                    <EmptyState
+                        icon={<Plus size={28} />}
+                        title={t('settings.team_members')}
+                        description="Invite teammates to start assigning requests and conversations."
+                        actionLabel={t('settings.add_user')}
+                        action={() => setIsModalOpen(true)}
+                    />
+                </div>
+            ) : (
+                <div className="grid grid-cols-1 gap-4">
+                    {users.map(u => (
+                        <div key={u.id} className="panel p-4 flex justify-between items-center">
+                            <div className="flex items-center gap-4">
+                                <div className="w-10 h-10 rounded-full bg-[var(--bg-input)] flex items-center justify-center font-bold text-[var(--text-secondary)] border border-[var(--border-color)]">
+                                    {u.name?.[0]?.toUpperCase() || 'U'}
+                                </div>
+                                <div>
+                                    <div className="font-bold text-[var(--text-primary)]">{u.name}</div>
+                                    <div className="text-xs text-[var(--text-secondary)] uppercase tracking-wider">{u.role}</div>
+                                </div>
                             </div>
-                            <div>
-                                <div className="font-bold text-[var(--text-primary)]">{u.name}</div>
-                                <div className="text-xs text-[var(--text-secondary)] uppercase tracking-wider">{u.role}</div>
-                            </div>
+                            <div className="text-xs text-[var(--text-muted)] font-mono">{u.email}</div>
                         </div>
-                        <div className="text-xs text-[var(--text-muted)] font-mono">{u.email}</div>
-                    </div>
-                ))}
-            </div>
+                    ))}
+                </div>
+            )}
 
             {isModalOpen && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">

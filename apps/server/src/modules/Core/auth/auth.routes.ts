@@ -3,6 +3,8 @@ import bcrypt from 'bcryptjs';
 import { authenticateToken, AuthRequest } from '../../../middleware/auth.js';
 import { getUserByEmail, getWorkspaceById, getWorkspaceBySlug } from '../../../services/v41/readService.js';
 import { signJwt } from '../../../config/jwt.js';
+import { logger } from '../../../utils/logger.js';
+import { errorResponse } from '../../../utils/errorResponse.js';
 
 const router = Router();
 
@@ -13,12 +15,12 @@ router.post('/login', async (req: Request, res: Response) => {
     const user = await getUserByEmail(email, true); // includePassword=true
 
     if (!user || !user.isActive) {
-      return (res as any).status(401).json({ error: 'Invalid credentials' });
+      return errorResponse(res as any, 401, 'Invalid credentials', 'AUTH_INVALID');
     }
 
     const valid = await bcrypt.compare(password, user.password!);
     if (!valid) {
-      return (res as any).status(401).json({ error: 'Invalid credentials' });
+      return errorResponse(res as any, 401, 'Invalid credentials', 'AUTH_INVALID');
     }
 
     // Canonical payload: always include companyId + workspaceId.
@@ -57,7 +59,7 @@ router.post('/login', async (req: Request, res: Response) => {
       }
     });
   } catch (e) {
-    (res as any).status(500).json({ error: 'Internal error' });
+    return errorResponse(res as any, 500, 'Internal error', 'AUTH_ERROR');
   }
 });
 
@@ -65,10 +67,10 @@ router.get('/me', authenticateToken, async (req: Request, res: Response) => {
   const jwtUser = (req as AuthRequest).user;
   try {
     if (!jwtUser?.email) {
-      return (res as any).status(401).json({ error: 'Unauthorized' });
+      return errorResponse(res as any, 401, 'Unauthorized', 'AUTH_UNAUTHORIZED');
     }
     const user = await getUserByEmail(jwtUser.email);
-    if (!user) return (res as any).status(404).json({ error: 'User not found' });
+    if (!user) return errorResponse(res as any, 404, 'User not found', 'AUTH_NOT_FOUND');
 
     // Consistent shape with /login
     const companyId = user.companyId || user.workspace?.id;
@@ -87,8 +89,8 @@ router.get('/me', authenticateToken, async (req: Request, res: Response) => {
       } : null
     });
   } catch (e) {
-    console.error(e);
-    (res as any).status(500).json({ error: 'Failed to fetch user context' });
+    logger.error(e);
+    return errorResponse(res as any, 500, 'Failed to fetch user context', 'AUTH_CONTEXT');
   }
 });
 

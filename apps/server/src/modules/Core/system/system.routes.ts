@@ -2,6 +2,7 @@
 import { Router } from 'express';
 import { SettingsService } from './settings.service.js';
 import { authenticateToken, requireRole } from '../../../middleware/auth.js';
+import { errorResponse } from '../../../utils/errorResponse.js';
 
 const router = Router();
 
@@ -11,7 +12,7 @@ router.get('/settings/public', async (req, res) => {
         const settings = await SettingsService.getSettings(true);
         res.json(settings || {});
     } catch (e) {
-        res.status(500).json({ error: 'Failed to load public settings' });
+        errorResponse(res, 500, 'Failed to load public settings');
     }
 });
 
@@ -24,7 +25,7 @@ router.get('/settings', requireRole(['ADMIN']), async (req, res) => {
         const settings = await SettingsService.getSettings(false);
         res.json(settings || {});
     } catch (e) {
-        res.status(500).json({ error: 'Failed to load settings' });
+        errorResponse(res, 500, 'Failed to load settings');
     }
 });
 
@@ -33,7 +34,7 @@ router.put('/settings', requireRole(['ADMIN']), async (req, res) => {
         const updated = await SettingsService.updateSettings(req.body);
         res.json(updated);
     } catch (e) {
-        res.status(500).json({ error: 'Failed to update settings' });
+        errorResponse(res, 500, 'Failed to update settings');
     }
 });
 

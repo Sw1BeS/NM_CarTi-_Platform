@@ -6,6 +6,7 @@ import { Router } from 'express';
 import { TemplateService } from './template.service.js';
 import { authenticateToken, optionalAuthenticateToken } from '../../../middleware/auth.js';
 import { companyContext } from '../../../middleware/companyContext.js';
+import { errorResponse } from '../../../utils/errorResponse.js';
 
 const router = Router();
 const templateService = new TemplateService();
@@ -26,7 +27,7 @@ router.get('/marketplace', optionalAuthenticateToken, async (req: any, res) => {
 
         res.json(templates);
     } catch (e: any) {
-        res.status(500).json({ error: e.message });
+        errorResponse(res, 500, e.message);
     }
 });
 
@@ -39,7 +40,7 @@ router.get('/installed/list', authenticateToken, companyContext, async (req: any
         const installed = await templateService.getInstalled(req.companyId);
         res.json(installed);
     } catch (e: any) {
-        res.status(500).json({ error: e.message });
+        errorResponse(res, 500, e.message);
     }
 });
 
@@ -52,7 +53,7 @@ router.post('/:id/install', authenticateToken, companyContext, async (req: any, 
         const scenario = await templateService.installTemplate(req.companyId, req.params.id);
         res.status(201).json(scenario);
     } catch (e: any) {
-        res.status(400).json({ error: e.message });
+        errorResponse(res, 400, e.message);
     }
 });
 
@@ -65,7 +66,7 @@ router.delete('/:id/uninstall', authenticateToken, companyContext, async (req: a
         await templateService.uninstallTemplate(req.companyId, req.params.id);
         res.json({ success: true });
     } catch (e: any) {
-        res.status(400).json({ error: e.message });
+        errorResponse(res, 400, e.message);
     }
 });
 
@@ -80,12 +81,12 @@ router.get('/:id', async (req: any, res) => {
         const template = await templateService.getById(req.params.id);
 
         if (!template) {
-            return res.status(404).json({ error: 'Template not found' });
+            return errorResponse(res, 404, 'Template not found');
         }
 
         res.json(template);
     } catch (e: any) {
-        res.status(500).json({ error: e.message });
+        errorResponse(res, 500, e.message);
     }
 });
 

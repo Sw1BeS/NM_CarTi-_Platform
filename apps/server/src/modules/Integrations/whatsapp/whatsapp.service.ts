@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { prisma } from '../../../services/prisma.js';
 import { logSystem } from '../../Core/system/systemLog.service.js';
+import { logger } from '../../../utils/logger.js';
 
 export class WhatsAppService {
     private static instance: WhatsAppService;
@@ -51,7 +52,7 @@ export class WhatsAppService {
 
     async sendMessage(to: string, text: string) {
         // Placeholder for sending message via Cloud API
-        console.log(`Sending WhatsApp to ${to}: ${text}`);
+        logger.info(`Sending WhatsApp to ${to}: ${text}`);
     }
 }
 
@@ -62,7 +63,7 @@ whatsAppRouter.post('/', async (req, res) => {
         await WhatsAppService.getInstance().handleWebhook(req.body);
         res.sendStatus(200);
     } catch (e) {
-        console.error(e);
+        logger.error(e);
         res.sendStatus(500);
     }
 });

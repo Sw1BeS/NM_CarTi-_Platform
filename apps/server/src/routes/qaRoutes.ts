@@ -6,30 +6,32 @@ import { saveProfile } from '../services/parserProfiles.js';
 import { generateRequestLink } from '../utils/deeplink.utils.js';
 import { authenticateToken, requireRole } from '../middleware/auth.js';
 import { ScenarioEngine } from '../modules/Communication/bots/scenario.engine.js';
+import { logger } from '../utils/logger.js';
+import { errorResponse } from '../utils/errorResponse.js';
 
 const router = Router();
 
 router.get('/parse', authenticateToken, requireRole(['SUPER_ADMIN', 'ADMIN']), async (req, res) => {
   const url = req.query.url as string;
-  if (!url) return res.status(400).json({ error: 'url required' });
+  if (!url) return errorResponse(res, 400, 'url required');
   try {
     const result = await parseListingFromUrl(url);
     res.json(result);
   } catch (e: any) {
-    res.status(500).json({ error: e.message || 'parse failed' });
+    errorResponse(res, 500, e.message || 'parse failed');
   }
 });
 
 router.post('/parse/profile', authenticateToken, requireRole(['SUPER_ADMIN', 'ADMIN']), async (req, res) => {
     try {
         const { domain, selectors } = req.body;
-        if (!domain || !selectors) return res.status(400).json({ error: 'domain and selectors required' });
+        if (!domain || !selectors) return errorResponse(res, 400, 'domain and selectors required');
 
         await saveProfile(domain, selectors);
         res.json({ success: true });
     } catch (e: any) {
-        console.error('Save Profile Error:', e);
-        res.status(500).json({ error: e.message });
+        logger.error('Save Profile Error:', e);
+        errorResponse(res, 500, e.message);
     }
 });
 
@@ -39,7 +41,7 @@ router.get('/simulate/start', authenticateToken, requireRole(['SUPER_ADMIN', 'AD
   const dealerId = req.query.dealerId as string;
   const bot = await prisma.botConfig.findFirst({ where: { isEnabled: true } });
   const botUsername = bot?.config ? (bot.config as any).username : undefined;
-  if (!bot?.token || !botUsername) return res.status(400).json({ error: 'Bot username missing' });
+  if (!bot?.token || !botUsername) return errorResponse(res, 400, 'Bot username missing');
 
   if (type === 'dealer_invite' && dealerId) {
     const payload = requestId ? `dealer_invite:${dealerId}:${requestId}` : `dealer_invite:${dealerId}`;
@@ -50,18 +52,18 @@ router.get('/simulate/start', authenticateToken, requireRole(['SUPER_ADMIN', 'AD
     const link = generateRequestLink(botUsername, requestId);
     return res.json({ link });
   }
-  res.status(400).json({ error: 'Invalid payload' });
+  errorResponse(res, 400, 'Invalid payload');
 });
 
 router.post('/simulate/message', authenticateToken, requireRole(['SUPER_ADMIN', 'ADMIN']), async (req, res) => {
   try {
     const { chatId, text, botId } = req.body || {};
-    if (!chatId || !text) return res.status(400).json({ error: 'chatId and text are required' });
+    if (!chatId || !text) return errorResponse(res, 400, 'chatId and text are required');
 
     const bot = botId
       ? await prisma.botConfig.findUnique({ where: { id: botId } })
       : await prisma.botConfig.findFirst({ where: { isEnabled: true } });
-    if (!bot?.token) return res.status(400).json({ error: 'Active bot not found' });
+    if (!bot?.token) return errorResponse(res, 400, 'Active bot not found');
 
     const session = await prisma.botSession.upsert({
       where: { botId_chatId: { botId: String(bot.id), chatId: String(chatId) } },
@@ -113,8 +115,8 @@ router.post('/simulate/message', authenticateToken, requireRole(['SUPER_ADMIN', 
 
     res.json({ ok: true });
   } catch (e: any) {
-    console.error('[QA Simulate] Error:', e);
-    res.status(500).json({ error: e.message || 'Simulation failed' });
+    logger.error('[QA Simulate] Error:', e);
+    errorResponse(res, 500, e.message || 'Simulation failed');
   }
 });
 

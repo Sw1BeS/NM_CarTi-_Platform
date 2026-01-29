@@ -1,6 +1,7 @@
 import { prisma } from '../../../../../services/prisma.js';
 import { TelegramSender } from '../telegramSender.js';
 import { emitPlatformEvent, summarizeText } from '../../core/events/eventEmitter.js';
+import { logger } from '../../../../../utils/logger.js';
 
 type OutboxContext = {
   botId: string;
@@ -58,7 +59,7 @@ const logOutgoing = async (botId: string, chatId: string, text: string, messageI
       )
     `;
   } catch (e) {
-    console.error('[TelegramOutbox] Failed to log outgoing message:', e);
+    logger.error('[TelegramOutbox] Failed to log outgoing message:', e);
   }
 };
 

@@ -19,6 +19,8 @@ import { whatsAppRouter } from '../modules/Integrations/whatsapp/whatsapp.servic
 import { viberRouter } from '../modules/Integrations/viber/viber.service.js';
 import showcaseRouter from '../modules/Marketing/showcase/showcase.controller.js';
 import parserRouter from '../modules/Parser/parser.controller.js';
+import { logger } from '../utils/logger.js';
+import { errorResponse } from '../utils/errorResponse.js';
 
 const integrationService = new IntegrationService();
 
@@ -43,7 +45,7 @@ const resolveCompanyId = async (requestedCompanyId?: string | null, userCompanyI
     const systemWorkspace = await getWorkspaceById('company_system') || await getWorkspaceBySlug('system');
     if (systemWorkspace) return systemWorkspace.id;
 
-    console.warn('[API] System workspace not found, falling back to ID literal "company_system"');
+    logger.warn('[API] System workspace not found, falling back to ID literal "company_system"');
     return 'company_system';
 };
 
@@ -55,7 +57,7 @@ router.get('/bots', requireRole(['ADMIN', 'MANAGER']), async (req, res) => {
     const requestedCompanyId = typeof req.query.companyId === 'string' ? req.query.companyId : undefined;
     const companyId = isSuperadmin ? requestedCompanyId : userCompanyId;
 
-    if (!companyId && !isSuperadmin) return res.status(400).json({ error: 'Company context required' });
+    if (!companyId && !isSuperadmin) return errorResponse(res, 400, 'Company context required');
 
     const bots = await prisma.botConfig.findMany({
         where: companyId ? { companyId } : {},
@@ -66,7 +68,7 @@ router.get('/bots', requireRole(['ADMIN', 'MANAGER']), async (req, res) => {
 
 router.post('/bots', requireRole(['ADMIN']), async (req, res) => {
     const { data } = mapBotInput(req.body || {});
-    if (!data.token) return res.status(400).json({ error: 'Token is required' });
+    if (!data.token) return errorResponse(res, 400, 'Token is required');
 
     // Sanitize optional fields: Convert empty strings to null
     const cleanChannelId = data.channelId && String(data.channelId).trim() !== '' ? String(data.channelId).trim() : null;
@@ -77,7 +79,7 @@ router.post('/bots', requireRole(['ADMIN']), async (req, res) => {
         const isSuperadmin = user.role === 'SUPER_ADMIN';
         const userCompanyId = user.companyId || user.workspaceId || null;
         const companyId = await resolveCompanyId(isSuperadmin ? data.companyId : null, userCompanyId);
-        if (!companyId && !isSuperadmin) return res.status(400).json({ error: 'Company context required' });
+        if (!companyId && !isSuperadmin) return errorResponse(res, 400, 'Company context required');
 
         const newBot = await prisma.botConfig.create({
             data: {
@@ -91,28 +93,28 @@ router.post('/bots', requireRole(['ADMIN']), async (req, res) => {
         });
 
         // Fire and forget restart to avoid blocking the UI response
-        botManager.restartBot(newBot.id).catch(e => console.error("Async Bot Restart Failed:", e));
+        botManager.restartBot(newBot.id).catch(e => logger.error("Async Bot Restart Failed:", e));
 
         res.json(mapBotOutput(newBot));
     } catch (e) {
-        console.error("Create Bot Error:", e);
-        res.status(500).json({ error: "Failed to create bot. Token might be duplicate or invalid." });
+        logger.error("Create Bot Error:", e);
+        errorResponse(res, 500, "Failed to create bot. Token might be duplicate or invalid.");
     }
 });
 
 router.put('/bots/:id', requireRole(['ADMIN']), async (req, res) => {
     const { id } = req.params;
     const existing = await prisma.botConfig.findUnique({ where: { id } });
-    if (!existing) return res.status(404).json({ error: 'Bot not found' });
+    if (!existing) return errorResponse(res, 404, 'Bot not found');
     const user = (req as any).user || {};
     const isSuperadmin = user.role === 'SUPER_ADMIN';
     const userCompanyId = user.companyId || user.workspaceId;
-    if (!isSuperadmin && !userCompanyId) return res.status(400).json({ error: 'Company context required' });
+    if (!isSuperadmin && !userCompanyId) return errorResponse(res, 400, 'Company context required');
     if (!isSuperadmin && existing.companyId !== userCompanyId) {
-        return res.status(403).json({ error: 'Forbidden' });
+        return errorResponse(res, 403, 'Forbidden');
     }
     const { data } = mapBotInput(req.body || {}, existing.config);
-    if ('token' in data && !data.token) return res.status(400).json({ error: 'Token is required' });
+    if ('token' in data && !data.token) return errorResponse(res, 400, 'Token is required');
     if (!isSuperadmin) delete data.companyId;
 
     // Sanitize optional fields
@@ -131,12 +133,12 @@ router.put('/bots/:id', requireRole(['ADMIN']), async (req, res) => {
         });
 
         // Fire and forget
-        botManager.restartBot(id).catch(e => console.error("Async Bot Update Failed:", e));
+        botManager.restartBot(id).catch(e => logger.error("Async Bot Update Failed:", e));
 
         res.json(mapBotOutput(updated));
     } catch (e) {
-        console.error("Update Bot Error:", e);
-        res.status(500).json({ error: 'Failed to update bot' });
+        logger.error("Update Bot Error:", e);
+        errorResponse(res, 500, 'Failed to update bot');
     }
 });
 
@@ -147,10 +149,10 @@ router.post('/bots/:id/webhook', requireRole(['ADMIN']), async (req, res) => {
         const isSuperadmin = user.role === 'SUPER_ADMIN';
         const userCompanyId = user.companyId || user.workspaceId;
         const bot = await prisma.botConfig.findUnique({ where: { id }, select: { companyId: true } });
-        if (!bot) return res.status(404).json({ error: 'Bot not found' });
-        if (!isSuperadmin && !userCompanyId) return res.status(400).json({ error: 'Company context required' });
+        if (!bot) return errorResponse(res, 404, 'Bot not found');
+        if (!isSuperadmin && !userCompanyId) return errorResponse(res, 400, 'Company context required');
         if (!isSuperadmin && bot.companyId !== userCompanyId) {
-            return res.status(403).json({ error: 'Forbidden' });
+            return errorResponse(res, 403, 'Forbidden');
         }
         const { publicBaseUrl, secretToken } = req.body || {};
 
@@ -162,11 +164,11 @@ router.post('/bots/:id/webhook', requireRole(['ADMIN']), async (req, res) => {
         const inferredBaseUrl = host ? `${proto}://${host}` : undefined;
 
         const result = await setWebhookForBot(id, { publicBaseUrl: publicBaseUrl || inferredBaseUrl, secretToken });
-        botManager.restartBot(id).catch(e => console.error('Async Bot Restart Failed:', e));
+        botManager.restartBot(id).catch(e => logger.error('Async Bot Restart Failed:', e));
         res.json({ ok: true, ...result });
     } catch (e: any) {
-        console.error('[Webhook] Set error:', e.message || e);
-        res.status(500).json({ error: e.message || 'Failed to set webhook' });
+        logger.error('[Webhook] Set error:', e.message || e);
+        errorResponse(res, 500, e.message || 'Failed to set webhook');
     }
 });
 
@@ -177,17 +179,17 @@ router.delete('/bots/:id/webhook', requireRole(['ADMIN']), async (req, res) => {
         const isSuperadmin = user.role === 'SUPER_ADMIN';
         const userCompanyId = user.companyId || user.workspaceId;
         const bot = await prisma.botConfig.findUnique({ where: { id }, select: { companyId: true } });
-        if (!bot) return res.status(404).json({ error: 'Bot not found' });
-        if (!isSuperadmin && !userCompanyId) return res.status(400).json({ error: 'Company context required' });
+        if (!bot) return errorResponse(res, 404, 'Bot not found');
+        if (!isSuperadmin && !userCompanyId) return errorResponse(res, 400, 'Company context required');
         if (!isSuperadmin && bot.companyId !== userCompanyId) {
-            return res.status(403).json({ error: 'Forbidden' });
+            return errorResponse(res, 403, 'Forbidden');
         }
         await deleteWebhookForBot(id);
-        botManager.restartBot(id).catch(e => console.error('Async Bot Restart Failed:', e));
+        botManager.restartBot(id).catch(e => logger.error('Async Bot Restart Failed:', e));
         res.json({ ok: true });
     } catch (e: any) {
-        console.error('[Webhook] Delete error:', e.message || e);
-        res.status(500).json({ error: e.message || 'Failed to delete webhook' });
+        logger.error('[Webhook] Delete error:', e.message || e);
+        errorResponse(res, 500, e.message || 'Failed to delete webhook');
     }
 });
 
@@ -198,15 +200,15 @@ router.delete('/bots/:id', requireRole(['ADMIN']), async (req, res) => {
         const isSuperadmin = user.role === 'SUPER_ADMIN';
         const userCompanyId = user.companyId || user.workspaceId;
         const bot = await prisma.botConfig.findUnique({ where: { id }, select: { companyId: true } });
-        if (!bot) return res.status(404).json({ error: 'Bot not found' });
-        if (!isSuperadmin && !userCompanyId) return res.status(400).json({ error: 'Company context required' });
+        if (!bot) return errorResponse(res, 404, 'Bot not found');
+        if (!isSuperadmin && !userCompanyId) return errorResponse(res, 400, 'Company context required');
         if (!isSuperadmin && bot.companyId !== userCompanyId) {
-            return res.status(403).json({ error: 'Forbidden' });
+            return errorResponse(res, 403, 'Forbidden');
         }
         await prisma.botConfig.delete({ where: { id } });
-        botManager.restartBot(id).catch(e => console.error("Async Bot Restart Failed:", e));
+        botManager.restartBot(id).catch(e => logger.error("Async Bot Restart Failed:", e));
         res.json({ success: true });
-    } catch (e) { res.status(500).json({ error: 'Failed to delete bot' }); }
+    } catch (e) { errorResponse(res, 500, 'Failed to delete bot'); }
 });
 
 const TELEGRAM_METHODS = new Set([
@@ -263,7 +265,7 @@ router.post('/telegram/call', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), asy
     try {
         const { token, botId, method, params } = req.body || {};
         if (!method || !TELEGRAM_METHODS.has(method)) {
-            return res.status(400).json({ error: 'Unsupported Telegram method' });
+            return errorResponse(res, 400, 'Unsupported Telegram method');
         }
         const user = (req as any).user || {};
         const isSuperadmin = user.role === 'SUPER_ADMIN';
@@ -272,22 +274,22 @@ router.post('/telegram/call', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), asy
             ? (typeof (req.body || {}).companyId === 'string' ? (req.body || {}).companyId : (typeof req.query.companyId === 'string' ? req.query.companyId : undefined))
             : undefined;
         const companyId = isSuperadmin ? requestedCompanyId : userCompanyId;
-        if (!companyId && !isSuperadmin) return res.status(400).json({ error: 'Company context required' });
+        if (!companyId && !isSuperadmin) return errorResponse(res, 400, 'Company context required');
 
         const resolved = await resolveBot(token, botId, companyId);
         if (!resolved?.token) {
-            return res.status(400).json({ error: 'Bot token not found' });
+            return errorResponse(res, 400, 'Bot token not found');
         }
         if (resolved.bot?.companyId && companyId && resolved.bot.companyId !== companyId && !isSuperadmin) {
-            return res.status(403).json({ error: 'Forbidden' });
+            return errorResponse(res, 403, 'Forbidden');
         }
 
         if (method === 'sendMessage') {
-            if (!resolved.botId) return res.status(400).json({ error: 'Bot not registered' });
+            if (!resolved.botId) return errorResponse(res, 400, 'Bot not registered');
             const chatId = String(params?.chat_id || params?.chatId || '');
             const text = String(params?.text || '');
             if (!chatId || !text) {
-                return res.status(400).json({ error: 'chat_id and text are required' });
+                return errorResponse(res, 400, 'chat_id and text are required');
             }
             const result = await telegramOutbox.sendMessage({
                 botId: resolved.botId,
@@ -301,11 +303,11 @@ router.post('/telegram/call', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), asy
         }
 
         if (method === 'sendPhoto') {
-            if (!resolved.botId) return res.status(400).json({ error: 'Bot not registered' });
+            if (!resolved.botId) return errorResponse(res, 400, 'Bot not registered');
             const chatId = String(params?.chat_id || params?.chatId || '');
             const photo = String(params?.photo || '');
             if (!chatId || !photo) {
-                return res.status(400).json({ error: 'chat_id and photo are required' });
+                return errorResponse(res, 400, 'chat_id and photo are required');
             }
             const result = await telegramOutbox.sendPhoto({
                 botId: resolved.botId,
@@ -320,11 +322,11 @@ router.post('/telegram/call', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), asy
         }
 
         const sendFileLike = async (kind: 'document' | 'video' | 'audio' | 'voice' | 'animation' | 'sticker') => {
-            if (!resolved.botId) return res.status(400).json({ error: 'Bot not registered' });
+            if (!resolved.botId) return errorResponse(res, 400, 'Bot not registered');
             const chatId = String(params?.chat_id || params?.chatId || '');
             const file = String(params?.document || params?.video || params?.audio || params?.voice || params?.animation || params?.sticker || params?.file || '');
             if (!chatId || !file) {
-                return res.status(400).json({ error: 'chat_id and file are required' });
+                return errorResponse(res, 400, 'chat_id and file are required');
             }
             const common = {
                 botId: resolved.botId,
@@ -353,11 +355,11 @@ router.post('/telegram/call', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), asy
         if (method === 'sendSticker') return await sendFileLike('sticker');
 
         if (method === 'sendMediaGroup') {
-            if (!resolved.botId) return res.status(400).json({ error: 'Bot not registered' });
+            if (!resolved.botId) return errorResponse(res, 400, 'Bot not registered');
             const chatId = String(params?.chat_id || params?.chatId || '');
             const media = params?.media;
             if (!chatId || !Array.isArray(media)) {
-                return res.status(400).json({ error: 'chat_id and media array are required' });
+                return errorResponse(res, 400, 'chat_id and media array are required');
             }
             const result = await telegramOutbox.sendMediaGroup({
                 botId: resolved.botId,
@@ -370,12 +372,12 @@ router.post('/telegram/call', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), asy
         }
 
         if (method === 'editMessageText') {
-            if (!resolved.botId) return res.status(400).json({ error: 'Bot not registered' });
+            if (!resolved.botId) return errorResponse(res, 400, 'Bot not registered');
             const chatId = String(params?.chat_id || params?.chatId || '');
             const messageId = Number(params?.message_id || params?.messageId);
             const text = String(params?.text || '');
             if (!chatId || !messageId || !text) {
-                return res.status(400).json({ error: 'chat_id, message_id, and text are required' });
+                return errorResponse(res, 400, 'chat_id, message_id, and text are required');
             }
             const result = await telegramOutbox.editMessageText({
                 botId: resolved.botId,
@@ -390,11 +392,11 @@ router.post('/telegram/call', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), asy
         }
 
         if (method === 'sendChatAction') {
-            if (!resolved.botId) return res.status(400).json({ error: 'Bot not registered' });
+            if (!resolved.botId) return errorResponse(res, 400, 'Bot not registered');
             const chatId = String(params?.chat_id || params?.chatId || '');
             const action = String(params?.action || 'typing');
             if (!chatId) {
-                return res.status(400).json({ error: 'chat_id is required' });
+                return errorResponse(res, 400, 'chat_id is required');
             }
             const result = await telegramOutbox.sendChatAction({
                 botId: resolved.botId,
@@ -409,7 +411,7 @@ router.post('/telegram/call', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), asy
         if (method === 'answerCallbackQuery') {
             const callbackId = String(params?.callback_query_id || params?.callbackId || '');
             if (!callbackId) {
-                return res.status(400).json({ error: 'callback_query_id is required' });
+                return errorResponse(res, 400, 'callback_query_id is required');
             }
             const result = await telegramOutbox.answerCallback({
                 token: resolved.token,
@@ -421,8 +423,8 @@ router.post('/telegram/call', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), asy
         const result = await callTelegram(resolved.token, method, params || {});
         res.json({ ok: true, result });
     } catch (e: any) {
-        console.error('[Telegram Proxy] Error:', e.message || e);
-        res.status(500).json({ error: e.message || 'Telegram proxy failed' });
+        logger.error('[Telegram Proxy] Error:', e.message || e);
+        errorResponse(res, 500, e.message || 'Telegram proxy failed');
     }
 });
 
@@ -439,12 +441,12 @@ router.get('/messages', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), async (re
         const requestedCompanyId = typeof req.query.companyId === 'string' ? req.query.companyId : undefined;
         const companyId = isSuperadmin ? requestedCompanyId : userCompanyId;
 
-        if (!companyId && !isSuperadmin) return res.status(400).json({ error: 'Company context required' });
+        if (!companyId && !isSuperadmin) return errorResponse(res, 400, 'Company context required');
 
         if (botId && companyId && !isSuperadmin) {
             const bot = await prisma.botConfig.findUnique({ where: { id: botId }, select: { companyId: true } });
-            if (!bot) return res.status(404).json({ error: 'Bot not found' });
-            if (bot.companyId !== companyId) return res.status(403).json({ error: 'Forbidden' });
+            if (!bot) return errorResponse(res, 404, 'Bot not found');
+            if (bot.companyId !== companyId) return errorResponse(res, 403, 'Forbidden');
         }
 
         const rows = await prisma.botMessage.findMany({
@@ -492,8 +494,8 @@ router.get('/messages', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), async (re
 
         res.json(messages);
     } catch (e: any) {
-        console.error('[Messages] Fetch error:', e.message || e);
-        res.status(500).json({ error: 'Failed to fetch messages' });
+        logger.error('[Messages] Fetch error:', e.message || e);
+        errorResponse(res, 500, 'Failed to fetch messages');
     }
 });
 
@@ -501,7 +503,7 @@ router.get('/messages', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), async (re
 router.get('/events', requireRole(['ADMIN', 'MANAGER']), async (req, res) => {
     try {
         const companyId = (req as any).user?.companyId;
-        if (!companyId) return res.status(400).json({ error: 'Company context required' });
+        if (!companyId) return errorResponse(res, 400, 'Company context required');
 
         const botId = typeof req.query.botId === 'string' ? req.query.botId : undefined;
         const startDate = typeof req.query.startDate === 'string' ? new Date(req.query.startDate) : undefined;
@@ -524,8 +526,8 @@ router.get('/events', requireRole(['ADMIN', 'MANAGER']), async (req, res) => {
 
         res.json(events);
     } catch (e: any) {
-        console.error('[Events] Fetch error:', e.message || e);
-        res.status(500).json({ error: 'Failed to fetch events' });
+        logger.error('[Events] Fetch error:', e.message || e);
+        errorResponse(res, 500, 'Failed to fetch events');
     }
 });
 
@@ -541,7 +543,7 @@ router.get('/messages/logs', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), asyn
         const userCompanyId = user.companyId || user.workspaceId;
         const requestedCompanyId = typeof req.query.companyId === 'string' ? req.query.companyId : undefined;
         const companyId = isSuperadmin ? requestedCompanyId : userCompanyId;
-        if (!companyId && !isSuperadmin) return res.status(400).json({ error: 'Company context required' });
+        if (!companyId && !isSuperadmin) return errorResponse(res, 400, 'Company context required');
 
         const where: any = {};
         if (requestId) where.requestId = requestId;
@@ -575,8 +577,8 @@ router.get('/messages/logs', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), asyn
 
         res.json(enriched);
     } catch (e: any) {
-        console.error('[MessageLog] Fetch error:', e.message || e);
-        res.status(500).json({ error: 'Failed to fetch message logs' });
+        logger.error('[MessageLog] Fetch error:', e.message || e);
+        errorResponse(res, 500, 'Failed to fetch message logs');
     }
 });
 
@@ -584,25 +586,25 @@ router.post('/messages', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), async (r
     try {
         const payload = req.body || {};
         if (!payload.botId || !payload.chatId || !payload.text || !payload.direction) {
-            return res.status(400).json({ error: 'botId, chatId, text, and direction are required' });
+            return errorResponse(res, 400, 'botId, chatId, text, and direction are required');
         }
         const user = (req as any).user || {};
         const isSuperadmin = user.role === 'SUPER_ADMIN';
         const userCompanyId = user.companyId || user.workspaceId;
         const companyId = isSuperadmin ? (payload.companyId || userCompanyId) : userCompanyId;
 
-        if (!companyId && !isSuperadmin) return res.status(400).json({ error: 'Company context required' });
+        if (!companyId && !isSuperadmin) return errorResponse(res, 400, 'Company context required');
 
         const botId = String(payload.botId);
         const bot = await prisma.botConfig.findUnique({ where: { id: botId }, select: { companyId: true } });
-        if (!bot) return res.status(404).json({ error: 'Bot not found' });
+        if (!bot) return errorResponse(res, 404, 'Bot not found');
         if (companyId && !isSuperadmin && bot.companyId !== companyId) {
-            return res.status(403).json({ error: 'Forbidden' });
+            return errorResponse(res, 403, 'Forbidden');
         }
 
         const direction = String(payload.direction || '').toUpperCase();
         if (direction !== 'INCOMING' && direction !== 'OUTGOING') {
-            return res.status(400).json({ error: 'Invalid direction (use INCOMING or OUTGOING)' });
+            return errorResponse(res, 400, 'Invalid direction (use INCOMING or OUTGOING)');
         }
 
         await prisma.botMessage.create({
@@ -617,8 +619,8 @@ router.post('/messages', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), async (r
         });
         res.json({ success: true });
     } catch (e: any) {
-        console.error('[Messages] Insert error:', e.message || e);
-        res.status(500).json({ error: 'Failed to store message' });
+        logger.error('[Messages] Insert error:', e.message || e);
+        errorResponse(res, 500, 'Failed to store message');
     }
 });
 
@@ -631,8 +633,8 @@ router.get('/scenarios', requireRole(['ADMIN', 'MANAGER']), async (req, res) => 
         });
         res.json(scenarios);
     } catch (e: any) {
-        console.error('[Scenarios] List error:', e);
-        res.status(500).json({ error: 'Failed to list scenarios' });
+        logger.error('[Scenarios] List error:', e);
+        errorResponse(res, 500, 'Failed to list scenarios');
     }
 });
 
@@ -641,22 +643,22 @@ router.post('/scenarios', requireRole(['ADMIN', 'MANAGER']), async (req, res) =>
         const { id, _recordId, ...data } = req.body || {};
         const companyId = (req as any).user?.companyId;
 
-        if (!companyId) return res.status(400).json({ error: 'Company context required' });
-        if (!data.name) return res.status(400).json({ error: 'Name is required' });
+        if (!companyId) return errorResponse(res, 400, 'Company context required');
+        if (!data.name) return errorResponse(res, 400, 'Name is required');
         if (!Array.isArray(data.nodes) || data.nodes.length === 0) {
-            return res.status(400).json({ error: 'Scenario must contain at least one node' });
+            return errorResponse(res, 400, 'Scenario must contain at least one node');
         }
         if (!data.entryNodeId) {
-            return res.status(400).json({ error: 'Entry node is required' });
+            return errorResponse(res, 400, 'Entry node is required');
         }
 
         // Basic graph validation
         const ids = new Set((data.nodes || []).map((n: any) => n.id));
         if (!ids.has(data.entryNodeId)) {
-            return res.status(400).json({ error: 'Entry node does not exist in nodes list' });
+            return errorResponse(res, 400, 'Entry node does not exist in nodes list');
         }
         for (const n of data.nodes) {
-            if (!n.id) return res.status(400).json({ error: 'Each node must have an id' });
+            if (!n.id) return errorResponse(res, 400, 'Each node must have an id');
             const refs: string[] = [];
             if (n.nextNodeId) refs.push(n.nextNodeId);
             if (n.content?.trueNodeId) refs.push(n.content.trueNodeId);
@@ -666,7 +668,7 @@ router.post('/scenarios', requireRole(['ADMIN', 'MANAGER']), async (req, res) =>
             }
             for (const r of refs) {
                 if (r && !ids.has(r)) {
-                    return res.status(400).json({ error: `Broken link from ${n.id} to ${r}` });
+                    return errorResponse(res, 400, `Broken link from ${n.id} to ${r}`);
                 }
             }
         }
@@ -690,13 +692,13 @@ router.post('/scenarios', requireRole(['ADMIN', 'MANAGER']), async (req, res) =>
                 }
             });
             if (conflict) {
-                return res.status(409).json({ error: 'Trigger command already used by another published scenario' });
+                return errorResponse(res, 409, 'Trigger command already used by another published scenario');
             }
         }
 
         if (existing) {
             if (existing.companyId !== companyId) {
-                return res.status(403).json({ error: 'Forbidden' });
+                return errorResponse(res, 403, 'Forbidden');
             }
             const updated = await prisma.scenario.update({
                 where: { id: existing.id },
@@ -729,8 +731,8 @@ router.post('/scenarios', requireRole(['ADMIN', 'MANAGER']), async (req, res) =>
             res.json(created);
         }
     } catch (e: any) {
-        console.error('[Scenarios] Save error:', e);
-        res.status(500).json({ error: 'Failed to save scenario' });
+        logger.error('[Scenarios] Save error:', e);
+        errorResponse(res, 500, 'Failed to save scenario');
     }
 });
 
@@ -738,13 +740,13 @@ router.delete('/scenarios/:id', requireRole(['ADMIN', 'MANAGER']), async (req, r
     try {
         const { id } = req.params;
         const companyId = (req as any).user?.companyId;
-        if (!companyId) return res.status(400).json({ error: 'Company context required' });
+        if (!companyId) return errorResponse(res, 400, 'Company context required');
         const deleted = await prisma.scenario.deleteMany({ where: { id, companyId } });
-        if (!deleted.count) return res.status(404).json({ error: 'Scenario not found' });
+        if (!deleted.count) return errorResponse(res, 404, 'Scenario not found');
         res.json({ success: true });
     } catch (e: any) {
-        console.error('[Scenarios] Delete error:', e);
-        res.status(500).json({ error: 'Failed to delete scenario' });
+        logger.error('[Scenarios] Delete error:', e);
+        errorResponse(res, 500, 'Failed to delete scenario');
     }
 });
 
@@ -752,13 +754,13 @@ router.post('/messages/send', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), asy
     try {
         const { chatId, text, imageUrl, botId, keyboard } = req.body || {};
         if (!chatId || !text) {
-            return res.status(400).json({ error: 'chatId and text are required' });
+            return errorResponse(res, 400, 'chatId and text are required');
         }
         const user = (req as any).user || {};
         const isSuperadmin = user.role === 'SUPER_ADMIN';
         const userCompanyId = user.companyId || user.workspaceId;
         const companyId = isSuperadmin ? ((req.body || {}).companyId || userCompanyId) : userCompanyId;
-        if (!companyId && !isSuperadmin) return res.status(400).json({ error: 'Company context required' });
+        if (!companyId && !isSuperadmin) return errorResponse(res, 400, 'Company context required');
 
         const bot = botId
             ? await prisma.botConfig.findUnique({ where: { id: String(botId) } })
@@ -770,9 +772,9 @@ router.post('/messages/send', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), asy
                 orderBy: { createdAt: 'asc' }
             });
 
-        if (!bot?.token) return res.status(400).json({ error: 'Bot token not found' });
+        if (!bot?.token) return errorResponse(res, 400, 'Bot token not found');
         if (companyId && !isSuperadmin && bot.companyId !== companyId) {
-            return res.status(403).json({ error: 'Forbidden' });
+            return errorResponse(res, 403, 'Forbidden');
         }
 
         const result = await integrationService.publishTelegramChannelPost({
@@ -787,8 +789,8 @@ router.post('/messages/send', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), asy
 
         res.json({ ok: true, result: result.result || result });
     } catch (e: any) {
-        console.error('[Messages] Send error:', e.message || e);
-        res.status(500).json({ error: e.message || 'Failed to send message' });
+        logger.error('[Messages] Send error:', e.message || e);
+        errorResponse(res, 500, e.message || 'Failed to send message');
     }
 });
 
@@ -801,7 +803,7 @@ router.get('/destinations', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), async
         const requestedCompanyId = typeof req.query.companyId === 'string' ? req.query.companyId : undefined;
         const companyId = isSuperadmin ? requestedCompanyId : userCompanyId;
 
-        if (!companyId && !isSuperadmin) return res.status(400).json({ error: 'Company context required' });
+        if (!companyId && !isSuperadmin) return errorResponse(res, 400, 'Company context required');
 
         const bots = await prisma.botConfig.findMany({
             where: {
@@ -908,8 +910,8 @@ router.get('/destinations', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), async
 
         res.json(Array.from(destMap.values()));
     } catch (e: any) {
-        console.error('[Destinations] Error:', e.message || e);
-        res.status(500).json({ error: 'Failed to fetch destinations' });
+        logger.error('[Destinations] Error:', e.message || e);
+        errorResponse(res, 500, 'Failed to fetch destinations');
     }
 });
 
@@ -918,12 +920,12 @@ router.get('/proxy', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), async (req, 
     try {
         const target = req.query.url;
         if (!target || typeof target !== 'string') {
-            return res.status(400).json({ error: 'url is required' });
+            return errorResponse(res, 400, 'url is required');
         }
         const parsed = new URL(target);
         const allowedHosts = new Set(['auto.ria.com', 'www.auto.ria.com', 'olx.ua', 'www.olx.ua']);
         if (!allowedHosts.has(parsed.hostname)) {
-            return res.status(400).json({ error: 'Host not allowed' });
+            return errorResponse(res, 400, 'Host not allowed');
         }
 
         const response = await axios.get(target, {
@@ -935,8 +937,8 @@ router.get('/proxy', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), async (req, 
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
         res.send(response.data);
     } catch (e: any) {
-        console.error('[Proxy] Error:', e.message || e);
-        res.status(500).json({ error: 'Failed to fetch target URL' });
+        logger.error('[Proxy] Error:', e.message || e);
+        errorResponse(res, 500, 'Failed to fetch target URL');
     }
 });
 
@@ -953,7 +955,7 @@ router.get('/leads', requireRole(['SUPER_ADMIN', 'OWNER', 'ADMIN', 'MANAGER', 'O
     const requestedCompanyId = typeof req.query.companyId === 'string' ? req.query.companyId : undefined;
     const companyId = isSuperadmin ? requestedCompanyId : userCompanyId;
     if (!companyId && !isSuperadmin) {
-        return res.status(400).json({ error: 'Company context required' });
+        return errorResponse(res, 400, 'Company context required');
     }
 
     const status = req.query.status as string;
@@ -1002,7 +1004,7 @@ router.post('/drafts/import', requireRole(['ADMIN', 'MANAGER']), async (req, res
     const userCompanyId = user.companyId || user.workspaceId;
     const requestedCompanyId = typeof payload.companyId === 'string' ? payload.companyId : undefined;
     const companyId = isSuperadmin ? (requestedCompanyId || userCompanyId) : userCompanyId;
-    if (!companyId && !isSuperadmin) return res.status(400).json({ error: 'Company context required' });
+    if (!companyId && !isSuperadmin) return errorResponse(res, 400, 'Company context required');
 
     const requestedBotId = payload.botId ? String(payload.botId) : undefined;
     const bot = requestedBotId
@@ -1016,8 +1018,8 @@ router.post('/drafts/import', requireRole(['ADMIN', 'MANAGER']), async (req, res
             select: { id: true, companyId: true, isEnabled: true }
         });
 
-    if (!bot) return res.status(400).json({ error: 'Active bot required' });
-    if (!isSuperadmin && companyId && bot.companyId !== companyId) return res.status(403).json({ error: 'Forbidden' });
+    if (!bot) return errorResponse(res, 400, 'Active bot required');
+    if (!isSuperadmin && companyId && bot.companyId !== companyId) return errorResponse(res, 403, 'Forbidden');
 
     const success = await importDraft(payload, bot.id);
     res.json({ success });
@@ -1029,7 +1031,7 @@ router.get('/drafts', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), async (req,
     const userCompanyId = user.companyId || user.workspaceId;
     const requestedCompanyId = typeof req.query.companyId === 'string' ? req.query.companyId : undefined;
     const companyId = isSuperadmin ? requestedCompanyId : userCompanyId;
-    if (!companyId && !isSuperadmin) return res.status(400).json({ error: 'Company context required' });
+    if (!companyId && !isSuperadmin) return errorResponse(res, 400, 'Company context required');
 
     const where: any = {};
     if (companyId) {
@@ -1052,13 +1054,13 @@ router.post('/drafts', requireRole(['ADMIN', 'MANAGER']), async (req, res) => {
         const userCompanyId = user.companyId || user.workspaceId;
         const requestedCompanyId = typeof payload.companyId === 'string' ? payload.companyId : undefined;
         const companyId = isSuperadmin ? (requestedCompanyId || userCompanyId) : userCompanyId;
-        if (!companyId && !isSuperadmin) return res.status(400).json({ error: 'Company context required' });
+        if (!companyId && !isSuperadmin) return errorResponse(res, 400, 'Company context required');
 
         const botId = payload.botId ? String(payload.botId) : null;
-        if (!botId) return res.status(400).json({ error: 'botId is required' });
+        if (!botId) return errorResponse(res, 400, 'botId is required');
         const bot = await prisma.botConfig.findUnique({ where: { id: botId }, select: { companyId: true } });
-        if (!bot) return res.status(400).json({ error: 'Invalid botId' });
-        if (!isSuperadmin && companyId && bot.companyId !== companyId) return res.status(403).json({ error: 'Forbidden' });
+        if (!bot) return errorResponse(res, 400, 'Invalid botId');
+        if (!isSuperadmin && companyId && bot.companyId !== companyId) return errorResponse(res, 403, 'Forbidden');
 
         const draft = await prisma.draft.create({
             data: {
@@ -1077,8 +1079,8 @@ router.post('/drafts', requireRole(['ADMIN', 'MANAGER']), async (req, res) => {
         });
         res.json(draft);
     } catch (e: any) {
-        console.error(e);
-        res.status(500).json({ error: 'Failed to create draft' });
+        logger.error(e);
+        errorResponse(res, 500, 'Failed to create draft');
     }
 });
 
@@ -1089,23 +1091,23 @@ router.put('/drafts/:id', requireRole(['ADMIN', 'MANAGER']), async (req, res) =>
         const user = (req as any).user || {};
         const isSuperadmin = user.role === 'SUPER_ADMIN';
         const userCompanyId = user.companyId || user.workspaceId;
-        if (!isSuperadmin && !userCompanyId) return res.status(400).json({ error: 'Company context required' });
+        if (!isSuperadmin && !userCompanyId) return errorResponse(res, 400, 'Company context required');
 
         const existing = await prisma.draft.findUnique({ where: { id } });
-        if (!existing) return res.status(404).json({ error: 'Draft not found' });
+        if (!existing) return errorResponse(res, 404, 'Draft not found');
         if (!isSuperadmin) {
-            if (!existing.botId && userCompanyId !== 'company_system') return res.status(403).json({ error: 'Forbidden' });
+            if (!existing.botId && userCompanyId !== 'company_system') return errorResponse(res, 403, 'Forbidden');
             if (existing.botId) {
                 const bot = await prisma.botConfig.findUnique({ where: { id: existing.botId }, select: { companyId: true } });
-                if (!bot || bot.companyId !== userCompanyId) return res.status(403).json({ error: 'Forbidden' });
+                if (!bot || bot.companyId !== userCompanyId) return errorResponse(res, 403, 'Forbidden');
             }
         }
 
         if (payload.botId !== undefined && payload.botId !== null) {
             const nextBotId = String(payload.botId);
             const bot = await prisma.botConfig.findUnique({ where: { id: nextBotId }, select: { companyId: true } });
-            if (!bot) return res.status(400).json({ error: 'Invalid botId' });
-            if (!isSuperadmin && userCompanyId && bot.companyId !== userCompanyId) return res.status(403).json({ error: 'Forbidden' });
+            if (!bot) return errorResponse(res, 400, 'Invalid botId');
+            if (!isSuperadmin && userCompanyId && bot.companyId !== userCompanyId) return errorResponse(res, 403, 'Forbidden');
         }
 
         const draft = await prisma.draft.update({
@@ -1125,8 +1127,8 @@ router.put('/drafts/:id', requireRole(['ADMIN', 'MANAGER']), async (req, res) =>
         });
         res.json(draft);
     } catch (e: any) {
-        console.error(e);
-        res.status(500).json({ error: 'Failed to update draft' });
+        logger.error(e);
+        errorResponse(res, 500, 'Failed to update draft');
     }
 });
 
@@ -1136,23 +1138,23 @@ router.delete('/drafts/:id', requireRole(['ADMIN', 'MANAGER']), async (req, res)
         const user = (req as any).user || {};
         const isSuperadmin = user.role === 'SUPER_ADMIN';
         const userCompanyId = user.companyId || user.workspaceId;
-        if (!isSuperadmin && !userCompanyId) return res.status(400).json({ error: 'Company context required' });
+        if (!isSuperadmin && !userCompanyId) return errorResponse(res, 400, 'Company context required');
 
         const existing = await prisma.draft.findUnique({ where: { id } });
-        if (!existing) return res.status(404).json({ error: 'Draft not found' });
+        if (!existing) return errorResponse(res, 404, 'Draft not found');
         if (!isSuperadmin) {
-            if (!existing.botId && userCompanyId !== 'company_system') return res.status(403).json({ error: 'Forbidden' });
+            if (!existing.botId && userCompanyId !== 'company_system') return errorResponse(res, 403, 'Forbidden');
             if (existing.botId) {
                 const bot = await prisma.botConfig.findUnique({ where: { id: existing.botId }, select: { companyId: true } });
-                if (!bot || bot.companyId !== userCompanyId) return res.status(403).json({ error: 'Forbidden' });
+                if (!bot || bot.companyId !== userCompanyId) return errorResponse(res, 403, 'Forbidden');
             }
         }
 
         await prisma.draft.delete({ where: { id } });
         res.json({ success: true });
     } catch (e: any) {
-        console.error(e);
-        res.status(500).json({ error: 'Failed to delete draft' });
+        logger.error(e);
+        errorResponse(res, 500, 'Failed to delete draft');
     }
 });
 
@@ -1164,16 +1166,16 @@ router.post('/leads', requireRole(['SUPER_ADMIN', 'OWNER', 'ADMIN', 'MANAGER', '
         const userCompanyId = user.companyId || user.workspaceId;
         const requestedCompanyId = typeof (req.body || {}).companyId === 'string' ? (req.body || {}).companyId : undefined;
         const companyId = isSuperadmin ? (requestedCompanyId || userCompanyId) : userCompanyId;
-        if (!companyId) return res.status(400).json({ error: 'Company context required' });
+        if (!companyId) return errorResponse(res, 400, 'Company context required');
 
         const { id, ...raw } = req.body || {};
         const mapped = mapLeadCreateInput(raw);
-        if (mapped.error) return res.status(400).json({ error: mapped.error });
+        if (mapped.error) return errorResponse(res, 400, mapped.error);
         const botId = (req.body || {}).botId ? String((req.body || {}).botId) : undefined;
         if (botId) {
             const bot = await prisma.botConfig.findUnique({ where: { id: botId }, select: { companyId: true } });
-            if (!bot) return res.status(400).json({ error: 'Invalid botId' });
-            if (!isSuperadmin && bot.companyId !== companyId) return res.status(403).json({ error: 'Forbidden' });
+            if (!bot) return errorResponse(res, 400, 'Invalid botId');
+            if (!isSuperadmin && bot.companyId !== companyId) return errorResponse(res, 403, 'Forbidden');
         }
 
         const lead = await prisma.lead.create({
@@ -1184,7 +1186,7 @@ router.post('/leads', requireRole(['SUPER_ADMIN', 'OWNER', 'ADMIN', 'MANAGER', '
             }
         });
         res.json(mapLeadOutput(lead));
-    } catch (e) { console.error(e); res.status(500).json({ error: 'Failed to create lead' }); }
+    } catch (e) { logger.error(e); errorResponse(res, 500, 'Failed to create lead'); }
 });
 
 router.put('/leads/:id', requireRole(['SUPER_ADMIN', 'OWNER', 'ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
@@ -1196,14 +1198,14 @@ router.put('/leads/:id', requireRole(['SUPER_ADMIN', 'OWNER', 'ADMIN', 'MANAGER'
         const { id: _, ...raw } = req.body || {};
         const { id } = req.params;
         const existing = await prisma.lead.findUnique({ where: { id } });
-        if (!existing) return res.status(404).json({ error: 'Lead not found' });
+        if (!existing) return errorResponse(res, 404, 'Lead not found');
         if (!isSuperadmin && userCompanyId && existing.companyId !== userCompanyId) {
-            return res.status(403).json({ error: 'Forbidden' });
+            return errorResponse(res, 403, 'Forbidden');
         }
         const mapped = mapLeadUpdateInput(raw, existing.payload);
         const lead = await prisma.lead.update({ where: { id }, data: mapped.data });
         res.json(mapLeadOutput(lead));
-    } catch (e) { console.error(e); res.status(500).json({ error: 'Failed to update lead' }); }
+    } catch (e) { logger.error(e); errorResponse(res, 500, 'Failed to update lead'); }
 });
 
 router.delete('/leads/:id', requireRole(['SUPER_ADMIN', 'OWNER', 'ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
@@ -1215,12 +1217,12 @@ router.delete('/leads/:id', requireRole(['SUPER_ADMIN', 'OWNER', 'ADMIN', 'MANAG
 
         if (!isSuperadmin && userCompanyId) {
             const existing = await prisma.lead.findUnique({ where: { id }, select: { companyId: true } });
-            if (!existing) return res.status(404).json({ error: 'Lead not found' });
-            if (existing.companyId !== userCompanyId) return res.status(403).json({ error: 'Forbidden' });
+            if (!existing) return errorResponse(res, 404, 'Lead not found');
+            if (existing.companyId !== userCompanyId) return errorResponse(res, 403, 'Forbidden');
         }
         await prisma.lead.delete({ where: { id } });
         res.json({ success: true });
-    } catch (e) { res.status(500).json({ error: 'Failed to delete lead' }); }
+    } catch (e) { errorResponse(res, 500, 'Failed to delete lead'); }
 });
 
 
@@ -1259,7 +1261,7 @@ router.post('/users', requireRole(['ADMIN']), async (req, res) => {
         // Assuming payload has companyId or we find a way.
 
         if (!data.companyId && !data.workspaceId) {
-            console.log("Warning: creating user without companyId in API route");
+            logger.info("Warning: creating user without companyId in API route");
         }
 
         const pwd = password || '123456';
@@ -1274,8 +1276,8 @@ router.post('/users', requireRole(['ADMIN']), async (req, res) => {
         });
         res.json(created);
     } catch (e) {
-        console.error(e);
-        res.status(500).json({ error: 'Failed to create user' });
+        logger.error(e);
+        errorResponse(res, 500, 'Failed to create user');
     }
 });
 
@@ -1308,8 +1310,8 @@ router.put('/users/:id', requireRole(['ADMIN']), async (req, res) => {
 
         res.json({ success: true });
     } catch (e) {
-        console.error(e);
-        res.status(500).json({ error: 'Failed to update user' });
+        logger.error(e);
+        errorResponse(res, 500, 'Failed to update user');
     }
 });
 
@@ -1325,7 +1327,7 @@ router.delete('/users/:id', requireRole(['ADMIN']), async (req, res) => {
             }
         });
         res.json({ success: true });
-    } catch (e) { res.status(500).json({ error: 'Failed to delete user' }); }
+    } catch (e) { errorResponse(res, 500, 'Failed to delete user'); }
 });
 
 router.get('/logs', requireRole(['ADMIN']), async (req, res) => {

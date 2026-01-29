@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { prisma } from '../../../../../services/prisma.js';
+import { logger } from '../../../../../utils/logger.js';
 
 type EventInput = {
   companyId?: string | null;
@@ -42,7 +43,7 @@ export const emitPlatformEvent = async (input: EventInput) => {
       }
     });
   } catch (e) {
-    console.error('[PlatformEvent] Failed to emit', input.eventType, e);
+    logger.error(`[PlatformEvent] Failed to emit ${input.eventType}`, e);
   }
 };
 

@@ -686,6 +686,9 @@ export const finalizeClientLead = async (ctx: PipelineContext) => {
   const lang = resolveLang(ctx);
   const vars = (ctx.session.variables as any) || {};
   const flow = vars.leadFlow || {};
+  const from = ctx.update?.message?.from;
+  const telegramUsername = from?.username ? String(from.username) : undefined;
+  const telegramName = [from?.first_name, from?.last_name].filter(Boolean).join(' ').trim() || undefined;
 
   const result = await createOrMergeLead({
     botId: ctx.bot.id,
@@ -693,9 +696,11 @@ export const finalizeClientLead = async (ctx: PipelineContext) => {
     chatId: ctx.chatId,
     userId: ctx.userId,
     name: flow.name || 'Client',
+    telegramUsername,
+    telegramName,
     phone: flow.phone,
     request: flow.car || '',
-    source: ctx.bot.name || 'Telegram',
+    source: 'TELEGRAM',
     payload: {
       budget: flow.budget,
       city: flow.city,
@@ -750,6 +755,9 @@ export const finalizeCatalogSell = async (ctx: PipelineContext) => {
   const lang = resolveLang(ctx);
   const vars = (ctx.session.variables as any) || {};
   const flow = vars.catalogFlow || {};
+  const from = ctx.update?.message?.from;
+  const telegramUsername = from?.username ? String(from.username) : undefined;
+  const telegramName = [from?.first_name, from?.last_name].filter(Boolean).join(' ').trim() || undefined;
 
   const result = await createOrMergeLead({
     botId: ctx.bot.id,
@@ -757,9 +765,11 @@ export const finalizeCatalogSell = async (ctx: PipelineContext) => {
     chatId: ctx.chatId,
     userId: ctx.userId,
     name: flow.name || 'Seller',
+    telegramUsername,
+    telegramName,
     phone: flow.phone,
     request: flow.car || '',
-    source: ctx.bot.name || 'Telegram',
+    source: 'TELEGRAM',
     payload: {
       language: lang,
       leadType: 'SELL'

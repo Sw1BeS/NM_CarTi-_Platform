@@ -17,9 +17,11 @@ import {
   generateOfferLink,
   createDeepLinkKeyboard
 } from '../../../utils/deeplink.utils.js';
+import { logger } from '../../../utils/logger.js';
 // @ts-ignore
 import { searchAutoRia } from '../../Integrations/autoria.service.js';
 import { ulid } from 'ulid';
+import { buildMiniAppUrl } from '../telegram/core/utils/miniappUrl.js';
 
 // Types & Interfaces
 export interface BotRuntime {
@@ -55,6 +57,16 @@ export interface ScenarioNode {
 const normalizeTextCommand = (cmd: string) => cmd?.trim().toLowerCase() || '';
 const generatePublicId = () => ulid();
 const formatCarCaption = (car: any, lang: string) => renderCarListingCard(car, lang);
+const resolveMenuLink = (bot: BotRuntime, rawValue?: string) => {
+  const raw = String(rawValue || '').trim();
+  const isPlaceholder = raw === '{{MINI_APP_URL}}' || raw === '{MINI_APP_URL}';
+  const isLegacy = raw.includes('t.me/cartie_bot/app');
+  if (!raw || isPlaceholder || isLegacy) {
+    const url = buildMiniAppUrl(bot as any, {});
+    return url || raw;
+  }
+  return raw;
+};
 
 const mapRequestInput = (vars: any) => ({
   title: vars.title || 'Car Request',
@@ -490,7 +502,7 @@ export class ScenarioEngine {
           return true;
         }
       } catch (e) {
-        console.error('[ScenarioEngine] web_app_data parse error', e);
+        logger.error('[ScenarioEngine] web_app_data parse error', e);
       }
     }
 
@@ -910,7 +922,8 @@ export class ScenarioEngine {
       } else if (menuBtn.type === 'TEXT') {
         await sendMessage(bot, chatId, menuBtn.value || 'Info');
       } else if (menuBtn.type === 'LINK') {
-        await sendMessage(bot, chatId, `🔗 ${menuBtn.value}`);
+        const linkValue = resolveMenuLink(bot, menuBtn.value);
+        await sendMessage(bot, chatId, `🔗 ${linkValue || menuBtn.value}`);
       }
       return true;
     }

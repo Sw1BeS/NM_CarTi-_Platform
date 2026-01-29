@@ -5,6 +5,7 @@ import { MessageParser } from './mtproto.utils.js';
 import { processParsedMessage } from '../../../services/mtproto-mapping.service.js';
 // @ts-ignore
 import { v4 as uuidv4 } from 'uuid';
+import { logger } from '../../../utils/logger.js';
 
 /**
  * Worker to backfill messages from configured channels
@@ -14,13 +15,13 @@ export class MTProtoWorker {
 
     async runBackfill() {
         if (this.isRunning) {
-            console.log('[MTProtoWorker] Already running');
+            logger.info('[MTProtoWorker] Already running');
             return;
         }
         this.isRunning = true;
 
         try {
-            console.log('[MTProtoWorker] Starting backfill cycle...');
+            logger.info('[MTProtoWorker] Starting backfill cycle...');
 
             // 1. Get all active Channel Sources
             const sources = await prisma.channelSource.findMany({
@@ -30,7 +31,7 @@ export class MTProtoWorker {
 
             for (const source of sources) {
                 if (source.connector.status !== 'READY') {
-                    console.log(`[MTProtoWorker] Skipping source ${source.title} (Connector not ready)`);
+                    logger.info(`[MTProtoWorker] Skipping source ${source.title} (Connector not ready)`);
                     continue;
                 }
 
@@ -41,7 +42,7 @@ export class MTProtoWorker {
             }
 
         } catch (e) {
-            console.error('[MTProtoWorker] Error in backfill loop:', e);
+            logger.error('[MTProtoWorker] Error in backfill loop:', e);
         } finally {
             this.isRunning = false;
         }
@@ -49,7 +50,7 @@ export class MTProtoWorker {
 
     private async processSource(source: any) {
         try {
-            console.log(`[MTProtoWorker] Processing ${source.title} (${source.channelId})...`);
+            logger.info(`[MTProtoWorker] Processing ${source.title} (${source.channelId})...`);
 
             // Use lastMessageId as checkpoint, or 0 (fetch latest)
             // Strategy: For backfill, we might want to fetch *older* messages from a point, 
@@ -79,7 +80,7 @@ export class MTProtoWorker {
                 count++;
             }
 
-            console.log(`[MTProtoWorker] Processed ${count} messages from ${source.title}`);
+            logger.info(`[MTProtoWorker] Processed ${count} messages from ${source.title}`);
 
             // Update source
             await prisma.channelSource.update({
@@ -90,12 +91,12 @@ export class MTProtoWorker {
             });
 
         } catch (e: any) {
-            console.error(`[MTProtoWorker] Failed source ${source.title}:`, e);
+            logger.error(`[MTProtoWorker] Failed source ${source.title}:`, e);
         }
     }
     async startLiveSync() {
         try {
-            console.log('[MTProtoWorker] Initializing Live Sync...');
+            logger.info('[MTProtoWorker] Initializing Live Sync...');
 
             // Get all READY connectors
             const connectors = await prisma.mTProtoConnector.findMany({
@@ -133,16 +134,16 @@ export class MTProtoWorker {
                     const source = sources.find((s: any) => s.channelId === chatIdStr || s.channelId === `-100${chatIdStr}`);
 
                     if (source) {
-                        console.log(`[LiveSync] New message in ${source.title}: ${msg.id}`);
+                        logger.info(`[LiveSync] New message in ${source.title}: ${msg.id}`);
                         await this.syncMessage(source, msg);
                     }
                 });
 
-                console.log(`[LiveSync] Listening on connector ${conn.name} (${sources.length} channels)`);
+                logger.info(`[LiveSync] Listening on connector ${conn.name} (${sources.length} channels)`);
             }
 
         } catch (e) {
-            console.error('[LiveSync] Failed to start:', e);
+            logger.error('[LiveSync] Failed to start:', e);
         }
     }
 
@@ -159,7 +160,7 @@ export class MTProtoWorker {
 
         // Use mapping service (handles all logic)
         await processParsedMessage(telegramMessage, source);
-        console.log(`[LiveSync] Processed message ${msg.id} from ${source.title}`);
+        logger.info(`[LiveSync] Processed message ${msg.id} from ${source.title}`);
     }
 }
 

@@ -1,5 +1,6 @@
 import { PipelineMiddleware } from '../core/types.js';
 import { prisma } from '../../../../services/prisma.js';
+import { logger } from '../../../../utils/logger.js';
 // @ts-ignore
 import { ulid } from 'ulid';
 
@@ -75,10 +76,10 @@ export const routeMyChatMember: PipelineMiddleware = async (ctx, next) => {
                }
              });
           }
-          console.log(`[Telegram] Imported channel: ${name} (${identifier})`);
+          logger.info(`[Telegram] Imported channel: ${name} (${identifier})`);
         }
       } catch (e) {
-        console.error('[Telegram] Failed to import channel:', e);
+        logger.error('[Telegram] Failed to import channel:', e);
       }
     }
   }

@@ -57,6 +57,7 @@ export const InboxPage = () => {
     const [visibleCount, setVisibleCount] = useState(40);
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const replyInputRef = useRef<HTMLTextAreaElement>(null);
     const { user } = useAuth();
     const { showToast } = useToast();
     const { t } = useLang();
@@ -159,6 +160,12 @@ export const InboxPage = () => {
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [msgs, activeChatId]);
+
+    useEffect(() => {
+        if (activeChatId) {
+            replyInputRef.current?.focus();
+        }
+    }, [activeChatId]);
 
     const handleReply = async () => {
         if (!activeChatId) return;
@@ -435,27 +442,35 @@ export const InboxPage = () => {
                                         <input className="input flex-1" placeholder="File URL or Telegram file_id" value={attachmentUrl} onChange={e => setAttachmentUrl(e.target.value)} />
                                         <button onClick={() => { setAttachmentUrl(''); }} className="btn-secondary text-xs">Clear</button>
                                     </div>
-                                    <p className="text-[10px] text-[var(--text-secondary)]">Tip: paste a public https:// URL or an existing Telegram file_id to reuse Telegram storage.</p>
-                                </div>
-                            )}
+                            <p className="text-[10px] text-[var(--text-secondary)]">Tip: paste a public https:// URL or an existing Telegram file_id to reuse Telegram storage.</p>
+                        </div>
+                    )}
 
-                            <div className="p-4 flex gap-3 items-end">
-                                <div className="flex flex-col gap-2">
-                                    <button onClick={() => setShowCarPicker(true)} className="btn-secondary w-10 h-10 rounded-full !p-0 flex items-center justify-center shrink-0 text-blue-400 border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20" title="Attach Car">
-                                        <Car size={18} />
-                                    </button>
+                    {activeChat && (
+                        <div className="px-4 pt-3 text-xs text-[var(--text-secondary)] flex items-center gap-2">
+                            Replying to <span className="font-bold text-[var(--text-primary)]">{activeChat.lastMsg.from}</span>
+                            {activeRequest && <span className="px-2 py-1 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px]">Linked request</span>}
+                        </div>
+                    )}
+
+                    <div className="p-4 flex gap-3 items-end">
+                        <div className="flex flex-col gap-2">
+                            <button onClick={() => setShowCarPicker(true)} className="btn-secondary w-10 h-10 rounded-full !p-0 flex items-center justify-center shrink-0 text-blue-400 border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20" title="Attach Car">
+                                <Car size={18} />
+                            </button>
                                     <button onClick={() => setShowEmojis(!showEmojis)} className={`btn-secondary w-10 h-10 rounded-full !p-0 flex items-center justify-center shrink-0 ${showEmojis ? 'bg-amber-500 text-black' : 'text-amber-500 border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20'}`} title="Emoji">
                                         <Smile size={18} />
                                     </button>
                                 </div>
 
-                                <textarea
-                                    className="input min-h-[50px] max-h-[120px] py-3"
-                                    placeholder="Type message..."
-                                    value={replyText}
-                                    onChange={e => setReplyText(e.target.value)}
-                                    onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleReply(); } }}
-                                />
+                            <textarea
+                                className="input min-h-[50px] max-h-[120px] py-3"
+                                placeholder="Type message..."
+                                value={replyText}
+                                ref={replyInputRef}
+                                onChange={e => setReplyText(e.target.value)}
+                                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleReply(); } }}
+                            />
 
                                 <div className="flex flex-col gap-2">
                                     <button onClick={() => setShowAttachment(!showAttachment)} className={`btn-secondary w-10 h-10 rounded-full !p-0 flex items-center justify-center shrink-0 ${showAttachment ? 'bg-blue-500 text-white' : ''}`} title="Attach file/photo/video">

@@ -4,6 +4,7 @@ import * as cheerio from 'cheerio';
 import { getProfile } from './parserProfiles.js';
 // @ts-ignore
 import { parsePrice, parseMileage, normalizeCurrency } from './textParserUtils.js';
+import { logger } from '../utils/logger.js';
 
 type Confidence = 'low' | 'medium' | 'high';
 
@@ -57,7 +58,7 @@ export const parseListingFromUrl = async (url: string): Promise<ParsedListing> =
             if (profile.description) profileData.description = $(profile.description).first().text().trim();
         }
     } catch (e) {
-        console.warn('Profile extraction failed', e);
+        logger.warn('Profile extraction failed', e);
     }
 
     // 1. Meta Tags (OG, Twitter)
@@ -144,7 +145,7 @@ export const parseListingFromUrl = async (url: string): Promise<ParsedListing> =
   } catch (e: any) {
     const message = e?.message || '';
     if (message && message !== 'Invalid URL') {
-      console.error('Parse error:', message);
+      logger.error('Parse error:', message);
     }
     return {
       url,

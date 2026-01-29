@@ -3,6 +3,7 @@ import { normalizeBrand } from '../../../../Inventory/normalization/normalizeBra
 import { normalizeCity } from '../../../../Inventory/normalization/normalizeCity.js';
 import { normalizeModel } from '../../../../Inventory/normalization/normalizeModel.js';
 import { normalizePhone } from '../../../../Inventory/normalization/normalizePhone.js';
+import { logger } from '../../../../../utils/logger.js';
 
 const extractPhoneCandidate = (text?: string | null) => {
   if (!text) return undefined;
@@ -24,21 +25,21 @@ export const normalize: PipelineMiddleware = async (ctx: PipelineContext, next) 
     try {
       ctx.normalized.brand = await normalizeBrand(text, { companyId: ctx.companyId });
     } catch (e) {
-      console.error('[TelegramPipeline] normalizeBrand failed:', e);
+      logger.error('[TelegramPipeline] normalizeBrand failed:', e);
     }
   }
   if (text && state.includes('MODEL')) {
     try {
       ctx.normalized.model = await normalizeModel(text, { companyId: ctx.companyId });
     } catch (e) {
-      console.error('[TelegramPipeline] normalizeModel failed:', e);
+      logger.error('[TelegramPipeline] normalizeModel failed:', e);
     }
   }
   if (text && state.includes('CITY')) {
     try {
       ctx.normalized.city = await normalizeCity(text, { companyId: ctx.companyId });
     } catch (e) {
-      console.error('[TelegramPipeline] normalizeCity failed:', e);
+      logger.error('[TelegramPipeline] normalizeCity failed:', e);
     }
   }
 

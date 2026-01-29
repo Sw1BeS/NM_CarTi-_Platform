@@ -3,6 +3,9 @@ import axios from 'axios';
 import { load } from 'cheerio';
 import { prisma } from '../../services/prisma.js';
 import { authenticateToken, requireRole } from '../../middleware/auth.js';
+import { logger } from '../../utils/logger.js';
+import { errorResponse } from '../../utils/errorResponse.js';
+import { parsePrice, parseMileage } from '../../services/textParserUtils.js';
 
 const router = Router();
 
@@ -73,6 +76,52 @@ const extractVariables = (html: string, url: string) => {
     };
 };
 
+const applyMapping = (html: string, mapping: Record<string, any> | null, base: ReturnType<typeof extractVariables>) => {
+    if (!mapping || typeof mapping !== 'object') return base;
+    const $ = load(html || '');
+    const readText = (selector?: string) => {
+        if (!selector || typeof selector !== 'string') return '';
+        return ($(selector).first().text() || '').trim();
+    };
+
+    const next = { ...(base.variables || {}) } as Record<string, any>;
+    const mappedTitle = readText(mapping.title);
+    if (mappedTitle) next.title = mappedTitle;
+
+    const mappedDesc = readText(mapping.description);
+    if (mappedDesc) next.description = mappedDesc;
+
+    const priceText = readText(mapping.price);
+    if (priceText) {
+        const parsed = parsePrice(priceText);
+        if (parsed.amount !== undefined) next.price = parsed.amount;
+        if (parsed.currency) next.currency = parsed.currency;
+    }
+
+    const yearText = readText(mapping.year);
+    if (yearText) {
+        const yearMatch = yearText.match(/(19|20)\d{2}/);
+        if (yearMatch) next.year = Number(yearMatch[0]);
+    }
+
+    const mileageText = readText(mapping.mileage);
+    if (mileageText) {
+        const parsedMileage = parseMileage(mileageText);
+        if (parsedMileage !== undefined) next.mileage = parsedMileage;
+    }
+
+    const locationText = readText(mapping.location);
+    if (locationText) next.location = locationText;
+
+    const currencyText = readText(mapping.currency);
+    if (currencyText) {
+        const parsedCurrency = parsePrice(currencyText);
+        if (parsedCurrency.currency) next.currency = parsedCurrency.currency;
+    }
+
+    return { ...base, variables: next };
+};
+
 const getSettingsModules = async () => {
     const settings = await prisma.systemSettings.findFirst();
     const modules = (settings?.modules as any) || {};
@@ -92,42 +141,44 @@ router.use(authenticateToken);
 router.post('/preview', requireRole(['ADMIN', 'MANAGER', 'SUPER_ADMIN']), async (req, res) => {
     try {
         const { url } = req.body || {};
-        if (!url || typeof url !== 'string') return res.status(400).json({ error: 'url required' });
+        if (!url || typeof url !== 'string') return errorResponse(res, 400, 'url required');
         const domain = sanitizeDomain(url);
-        if (!domain) return res.status(400).json({ error: 'invalid url' });
+        if (!domain) return errorResponse(res, 400, 'invalid url');
 
         const response = await axios.get(url, { timeout: 15000 });
-        const parsed = extractVariables(response.data || '', url);
+        const html = response.data || '';
+        const parsed = extractVariables(html, url);
         const { modules } = await getSettingsModules();
         const cached = modules?.parserMappings?.[domain] || null;
+        const mapped = applyMapping(html, cached, parsed);
 
         return res.json({
             ok: true,
             data: {
                 url,
                 domain,
-                variables: parsed.variables,
-                meta: parsed.meta,
-                images: parsed.images,
+                variables: mapped.variables,
+                meta: mapped.meta,
+                images: mapped.images,
                 cachedMapping: cached || undefined
             }
         });
     } catch (e: any) {
-        console.error('[Parser] preview error:', e.message || e);
-        return res.status(500).json({ error: e.message || 'Failed to parse URL' });
+        logger.error('[Parser] preview error:', e.message || e);
+        return errorResponse(res, 500, e.message || 'Failed to parse URL');
     }
 });
 
 router.get('/mapping/:domain', requireRole(['ADMIN', 'MANAGER', 'SUPER_ADMIN']), async (req, res) => {
     try {
         const domain = sanitizeDomain(`https://${req.params.domain}`);
-        if (!domain) return res.status(400).json({ error: 'invalid domain' });
+        if (!domain) return errorResponse(res, 400, 'invalid domain');
         const { modules } = await getSettingsModules();
         const mapping = modules?.parserMappings?.[domain] || null;
         return res.json({ ok: true, data: { domain, mapping } });
     } catch (e: any) {
-        console.error('[Parser] get mapping error:', e.message || e);
-        return res.status(500).json({ error: e.message || 'Failed to read mapping' });
+        logger.error('[Parser] get mapping error:', e.message || e);
+        return errorResponse(res, 500, e.message || 'Failed to read mapping');
     }
 });
 
@@ -135,8 +186,8 @@ router.post('/mapping', requireRole(['ADMIN', 'MANAGER', 'SUPER_ADMIN']), async 
     try {
         const { domain: rawDomain, mapping, remember = true } = req.body || {};
         const domain = sanitizeDomain(typeof rawDomain === 'string' ? rawDomain : `https://${rawDomain || ''}`);
-        if (!domain) return res.status(400).json({ error: 'domain required' });
-        if (!mapping || typeof mapping !== 'object') return res.status(400).json({ error: 'mapping required' });
+        if (!domain) return errorResponse(res, 400, 'domain required');
+        if (!mapping || typeof mapping !== 'object') return errorResponse(res, 400, 'mapping required');
 
         const { modules } = await getSettingsModules();
         const parserMappings = { ...(modules?.parserMappings || {}) };
@@ -149,8 +200,8 @@ router.post('/mapping', requireRole(['ADMIN', 'MANAGER', 'SUPER_ADMIN']), async 
 
         return res.json({ ok: true, data: { domain, mapping: parserMappings[domain] || mapping } });
     } catch (e: any) {
-        console.error('[Parser] save mapping error:', e.message || e);
-        return res.status(500).json({ error: e.message || 'Failed to save mapping' });
+        logger.error('[Parser] save mapping error:', e.message || e);
+        return errorResponse(res, 500, e.message || 'Failed to save mapping');
     }
 });
 

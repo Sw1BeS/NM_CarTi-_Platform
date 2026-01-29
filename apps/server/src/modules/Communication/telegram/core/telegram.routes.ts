@@ -2,6 +2,8 @@ import { Router } from 'express';
 import { prisma } from '../../../../services/prisma.js';
 import { BotRepository } from '../../../../repositories/index.js';
 import { runTelegramPipeline } from '../scenarios/pipeline.js';
+import { logger } from '../../../../utils/logger.js';
+import { errorResponse } from '../../../../utils/errorResponse.js';
 
 const botRepo = new BotRepository(prisma);
 
@@ -13,14 +15,14 @@ router.post('/webhook/:botId', async (req, res) => {
 
   const bot = await botRepo.findById(botId);
   if (!bot || !bot.isEnabled) {
-    return res.status(404).json({ error: 'Bot not found' });
+    return errorResponse(res, 404, 'Bot not found', 'BOT_NOT_FOUND');
   }
 
   // Phase 1: Keep webhook public (no Bearer token) but require the Telegram secret.
   // Prefer bot-specific secret, fall back to env secret for legacy bots.
   const expected = (bot.config as any)?.webhookSecret || process.env.TELEGRAM_WEBHOOK_SECRET || null;
   if (!expected || expected !== secretToken) {
-    return res.status(403).json({ error: 'Forbidden' });
+    return errorResponse(res, 403, 'Forbidden', 'BOT_SECRET_INVALID');
   }
 
   res.status(200).json({ ok: true });
@@ -32,7 +34,7 @@ router.post('/webhook/:botId', async (req, res) => {
       // Deduplication is handled inside the pipeline middleware.
       await runTelegramPipeline({ update, bot, botId, secretToken, source: 'webhook' });
     } catch (err) {
-      console.error('[TelegramWebhook] Pipeline error:', err);
+      logger.error('[TelegramWebhook] Pipeline error:', err);
     }
   });
 });

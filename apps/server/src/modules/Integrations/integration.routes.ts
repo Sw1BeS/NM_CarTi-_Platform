@@ -6,6 +6,7 @@ import { Router } from 'express';
 import { IntegrationService } from './integration.service.js';
 import { authenticateToken, requireRole } from '../../middleware/auth.js';
 import { companyContext } from '../../middleware/companyContext.js';
+import { errorResponse } from '../../utils/errorResponse.js';
 
 const router = Router();
 const integrationService = new IntegrationService();
@@ -26,7 +27,7 @@ router.get('/', async (req: any, res) => {
         const integrations = await integrationService.getAll(req.companyId);
         res.json(integrations);
     } catch (e: any) {
-        res.status(500).json({ error: e.message });
+        return errorResponse(res, 500, e.message || 'Integration error', 'INTEGRATION_ERROR');
     }
 });
 
@@ -39,12 +40,12 @@ router.get('/:type', requireRole('OWNER', 'ADMIN'), async (req: any, res) => {
         const integration = await integrationService.getByType(req.companyId, req.params.type.toUpperCase());
 
         if (!integration) {
-            return res.status(404).json({ error: 'Integration not found' });
+            return errorResponse(res, 404, 'Integration not found', 'INTEGRATION_NOT_FOUND');
         }
 
         res.json(integration);
     } catch (e: any) {
-        res.status(500).json({ error: e.message });
+        return errorResponse(res, 500, e.message || 'Integration error', 'INTEGRATION_ERROR');
     }
 });
 
@@ -57,7 +58,7 @@ router.put('/:type', requireRole('OWNER', 'ADMIN'), async (req: any, res) => {
         const { config, isActive } = req.body;
 
         if (!config) {
-            return res.status(400).json({ error: 'Config is required' });
+            return errorResponse(res, 400, 'Config is required', 'INTEGRATION_VALIDATION');
         }
 
         const integration = await integrationService.upsert(req.companyId, {
@@ -68,7 +69,7 @@ router.put('/:type', requireRole('OWNER', 'ADMIN'), async (req: any, res) => {
 
         res.json(integration);
     } catch (e: any) {
-        res.status(400).json({ error: e.message });
+        return errorResponse(res, 400, e.message || 'Integration error', 'INTEGRATION_ERROR');
     }
 });
 
@@ -81,7 +82,7 @@ router.delete('/:type', requireRole('OWNER'), async (req: any, res) => {
         await integrationService.delete(req.companyId, req.params.type.toUpperCase());
         res.json({ success: true });
     } catch (e: any) {
-        res.status(400).json({ error: e.message });
+        return errorResponse(res, 400, e.message || 'Integration error', 'INTEGRATION_ERROR');
     }
 });
 
@@ -94,13 +95,13 @@ router.post('/:type/toggle', requireRole('OWNER', 'ADMIN'), async (req: any, res
         const { isActive } = req.body;
 
         if (typeof isActive !== 'boolean') {
-            return res.status(400).json({ error: 'isActive must be boolean' });
+            return errorResponse(res, 400, 'isActive must be boolean', 'INTEGRATION_VALIDATION');
         }
 
         const integration = await integrationService.toggle(req.companyId, req.params.type.toUpperCase(), isActive);
         res.json(integration);
     } catch (e: any) {
-        res.status(400).json({ error: e.message });
+        return errorResponse(res, 400, e.message || 'Integration error', 'INTEGRATION_ERROR');
     }
 });
 
@@ -114,7 +115,7 @@ router.post('/:type/test', requireRole('OWNER', 'ADMIN'), async (req: any, res) 
         const type = req.params.type.toUpperCase();
 
         if (!config) {
-            return res.status(400).json({ error: 'Config is required for testing' });
+            return errorResponse(res, 400, 'Config is required for testing', 'INTEGRATION_VALIDATION');
         }
 
         let testResult;
@@ -125,7 +126,7 @@ router.post('/:type/test', requireRole('OWNER', 'ADMIN'), async (req: any, res) 
             const { pixelId, accessToken, testCode } = config;
 
             if (!pixelId || !accessToken) {
-                return res.status(400).json({ error: 'pixelId and accessToken are required' });
+                return errorResponse(res, 400, 'pixelId and accessToken are required', 'INTEGRATION_VALIDATION');
             }
 
             testResult = await testMetaConnection(pixelId, accessToken, testCode);
@@ -136,7 +137,7 @@ router.post('/:type/test', requireRole('OWNER', 'ADMIN'), async (req: any, res) 
             const { apiUserId, apiSecret } = config;
 
             if (!apiUserId || !apiSecret) {
-                return res.status(400).json({ error: 'apiUserId and apiSecret are required' });
+                return errorResponse(res, 400, 'apiUserId and apiSecret are required', 'INTEGRATION_VALIDATION');
             }
 
             testResult = await testSendPulseConnection(apiUserId, apiSecret);
@@ -146,7 +147,7 @@ router.post('/:type/test', requireRole('OWNER', 'ADMIN'), async (req: any, res) 
             const { url } = config;
 
             if (!url) {
-                return res.status(400).json({ error: 'url is required' });
+                return errorResponse(res, 400, 'url is required', 'INTEGRATION_VALIDATION');
             }
 
             const axios = (await import('axios')).default;
@@ -158,12 +159,12 @@ router.post('/:type/test', requireRole('OWNER', 'ADMIN'), async (req: any, res) 
             }
         }
         else {
-            return res.status(400).json({ error: 'Test not supported for this integration type' });
+            return errorResponse(res, 400, 'Test not supported for this integration type', 'INTEGRATION_VALIDATION');
         }
 
         res.json(testResult);
     } catch (e: any) {
-        res.status(500).json({ error: e.message });
+        return errorResponse(res, 500, e.message || 'Integration error', 'INTEGRATION_ERROR');
     }
 });
 
@@ -176,13 +177,13 @@ router.post('/webhook/trigger', requireRole('OWNER', 'ADMIN'), async (req: any, 
         const { event, payload } = req.body;
 
         if (!event) {
-            return res.status(400).json({ error: 'Event is required' });
+            return errorResponse(res, 400, 'Event is required', 'INTEGRATION_VALIDATION');
         }
 
         const results = await integrationService.triggerWebhook(req.companyId, event, payload || {});
         res.json(results);
     } catch (e: any) {
-        res.status(500).json({ error: e.message });
+        return errorResponse(res, 500, e.message || 'Integration error', 'INTEGRATION_ERROR');
     }
 });
 

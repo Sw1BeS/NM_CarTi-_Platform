@@ -32,6 +32,7 @@ const IntegrationEditor = React.lazy(() => import('./pages/app/IntegrationEditor
 const QAStageA = React.lazy(() => import('./pages/app/QAStageA').then(m => ({ default: m.QAStageA })));
 const SuperadminRoutes = React.lazy(() => import('./pages/superadmin/DashboardRoutes').then(m => ({ default: m.SuperadminRoutes })));
 const NotFound = React.lazy(() => import('./components/NotFound').then(m => ({ default: m.NotFound })));
+const HelpPage = React.lazy(() => import('./pages/app/Help').then(m => ({ default: m.HelpPage })));
 // Layout is already imported above
 
 // ...
@@ -47,10 +48,14 @@ import { WorkerProvider } from './contexts/WorkerContext';
 import { ToastProvider } from './contexts/ToastContext';
 import { ThemeProvider } from './providers/ThemeProvider';
 import { Data } from './services/data';
+import { canAccessRoute, firstAllowedRoute } from './config/permissions';
 
-const ProtectedRoute = ({ children }: React.PropsWithChildren) => {
+const ProtectedRoute = ({ children, path }: React.PropsWithChildren<{ path: string }>) => {
   const { user, logout } = useAuth();
   if (!user) return <Navigate to="/login" />;
+  if (!canAccessRoute(user.role, path)) {
+    return <Navigate to={firstAllowedRoute(user.role)} replace />;
+  }
   return <Layout user={user} onLogout={logout}>{children}</Layout>;
 };
 
@@ -77,30 +82,31 @@ export default function App() {
                       <Route path="/p/proposal/:id" element={<ClientProposal />} />
 
                       {/* Protected Routes */}
-                      <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-                      <Route path="/inbox" element={<ProtectedRoute><InboxPage /></ProtectedRoute>} />
-                      <Route path="/requests" element={<ProtectedRoute><RequestList /></ProtectedRoute>} />
+                      <Route path="/" element={<ProtectedRoute path="/"><Dashboard /></ProtectedRoute>} />
+                      <Route path="/inbox" element={<ProtectedRoute path="/inbox"><InboxPage /></ProtectedRoute>} />
+                      <Route path="/requests" element={<ProtectedRoute path="/requests"><RequestList /></ProtectedRoute>} />
 
-                      <Route path="/telegram" element={<ProtectedRoute><TelegramHub /></ProtectedRoute>} />
-                      <Route path="/scenarios" element={<ProtectedRoute><ScenarioBuilder /></ProtectedRoute>} />
-                      {/* <Route path="/automations" element={<ProtectedRoute><AutomationBuilder /></ProtectedRoute>} /> */}
-                      <Route path="/leads" element={<ProtectedRoute><Leads /></ProtectedRoute>} />
-                      <Route path="/search" element={<ProtectedRoute><SearchPage /></ProtectedRoute>} />
-                      <Route path="/inventory" element={<ProtectedRoute><InventoryPage /></ProtectedRoute>} />
-                      <Route path="/companies" element={<ProtectedRoute><CompaniesPage /></ProtectedRoute>} />
-                      <Route path="/entities" element={<ProtectedRoute><EntitiesPage /></ProtectedRoute>} />
-                      <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
-                      <Route path="/content" element={<ProtectedRoute><ContentPage /></ProtectedRoute>} />
-                      <Route path="/calendar" element={<ProtectedRoute><ContentCalendarPage /></ProtectedRoute>} />
-                      <Route path="/partners" element={<ProtectedRoute><PartnersPage /></ProtectedRoute>} />
-                      <Route path="/company" element={<ProtectedRoute><CompanySettingsPage /></ProtectedRoute>} />
-                      <Route path="/integrations" element={<ProtectedRoute><IntegrationsLayout /></ProtectedRoute>}>
+                      <Route path="/telegram" element={<ProtectedRoute path="/telegram"><TelegramHub /></ProtectedRoute>} />
+                      <Route path="/scenarios" element={<ProtectedRoute path="/scenarios"><ScenarioBuilder /></ProtectedRoute>} />
+                      {/* <Route path="/automations" element={<ProtectedRoute path="/automations"><AutomationBuilder /></ProtectedRoute>} /> */}
+                      <Route path="/leads" element={<ProtectedRoute path="/leads"><Leads /></ProtectedRoute>} />
+                      <Route path="/search" element={<ProtectedRoute path="/search"><SearchPage /></ProtectedRoute>} />
+                      <Route path="/inventory" element={<ProtectedRoute path="/inventory"><InventoryPage /></ProtectedRoute>} />
+                      <Route path="/companies" element={<ProtectedRoute path="/companies"><CompaniesPage /></ProtectedRoute>} />
+                      <Route path="/entities" element={<ProtectedRoute path="/entities"><EntitiesPage /></ProtectedRoute>} />
+                      <Route path="/settings" element={<ProtectedRoute path="/settings"><SettingsPage /></ProtectedRoute>} />
+                      <Route path="/content" element={<ProtectedRoute path="/content"><ContentPage /></ProtectedRoute>} />
+                      <Route path="/calendar" element={<ProtectedRoute path="/calendar"><ContentCalendarPage /></ProtectedRoute>} />
+                      <Route path="/partners" element={<ProtectedRoute path="/partners"><PartnersPage /></ProtectedRoute>} />
+                      <Route path="/company" element={<ProtectedRoute path="/company"><CompanySettingsPage /></ProtectedRoute>} />
+                      <Route path="/help" element={<ProtectedRoute path="/help"><HelpPage /></ProtectedRoute>} />
+                      <Route path="/integrations" element={<ProtectedRoute path="/integrations"><IntegrationsLayout /></ProtectedRoute>}>
                         <Route index element={<IntegrationsPage />} />
                         <Route path=":type" element={<IntegrationEditor />} />
                       </Route>
-                      <Route path="/qa" element={<ProtectedRoute><QAStageA /></ProtectedRoute>} />
-                      <Route path="/health" element={<ProtectedRoute><HealthPage /></ProtectedRoute>} />
-                      <Route path="/superadmin/*" element={<ProtectedRoute><SuperadminRoutes /></ProtectedRoute>} />
+                      <Route path="/qa" element={<ProtectedRoute path="/qa"><QAStageA /></ProtectedRoute>} />
+                      <Route path="/health" element={<ProtectedRoute path="/health"><HealthPage /></ProtectedRoute>} />
+                      <Route path="/superadmin/*" element={<ProtectedRoute path="/superadmin"><SuperadminRoutes /></ProtectedRoute>} />
 
                       <Route path="*" element={<NotFound />} />
                     </Routes>

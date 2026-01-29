@@ -3,6 +3,8 @@ import { Router } from 'express';
 import { prisma } from '../../../services/prisma.js';
 import { MTProtoService } from './mtproto.service.js';
 import { requireRole } from '../../../middleware/auth.js';
+import { logger } from '../../../utils/logger.js';
+import { errorResponse } from '../../../utils/errorResponse.js';
 
 const router = Router();
 
@@ -20,7 +22,7 @@ router.get('/connectors', async (req: any, res) => {
         }));
         res.json(safeConnectors);
     } catch (e: any) {
-        res.status(500).json({ error: e.message });
+        return errorResponse(res, 500, e.message || 'MTProto error', 'MTPROTO_ERROR');
     }
 });
 
@@ -43,7 +45,7 @@ router.post('/connectors', requireRole('OWNER', 'ADMIN'), async (req: any, res) 
 
         res.json(connector);
     } catch (e: any) {
-        res.status(400).json({ error: e.message });
+        return errorResponse(res, 400, e.message || 'MTProto validation error', 'MTPROTO_VALIDATION');
     }
 });
 
@@ -54,7 +56,7 @@ router.delete('/connectors/:id', requireRole('OWNER', 'ADMIN'), async (req: any,
         await prisma.mTProtoConnector.delete({ where: { id: req.params.id } });
         res.json({ success: true });
     } catch (e: any) {
-        res.status(500).json({ error: e.message });
+        return errorResponse(res, 500, e.message || 'MTProto error', 'MTPROTO_ERROR');
     }
 });
 
@@ -65,7 +67,7 @@ router.post('/auth/send-code', requireRole('OWNER', 'ADMIN'), async (req: any, r
         const { phoneCodeHash, isCodeViaApp } = await MTProtoService.sendCode(connectorId, phone);
         res.json({ phoneCodeHash, isCodeViaApp });
     } catch (e: any) {
-        res.status(400).json({ error: e.message });
+        return errorResponse(res, 400, e.message || 'MTProto validation error', 'MTPROTO_VALIDATION');
     }
 });
 
@@ -76,7 +78,7 @@ router.post('/auth/sign-in', requireRole('OWNER', 'ADMIN'), async (req: any, res
         await MTProtoService.signIn(connectorId, phone, code, phoneCodeHash, password);
         res.json({ success: true });
     } catch (e: any) {
-        res.status(400).json({ error: e.message });
+        return errorResponse(res, 400, e.message || 'MTProto validation error', 'MTPROTO_VALIDATION');
     }
 });
 
@@ -88,7 +90,7 @@ router.get('/:connectorId/channels', requireRole('OWNER', 'ADMIN'), async (req: 
         const channels = await MTProtoService.getChannelSources(req.params.connectorId);
         res.json(channels);
     } catch (e: any) {
-        res.status(500).json({ error: e.message });
+        return errorResponse(res, 500, e.message || 'MTProto error', 'MTPROTO_ERROR');
     }
 });
 
@@ -101,7 +103,7 @@ router.get('/:connectorId/resolve', requireRole('OWNER', 'ADMIN'), async (req: a
         const channel = await MTProtoService.resolveChannel(req.params.connectorId, String(query));
         res.json(channel);
     } catch (e: any) {
-        res.status(400).json({ error: e.message });
+        return errorResponse(res, 400, e.message || 'MTProto validation error', 'MTPROTO_VALIDATION');
     }
 });
 
@@ -112,7 +114,7 @@ router.post('/:connectorId/channels', requireRole('OWNER', 'ADMIN'), async (req:
         const result = await MTProtoService.addChannelSource(req.params.connectorId, channel, importRules);
         res.json(result);
     } catch (e: any) {
-        res.status(500).json({ error: e.message });
+        return errorResponse(res, 500, e.message || 'MTProto error', 'MTPROTO_ERROR');
     }
 });
 
@@ -127,11 +129,11 @@ router.post('/:connectorId/sync', requireRole('OWNER', 'ADMIN'), async (req: any
         // For now, running the global worker cycle is safe enough or we make it targeted
 
         // Let's just trigger the global worker 
-        mtprotoWorker.runBackfill().catch(err => console.error(err));
+        mtprotoWorker.runBackfill().catch(err => logger.error(err));
 
         res.json({ success: true, message: 'Sync started' });
     } catch (e: any) {
-        res.status(500).json({ error: e.message });
+        return errorResponse(res, 500, e.message || 'MTProto error', 'MTPROTO_ERROR');
     }
 });
 
@@ -141,7 +143,7 @@ router.delete('/channels/:id', requireRole('OWNER', 'ADMIN'), async (req: any, r
         await MTProtoService.deleteChannelSource(req.params.id);
         res.json({ success: true });
     } catch (e: any) {
-        res.status(500).json({ error: e.message });
+        return errorResponse(res, 500, e.message || 'MTProto error', 'MTPROTO_ERROR');
     }
 });
 

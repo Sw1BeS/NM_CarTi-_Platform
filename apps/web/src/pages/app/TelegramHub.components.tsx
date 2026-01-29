@@ -20,6 +20,8 @@ export const AddBotModal = ({ onClose }: { onClose: () => void }) => {
     const [saving, setSaving] = useState(false);
     const { showToast } = useToast();
 
+    const buildMiniAppUrl = (baseUrl: string, slug: string) => `${baseUrl.replace(/\/$/, '')}/p/app/${slug}`;
+
     const handleAdd = async () => {
         if (!name.trim() || !token.trim()) {
             showToast('Name and token are required', 'error');
@@ -27,23 +29,37 @@ export const AddBotModal = ({ onClose }: { onClose: () => void }) => {
         }
         setSaving(true);
         try {
+            const slug = 'system';
+            const baseUrl = (publicBaseUrl || window.location.origin).replace(/\/$/, '');
+            const miniAppUrl = buildMiniAppUrl(baseUrl, slug);
+            const menuConfig = {
+                ...DEFAULT_MENU_CONFIG,
+                buttons: DEFAULT_MENU_CONFIG.buttons.map(btn =>
+                    btn.type === 'LINK' && btn.value === '{{MINI_APP_URL}}'
+                        ? { ...btn, value: miniAppUrl }
+                        : btn
+                )
+            };
+            const miniAppConfig = { ...DEFAULT_MINI_APP_CONFIG, url: miniAppUrl, showcaseSlug: slug };
+
             const bot = await Data.saveBot({
                 name: name.trim(),
                 username: name.trim().toLowerCase().replace(/\s+/g, '_'),
                 token: token.trim(),
                 role: 'CLIENT',
                 active: true,
+                defaultShowcaseSlug: slug,
                 channelId: channelId || undefined,
                 adminChatId: adminChatId || undefined,
                 deliveryMode: mode === 'webhook' ? 'webhook' : 'polling',
                 config: {
-                    publicBaseUrl: publicBaseUrl || undefined,
+                    publicBaseUrl: baseUrl || undefined,
                     deliveryMode: mode,
-                    menuConfig: DEFAULT_MENU_CONFIG,
-                    miniAppConfig: DEFAULT_MINI_APP_CONFIG
+                    menuConfig,
+                    miniAppConfig
                 },
-                menuConfig: DEFAULT_MENU_CONFIG,
-                miniAppConfig: DEFAULT_MINI_APP_CONFIG,
+                menuConfig,
+                miniAppConfig,
                 processedUpdateIds: [],
                 stats: { processed: 0, ignored: 0, errors: 0, lastRun: '' }
             } as any);
@@ -124,8 +140,32 @@ export const BotSettings = ({ bot }: { bot: Bot }) => {
         ShowcaseService.getShowcases().then(setShowcases).catch(console.error);
     }, []);
 
+    const buildMiniAppUrl = (baseUrl: string, slug: string) => `${baseUrl.replace(/\/$/, '')}/p/app/${slug}`;
+
+    const normalizeMiniAppConfig = (draft: Bot) => {
+        const slug = draft.defaultShowcaseSlug || 'system';
+        const baseUrl = (draft.publicBaseUrl || window.location.origin).replace(/\/$/, '');
+        const miniAppUrl = buildMiniAppUrl(baseUrl, slug);
+        const menuConfig = {
+            ...(draft.menuConfig || DEFAULT_MENU_CONFIG),
+            buttons: (draft.menuConfig?.buttons || DEFAULT_MENU_CONFIG.buttons).map(btn =>
+                btn.type === 'LINK' && btn.value === '{{MINI_APP_URL}}'
+                    ? { ...btn, value: miniAppUrl }
+                    : btn
+            )
+        };
+        const miniAppConfig = {
+            ...(draft.miniAppConfig || DEFAULT_MINI_APP_CONFIG),
+            url: miniAppUrl,
+            showcaseSlug: slug
+        };
+        return { ...draft, publicBaseUrl: baseUrl, menuConfig, miniAppConfig, defaultShowcaseSlug: slug };
+    };
+
     const save = async () => {
-        await Data.saveBot(form);
+        const normalized = normalizeMiniAppConfig(form);
+        await Data.saveBot(normalized);
+        setForm(normalized);
         showToast("Settings Saved");
     };
 
@@ -133,8 +173,8 @@ export const BotSettings = ({ bot }: { bot: Bot }) => {
         try {
             // Respect publicBaseUrl
             const baseUrl = form.publicBaseUrl || window.location.origin;
-            // Default to 'system' slug for now. In future, allow selecting showcase.
-            const appUrl = `${baseUrl}/p/app/system`;
+            const slug = form.defaultShowcaseSlug || 'system';
+            const appUrl = buildMiniAppUrl(baseUrl, slug);
             await TelegramAPI.setChatMenuButton(form.token, "Open App", appUrl);
             showToast("Menu Button Synced");
         } catch (e: any) { showToast(e.message, 'error'); }
@@ -194,7 +234,7 @@ export const BotSettings = ({ bot }: { bot: Bot }) => {
                     <select
                         className="input w-full"
                         value={form.defaultShowcaseId || ''}
-                        onChange={e => {
+                            onChange={e => {
                             const sc = showcases.find(s => s.id === e.target.value);
                             setForm({
                                 ...form,

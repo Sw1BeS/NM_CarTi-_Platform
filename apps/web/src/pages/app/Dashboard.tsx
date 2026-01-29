@@ -65,13 +65,21 @@ export const Dashboard: React.FC = () => {
         ]);
 
         const requestsProgress = requests.filter((r: any) => !['WON', 'LOST', 'DRAFT'].includes(r.status)).length;
+        const requestsWithOffers = requests.filter((r: any) => (r.variants?.length || 0) > 0);
+        const offersFresh = requestsWithOffers.filter((r: any) => {
+            const updatedAt = new Date(r.updatedAt || r.createdAt);
+            return Date.now() - updatedAt.getTime() < 1000 * 60 * 60 * 24;
+        }).length;
         const dbStats = {
             requestsNew: requests.length,
             requestsProgress,
+            offersFresh,
+            requestsWithOffers: requestsWithOffers.length,
             inventoryValue: (inventory as any[]).reduce<number>((sum, car: any) => sum + (car.price?.amount || 0), 0),
             inventoryCount: inventory.length,
             inboxNew: msgs.filter(m => m.direction === 'INCOMING').length,
             campaignsActive: campaigns.filter((c: any) => c.status === 'RUNNING').length,
+            leadsToday: leads.filter((l: any) => new Date(l.createdAt).toDateString() === new Date().toDateString()).length,
             draftsScheduled: (await Data.getDrafts()).filter((d: any) => d.status === 'SCHEDULED').length,
             draftsPosted: (await Data.getDrafts()).filter((d: any) => d.status === 'POSTED' && new Date(d.postedAt).toDateString() === new Date().toDateString()).length
         };
@@ -117,12 +125,26 @@ export const Dashboard: React.FC = () => {
             </div>
 
             {/* KPI Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-6">
                 <StatCard
                     title="New Requests"
                     value={stats.requestsNew}
                     subtext={`${stats.requestsProgress} active now`}
                     icon={FileText}
+                    onClick={() => navigate('/requests')}
+                />
+                <StatCard
+                    title="New Leads Today"
+                    value={stats.leadsToday}
+                    subtext="Captured in last 24h"
+                    icon={Users}
+                    onClick={() => navigate('/leads')}
+                />
+                <StatCard
+                    title="New Offers"
+                    value={stats.offersFresh}
+                    subtext={`${stats.requestsWithOffers} requests with offers`}
+                    icon={TrendingUp}
                     onClick={() => navigate('/requests')}
                 />
                 <StatCard

@@ -7,6 +7,7 @@ import { renderLeadCard, renderRequestCard } from '../../../services/cardRendere
 import { runTelegramPipeline } from '../telegram/scenarios/pipeline.js';
 import { telegramOutbox } from '../telegram/messaging/outbox/telegramOutbox.js';
 import { BotRepository } from '../../../repositories/index.js';
+import { logger } from '../../../utils/logger.js';
 
 
 
@@ -34,15 +35,15 @@ export class BotManager {
     }
 
     public async startAll() {
-        console.log("🤖 Bot Manager: Loading configuration...");
+        logger.info("🤖 Bot Manager: Loading configuration...");
         try {
             const configs = await this.botRepo.findAllActive();
-            console.log(`🤖 Found ${configs.length} active bots.`);
+            logger.info(`🤖 Found ${configs.length} active bots.`);
             for (const config of configs) {
                 this.startBot(config);
             }
         } catch (e) {
-            console.error("Failed to load bots from DB:", e);
+            logger.error("Failed to load bots from DB:", e);
         }
     }
 
@@ -50,7 +51,7 @@ export class BotManager {
         const now = Date.now();
         const last = this.lastRestart.get(id) || 0;
         if (now - last < 60_000) {
-            console.warn(`⏳ Skip restart for ${id} (throttled)`);
+            logger.warn(`⏳ Skip restart for ${id} (throttled)`);
             return;
         }
         this.lastRestart.set(id, now);
@@ -70,13 +71,13 @@ export class BotManager {
         if (this.activeBots.has(config.id)) return;
 
         const deliveryMode = (config.config as any)?.deliveryMode || 'polling';
-        console.log(`🚀 Starting Bot [${config.id}] (${deliveryMode}): ${config.name}`);
+        logger.info(`🚀 Starting Bot [${config.id}] (${deliveryMode}): ${config.name}`);
 
         const instance = new BotInstance(config, deliveryMode, (botId) => {
-            console.warn(`🛑 Bot ${botId} stopped due to invalid token`);
+            logger.warn(`🛑 Bot ${botId} stopped due to invalid token`);
             this.activeBots.delete(botId);
             this.botRepo.updateBotStatus(botId, false).catch(e => {
-                console.error(`Failed to disable bot ${botId} after invalid token:`, e?.message || e);
+                logger.error(`Failed to disable bot ${botId} after invalid token:`, e?.message || e);
             });
         });
         instance.start();
@@ -86,7 +87,7 @@ export class BotManager {
     private stopBot(id: string) {
         const bot = this.activeBots.get(id);
         if (bot) {
-            console.log(`🛑 Stopping Bot ID: ${id}`);
+            logger.info(`🛑 Stopping Bot ID: ${id}`);
             bot.stop();
             this.activeBots.delete(id);
         }
@@ -125,7 +126,7 @@ class BotInstance {
 
         if (this.mode === 'webhook') {
             // Webhook mode: pipeline will be triggered by express route, no polling loop needed
-            console.log(`🔔 Bot [${this.config.id}] listening via webhook.`);
+            logger.info(`🔔 Bot [${this.config.id}] listening via webhook.`);
             return;
         }
 
@@ -162,17 +163,17 @@ class BotInstance {
         } catch (e: any) {
             const status = e?.response?.status;
             if (status === 401 || status === 404) {
-                console.error(`🚨 Fatal Error for Bot ${this.config.name}: Invalid Token (${status}). Stopping.`);
+                logger.error(`🚨 Fatal Error for Bot ${this.config.name}: Invalid Token (${status}). Stopping.`);
                 this.stop();
                 this.onFatalStop?.(this.config.id);
                 return;
             }
             // Telegram rate limit (429) is non-fatal; skip logging spam and continue.
             if (status === 429) {
-                console.warn(`⚠️ Rate limited registering commands for ${this.config.name}; will retry on next restart`);
+                logger.warn(`⚠️ Rate limited registering commands for ${this.config.name}; will retry on next restart`);
                 return;
             }
-            console.error(`⚠️ Failed to register commands for ${this.config.name}: ${e.message}`);
+            logger.error(`⚠️ Failed to register commands for ${this.config.name}: ${e.message}`);
         }
     }
 
@@ -188,7 +189,7 @@ class BotInstance {
                     try {
                         await this.processUpdate(update);
                     } catch (err: any) {
-                        console.error(`Bot Update Error (${this.config.name}):`, err?.message || err);
+                        logger.error(`Bot Update Error (${this.config.name}):`, err?.message || err);
                     } finally {
                         // Always advance offset to avoid getting stuck on a bad update.
                         this.offset = update.update_id;
@@ -199,14 +200,14 @@ class BotInstance {
             // CRITICAL: Stop bot if token is invalid to prevent server hang/spam
             const status = e?.response?.status;
             if (status === 401 || status === 404) {
-                console.error(`🚨 Fatal Error for Bot ${this.config.name}: Invalid Token (${status}). Stopping.`);
+                logger.error(`🚨 Fatal Error for Bot ${this.config.name}: Invalid Token (${status}). Stopping.`);
                 this.stop();
                 this.onFatalStop?.(this.config.id);
                 return;
             }
 
             if (e.code !== 'ECONNABORTED' && e.code !== 'ETIMEDOUT') {
-                console.error(`Bot Loop Error (${this.config.name}):`, e.message);
+                logger.error(`Bot Loop Error (${this.config.name}):`, e.message);
             }
             // Backoff logic
             await new Promise(r => setTimeout(r, 5000));
@@ -223,7 +224,7 @@ class BotInstance {
             await runTelegramPipeline({ update, bot: this.config as any, botId: this.config.id, source: 'polling' });
         } catch (err: any) {
             // Don't let a single bad update break the polling loop.
-            console.error(`[BotInstance] Pipeline error (${this.config.name}):`, err?.message || err);
+            logger.error(`[BotInstance] Pipeline error (${this.config.name}):`, err?.message || err);
         }
     }
 
@@ -277,7 +278,7 @@ class BotInstance {
                         await this.sendMessage(chatId, `❌ Request not found or expired.`);
                     }
                 } catch (e) {
-                    console.error('[DeepLink] Failed to load request:', e);
+                    logger.error('[DeepLink] Failed to load request:', e);
                     await this.sendMessage(chatId, `⚠️ Error loading request.`);
                 }
                 break;
@@ -525,7 +526,7 @@ class BotInstance {
                 companyId: this.config.companyId || null
             });
         } catch (e) {
-            console.error('[SendMessage] Error:', e);
+            logger.error('[SendMessage] Error:', e);
         }
     }
 }

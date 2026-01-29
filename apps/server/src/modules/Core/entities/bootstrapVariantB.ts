@@ -1,9 +1,10 @@
 import { prisma } from '../../../services/prisma.js';
 // @ts-ignore
 import { ulid } from 'ulid';
+import { logger } from '../../../utils/logger.js';
 
 export async function bootstrapVariantB() {
-  console.log('🌱 Bootstrapping Variant B Entities (Post Template)...');
+  logger.info('🌱 Bootstrapping Variant B Entities (Post Template)...');
 
   try {
       // Post Template
@@ -32,9 +33,9 @@ export async function bootstrapVariantB() {
                 ...f
             }))
          });
-         console.log('✅ Created post_template definition');
+         logger.info('✅ Created post_template definition');
       }
   } catch (e) {
-      console.error('Bootstrapping failed:', e);
+      logger.error('Bootstrapping failed:', e);
   }
 }
