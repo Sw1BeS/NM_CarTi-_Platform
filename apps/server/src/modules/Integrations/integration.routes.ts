@@ -38,7 +38,7 @@ router.get('/', async (req: any, res) => {
  * GET /api/integrations/:type
  * Get specific integration config (ADMIN+ only)
  */
-router.get('/:type', requireRole('OWNER', 'ADMIN'), async (req: any, res) => {
+router.get('/:type', requireRole(['OWNER', 'ADMIN']), async (req: any, res) => {
     try {
         const integration = await integrationService.getByType(req.companyId, req.params.type.toUpperCase());
 
@@ -56,7 +56,7 @@ router.get('/:type', requireRole('OWNER', 'ADMIN'), async (req: any, res) => {
  * PUT /api/integrations/:type
  * Create or update integration (ADMIN+ only)
  */
-router.put('/:type', requireRole('OWNER', 'ADMIN'), async (req: any, res) => {
+router.put('/:type', requireRole(['OWNER', 'ADMIN']), async (req: any, res) => {
     try {
         const { config, isActive } = req.body;
 
@@ -80,7 +80,7 @@ router.put('/:type', requireRole('OWNER', 'ADMIN'), async (req: any, res) => {
  * DELETE /api/integrations/:type
  * Delete integration (OWNER only)
  */
-router.delete('/:type', requireRole('OWNER'), async (req: any, res) => {
+router.delete('/:type', requireRole(['OWNER']), async (req: any, res) => {
     try {
         await integrationService.delete(req.companyId, req.params.type.toUpperCase());
         res.json({ success: true });
@@ -93,7 +93,7 @@ router.delete('/:type', requireRole('OWNER'), async (req: any, res) => {
  * POST /api/integrations/:type/toggle
  * Toggle integration active status (ADMIN+ only)
  */
-router.post('/:type/toggle', requireRole('OWNER', 'ADMIN'), async (req: any, res) => {
+router.post('/:type/toggle', requireRole(['OWNER', 'ADMIN']), async (req: any, res) => {
     try {
         const { isActive } = req.body;
 
@@ -112,7 +112,7 @@ router.post('/:type/toggle', requireRole('OWNER', 'ADMIN'), async (req: any, res
  * POST /api/integrations/:type/test
  * Test integration connection (ADMIN+ only)
  */
-router.post('/:type/test', requireRole('OWNER', 'ADMIN'), async (req: any, res) => {
+router.post('/:type/test', requireRole(['OWNER', 'ADMIN']), async (req: any, res) => {
     try {
         const { config } = req.body;
         const type = req.params.type.toUpperCase();
@@ -175,7 +175,7 @@ router.post('/:type/test', requireRole('OWNER', 'ADMIN'), async (req: any, res) 
  * POST /api/integrations/webhook/trigger
  * Manually trigger webhook for testing (ADMIN+ only)
  */
-router.post('/webhook/trigger', requireRole('OWNER', 'ADMIN'), async (req: any, res) => {
+router.post('/webhook/trigger', requireRole(['OWNER', 'ADMIN']), async (req: any, res) => {
     try {
         const { event, payload } = req.body;
 
