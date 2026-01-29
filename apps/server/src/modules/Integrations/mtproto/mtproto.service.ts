@@ -197,24 +197,16 @@ export class MTProtoService {
     /**
      * History & Sync
      */
-    static async getHistory(connectorId: string, channelId: string, limit = 20, offsetId = 0) {
+    static async getHistory(connectorId: string, channelId: string, limit = 20, offsetId = 0, offsetDate?: number) {
         const client = await this.getClient(connectorId);
         await client.connect();
 
         try {
             // gramjs expects channel as an input peer or identifier.
-            // ID from our DB (string) usually needs BigInt for parsing if it's raw ID.
-            // But getMessages often takes username or entity.
-
-            // To be safe, we try to resolve entity first (cached by gramjs internally hopefully)
-            // or just pass the ID if strict.
-
-            // NOTE: channelId from resolveChannel is often BigInt string.
-            // client.getInputEntity might be needed.
-
             const messages = await client.getMessages(channelId, {
                 limit,
                 offsetId,
+                offsetDate
             });
 
             return messages;
@@ -240,5 +232,21 @@ export class MTProtoService {
 
         client.addEventHandler(handler, new NewMessage({}));
         // TODO: EditMessage support
+    }
+
+    /**
+     * Download Media
+     */
+    static async downloadMedia(connectorId: string, message: any) {
+        const client = await this.getClient(connectorId);
+        await client.connect();
+
+        try {
+            const buffer = await client.downloadMedia(message, {});
+            return buffer;
+        } catch (e: any) {
+            logger.error(e);
+            return null; // Don't crash on media failure
+        }
     }
 }

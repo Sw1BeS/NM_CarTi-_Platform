@@ -6,6 +6,8 @@ import { processParsedMessage } from '../../../services/mtproto-mapping.service.
 // @ts-ignore
 import { v4 as uuidv4 } from 'uuid';
 import { logger } from '../../../utils/logger.js';
+import fs from 'fs';
+import path from 'path';
 
 /**
  * Worker to backfill messages from configured channels
@@ -13,7 +15,36 @@ import { logger } from '../../../utils/logger.js';
 export class MTProtoWorker {
     private isRunning = false;
 
-    async runBackfill() {
+    private async saveMedia(connectorId: string, msg: any): Promise<string | null> {
+        if (!msg.media) return null;
+        try {
+            // Only download photos for now to save space/bandwidth
+            // msg.media className check
+            if (msg.media.className !== 'MessageMediaPhoto') return null;
+
+            const buffer = await MTProtoService.downloadMedia(connectorId, msg);
+            if (!buffer || buffer.length === 0) return null;
+
+            const dateStr = new Date().toISOString().split('T')[0];
+            // Assuming running from apps/server
+            const uploadDir = path.join(process.cwd(), 'uploads', 'mtproto', dateStr);
+
+            if (!fs.existsSync(uploadDir)) {
+                fs.mkdirSync(uploadDir, { recursive: true });
+            }
+
+            const filename = `${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
+            const filepath = path.join(uploadDir, filename);
+            fs.writeFileSync(filepath, buffer);
+
+            return `/uploads/mtproto/${dateStr}/${filename}`;
+        } catch (e) {
+            logger.error('[MTProtoWorker] Failed to save media', e);
+            return null;
+        }
+    }
+
+    async runBackfill(options: { limit?: number; daysBack?: number } = {}) {
         if (this.isRunning) {
             logger.info('[MTProtoWorker] Already running');
             return;
@@ -21,7 +52,7 @@ export class MTProtoWorker {
         this.isRunning = true;
 
         try {
-            logger.info('[MTProtoWorker] Starting backfill cycle...');
+            logger.info('[MTProtoWorker] Starting backfill cycle...', options);
 
             // 1. Get all active Channel Sources
             const sources = await prisma.channelSource.findMany({
@@ -35,7 +66,7 @@ export class MTProtoWorker {
                     continue;
                 }
 
-                await this.processSource(source);
+                await this.processSource(source, options);
 
                 // Rate Limit: Sleep 2 seconds between channels to avoid flooding user account
                 await new Promise(r => setTimeout(r, 2000));
@@ -48,30 +79,45 @@ export class MTProtoWorker {
         }
     }
 
-    private async processSource(source: any) {
+    private async processSource(source: any, options: { limit?: number; daysBack?: number } = {}) {
         try {
             logger.info(`[MTProtoWorker] Processing ${source.title} (${source.channelId})...`);
 
-            // Use lastMessageId as checkpoint, or 0 (fetch latest)
-            // Strategy: For backfill, we might want to fetch *older* messages from a point, 
-            // but simpler: Fetch latest N messages and upsert. Backfill usually implies going backwards, 
-            // but here we just ensure we have the recent history first.
+            const limit = options.limit || 50;
+            const daysBack = options.daysBack || 0;
+            let offsetDate = 0;
 
-            // Let's fetch the last 50 messages for now (Snapshot approach)
-            // A real backfill would need sophisticated offset management.
-            const messages = await MTProtoService.getHistory(source.connectorId, source.channelId, 50);
+            if (daysBack > 0) {
+                // Calculate date N days ago
+                const date = new Date();
+                date.setDate(date.getDate() - daysBack);
+                offsetDate = Math.floor(date.getTime() / 1000);
+            }
+
+            const messages = await MTProtoService.getHistory(
+                source.connectorId,
+                source.channelId,
+                limit,
+                0,
+                offsetDate || undefined
+            );
 
             let count = 0;
             for (const msg of messages) {
-                if (!msg.message) continue; // Skip empty messages (service messages)
+                if (!msg.message && !msg.media) continue; // Skip empty messages (service messages)
+
+                let mediaUrl: string | null = null;
+                if (msg.media) {
+                    mediaUrl = await this.saveMedia(source.connectorId, msg);
+                }
 
                 // Convert MTProto message to our standard format
                 const telegramMessage = {
                     chatId: source.channelId,
                     messageId: msg.id,
-                    text: msg.message,
+                    text: msg.message || '',
                     date: new Date(msg.date * 1000), // Convert Unix timestamp to Date
-                    mediaUrls: [], // TODO: Extract media URLs from msg.media
+                    mediaUrls: mediaUrl ? [mediaUrl] : [],
                     mediaGroupKey: msg.groupedId?.toString() || undefined
                 };
 
@@ -148,13 +194,18 @@ export class MTProtoWorker {
     }
 
     private async syncMessage(source: any, msg: any) {
+        let mediaUrl: string | null = null;
+        if (msg.media) {
+            mediaUrl = await this.saveMedia(source.connectorId, msg);
+        }
+
         // Convert live message to standard format
         const telegramMessage = {
             chatId: source.channelId,
             messageId: msg.id,
-            text: msg.message,
+            text: msg.message || '',
             date: new Date(msg.date * 1000),
-            mediaUrls: [],
+            mediaUrls: mediaUrl ? [mediaUrl] : [],
             mediaGroupKey: msg.groupedId?.toString() || undefined
         };
 
