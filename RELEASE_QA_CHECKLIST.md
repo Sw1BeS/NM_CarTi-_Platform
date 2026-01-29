@@ -9,5 +9,5 @@
 - [ ] Help page opens and links navigate correctly.
 - [ ] Settings/Integrations pages gated correctly per role (Dealer hidden, Admin visible).
 - [x] Public pages `/p/request`, `/p/dealer`, `/p/proposal/:id` still reachable.
-- [ ] API health endpoints `/health` and `/api/health` return 200.
+- [x] API health endpoints `/health` and `/api/health` return 200.
 - [ ] Server/logs show structured timestamps (logger) and no uncaught errors during smoke run.
