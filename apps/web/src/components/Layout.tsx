@@ -104,12 +104,20 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout }) => {
 
   const isActive = (path: string) => location.pathname === path;
 
-  const visibleNavItems = navItems.filter(item => {
-    if (!item.visible) return false;
-    // Explicitly hide Automations in favor of Scenarios
-    if (item.path === '/automations') return false;
-    return true;
-  });
+  const visibleNavItems = (() => {
+    const filtered = navItems.filter(item => {
+      if (!item.visible) return false;
+      // Explicitly hide Automations in favor of Scenarios
+      if (item.path === '/automations') return false;
+      return true;
+    });
+    // De-duplicate by path to avoid double items when backend nav merges
+    const byPath = new Map<string, any>();
+    filtered.forEach(item => {
+      if (!byPath.has(item.path)) byPath.set(item.path, item);
+    });
+    return Array.from(byPath.values());
+  })();
 
   const displayName = user.name || user.username || user.email || 'User';
 
