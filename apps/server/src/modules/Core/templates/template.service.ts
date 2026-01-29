@@ -76,14 +76,30 @@ export class TemplateService {
             throw new Error('Template already installed');
         }
 
-        // Create scenario from template
+        // Create scenario from template with default structure
+        const defaultNodes = template.structure && Array.isArray(template.structure) && (template.structure as any[]).length > 0
+            ? template.structure
+            : [{
+                id: 'node_start',
+                type: 'START',
+                content: { text: 'Welcome! This is the start of your flow.' },
+                nextNodeId: '',
+                position: { x: 200, y: 300 }
+            }];
+
+        const entryNodeId = Array.isArray(defaultNodes) && defaultNodes.length > 0
+            ? (defaultNodes[0] as any).id || 'node_start'
+            : 'node_start';
+
         const scenario = await prisma.scenario.create({
             data: {
                 companyId,
                 name: template.name,
-                nodes: template.structure as any,  // Cast JsonValue to any for compatibility
-                isActive: false, // User must activate manually
-                keywords: [] // Can be customized later
+                nodes: defaultNodes as any,
+                entryNodeId: entryNodeId,
+                isActive: false,
+                keywords: [],
+                status: 'DRAFT'
             }
         });
 
