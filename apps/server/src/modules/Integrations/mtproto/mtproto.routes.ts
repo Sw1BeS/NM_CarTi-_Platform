@@ -128,8 +128,13 @@ router.post('/:connectorId/sync', requireRole('OWNER', 'ADMIN'), async (req: any
         // Trigger generic backfill (or could target specific connector if refactored)
         // For now, running the global worker cycle is safe enough or we make it targeted
 
+        const { limit, daysBack } = req.body;
+
         // Let's just trigger the global worker 
-        mtprotoWorker.runBackfill().catch(err => logger.error(err));
+        mtprotoWorker.runBackfill({
+            limit: limit ? Number(limit) : 50,
+            daysBack: daysBack ? Number(daysBack) : 0
+        }).catch(err => logger.error(err));
 
         res.json({ success: true, message: 'Sync started' });
     } catch (e: any) {

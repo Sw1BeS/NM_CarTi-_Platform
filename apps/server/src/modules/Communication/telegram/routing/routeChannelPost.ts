@@ -7,6 +7,7 @@ import fs from 'fs';
 import path from 'path';
 import axios from 'axios';
 import { TelegramSender } from '../messaging/telegramSender.js';
+import { TelegramLogger } from '../utils/telegramLogger.js';
 
 export const routeChannelPost: PipelineMiddleware = async (ctx, next) => {
   const update = ctx.update;
@@ -16,7 +17,12 @@ export const routeChannelPost: PipelineMiddleware = async (ctx, next) => {
     return next();
   }
 
-  logger.info(`[Telegram] Received channel post: ${post.message_id} from ${post.chat?.title} (${post.chat?.id})`);
+  TelegramLogger.log('CHANNEL_POST', {
+    messageId: post.message_id,
+    chatId: post.chat?.id,
+    title: post.chat?.title,
+    botId: ctx.botId
+  });
 
   // We have a channel post.
   // 1. Identify Channel

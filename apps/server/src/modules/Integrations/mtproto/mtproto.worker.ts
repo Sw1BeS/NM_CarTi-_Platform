@@ -44,7 +44,7 @@ export class MTProtoWorker {
         }
     }
 
-    async runBackfill() {
+    async runBackfill(options: { limit?: number; daysBack?: number } = {}) {
         if (this.isRunning) {
             logger.info('[MTProtoWorker] Already running');
             return;
@@ -52,7 +52,7 @@ export class MTProtoWorker {
         this.isRunning = true;
 
         try {
-            logger.info('[MTProtoWorker] Starting backfill cycle...');
+            logger.info('[MTProtoWorker] Starting backfill cycle...', options);
 
             // 1. Get all active Channel Sources
             const sources = await prisma.channelSource.findMany({
@@ -66,7 +66,7 @@ export class MTProtoWorker {
                     continue;
                 }
 
-                await this.processSource(source);
+                await this.processSource(source, options);
 
                 // Rate Limit: Sleep 2 seconds between channels to avoid flooding user account
                 await new Promise(r => setTimeout(r, 2000));
@@ -79,18 +79,28 @@ export class MTProtoWorker {
         }
     }
 
-    private async processSource(source: any) {
+    private async processSource(source: any, options: { limit?: number; daysBack?: number } = {}) {
         try {
             logger.info(`[MTProtoWorker] Processing ${source.title} (${source.channelId})...`);
 
-            // Use lastMessageId as checkpoint, or 0 (fetch latest)
-            // Strategy: For backfill, we might want to fetch *older* messages from a point, 
-            // but simpler: Fetch latest N messages and upsert. Backfill usually implies going backwards, 
-            // but here we just ensure we have the recent history first.
+            const limit = options.limit || 50;
+            const daysBack = options.daysBack || 0;
+            let offsetDate = 0;
 
-            // Let's fetch the last 50 messages for now (Snapshot approach)
-            // A real backfill would need sophisticated offset management.
-            const messages = await MTProtoService.getHistory(source.connectorId, source.channelId, 50);
+            if (daysBack > 0) {
+                // Calculate date N days ago
+                const date = new Date();
+                date.setDate(date.getDate() - daysBack);
+                offsetDate = Math.floor(date.getTime() / 1000);
+            }
+
+            const messages = await MTProtoService.getHistory(
+                source.connectorId,
+                source.channelId,
+                limit,
+                0,
+                offsetDate || undefined
+            );
 
             let count = 0;
             for (const msg of messages) {

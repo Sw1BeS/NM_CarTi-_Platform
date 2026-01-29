@@ -13,6 +13,7 @@ import { buildMiniAppUrl } from '../core/utils/miniappUrl.js';
 import { generatePublicId, mapRequestInput } from '../../../../services/dto.js';
 import { buildCallbackData } from '../core/utils/callbackUtils.js';
 import { button, isCommand, resolveLang, t, type Lang } from '../core/utils/telegramText.js';
+import { TelegramLogger } from '../utils/telegramLogger.js';
 
 
 const parseRange = (input: string) => {
@@ -668,11 +669,22 @@ const handleB2B = async (ctx: PipelineContext, text: string) => {
 export const routeMessage = async (ctx: PipelineContext) => {
   if (!ctx.bot || !ctx.session) return false;
 
-  const handledScenario = await ScenarioEngine.handleUpdate(ctx.bot as any, ctx.session, ctx.update).catch(() => false);
-  if (handledScenario) return true;
-
   const message = ctx.update?.message;
   const text = message?.text || '';
+
+  TelegramLogger.log('INCOMING_MESSAGE', {
+      botId: ctx.bot.id,
+      chatId: ctx.chatId,
+      userId: ctx.userId,
+      text: text.slice(0, 50), // Truncate
+      state: ctx.session.state
+  });
+
+  const handledScenario = await ScenarioEngine.handleUpdate(ctx.bot as any, ctx.session, ctx.update).catch((e) => {
+      TelegramLogger.log('ERROR', { error: e.message, botId: ctx.bot?.id, chatId: ctx.chatId });
+      return false;
+  });
+  if (handledScenario) return true;
 
   if (ctx.bot.template === 'CLIENT_LEAD') return handleClientLead(ctx, text);
   if (ctx.bot.template === 'CATALOG') return handleCatalog(ctx, text);
