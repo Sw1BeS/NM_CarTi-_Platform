@@ -5,6 +5,7 @@ import { prisma } from '../../../services/prisma.js';
 import { Logger } from 'telegram/extensions/Logger.js';
 import { detectMake } from '../../../services/taxonomy.js';
 import { ParsingService } from '../parsing/parsing.service.js';
+import { processParsedMessage } from '../../../services/mtproto-mapping.service.js';
 
 // Minimal logger to avoid spam
 const logger = new Logger({ level: 'error' } as any);
@@ -357,14 +358,32 @@ export class MTProtoService {
         });
         if (!source || !source.connector) throw new Error("Source or Connector not found");
 
-        const client = await this.getClient(connectorId);
-        await client.connect();
+        const isReady = source.connector.status === 'READY' && !!source.connector.sessionString;
 
         // Mark sync start
         await prisma.channelSource.update({
             where: { id: sourceId },
             data: { lastSyncedAt: new Date() }
         });
+
+        // Fallback: allow demo/manual import even without authenticated session
+        if (!isReady) {
+            const demoMessage = (source.importRules as any)?.demoMessage
+                || 'Demo import: BMW X5 2018, $35000, 85 000 km, black.';
+
+            await processParsedMessage({
+                chatId: source.channelId,
+                messageId: (source.lastMessageId || 1),
+                text: demoMessage,
+                date: new Date(),
+                mediaUrls: []
+            } as any, source as any);
+
+            return { success: true, imported: 1, mode: 'demo' };
+        }
+
+        const client = await this.getClient(connectorId);
+        await client.connect();
 
         try {
             const messages = await client.getMessages(source.channelId, { limit: 20 });
@@ -373,60 +392,14 @@ export class MTProtoService {
             for (const msg of messages) {
                 if (!msg.message) continue;
 
-                // Dedupe by source (sourceChatId + sourceMessageId or externalId if added)
-                // Schema has sourceChatId, sourceMessageId.
-                // Let's rely on that unique constraint: @@unique([sourceChatId, sourceMessageId])
-
-                const exists = await prisma.carListing.findFirst({
-                    where: {
-                        sourceChatId: source.channelId,
-                        sourceMessageId: msg.id
-                    }
-                });
-
-                if (exists) continue;
-
-                let parsed;
-                if (source.importRules && Object.keys(source.importRules).length > 0 && !(source.importRules as any).autoPublish) {
-                    // Use Dynamic Parsing if rules exist (and it's not just the default autoPublish flag)
-                    // Check if 'rules' key exists or root object is the template.
-                    // The UI saves rules as { rules: { ... } } inside importRules usually?
-                    // Let's assume importRules IS the template (ParsingTemplate).
-                    try {
-                        parsed = ParsingService.extract(msg.message, source.importRules as any);
-                    } catch (e) {
-                        // Fallback
-                        parsed = this.parseMessageToInventory(msg.message);
-                    }
-                } else {
-                    parsed = this.parseMessageToInventory(msg.message);
-                }
-
-                if (!parsed || parsed.price === 0) continue; // Skip non-ads
-
-                await prisma.carListing.create({
-                    data: {
-                        id: `tg_${source.channelId}_${msg.id}`, // Generate ID manually or use cuid if preferred, schema says String @id
-
-                        // Schema: title, price, year, mileage, location, status, companyId
-
-                        title: parsed.title,
-                        price: parsed.price,
-                        year: parsed.year,
-                        mileage: 0, // Default
-                        location: 'Unknown',
-
-                        status: 'AVAILABLE',
-                        companyId: source.connector.companyId,
-
-                        // MTProto fields
-                        source: 'TELEGRAM',
-                        sourceChatId: source.channelId,
-                        sourceMessageId: msg.id,
-                        description: parsed.description,
-                        mediaUrls: []
-                    }
-                });
+                await processParsedMessage({
+                    chatId: source.channelId,
+                    messageId: msg.id,
+                    text: msg.message,
+                    date: new Date((msg.date as any) * 1000),
+                    mediaUrls: [],
+                    mediaGroupKey: (msg as any).groupedId?.toString()
+                } as any, source as any);
                 imported++;
             }
 
