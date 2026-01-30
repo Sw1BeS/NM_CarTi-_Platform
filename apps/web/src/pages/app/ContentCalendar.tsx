@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Data } from '../../services/data';
-import { DraftsService, DraftRecord } from '../../services/draftsService';
+import { PublicationService, PublicationJob, ContentTemplate } from '../../services/publicationService';
 import { CarListing, TelegramDestination, Bot } from '../../types';
 import { useToast } from '../../contexts/ToastContext';
 import {
@@ -9,11 +9,10 @@ import {
     ChevronLeft, ChevronRight, List, Settings, Copy, Trash2,
     Check, Clock, AlertCircle
 } from 'lucide-react';
-import { ContentGenerator } from '../../services/contentGenerator';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { EmptyState } from '../../components/EmptyState';
 
-type PostTemplate = 'IN_STOCK' | 'IN_TRANSIT' | 'CUSTOM';
+type PostTemplate = string;
 type ViewMode = 'GRID' | 'CALENDAR' | 'DAY';
 
 interface TemplateConfig {
@@ -39,7 +38,7 @@ export const ContentCalendarPage = () => {
     const [inventory, setInventory] = useState<CarListing[]>([]);
     const [destinations, setDestinations] = useState<TelegramDestination[]>([]);
     const [bots, setBots] = useState<Bot[]>([]);
-    const [drafts, setDrafts] = useState<DraftRecord[]>([]);
+    const [jobs, setJobs] = useState<PublicationJob[]>([]);
     const [viewMode, setViewMode] = useState<ViewMode>('CALENDAR');
 
     // Calendar state
@@ -64,6 +63,7 @@ export const ContentCalendarPage = () => {
     const [showTemplateEditor, setShowTemplateEditor] = useState(false);
     const [customTemplates, setCustomTemplates] = useState<Record<string, TemplateConfig>>({});
     const [editingTemplate, setEditingTemplate] = useState<TemplateConfig | null>(null);
+    const [templates, setTemplates] = useState<ContentTemplate[]>([]);
 
     const { showToast } = useToast();
     const timeSlots = [9, 12, 15, 18, 21];
@@ -73,23 +73,27 @@ export const ContentCalendarPage = () => {
     }, []);
 
     const loadData = async () => {
-        const [inv, dests, botList, draftList] = await Promise.all([
+        const [inv, dests, botList, jobList, tplList] = await Promise.all([
             Data.getInventory(),
             Data.getDestinations(),
             Data.getBots(),
-            DraftsService.getDrafts()
+            PublicationService.listJobs(),
+            PublicationService.listTemplates().catch(() => [])
         ]);
         setInventory(inv.filter(c => c.status === 'AVAILABLE'));
         setDestinations(dests.filter(d => d.type === 'CHANNEL'));
         setBots(botList.filter(b => b.active));
-        setDrafts(draftList);
+        setJobs(jobList);
+        setTemplates(tplList);
 
-        const storedTemplates = localStorage.getItem('custom_templates');
-        if (storedTemplates) {
-            try {
-                setCustomTemplates(JSON.parse(storedTemplates));
-            } catch (e) { }
-        }
+        const grouped: Record<string, TemplateConfig> = {};
+        tplList.forEach(t => {
+            const key = `custom:${t.name}`;
+            if (!grouped[key]) grouped[key] = { name: t.name, ua: '', ru: '' } as TemplateConfig;
+            if (t.language === 'RU') grouped[key].ru = t.body;
+            else grouped[key].ua = t.body;
+        });
+        setCustomTemplates(grouped);
     };
 
     const getWeekDays = () => {
@@ -104,13 +108,13 @@ export const ContentCalendarPage = () => {
     };
 
     const getPostsForSlot = (date: Date, hour: number) => {
-        return drafts.filter(draft => {
-            if (!draft.scheduledAt) return false;
-            const draftDate = new Date(draft.scheduledAt);
-            return draftDate.getDate() === date.getDate() &&
-                draftDate.getMonth() === date.getMonth() &&
-                draftDate.getFullYear() === date.getFullYear() &&
-                draftDate.getHours() === hour;
+        return jobs.filter(job => {
+            if (!job.scheduledAt) return false;
+            const jobDate = new Date(job.scheduledAt);
+            return jobDate.getDate() === date.getDate() &&
+                jobDate.getMonth() === date.getMonth() &&
+                jobDate.getFullYear() === date.getFullYear() &&
+                jobDate.getHours() === hour;
         });
     };
 
@@ -127,25 +131,24 @@ export const ContentCalendarPage = () => {
         const scheduledDate = new Date(date);
         scheduledDate.setHours(hour, 0, 0, 0);
 
-        const template = bulkConfig.lang === 'RU'
-            ? DEFAULT_TEMPLATES[bulkConfig.template].ru
-            : DEFAULT_TEMPLATES[bulkConfig.template].ua;
-        const text = ContentGenerator.fromCarTemplate(car, template, bulkConfig.lang === 'RU' ? 'RU' : 'UK');
+        const tpl = allTemplates[bulkConfig.template] || DEFAULT_TEMPLATES.IN_STOCK;
+        const templateText = bulkConfig.lang === 'RU' ? (tpl.ru || tpl.ua) : (tpl.ua || tpl.ru);
 
         const bot = bots[0];
-        const created = await DraftsService.createDraft({
-            source: 'MANUAL',
+        const created = await PublicationService.createJob({
             title: car.title,
-            description: text,
-            url: car.thumbnail,
+            carId: car.canonicalId,
+            template: templateText,
             destination: bulkConfig.destination,
             scheduledAt: scheduledDate.toISOString(),
-            status: 'SCHEDULED',
+            publishNow: false,
+            mediaUrl: car.thumbnail,
             botId: bot.id,
-            metadata: { carId: car.canonicalId, template: bulkConfig.template, lang: bulkConfig.lang }
+            lang: bulkConfig.lang,
+            createDraft: true
         });
 
-        setDrafts([created, ...drafts]);
+        setJobs([created, ...jobs]);
         showToast('Post scheduled!', 'success');
     };
 
@@ -162,66 +165,91 @@ export const ContentCalendarPage = () => {
         const startDateTime = new Date(`${bulkConfig.startDate}T${bulkConfig.startTime}`);
         const carsArray = Array.from(selectedCars).map(id => inventory.find(c => c.canonicalId === id)!);
 
-        const newDrafts: Partial<DraftRecord>[] = [];
+        const newJobs: any[] = [];
         let currentTime = new Date(startDateTime);
 
         carsArray.forEach((car, index) => {
-            const template = bulkConfig.lang === 'RU'
-                ? DEFAULT_TEMPLATES[bulkConfig.template].ru
-                : DEFAULT_TEMPLATES[bulkConfig.template].ua;
-            const text = ContentGenerator.fromCarTemplate(car, template, bulkConfig.lang === 'RU' ? 'RU' : 'UK');
+            const tpl = allTemplates[bulkConfig.template] || DEFAULT_TEMPLATES.IN_STOCK;
+            const templateText = bulkConfig.lang === 'RU' ? (tpl.ru || tpl.ua) : (tpl.ua || tpl.ru);
 
-            newDrafts.push({
-                source: 'MANUAL',
+            newJobs.push({
                 title: car.title,
-                description: text,
-                url: car.thumbnail,
+                carId: car.canonicalId,
+                template: templateText,
                 destination: bulkConfig.destination,
                 scheduledAt: currentTime.toISOString(),
-                status: 'SCHEDULED',
+                publishNow: false,
+                mediaUrl: car.thumbnail,
                 botId: bots[0].id,
-                metadata: { carId: car.canonicalId, template: bulkConfig.template, lang: bulkConfig.lang }
+                lang: bulkConfig.lang,
+                createDraft: true
             });
 
             // Add interval for next post
             currentTime = new Date(currentTime.getTime() + bulkConfig.interval * 60 * 60 * 1000);
         });
 
-        const created = await Promise.all(newDrafts.map(d => DraftsService.createDraft(d)));
-        setDrafts([...created, ...drafts]);
+        const created = await Promise.all(newJobs.map(payload => PublicationService.createJob(payload)));
+        setJobs([...created, ...jobs]);
 
         setShowBulkScheduler(false);
         setSelectedCars(new Set());
-        showToast(`${newDrafts.length} posts scheduled!`, 'success');
+        showToast(`${newJobs.length} posts scheduled!`, 'success');
     };
 
-    const deletePost = async (id: number) => {
-        await DraftsService.deleteDraft(id);
-        const updated = drafts.filter(d => d.id !== id);
-        setDrafts(updated);
+    const deletePost = async (id: string) => {
+        await PublicationService.deleteJob(id);
+        const updated = jobs.filter(d => d.id !== id);
+        setJobs(updated);
         showToast('Post deleted', 'success');
     };
 
-    const saveTemplate = () => {
+    const saveTemplate = async () => {
         if (!editingTemplate || !editingTemplate.name) return;
 
-        const updated = {
-            ...customTemplates,
-            [editingTemplate.name.toLowerCase().replace(/\s/g, '_')]: editingTemplate
-        };
-        setCustomTemplates(updated);
-        localStorage.setItem('custom_templates', JSON.stringify(updated));
-        showToast('Template saved!', 'success');
-        setShowTemplateEditor(false);
-        setEditingTemplate(null);
+        const name = editingTemplate.name.trim();
+        const uaBody = editingTemplate.ua?.trim() || '';
+        const ruBody = editingTemplate.ru?.trim() || '';
+
+        try {
+            const existingUa = templates.find(t => t.name === name && (!t.language || t.language === 'UA'));
+            const existingRu = templates.find(t => t.name === name && t.language === 'RU');
+
+            const actions: Promise<any>[] = [];
+            if (uaBody) {
+                actions.push(existingUa
+                    ? PublicationService.updateTemplate(existingUa.id, { body: uaBody, language: 'UA' })
+                    : PublicationService.createTemplate({ name, body: uaBody, language: 'UA' }));
+            }
+            if (ruBody) {
+                actions.push(existingRu
+                    ? PublicationService.updateTemplate(existingRu.id, { body: ruBody, language: 'RU' })
+                    : PublicationService.createTemplate({ name, body: ruBody, language: 'RU' }));
+            }
+
+            await Promise.all(actions);
+            showToast('Template saved!', 'success');
+            setShowTemplateEditor(false);
+            setEditingTemplate(null);
+            loadData();
+        } catch (e: any) {
+            showToast(e.message || 'Failed to save template', 'error');
+        }
+    };
+
+    const addTemplateToken = (field: 'ua' | 'ru', token: string) => {
+        if (!editingTemplate) return;
+        const next = editingTemplate[field] ? `${editingTemplate[field]} ${token}` : token;
+        setEditingTemplate({ ...editingTemplate, [field]: next });
     };
 
     const allTemplates: Record<string, TemplateConfig> = { ...DEFAULT_TEMPLATES, ...customTemplates };
     const weekDays = getWeekDays();
-    const queueDrafts = [...drafts].sort((a, b) => {
-        const statusPriority: Record<DraftRecord['status'], number> = {
+    const queueJobs = [...jobs].sort((a, b) => {
+        const statusPriority: Record<string, number> = {
             SCHEDULED: 0,
-            DRAFT: 1,
+            QUEUED: 0,
+            RUNNING: 1,
             FAILED: 2,
             POSTED: 3
         };
@@ -275,7 +303,7 @@ export const ContentCalendarPage = () => {
                 }
             />
 
-            {drafts.length === 0 && (
+            {jobs.length === 0 && (
                 <div className="panel flex-1 flex items-center justify-center">
                     <EmptyState
                         icon={<CalendarIcon size={32} />}
@@ -377,19 +405,19 @@ export const ContentCalendarPage = () => {
                     {/* Stats */}
                     <div className="mt-4 grid grid-cols-4 gap-4 text-center text-xs">
                         <div className="bg-blue-500/10 p-3 rounded-lg">
-                            <div className="text-2xl font-bold text-blue-500">{drafts.filter(d => d.status === 'SCHEDULED').length}</div>
+                            <div className="text-2xl font-bold text-blue-500">{jobs.filter(d => d.status === 'SCHEDULED' || d.status === 'QUEUED').length}</div>
                             <div className="text-[var(--text-secondary)] mt-1">Scheduled</div>
                         </div>
                         <div className="bg-green-500/10 p-3 rounded-lg">
-                            <div className="text-2xl font-bold text-green-500">{drafts.filter(d => d.status === 'POSTED').length}</div>
+                            <div className="text-2xl font-bold text-green-500">{jobs.filter(d => d.status === 'POSTED').length}</div>
                             <div className="text-[var(--text-secondary)] mt-1">Posted</div>
                         </div>
                         <div className="bg-gray-500/10 p-3 rounded-lg">
-                            <div className="text-2xl font-bold text-gray-400">{drafts.filter(d => d.status === 'DRAFT').length}</div>
+                            <div className="text-2xl font-bold text-gray-400">{jobs.filter(d => d.status === 'RUNNING').length}</div>
                             <div className="text-[var(--text-secondary)] mt-1">Drafts</div>
                         </div>
                         <div className="bg-red-500/10 p-3 rounded-lg">
-                            <div className="text-2xl font-bold text-red-500">{drafts.filter(d => d.status === 'FAILED').length}</div>
+                            <div className="text-2xl font-bold text-red-500">{jobs.filter(d => d.status === 'FAILED').length}</div>
                             <div className="text-[var(--text-secondary)] mt-1">Failed</div>
                         </div>
                     </div>
@@ -480,51 +508,56 @@ export const ContentCalendarPage = () => {
             {viewMode === 'GRID' && (
                 <div className="panel flex-1 overflow-auto p-6">
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {queueDrafts.map(draft => {
-                            const carId = typeof draft.metadata === 'object' ? draft.metadata?.carId : undefined;
+                        {queueJobs.map(job => {
+                            const carId = typeof job.metadata === 'object' ? job.metadata?.carId : undefined;
                             const car = inventory.find(c => c.canonicalId === carId);
-                            const dest = destinations.find(d => d.identifier === draft.destination);
+                            const dest = destinations.find(d => d.identifier === job.destination);
 
                             return (
-                                <div key={draft.id} className="bg-[var(--bg-input)] rounded-xl border border-[var(--border-color)] p-4 flex flex-col gap-3">
-                                    {draft.url && (
-                                        <img src={draft.url} className="w-full h-32 object-cover rounded-lg" alt="" />
+                                <div key={job.id} className="bg-[var(--bg-input)] rounded-xl border border-[var(--border-color)] p-4 flex flex-col gap-3">
+                                    {job.mediaUrl && (
+                                        <img src={job.mediaUrl} className="w-full h-32 object-cover rounded-lg" alt="" />
                                     )}
                                     <div className="flex-1">
                                         <div className="text-xs font-mono text-[var(--text-secondary)] mb-2">
-                                            {car?.title || draft.title || 'Unknown Car'}
+                                            {car?.title || job.title || 'Unknown Post'}
                                         </div>
                                         <div className="text-xs text-[var(--text-muted)] line-clamp-3">
-                                            {draft.description}
+                                            {job.text}
                                         </div>
                                     </div>
                                     <div className="flex items-center justify-between text-xs">
                                         <div className="flex items-center gap-1 text-[var(--text-secondary)]">
                                             <Send size={12} />
-                                            {dest?.name || draft.destination}
+                                            {dest?.name || job.destination}
                                         </div>
-                                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${draft.status === 'POSTED' ? 'bg-green-500/20 text-green-500' :
-                                            draft.status === 'SCHEDULED' ? 'bg-blue-500/20 text-blue-500' :
-                                                draft.status === 'FAILED' ? 'bg-red-500/20 text-red-500' :
+                                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${job.status === 'POSTED' ? 'bg-green-500/20 text-green-500' :
+                                            job.status === 'FAILED' ? 'bg-red-500/20 text-red-500' :
+                                                job.status === 'SCHEDULED' ? 'bg-blue-500/20 text-blue-500' :
                                                     'bg-gray-500/20 text-gray-500'
                                             }`}>
-                                            {draft.status}
+                                            {job.status}
                                         </span>
                                     </div>
-                                    {draft.scheduledAt && (
+                                    {job.scheduledAt && (
                                         <div className="text-[10px] text-[var(--text-secondary)] flex items-center gap-1">
                                             <Clock size={10} />
-                                            {new Date(draft.scheduledAt).toLocaleString()}
+                                            {new Date(job.scheduledAt).toLocaleString()}
                                         </div>
                                     )}
-                                    {draft.postedAt && (
+                                    {job.postedAt && (
                                         <div className="text-[10px] text-[var(--text-secondary)] flex items-center gap-1">
                                             <Check size={10} />
-                                            {new Date(draft.postedAt).toLocaleString()}
+                                            {new Date(job.postedAt).toLocaleString()}
+                                        </div>
+                                    )}
+                                    {job.lastError && (
+                                        <div className="text-[10px] text-red-500/80 line-clamp-2">
+                                            {job.lastError}
                                         </div>
                                     )}
                                     <button
-                                        onClick={() => deletePost(draft.id)}
+                                        onClick={() => deletePost(job.id)}
                                         className="btn-ghost text-xs text-red-500 hover:bg-red-500/10 py-1"
                                     >
                                         Delete
@@ -743,6 +776,17 @@ export const ContentCalendarPage = () => {
                                 </div>
                                 <div>
                                     <label className="text-xs font-bold text-[var(--text-secondary)] uppercase block mb-2">Ukrainian Text (use {'{car}'} for car)</label>
+                                    <div className="flex flex-wrap gap-2 mb-2">
+                                        {['{title}', '{brand}', '{price}', '{year}', '{location}', '{link}', '{car}'].map(token => (
+                                            <button
+                                                key={`ua-${token}`}
+                                                onClick={() => addTemplateToken('ua', token)}
+                                                className="text-[10px] px-2 py-1 rounded bg-[var(--bg-input)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                                            >
+                                                {token}
+                                            </button>
+                                        ))}
+                                    </div>
                                     <textarea
                                         className="textarea h-32"
                                         value={editingTemplate.ua}
@@ -752,6 +796,17 @@ export const ContentCalendarPage = () => {
                                 </div>
                                 <div>
                                     <label className="text-xs font-bold text-[var(--text-secondary)] uppercase block mb-2">Russian Text</label>
+                                    <div className="flex flex-wrap gap-2 mb-2">
+                                        {['{title}', '{brand}', '{price}', '{year}', '{location}', '{link}', '{car}'].map(token => (
+                                            <button
+                                                key={`ru-${token}`}
+                                                onClick={() => addTemplateToken('ru', token)}
+                                                className="text-[10px] px-2 py-1 rounded bg-[var(--bg-input)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                                            >
+                                                {token}
+                                            </button>
+                                        ))}
+                                    </div>
                                     <textarea
                                         className="textarea h-32"
                                         value={editingTemplate.ru}

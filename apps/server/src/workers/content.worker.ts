@@ -1,6 +1,6 @@
 /**
  * Content Worker - Auto-publish scheduled posts
- * 
+ *
  * This worker runs every minute and checks for posts that need to be published.
  * It uses node-cron for scheduling and sends posts to configured channels.
  */
@@ -22,9 +22,6 @@ interface ScheduledPost {
 let isRunning = false;
 let cronTask: cron.ScheduledTask | null = null;
 
-/**
- * Send post to Telegram channel
- */
 /**
  * Send post to Telegram channel
  */
@@ -59,12 +56,12 @@ async function publishPost(post: ScheduledPost, botToken: string, companyId?: st
 }
 
 /**
- * Main worker function - checks and publishes due posts
+ * Process PublicationJobs (new pipeline)
  */
-async function processScheduledPosts(): Promise<void> {
+async function processPublicationJobs(): Promise<boolean> {
     if (isRunning) {
         logger.info('[ContentWorker] Already running, skipping...');
-        return;
+        return true;
     }
 
     isRunning = true;
@@ -72,105 +69,197 @@ async function processScheduledPosts(): Promise<void> {
     try {
         const now = new Date();
 
-        // Find posts scheduled for now or earlier that haven't been posted
-        const duePosts = await prisma.draft.findMany({
+        const dueJobs = await prisma.publicationJob.findMany({
             where: {
-                scheduledAt: {
-                    lte: now
-                },
-                postedAt: null,
-                status: 'SCHEDULED'
+                status: { in: ['SCHEDULED', 'QUEUED'] },
+                OR: [
+                    { scheduledAt: { lte: now } },
+                    { scheduledAt: null }
+                ]
             },
-            orderBy: {
-                scheduledAt: 'asc'
-            },
-            take: 10 // Process max 10 per run
+            orderBy: { scheduledAt: 'asc' },
+            take: 10,
+            include: { draft: true, bot: true }
         });
 
-        if (duePosts.length === 0) {
-            logger.info('[ContentWorker] No posts due');
-            return;
+        if (dueJobs.length === 0) {
+            logger.info('[ContentWorker] No publication jobs due');
+            return false;
         }
 
-        logger.info(`[ContentWorker] Found ${duePosts.length} posts to publish`);
+        logger.info(`[ContentWorker] Found ${dueJobs.length} publication jobs to publish`);
 
-        for (const draft of duePosts) {
+        for (const job of dueJobs) {
             try {
-                // Get bot token
-                const bot = await prisma.botConfig.findUnique({
-                    where: { id: draft.botId || '' }
+                await prisma.publicationJob.update({
+                    where: { id: job.id },
+                    data: { status: 'RUNNING', attempts: { increment: 1 } }
                 });
 
+                const bot = job.bot || (job.botId
+                    ? await prisma.botConfig.findUnique({ where: { id: job.botId } })
+                    : null);
+
                 if (!bot || !bot.token) {
-                    logger.error(`[ContentWorker] Bot not found for draft ${draft.id}`);
-                    await prisma.draft.update({
-                        where: { id: draft.id },
-                        data: {
-                            status: 'FAILED',
-                            metadata: { error: 'Bot not found' }
-                        }
+                    const errMsg = 'Bot not found';
+                    logger.error(`[ContentWorker] ${errMsg} for job ${job.id}`);
+                    await prisma.publicationJob.update({
+                        where: { id: job.id },
+                        data: { status: 'FAILED', lastError: errMsg }
                     });
+                    await prisma.publicationResult.create({
+                        data: { jobId: job.id, status: 'FAILED', error: errMsg }
+                    });
+                    if (job.draftId) {
+                        await prisma.draft.update({
+                            where: { id: job.draftId },
+                            data: { status: 'FAILED', metadata: { error: errMsg } }
+                        });
+                    }
                     continue;
                 }
 
-                // Publish
+                const draft = job.draft || (job.draftId ? await prisma.draft.findUnique({ where: { id: job.draftId } }) : null);
+                const text = job.text || draft?.description || draft?.title || '';
+                const imageUrl = job.mediaUrl || draft?.url || undefined;
+
+                if (!text || !job.destination) {
+                    const errMsg = 'Missing text or destination';
+                    logger.error(`[ContentWorker] ${errMsg} for job ${job.id}`);
+                    await prisma.publicationJob.update({
+                        where: { id: job.id },
+                        data: { status: 'FAILED', lastError: errMsg }
+                    });
+                    await prisma.publicationResult.create({
+                        data: { jobId: job.id, status: 'FAILED', error: errMsg }
+                    });
+                    if (job.draftId) {
+                        await prisma.draft.update({
+                            where: { id: job.draftId },
+                            data: { status: 'FAILED', metadata: { error: errMsg } }
+                        });
+                    }
+                    continue;
+                }
+
                 const result = await publishPost({
-                    id: String(draft.id),  // Convert number to string
-                    text: draft.description || draft.title,  // Use description as content
-                    imageUrl: draft.url || undefined,  // Use url as image
-                    destination: draft.destination || '',
-                    scheduledAt: draft.scheduledAt!,
-                    botId: draft.botId || ''
+                    id: String(job.id),
+                    text,
+                    imageUrl,
+                    destination: job.destination,
+                    scheduledAt: job.scheduledAt || new Date(),
+                    botId: bot.id
                 }, bot.token, bot.companyId || null);
 
                 const messageId = result?.message_id || result?.result?.message_id;
+                const postedAt = new Date();
 
-                // Mark as posted
-                await prisma.draft.update({
-                    where: { id: draft.id },
+                await prisma.publicationJob.update({
+                    where: { id: job.id },
+                    data: { status: 'POSTED', postedAt }
+                });
+
+                await prisma.publicationResult.create({
                     data: {
-                        status: 'POSTED',
-                        postedAt: new Date()
+                        jobId: job.id,
+                        status: 'SUCCESS',
+                        messageId: messageId ? Number(messageId) : null,
+                        payload: result
                     }
                 });
 
-                // Create ChannelPost for analytics/tracking
-                if (messageId && draft.destination) {
+                if (job.draftId) {
+                    await prisma.draft.update({
+                        where: { id: job.draftId },
+                        data: { status: 'POSTED', postedAt }
+                    });
+                }
+
+                if (messageId && job.destination) {
                     await prisma.channelPost.create({
                         data: {
-                            draftId: draft.id, // Linked to the draft
-                            channelId: draft.destination,
+                            draftId: job.draftId || undefined,
+                            channelId: job.destination,
                             messageId: Number(messageId),
                             botId: bot.id,
                             status: 'ACTIVE',
-                            payload: result // Store full telegram response
+                            payload: result
                         }
                     });
                 }
 
-                logger.info(`[ContentWorker] ✅ Successfully published ${draft.id}`);
-
-                // Rate limiting - wait 1 second between posts
+                logger.info(`[ContentWorker] ✅ Successfully published job ${job.id}`);
                 await new Promise(r => setTimeout(r, 1000));
 
             } catch (e: any) {
-                logger.error(`[ContentWorker] Error publishing ${draft.id}:`, e);
+                logger.error(`[ContentWorker] Error publishing job ${job.id}:`, e);
 
-                await prisma.draft.update({
-                    where: { id: draft.id },
-                    data: {
-                        status: 'FAILED',
-                        metadata: { error: e.message, failedAt: new Date().toISOString() }
-                    }
+                await prisma.publicationJob.update({
+                    where: { id: job.id },
+                    data: { status: 'FAILED', lastError: e.message }
                 });
+                await prisma.publicationResult.create({
+                    data: { jobId: job.id, status: 'FAILED', error: e.message }
+                });
+                if (job.draftId) {
+                    await prisma.draft.update({
+                        where: { id: job.draftId },
+                        data: { status: 'FAILED', metadata: { error: e.message, failedAt: new Date().toISOString() } }
+                    });
+                }
             }
         }
 
+        return true;
     } catch (e) {
         logger.error('[ContentWorker] Critical error:', e);
+        return true;
     } finally {
         isRunning = false;
     }
+}
+
+/**
+ * Legacy Draft fallback (backfill PublicationJob)
+ */
+async function processLegacyDrafts(): Promise<boolean> {
+    const now = new Date();
+    const dueDrafts = await prisma.draft.findMany({
+        where: {
+            scheduledAt: { lte: now },
+            postedAt: null,
+            status: 'SCHEDULED',
+            publicationJobs: { none: {} }
+        },
+        orderBy: { scheduledAt: 'asc' },
+        take: 10
+    });
+
+    if (dueDrafts.length === 0) {
+        logger.info('[ContentWorker] No legacy drafts due');
+        return false;
+    }
+
+    logger.info(`[ContentWorker] Found ${dueDrafts.length} legacy drafts to backfill`);
+
+    for (const draft of dueDrafts) {
+        await prisma.publicationJob.create({
+            data: {
+                companyId: null,
+                draftId: draft.id,
+                botId: draft.botId,
+                title: draft.title,
+                text: draft.description || draft.title,
+                mediaUrl: draft.url || undefined,
+                destination: draft.destination || '',
+                status: 'SCHEDULED',
+                scheduledAt: draft.scheduledAt || new Date(),
+                metadata: { legacyDraft: true }
+            }
+        });
+    }
+
+    return true;
 }
 
 /**
@@ -182,16 +271,23 @@ export function startContentWorker(): void {
         return;
     }
 
-    // Run every minute
     cronTask = cron.schedule('* * * * *', async () => {
         logger.info('[ContentWorker] Checking for scheduled posts...');
-        await processScheduledPosts();
+        const processed = await processPublicationJobs();
+        if (!processed) {
+            const backfilled = await processLegacyDrafts();
+            if (backfilled) await processPublicationJobs();
+        }
     });
 
     logger.info('[ContentWorker] 🚀 Started (runs every minute)');
 
-    // Run immediately on start
-    processScheduledPosts();
+    processPublicationJobs().then(async processed => {
+        if (!processed) {
+            const backfilled = await processLegacyDrafts();
+            if (backfilled) await processPublicationJobs();
+        }
+    });
 }
 
 /**

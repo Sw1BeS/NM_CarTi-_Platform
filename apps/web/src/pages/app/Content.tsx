@@ -2,8 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import DOMPurify from 'dompurify';
 import { Data } from '../../services/data';
-import { ApiClient } from '../../services/apiClient';
-import { DraftsService, DraftRecord } from '../../services/draftsService';
+import { PublicationService, PublicationJob, ContentTemplate } from '../../services/publicationService';
 import { CarListing, TelegramDestination, Bot } from '../../types';
 import { useToast } from '../../contexts/ToastContext';
 import { Send, Image as ImageIcon, Calendar, Eye, X, Check, Plus, Search, Filter, Save } from 'lucide-react';
@@ -29,12 +28,14 @@ export const ContentPage = () => {
     const [inventory, setInventory] = useState<CarListing[]>([]);
     const [destinations, setDestinations] = useState<TelegramDestination[]>([]);
     const [bots, setBots] = useState<Bot[]>([]);
-    const [drafts, setDrafts] = useState<DraftRecord[]>([]);
-    const [savedTemplates, setSavedTemplates] = useState<any[]>([]);
+    const [jobs, setJobs] = useState<PublicationJob[]>([]);
+    const [templates, setTemplates] = useState<ContentTemplate[]>([]);
     const [isCreating, setIsCreating] = useState(false);
     const [selectedCar, setSelectedCar] = useState<CarListing | null>(null);
     const [template, setTemplate] = useState<PostTemplate>('IN_STOCK');
     const [customText, setCustomText] = useState('');
+    const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
+    const [previewText, setPreviewText] = useState('');
     const [selectedDest, setSelectedDest] = useState('');
     const [scheduleDate, setScheduleDate] = useState('');
     const [postLang, setPostLang] = useState<'UA' | 'RU'>('UA');
@@ -46,18 +47,24 @@ export const ContentPage = () => {
     }, []);
 
     const loadData = async () => {
-        const [inv, dests, botList, draftList, tpls] = await Promise.all([
+        const [inv, dests, botList, jobList, tplList] = await Promise.all([
             Data.getInventory(),
             Data.getDestinations(),
             Data.getBots(),
-            DraftsService.getDrafts(),
-            Data.listEntities<any>('post_template').catch(() => [])
+            PublicationService.listJobs(),
+            PublicationService.listTemplates().catch(() => [])
         ]);
         setInventory(inv.filter(c => c.status === 'AVAILABLE'));
         setDestinations(dests.filter(d => d.type === 'CHANNEL'));
         setBots(botList.filter(b => b.active));
-        setDrafts(draftList);
-        setSavedTemplates(tpls);
+        setJobs(jobList);
+        setTemplates(tplList);
+    };
+
+    const getTemplateText = () => {
+        if (template === 'CUSTOM') return customText;
+        const tpl = postLang === 'RU' ? TEMPLATES[template].ru : TEMPLATES[template].ua;
+        return tpl;
     };
 
     const generatePreview = () => {
@@ -72,6 +79,28 @@ export const ContentPage = () => {
         return ContentGenerator.fromCarTemplate(selectedCar, tpl, lang);
     };
 
+    useEffect(() => {
+        const templateText = getTemplateText();
+        if (!selectedCar || !templateText) {
+            setPreviewText('');
+            return;
+        }
+        const timer = setTimeout(async () => {
+            try {
+                const preview = await PublicationService.previewTemplate({
+                    templateId: selectedTemplateId || undefined,
+                    template: selectedTemplateId ? undefined : templateText,
+                    carId: selectedCar.canonicalId,
+                    lang: postLang === 'RU' ? 'RU' : 'UK'
+                });
+                setPreviewText(preview.text);
+            } catch (e) {
+                setPreviewText(generatePreview());
+            }
+        }, 250);
+        return () => clearTimeout(timer);
+    }, [selectedCar, template, customText, postLang, selectedTemplateId]);
+
     const createDraft = async () => {
         if (!selectedCar || !selectedDest) {
             showToast('Select car and destination', 'error');
@@ -85,19 +114,22 @@ export const ContentPage = () => {
         }
 
         const scheduledAt = scheduleDate ? new Date(scheduleDate).toISOString() : undefined;
-        const created = await DraftsService.createDraft({
-            source: 'MANUAL',
+        const templateText = getTemplateText();
+        const created = await PublicationService.createJob({
             title: selectedCar.title,
-            description: generatePreview(),
-            url: selectedCar.thumbnail,
+            carId: selectedCar.canonicalId,
+            templateId: selectedTemplateId || undefined,
+            template: selectedTemplateId ? undefined : templateText,
             destination: selectedDest,
-            scheduledAt: scheduledAt,
-            status: scheduleDate ? 'SCHEDULED' : 'DRAFT',
+            scheduledAt,
+            publishNow: false,
+            mediaUrl: selectedCar.thumbnail,
             botId: bot.id,
-            metadata: { carId: selectedCar.canonicalId, template, lang: postLang }
+            lang: postLang,
+            createDraft: true
         });
 
-        setDrafts([created, ...drafts]);
+        setJobs([created, ...jobs]);
         showToast(`Draft created${scheduleDate ? ' and scheduled' : ''}`, 'success');
         setIsCreating(false);
         resetForm();
@@ -110,29 +142,21 @@ export const ContentPage = () => {
         }
 
         const bot = bots[0]; // Use first active bot
-        const text = generatePreview();
-
         try {
-            const res = await ApiClient.post('messages/send', {
-                chatId: selectedDest,
-                text,
-                imageUrl: selectedCar.thumbnail || undefined,
-                botId: bot.id
-            });
-            if (!res.ok) throw new Error(res.message);
-
-            const created = await DraftsService.createDraft({
-                source: 'MANUAL',
+            const templateText = getTemplateText();
+            const created = await PublicationService.createJob({
                 title: selectedCar.title,
-                description: text,
-                url: selectedCar.thumbnail,
+                carId: selectedCar.canonicalId,
+                templateId: selectedTemplateId || undefined,
+                template: selectedTemplateId ? undefined : templateText,
                 destination: selectedDest,
-                status: 'POSTED',
-                postedAt: new Date().toISOString(),
+                publishNow: true,
+                mediaUrl: selectedCar.thumbnail,
                 botId: bot.id,
-                metadata: { carId: selectedCar.canonicalId, template, lang: postLang }
+                lang: postLang,
+                createDraft: true
             });
-            setDrafts([created, ...drafts]);
+            setJobs([created, ...jobs]);
             showToast('Posted to channel!', 'success');
             setIsCreating(false);
             resetForm();
@@ -141,17 +165,19 @@ export const ContentPage = () => {
         }
     };
 
-    const deleteDraft = async (id: number) => {
-        await DraftsService.deleteDraft(id);
-        const updated = drafts.filter(d => d.id !== id);
-        setDrafts(updated);
-        showToast('Draft deleted', 'success');
+    const deleteJob = async (id: string) => {
+        await PublicationService.deleteJob(id);
+        const updated = jobs.filter(j => j.id !== id);
+        setJobs(updated);
+        showToast('Post removed', 'success');
     };
 
     const resetForm = () => {
         setSelectedCar(null);
         setTemplate('IN_STOCK');
         setCustomText('');
+        setSelectedTemplateId(null);
+        setPreviewText('');
         setSelectedDest('');
         setScheduleDate('');
         setPostLang('UA');
@@ -165,11 +191,10 @@ export const ContentPage = () => {
         const name = prompt("Template Name:");
         if (!name) return;
         try {
-            await Data.saveEntity('post_template', {
-                id: `tpl_${Date.now()}`,
+            await PublicationService.createTemplate({
                 name,
-                content: customText,
-                lang: postLang
+                body: customText,
+                language: postLang
             });
             showToast("Template Saved");
             loadData();
@@ -178,9 +203,10 @@ export const ContentPage = () => {
         }
     };
 
-    const loadTemplate = (tpl: any) => {
-        setCustomText(tpl.content);
-        setPostLang(tpl.lang || 'UA');
+    const loadTemplate = (tpl: ContentTemplate) => {
+        setCustomText(tpl.body || '');
+        setPostLang((tpl.language as any) || 'UA');
+        setSelectedTemplateId(tpl.id);
         setTemplate('CUSTOM');
         showToast(`Loaded: ${tpl.name}`);
     };
@@ -208,58 +234,78 @@ export const ContentPage = () => {
             <div className="panel flex-1 overflow-hidden p-6">
                 <h3 className="font-bold text-[var(--text-primary)] mb-4">Drafts & Scheduled</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 overflow-y-auto max-h-[calc(100%-2rem)]">
-                    {drafts.map(draft => {
-                        const carId = typeof draft.metadata === 'object' ? draft.metadata?.carId : undefined;
+                    {jobs.map(job => {
+                        const carId = typeof job.metadata === 'object' ? job.metadata?.carId : undefined;
                         const car = inventory.find(c => c.canonicalId === carId);
-                        const dest = destinations.find(d => d.identifier === draft.destination);
+                        const dest = destinations.find(d => d.identifier === job.destination);
 
                         return (
-                            <div key={draft.id} className="bg-[var(--bg-input)] rounded-xl border border-[var(--border-color)] p-4 flex flex-col gap-3">
-                                {draft.url && (
-                                    <img src={draft.url} className="w-full h-32 object-cover rounded-lg" alt="" />
+                            <div key={job.id} className="bg-[var(--bg-input)] rounded-xl border border-[var(--border-color)] p-4 flex flex-col gap-3">
+                                {job.mediaUrl && (
+                                    <img src={job.mediaUrl} className="w-full h-32 object-cover rounded-lg" alt="" />
                                 )}
                                 <div className="flex-1">
                                     <div className="text-xs font-mono text-[var(--text-secondary)] mb-2">
-                                        {car?.title || draft.title || 'Unknown Car'}
+                                        {car?.title || job.title || 'Unknown Post'}
                                     </div>
                                     <div className="text-xs text-[var(--text-muted)] line-clamp-3">
-                                        {draft.description}
+                                        {job.text}
                                     </div>
                                 </div>
                                 <div className="flex items-center justify-between text-xs">
                                     <div className="flex items-center gap-1 text-[var(--text-secondary)]">
                                         <Send size={12} />
-                                        {dest?.name || draft.destination}
+                                        {dest?.name || job.destination}
                                     </div>
-                                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${draft.status === 'POSTED' ? 'bg-green-500/20 text-green-500' :
-                                        draft.status === 'SCHEDULED' ? 'bg-blue-500/20 text-blue-500' :
-                                            'bg-gray-500/20 text-gray-500'
+                                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${job.status === 'POSTED' ? 'bg-green-500/20 text-green-500' :
+                                        job.status === 'FAILED' ? 'bg-red-500/20 text-red-500' :
+                                            job.status === 'SCHEDULED' ? 'bg-blue-500/20 text-blue-500' :
+                                                'bg-gray-500/20 text-gray-500'
                                         }`}>
-                                        {draft.status}
+                                        {job.status}
                                     </span>
                                 </div>
-                                {draft.scheduledAt && (
+                                {job.scheduledAt && (
                                     <div className="text-[10px] text-[var(--text-secondary)] flex items-center gap-1">
                                         <Calendar size={10} />
-                                        {new Date(draft.scheduledAt).toLocaleString()}
+                                        {new Date(job.scheduledAt).toLocaleString()}
                                     </div>
                                 )}
-                                {draft.postedAt && (
+                                {job.postedAt && (
                                     <div className="text-[10px] text-[var(--text-secondary)] flex items-center gap-1">
                                         <Check size={10} />
-                                        {new Date(draft.postedAt).toLocaleString()}
+                                        {new Date(job.postedAt).toLocaleString()}
                                     </div>
                                 )}
-                                <button
-                                    onClick={() => deleteDraft(draft.id)}
-                                    className="btn-ghost text-xs text-red-500 hover:bg-red-500/10 py-1"
-                                >
-                                    Delete
-                                </button>
+                                {job.lastError && (
+                                    <div className="text-[10px] text-red-500/80 line-clamp-2">
+                                        {job.lastError}
+                                    </div>
+                                )}
+                                <div className="flex gap-2">
+                                    {job.status === 'FAILED' && (
+                                        <button
+                                            onClick={async () => {
+                                                const updated = await PublicationService.retryJob(job.id);
+                                                setJobs(prev => prev.map(j => j.id === job.id ? updated : j));
+                                                showToast('Retry queued', 'success');
+                                            }}
+                                            className="btn-secondary text-xs flex-1"
+                                        >
+                                            Retry
+                                        </button>
+                                    )}
+                                    <button
+                                        onClick={() => deleteJob(job.id)}
+                                        className="btn-ghost text-xs text-red-500 hover:bg-red-500/10 py-1 flex-1"
+                                    >
+                                        Delete
+                                    </button>
+                                </div>
                             </div>
                         );
                     })}
-                    {drafts.length === 0 && (
+                    {jobs.length === 0 && (
                         <div className="col-span-full">
                             <EmptyState
                                 icon={<ImageIcon size={32} />}
@@ -323,7 +369,7 @@ export const ContentPage = () => {
                                     </label>
                                     <div className="grid grid-cols-3 gap-2">
                                         <button
-                                            onClick={() => setTemplate('IN_STOCK')}
+                                            onClick={() => { setTemplate('IN_STOCK'); setSelectedTemplateId(null); }}
                                             className={`py-2 px-3 rounded text-xs font-bold transition-colors ${template === 'IN_STOCK'
                                                 ? 'bg-gold-500 text-black'
                                                 : 'bg-[var(--bg-input)] text-[var(--text-secondary)]'
@@ -332,7 +378,7 @@ export const ContentPage = () => {
                                             ✅ In Stock
                                         </button>
                                         <button
-                                            onClick={() => setTemplate('IN_TRANSIT')}
+                                            onClick={() => { setTemplate('IN_TRANSIT'); setSelectedTemplateId(null); }}
                                             className={`py-2 px-3 rounded text-xs font-bold transition-colors ${template === 'IN_TRANSIT'
                                                 ? 'bg-gold-500 text-black'
                                                 : 'bg-[var(--bg-input)] text-[var(--text-secondary)]'
@@ -341,7 +387,7 @@ export const ContentPage = () => {
                                             📦 In Transit
                                         </button>
                                         <button
-                                            onClick={() => setTemplate('CUSTOM')}
+                                            onClick={() => { setTemplate('CUSTOM'); setSelectedTemplateId(null); }}
                                             className={`py-2 px-3 rounded text-xs font-bold transition-colors ${template === 'CUSTOM'
                                                 ? 'bg-gold-500 text-black'
                                                 : 'bg-[var(--bg-input)] text-[var(--text-secondary)]'
@@ -387,26 +433,44 @@ export const ContentPage = () => {
                                             </button>
                                         </label>
 
-                                        {savedTemplates.length > 0 && (
+                                        {templates.length > 0 && (
                                             <select
                                                 className="input text-xs mb-2 py-1.5"
                                                 onChange={e => {
-                                                    const t = savedTemplates.find(x => x.id === e.target.value);
+                                                    const t = templates.find(x => x.id === e.target.value);
                                                     if (t) loadTemplate(t);
                                                 }}
                                                 value=""
                                             >
                                                 <option value="" disabled>Load Saved Template...</option>
-                                                {savedTemplates.map(t => (
-                                                    <option key={t.id} value={t.id}>{t.name} ({t.lang})</option>
+                                                {templates.map(t => (
+                                                    <option key={t.id} value={t.id}>{t.name} ({t.language || 'UA'})</option>
                                                 ))}
                                             </select>
                                         )}
 
+                                        <div className="flex flex-wrap gap-2 mb-2">
+                                            {['{title}', '{brand}', '{price}', '{year}', '{location}', '{link}', '{mileage}', '{specs}', '{hashtags}', '{car}'].map(token => (
+                                                <button
+                                                    key={token}
+                                                    onClick={() => {
+                                                        setSelectedTemplateId(null);
+                                                        setCustomText(prev => (prev ? `${prev} ${token}` : token));
+                                                    }}
+                                                    className="text-[10px] px-2 py-1 rounded bg-[var(--bg-input)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                                                >
+                                                    {token}
+                                                </button>
+                                            ))}
+                                        </div>
+
                                         <TelegramEditor
                                             placeholder="Write your post here... Use {title}, {price}, {hashtags}"
                                             initialValue={customText}
-                                            onChange={(html, markdown) => setCustomText(markdown)}
+                                            onChange={(html, markdown) => {
+                                                setSelectedTemplateId(null);
+                                                setCustomText(markdown);
+                                            }}
                                         />
                                     </div>
                                 )}
@@ -457,7 +521,7 @@ export const ContentPage = () => {
                                     )}
                                     <div
                                         className="text-sm text-[var(--text-primary)] whitespace-pre-wrap"
-                                        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(generatePreview().replace(/\n/g, '<br/>')) }}
+                                        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize((previewText || generatePreview()).replace(/\n/g, '<br/>')) }}
                                     />
                                 </div>
                             </div>

@@ -214,6 +214,7 @@ model BotConfig {
   campaigns       Campaign[]
   leads           Lead[]
   channelPosts    ChannelPost[]
+  publicationJobs PublicationJob[]
   platformEvents  PlatformEvent[]
   telegramUpdates TelegramUpdate[]
   messages        BotMessage[]
@@ -368,10 +369,80 @@ model Draft {
   updatedAt DateTime @updatedAt
 
   channelPosts ChannelPost[]
+  publicationJobs PublicationJob[]
 
   @@index([scheduledAt, status])
   @@index([postedAt])
   @@unique([sourceChatId, sourceMessageId])
+}
+
+model Template {
+  id        String   @id @default(cuid())
+  name      String
+  body      String
+  language  String? // UA | RU | EN (optional)
+  status    String   @default("ACTIVE") // ACTIVE, ARCHIVED
+  companyId String?
+  workspace Workspace? @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  variables Json?    @db.JsonB
+
+  publicationJobs PublicationJob[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([status])
+}
+
+model PublicationJob {
+  id          String   @id @default(cuid())
+  companyId   String?
+  workspace   Workspace? @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  draftId     Int?
+  draft       Draft?   @relation(fields: [draftId], references: [id], onDelete: SetNull)
+
+  templateId  String?
+  template    Template? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+
+  botId       String?
+  bot         BotConfig? @relation(fields: [botId], references: [id], onDelete: SetNull)
+
+  title       String?
+  text        String
+  mediaUrl    String?
+  destination String
+
+  status      String   @default("SCHEDULED") // SCHEDULED, QUEUED, RUNNING, POSTED, FAILED
+  scheduledAt DateTime?
+  postedAt    DateTime?
+  attempts    Int      @default(0)
+  lastError   String?
+  metadata    Json?    @db.JsonB
+
+  results PublicationResult[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([status])
+  @@index([scheduledAt])
+}
+
+model PublicationResult {
+  id        String   @id @default(cuid())
+  jobId     String
+  job       PublicationJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  status    String   @default("SUCCESS") // SUCCESS, FAILED
+  messageId Int?
+  payload   Json?    @db.JsonB
+  error     String?
+  createdAt DateTime @default(now())
+
+  @@index([jobId])
+  @@index([status])
 }
 
 model CarListing {
@@ -820,6 +891,8 @@ model Workspace {
   bots                 BotConfig[]
   scenarios            Scenario[]
   templates            CompanyTemplate[]
+  contentTemplates     Template[]
+  publicationJobs      PublicationJob[]
   integrations         Integration[]
   partnerCompanies     PartnerCompany[]
   partnerUsers         PartnerUser[]
