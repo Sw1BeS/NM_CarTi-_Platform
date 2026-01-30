@@ -1,13 +1,20 @@
-import { describe, it, expect, vi } from 'vitest';
-import { routeChannelPost } from '../routeChannelPost.js';
+import { describe, it, expect, vi, beforeAll } from 'vitest';
 
-vi.mock('../../../../services/prisma.js', () => ({
-  prisma: {
-    draft: {
-      create: vi.fn().mockResolvedValue({})
-    }
-  }
-}));
+let routeChannelPost: any;
+
+beforeAll(async () => {
+  vi.resetModules();
+  const mod = await import('../routeChannelPost.js');
+  routeChannelPost = mod.routeChannelPost;
+
+  const serviceMod = await import('../../../../../services/channel-ingestion.service.ts');
+  vi.spyOn(serviceMod.channelIngestionService, 'normalizeMessage').mockImplementation((input: any) => ({
+    ...input,
+    text: input.text || '',
+    mediaUrls: input.mediaUrls || []
+  }));
+  vi.spyOn(serviceMod.channelIngestionService, 'upsertCarListingOrDraft').mockResolvedValue({ created: true, entity: 'DRAFT' } as any);
+});
 
 describe('routeChannelPost', () => {
   it('should parse car post and create draft', async () => {

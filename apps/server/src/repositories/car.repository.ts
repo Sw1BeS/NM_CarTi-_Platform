@@ -46,6 +46,55 @@ export class CarRepository extends BaseRepository<CarListing> {
         });
     }
 
+    async createFromChannelMessage(data: {
+        source: string;
+        sourceUrl?: string;
+        title: string;
+        price: number;
+        currency?: string;
+        year: number;
+        mileage: number;
+        location?: string | null;
+        thumbnail?: string | null;
+        mediaUrls?: string[];
+        specs?: any;
+        description?: string | null;
+        status?: string;
+        companyId?: string | null;
+        sourceChatId: string;
+        sourceMessageId: number;
+        mediaGroupKey?: string | null;
+        originalRaw?: any;
+        postedAt?: Date;
+    }): Promise<CarListing> {
+        const carId = `car_${generateULID()}`;
+
+        return this.prisma.carListing.create({
+            data: {
+                id: carId,
+                source: data.source,
+                sourceUrl: data.sourceUrl,
+                title: data.title,
+                price: data.price,
+                currency: data.currency || 'USD',
+                year: data.year,
+                mileage: data.mileage,
+                location: data.location || undefined,
+                thumbnail: data.thumbnail || undefined,
+                mediaUrls: data.mediaUrls || [],
+                specs: data.specs,
+                description: data.description || undefined,
+                status: data.status || 'AVAILABLE',
+                companyId: data.companyId || undefined,
+                sourceChatId: data.sourceChatId,
+                sourceMessageId: data.sourceMessageId,
+                mediaGroupKey: data.mediaGroupKey || undefined,
+                originalRaw: data.originalRaw,
+                postedAt: data.postedAt || new Date()
+            }
+        });
+    }
+
     async findCars(filters: {
         companyId?: string;
         status?: string;
