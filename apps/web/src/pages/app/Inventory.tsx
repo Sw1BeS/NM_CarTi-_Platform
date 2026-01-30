@@ -39,6 +39,15 @@ export const InventoryPage = () => {
     const { showToast } = useToast();
     const navigate = useNavigate();
 
+    const getCarImages = (car: CarListing) => {
+        const itemUrls = (car.mediaItems || [])
+            .map(item => item.url || item.previewUrl)
+            .filter(Boolean) as string[];
+        const baseUrls = itemUrls.length ? itemUrls : (car.mediaUrls || []);
+        const combined = car.thumbnail ? [car.thumbnail, ...baseUrls] : baseUrls;
+        return Array.from(new Set(combined.filter(Boolean)));
+    };
+
     useEffect(() => {
         loadData();
     }, [page, search, statusFilter]);
@@ -205,7 +214,11 @@ export const InventoryPage = () => {
                 {loading && <div className="absolute inset-0 z-10 bg-[var(--bg-surface)]/50 backdrop-blur-[1px] flex items-center justify-center text-[var(--text-secondary)]">Loading...</div>}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8 content-start pb-8">
-                    {cars.map(car => (
+                    {cars.map(car => {
+                        const images = getCarImages(car);
+                        const coverImage = images[0] || car.thumbnail || '';
+
+                        return (
                         <div key={car.canonicalId} className={`panel p-0 overflow-hidden group hover:border-gold-500/30 transition-all flex flex-col relative ${selectedIds.has(car.canonicalId) ? 'ring-1 ring-gold-500 border-gold-500' : ''}`}>
 
                             <div onClick={() => toggleSelection(car.canonicalId)} className="absolute top-4 left-4 z-10 cursor-pointer p-2 rounded-lg bg-black/20 backdrop-blur-md hover:bg-black/40 transition-colors">
@@ -213,7 +226,23 @@ export const InventoryPage = () => {
                             </div>
 
                             <div className="relative h-56 bg-[var(--bg-input)]">
-                                <img src={car.thumbnail} className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity" alt={car.title} />
+                                {coverImage ? (
+                                    <img src={coverImage} className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity" alt={car.title} />
+                                ) : (
+                                    <div className="w-full h-full flex items-center justify-center text-[var(--text-muted)] text-xs">No photo</div>
+                                )}
+                                {images.length > 1 && (
+                                    <div className="absolute bottom-3 right-3 flex gap-1 bg-black/50 p-1 rounded-lg">
+                                        {images.slice(0, 4).map((url, idx) => (
+                                            <img key={`${car.canonicalId}-thumb-${idx}`} src={url} className="w-8 h-8 object-cover rounded" alt="" />
+                                        ))}
+                                        {images.length > 4 && (
+                                            <div className="w-8 h-8 rounded bg-black/60 text-white text-[10px] flex items-center justify-center">
+                                                +{images.length - 4}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                                 <div className="absolute top-4 right-4 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                     <button onClick={() => openEdit(car)} className="p-2 bg-white/90 backdrop-blur rounded-lg text-black hover:text-gold-500 shadow-sm"><Edit2 size={16} /></button>
                                 </div>
@@ -253,7 +282,8 @@ export const InventoryPage = () => {
                                 </button>
                             </div>
                         </div>
-                    ))}
+                    );
+                    })}
 
                     {cars.length === 0 && !loading && (
                         <div className="col-span-4 text-center py-12 text-[var(--text-secondary)]">

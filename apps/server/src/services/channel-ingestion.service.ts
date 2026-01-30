@@ -12,6 +12,7 @@ export interface NormalizedChannelMessage {
     text: string;
     date: Date;
     mediaUrls: string[];
+    mediaItems?: any[];
     mediaGroupKey?: string;
     channelTitle?: string;
     sourceUrl?: string;
@@ -44,6 +45,7 @@ export class ChannelIngestionService {
     normalizeMessage(input: Omit<NormalizedChannelMessage, 'text' | 'mediaUrls' | 'sourceType'> & {
         text?: string | null;
         mediaUrls?: string[];
+        mediaItems?: any[];
         sourceType: 'MTPROTO' | 'BOTAPI';
     }): NormalizedChannelMessage {
         return {
@@ -52,6 +54,7 @@ export class ChannelIngestionService {
             text: String(input.text || ''),
             date: input.date,
             mediaUrls: input.mediaUrls || [],
+            mediaItems: input.mediaItems || [],
             mediaGroupKey: input.mediaGroupKey,
             channelTitle: input.channelTitle,
             sourceUrl: input.sourceUrl,
@@ -77,10 +80,14 @@ export class ChannelIngestionService {
     }
 
     attachMediaRefs(message: NormalizedChannelMessage) {
-        const mediaUrls = message.mediaUrls || [];
+        const mediaItems = (message.mediaItems && message.mediaItems.length)
+            ? message.mediaItems
+            : (message.mediaUrls || []).map((url) => ({ url }));
+        const mediaUrls = mediaItems.map((item: any) => item.url || item.previewUrl).filter(Boolean);
         return {
             thumbnail: mediaUrls.length ? mediaUrls[0] : undefined,
-            mediaUrls
+            mediaUrls,
+            mediaItems
         };
     }
 
@@ -125,11 +132,36 @@ export class ChannelIngestionService {
                 metadata: {
                     channelTitle: message.channelTitle,
                     channelSourceId: channelSource?.id,
-                    sourceType: message.sourceType
+                    sourceType: message.sourceType,
+                    mediaItems: message.mediaItems || []
                 }
             });
 
             return { created: true, entity: 'DRAFT' };
+        }
+
+        if (message.mediaGroupKey) {
+            const existingGroup = await prisma.carListing.findFirst({
+                where: {
+                    sourceChatId: message.chatId,
+                    mediaGroupKey: message.mediaGroupKey
+                }
+            });
+            if (existingGroup) {
+                const media = this.attachMediaRefs(message);
+                const mergedUrls = Array.from(new Set([...(existingGroup.mediaUrls || []), ...media.mediaUrls]));
+                const existingItems = Array.isArray((existingGroup as any).mediaItems) ? (existingGroup as any).mediaItems : [];
+                const mergedItems = Array.from(new Map(
+                    [...existingItems, ...(media.mediaItems || [])].map((item: any) => [item.url || item.previewUrl || JSON.stringify(item), item])
+                ).values());
+
+                await carRepo.updateCar(existingGroup.id, {
+                    mediaUrls: mergedUrls,
+                    mediaItems: mergedItems
+                });
+
+                return { created: false, entity: 'CAR', reason: 'MEDIA_GROUP_APPEND' };
+            }
         }
 
         const existing = await prisma.carListing.findFirst({
@@ -169,6 +201,7 @@ export class ChannelIngestionService {
             location: transformedData.location,
             thumbnail: media.thumbnail,
             mediaUrls: media.mediaUrls,
+            mediaItems: media.mediaItems,
             specs: transformedData.specs,
             description: transformedData.description || message.text,
             status,

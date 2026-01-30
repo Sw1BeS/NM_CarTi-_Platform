@@ -45,6 +45,15 @@ export const MiniApp = () => {
     const [reqStep, setReqStep] = useState(1);
     const [reqData, setReqData] = useState({ brand: '', budget: '', year: '' });
 
+    const getCarImages = (car: CarListing) => {
+        const itemUrls = (car.mediaItems || [])
+            .map(item => item.url || item.previewUrl)
+            .filter(Boolean) as string[];
+        const baseUrls = itemUrls.length ? itemUrls : (car.mediaUrls || []);
+        const combined = car.thumbnail ? [car.thumbnail, ...baseUrls] : baseUrls;
+        return Array.from(new Set(combined.filter(Boolean)));
+    };
+
     const buildFallbackConfig = (target: string): MiniAppConfig => ({
         title: 'CarTié',
         welcomeText: 'Browse our live inventory',
@@ -278,11 +287,15 @@ export const MiniApp = () => {
                     <button onClick={() => setView('INVENTORY')} className="text-xs font-bold" style={{ color: primaryColor }}>View All</button>
                 </div>
                 <div className="flex gap-4 overflow-x-auto pb-4 hide-scrollbar">
-                    {cars.slice(0, 5).map(car => (
+                    {cars.slice(0, 5).map(car => {
+                        const images = getCarImages(car);
+                        const cover = images[0];
+
+                        return (
                         <div key={car.canonicalId} className="min-w-[220px] bg-[#1c1c1e] rounded-xl overflow-hidden border border-white/5 shadow-lg">
                             <div className="h-32 bg-gray-800 relative cursor-pointer" onClick={() => { setLightboxCar(car); setLightboxImageIndex(0); }}>
-                                {car.thumbnail ? (
-                                    <img src={car.thumbnail} className="w-full h-full object-cover opacity-90" />
+                                {cover ? (
+                                    <img src={cover} className="w-full h-full object-cover opacity-90" />
                                 ) : (
                                     <div className="w-full h-full flex items-center justify-center bg-[#2c2c2e] text-white/20">
                                         <ImageIcon size={32} />
@@ -300,7 +313,8 @@ export const MiniApp = () => {
                                 </div>
                             </div>
                         </div>
-                    ))}
+                    );
+                    })}
                 </div>
             </div>
         </div>
@@ -445,11 +459,15 @@ export const MiniApp = () => {
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                    {filteredCars.map(car => (
+                    {filteredCars.map(car => {
+                        const images = getCarImages(car);
+                        const cover = images[0];
+
+                        return (
                         <div key={car.canonicalId} className="bg-[#1c1c1e] rounded-2xl overflow-hidden border border-white/5 flex flex-col shadow-lg">
                             <div className="h-48 bg-gray-800 relative cursor-pointer" onClick={() => { setLightboxCar(car); setLightboxImageIndex(0); }}>
-                                {car.thumbnail ? (
-                                    <img src={car.thumbnail} className="w-full h-full object-cover" />
+                                {cover ? (
+                                    <img src={cover} className="w-full h-full object-cover" />
                                 ) : (
                                     <div className="w-full h-full flex items-center justify-center bg-[#2c2c2e] text-white/20">
                                         <ImageIcon size={48} />
@@ -458,9 +476,9 @@ export const MiniApp = () => {
                                 <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-4 pt-12">
                                     <h3 className="text-lg font-bold text-white">{car.title}</h3>
                                 </div>
-                                {car.mediaUrls && car.mediaUrls.length > 1 && (
+                                {images.length > 1 && (
                                     <div className="absolute top-2 left-2 bg-black/60 backdrop-blur px-2 py-1 rounded text-[10px] font-bold text-white">
-                                        +{car.mediaUrls.length - 1} photos
+                                        +{images.length - 1} photos
                                     </div>
                                 )}
                             </div>
@@ -483,7 +501,8 @@ export const MiniApp = () => {
                                 </button>
                             </div>
                         </div>
-                    ))}
+                    );
+                    })}
                     {filteredCars.length === 0 && <div className="text-center text-white/50 mt-10">No cars found. Try adjusting filters.</div>}
                 </div>
             </div>
@@ -711,6 +730,9 @@ export const MiniApp = () => {
             {/* Gallery Lightbox */}
             {lightboxCar && (
                 <div className="fixed inset-0 bg-black z-[100] flex flex-col">
+                    {(() => {
+                        const lightboxImages = getCarImages(lightboxCar);
+                        return (
                     <div className="p-4 flex justify-between items-center">
                         <h3 className="text-white font-bold truncate">{lightboxCar.title}</h3>
                         <button onClick={() => setLightboxCar(null)} className="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center">
@@ -719,10 +741,10 @@ export const MiniApp = () => {
                     </div>
                     <div className="flex-1 relative flex items-center justify-center">
                         <img
-                            src={(lightboxCar.mediaUrls && lightboxCar.mediaUrls[lightboxImageIndex]) || lightboxCar.thumbnail || PLACEHOLDER_IMAGE}
+                            src={lightboxImages[lightboxImageIndex] || lightboxCar.thumbnail || PLACEHOLDER_IMAGE}
                             className="max-w-full max-h-full object-contain"
                         />
-                        {lightboxCar.mediaUrls && lightboxCar.mediaUrls.length > 1 && (
+                        {lightboxImages.length > 1 && (
                             <>
                                 {lightboxImageIndex > 0 && (
                                     <button
@@ -732,7 +754,7 @@ export const MiniApp = () => {
                                         <ChevronLeft size={24} className="text-white" />
                                     </button>
                                 )}
-                                {lightboxImageIndex < lightboxCar.mediaUrls.length - 1 && (
+                                {lightboxImageIndex < lightboxImages.length - 1 && (
                                     <button
                                         onClick={() => setLightboxImageIndex(lightboxImageIndex + 1)}
                                         className="absolute right-4 w-12 h-12 bg-black/50 backdrop-blur rounded-full flex items-center justify-center"
@@ -741,11 +763,13 @@ export const MiniApp = () => {
                                     </button>
                                 )}
                                 <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/50 backdrop-blur px-3 py-1 rounded-full text-xs text-white">
-                                    {lightboxImageIndex + 1} / {lightboxCar.mediaUrls.length}
+                                    {lightboxImageIndex + 1} / {lightboxImages.length}
                                 </div>
                             </>
                         )}
                     </div>
+                        );
+                    })()}
                 </div>
             )}
 

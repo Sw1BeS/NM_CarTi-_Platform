@@ -20,6 +20,7 @@ interface TelegramMessage {
     text?: string;
     date: Date;
     mediaUrls?: string[];
+    mediaItems?: any[];
     mediaGroupKey?: string;
 }
 
@@ -48,6 +49,7 @@ export async function processParsedMessage(
             text: message.text,
             date: message.date,
             mediaUrls: message.mediaUrls,
+            mediaItems: message.mediaItems,
             mediaGroupKey: message.mediaGroupKey,
             channelTitle: channelSource.title,
             sourceUrl: buildSourceUrl(message.chatId, message.messageId),
@@ -83,6 +85,7 @@ export async function processParsedMessageToDraft(
             text: message.text,
             date: message.date,
             mediaUrls: message.mediaUrls,
+            mediaItems: message.mediaItems,
             mediaGroupKey: message.mediaGroupKey,
             channelTitle: channelSource.title,
             sourceUrl: buildSourceUrl(message.chatId, message.messageId),

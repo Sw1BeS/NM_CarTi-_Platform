@@ -35,6 +35,7 @@ export interface CarCard {
     location: string;
     thumbnail: string;
     mediaUrls?: string[];
+    mediaItems?: Array<{ url?: string; previewUrl?: string; tgMeta?: any; source?: string }>;
     specs: {
         engine?: string;
         transmission?: string;

@@ -93,6 +93,10 @@ const __dirname = path.dirname(__filename);
 
 // apps/server/dist/index.js -> apps/web/dist
 const clientBuildPath = path.join(__dirname, '../../web/dist');
+const mediaStoragePath = path.join(__dirname, '../../storage');
+
+// Serve local media files
+app.use('/media', express.static(mediaStoragePath));
 
 app.use(express.static(clientBuildPath));
 

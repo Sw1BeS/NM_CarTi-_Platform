@@ -53,6 +53,8 @@ export class MTProtoWorker {
     private async processSource(source: any) {
         try {
             logger.info(`[MTProtoWorker] Processing ${source.title} (${source.channelId})...`);
+            const client = await MTProtoService.getClient(source.connectorId);
+            await client.connect();
 
             // Use lastMessageId as checkpoint, or 0 (fetch latest)
             // Strategy: For backfill, we might want to fetch *older* messages from a point, 
@@ -66,6 +68,7 @@ export class MTProtoWorker {
             let count = 0;
             for (const msg of messages) {
                 if (!msg.message) continue; // Skip empty messages (service messages)
+                const media = await MTProtoService.extractMediaItems(client, msg, `mtproto_${source.channelId}_${msg.id}`);
 
                 // Convert MTProto message to our standard format
                 const telegramMessage = {
@@ -73,7 +76,8 @@ export class MTProtoWorker {
                     messageId: msg.id,
                     text: msg.message,
                     date: new Date(msg.date * 1000), // Convert Unix timestamp to Date
-                    mediaUrls: [], // TODO: Extract media URLs from msg.media
+                    mediaUrls: media.mediaUrls,
+                    mediaItems: media.mediaItems,
                     mediaGroupKey: msg.groupedId?.toString() || undefined
                 };
 
@@ -152,13 +156,18 @@ export class MTProtoWorker {
     }
 
     private async syncMessage(source: any, msg: any) {
+        const client = await MTProtoService.getClient(source.connectorId);
+        await client.connect();
+        const media = await MTProtoService.extractMediaItems(client, msg, `mtproto_${source.channelId}_${msg.id}`);
+
         // Convert live message to standard format
         const telegramMessage = {
             chatId: source.channelId,
             messageId: msg.id,
             text: msg.message,
             date: new Date(msg.date * 1000),
-            mediaUrls: [],
+            mediaUrls: media.mediaUrls,
+            mediaItems: media.mediaItems,
             mediaGroupKey: msg.groupedId?.toString() || undefined
         };
 

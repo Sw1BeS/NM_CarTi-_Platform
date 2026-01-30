@@ -385,6 +385,7 @@ model CarListing {
   location    String?
   thumbnail   String?
   mediaUrls   String[]
+  mediaItems  Json?    @db.JsonB
   specs       Json?
   description String?
   status      String   @default("AVAILABLE") // AVAILABLE, RESERVED, SOLD, PENDING, HIDDEN

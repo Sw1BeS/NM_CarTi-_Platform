@@ -7,6 +7,7 @@ import { Logger } from 'telegram/extensions/Logger.js';
 import { detectMake } from '../../../services/taxonomy.js';
 import { ParsingService } from '../parsing/parsing.service.js';
 import { processParsedMessage } from '../../../services/mtproto-mapping.service.js';
+import { saveBufferToStorage } from '../../../services/mediaStorage.service.js';
 
 // Minimal logger to avoid spam
 const logger = new Logger({ level: 'error' } as any);
@@ -229,6 +230,31 @@ export class MTProtoService {
         }
     }
 
+    static async extractMediaItems(client: TelegramClient, msg: any, prefix: string) {
+        try {
+            if (!msg.media) return { mediaUrls: [], mediaItems: [] };
+            const raw = await client.downloadMedia(msg);
+            if (!raw) {
+                return { mediaUrls: [], mediaItems: [] };
+            }
+            const buffer = raw instanceof Buffer ? raw : Buffer.from(raw as any);
+            const filename = `${prefix}_${Date.now()}.jpg`;
+            const saved = await saveBufferToStorage(buffer, filename, 'telegram');
+            const item = {
+                url: saved.url,
+                previewUrl: saved.url,
+                source: 'MTPROTO',
+                tgMeta: {
+                    messageId: msg.id,
+                    groupedId: msg.groupedId?.toString()
+                }
+            };
+            return { mediaUrls: [saved.url], mediaItems: [item] };
+        } catch {
+            return { mediaUrls: [], mediaItems: [] };
+        }
+    }
+
     /**
      * Live Sync logic
      * Allows attaching a callback to handle new messages for a connector
@@ -394,12 +420,15 @@ export class MTProtoService {
             for (const msg of messages) {
                 if (!msg.message) continue;
 
+                const media = await MTProtoService.extractMediaItems(client, msg, `mtproto_${source.channelId}_${msg.id}`);
+
                 await processParsedMessage({
                     chatId: source.channelId,
                     messageId: msg.id,
                     text: msg.message,
                     date: new Date((msg.date as any) * 1000),
-                    mediaUrls: [],
+                    mediaUrls: media.mediaUrls,
+                    mediaItems: media.mediaItems,
                     mediaGroupKey: (msg as any).groupedId?.toString()
                 } as any, source as any);
                 imported++;

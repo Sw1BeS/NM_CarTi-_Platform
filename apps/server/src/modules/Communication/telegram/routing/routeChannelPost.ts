@@ -1,6 +1,7 @@
 import { PipelineMiddleware } from '../core/types.js';
 import { logger } from '../../../../utils/logger.js';
 import { channelIngestionService } from '../../../../services/channel-ingestion.service.js';
+import { saveTelegramBotFile } from '../../../../services/mediaStorage.service.js';
 
 /**
  * routeChannelPost - Handles channel_post updates
@@ -23,9 +24,38 @@ export const routeChannelPost: PipelineMiddleware = async (ctx, next) => {
     const text = post.caption || post.text || '';
     if (!text) return next();
 
+    const mediaItems: any[] = [];
     let mediaUrls: string[] = [];
     if (post.photo && post.photo.length > 0) {
-        mediaUrls = post.photo.map((p: any) => `tg_file_id:${p.file_id}`);
+        const largest = post.photo[post.photo.length - 1];
+        const fileId = largest.file_id;
+        const botToken = ctx.bot?.token;
+
+        if (botToken) {
+            try {
+                const saved = await saveTelegramBotFile(botToken, fileId, `bot_${channelId}_${post.message_id}`);
+                mediaItems.push({
+                    url: saved.url,
+                    previewUrl: saved.url,
+                    tgFileId: fileId,
+                    source: 'BOTAPI'
+                });
+            } catch (e) {
+                mediaItems.push({
+                    url: `tg_file_id:${fileId}`,
+                    tgFileId: fileId,
+                    source: 'BOTAPI'
+                });
+            }
+        } else {
+            mediaItems.push({
+                url: `tg_file_id:${fileId}`,
+                tgFileId: fileId,
+                source: 'BOTAPI'
+            });
+        }
+
+        mediaUrls = mediaItems.map(item => item.url);
     }
 
     try {
@@ -39,6 +69,7 @@ export const routeChannelPost: PipelineMiddleware = async (ctx, next) => {
             text,
             date: new Date(post.date * 1000),
             mediaUrls,
+            mediaItems,
             mediaGroupKey: post.media_group_id?.toString(),
             channelTitle: post.chat.title,
             sourceUrl: `https://t.me/c/${channelId.replace('-100', '')}/${post.message_id}`,

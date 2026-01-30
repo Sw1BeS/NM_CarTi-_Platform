@@ -57,6 +57,7 @@ export class CarRepository extends BaseRepository<CarListing> {
         location?: string | null;
         thumbnail?: string | null;
         mediaUrls?: string[];
+        mediaItems?: any;
         specs?: any;
         description?: string | null;
         status?: string;
@@ -82,6 +83,7 @@ export class CarRepository extends BaseRepository<CarListing> {
                 location: data.location || undefined,
                 thumbnail: data.thumbnail || undefined,
                 mediaUrls: data.mediaUrls || [],
+                mediaItems: data.mediaItems,
                 specs: data.specs,
                 description: data.description || undefined,
                 status: data.status || 'AVAILABLE',
@@ -154,6 +156,7 @@ export class CarRepository extends BaseRepository<CarListing> {
         location?: string;
         thumbnail?: string;
         mediaUrls?: string[];
+        mediaItems?: any;
         specs?: any;
         description?: string;
         status?: string;

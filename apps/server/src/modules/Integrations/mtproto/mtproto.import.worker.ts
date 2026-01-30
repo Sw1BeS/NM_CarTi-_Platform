@@ -64,6 +64,9 @@ export class MTProtoImportWorker {
                 return;
             }
 
+            const client = await MTProtoService.getClient(source.connectorId);
+            await client.connect();
+
             const fromDate = job.fromDate as Date;
             const toDate = job.toDate as Date;
             const mode = job.mode === 'DRAFT_ONLY' ? 'DRAFT_ONLY' : 'INVENTORY';
@@ -98,12 +101,14 @@ export class MTProtoImportWorker {
                     }
                     if (msgDate > toDate) continue;
 
+                    const media = await MTProtoService.extractMediaItems(client, msg, `mtproto_${source.channelId}_${msg.id}`);
                     const message = {
                         chatId: source.channelId,
                         messageId: msg.id,
                         text: msg.message,
                         date: msgDate,
-                        mediaUrls: [],
+                        mediaUrls: media.mediaUrls,
+                        mediaItems: media.mediaItems,
                         mediaGroupKey: msg.groupedId?.toString()
                     };
 
