@@ -16,13 +16,14 @@ import { getApiBase, setApiBase } from '../../services/apiConfig';
 import { UsersTab } from './settings/UsersTab';
 import { IntegrationsTab } from './settings/IntegrationsTab';
 import { SuperAdminTab, FeaturesTab, TelegramDiagnosticsTab } from './settings/SuperAdminTabs';
+import { IntegrationLogsTab } from './settings/IntegrationLogsTab';
 import { PageHeader } from '../../components/ui/PageHeader';
 // Reuse existing internal components or move them too
 import { VersionSnapshots, ConfigSnapshot } from '../../services/versionSnapshots'; // Assuming these exist, kept internal to Settings if not moved yet.
 // Actually, VersionsTab was large. Let's keep it here for now or import everything if I extracted it. I missed extracting VersionsTab. I'll stub it or inline simplified version.
 
 export const SettingsPage = () => {
-    const [activeTab, setActiveTab] = useState<'USERS' | 'INTEGRATIONS' | 'TG' | 'FEATURES' | 'DICT' | 'BACKUP' | 'API' | 'VERSIONS' | 'SUPERADMIN' | 'GENERAL' | 'PARSER'>('USERS');
+    const [activeTab, setActiveTab] = useState<'USERS' | 'INTEGRATIONS' | 'TG' | 'LOGS' | 'FEATURES' | 'DICT' | 'BACKUP' | 'API' | 'VERSIONS' | 'SUPERADMIN' | 'GENERAL' | 'PARSER'>('USERS');
     const { t } = useLang();
     const { user } = useAuth();
 
@@ -38,6 +39,7 @@ export const SettingsPage = () => {
                         <div className="space-y-1">
                             <NavButton active={activeTab === 'API'} onClick={() => setActiveTab('API')} icon={Server} label={t('settings.api')} />
                             <NavButton active={activeTab === 'TG'} onClick={() => setActiveTab('TG')} icon={Terminal} label={t('settings.logs')} />
+                            <NavButton active={activeTab === 'LOGS'} onClick={() => setActiveTab('LOGS')} icon={History} label={t('settings.integration_logs')} />
                             <NavButton active={activeTab === 'INTEGRATIONS'} onClick={() => setActiveTab('INTEGRATIONS')} icon={Layers} label={t('settings.integrations')} />
                         </div>
                     </div>
@@ -70,6 +72,7 @@ export const SettingsPage = () => {
                     {activeTab === 'USERS' && <UsersTab />}
                     {activeTab === 'INTEGRATIONS' && <IntegrationsTab />}
                     {activeTab === 'TG' && <TelegramDiagnosticsTab />}
+                    {activeTab === 'LOGS' && <IntegrationLogsTab />}
                     {activeTab === 'SUPERADMIN' && user?.role === 'SUPER_ADMIN' && <SuperAdminTab />}
                     {activeTab === 'FEATURES' && user?.role === 'SUPER_ADMIN' && <FeaturesTab />}
                     {activeTab === 'GENERAL' && <GeneralTab />}

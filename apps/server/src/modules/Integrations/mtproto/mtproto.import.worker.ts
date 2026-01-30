@@ -2,6 +2,7 @@ import { prisma } from '../../../services/prisma.js';
 import { MTProtoService } from './mtproto.service.js';
 import { previewParsedMessage, processParsedMessage, processParsedMessageToDraft } from '../../../services/mtproto-mapping.service.js';
 import { ChannelSourceRepository } from '../../../repositories/channelSource.repository.js';
+import { logIntegrationEvent } from '../../../services/integrationEventLog.service.js';
 import { logger } from '../../../utils/logger.js';
 
 const BATCH_LIMIT = 50;
@@ -29,6 +30,20 @@ export class MTProtoImportWorker {
                     status: 'RUNNING',
                     startedAt: job.startedAt || new Date(),
                     lastError: null
+                }
+            });
+
+            await logIntegrationEvent({
+                companyId: job.companyId,
+                integration: 'TELEGRAM_MTPROTO',
+                entityId: job.id,
+                action: 'import_started',
+                status: 'OK',
+                payloadMeta: {
+                    channelSourceId: job.channelSourceId,
+                    fromDate: job.fromDate,
+                    toDate: job.toDate,
+                    mode: job.mode
                 }
             });
 
@@ -155,6 +170,23 @@ export class MTProtoImportWorker {
                         totalErrors
                     }
                 });
+
+                await logIntegrationEvent({
+                    companyId: job.companyId,
+                    integration: 'TELEGRAM_MTPROTO',
+                    entityId: job.id,
+                    action: 'import_chunk',
+                    status: 'OK',
+                    payloadMeta: {
+                        processedThisRun,
+                        totalProcessed,
+                        totalImported,
+                        totalSkipped,
+                        totalErrors,
+                        lastMessageId: offsetId || undefined,
+                        lastMessageDate: offsetDate ? new Date(offsetDate * 1000) : undefined
+                    }
+                });
             }
 
             if (done) {
@@ -163,6 +195,20 @@ export class MTProtoImportWorker {
                     data: {
                         status: 'DONE',
                         finishedAt: new Date(),
+                        totalProcessed,
+                        totalImported,
+                        totalSkipped,
+                        totalErrors
+                    }
+                });
+
+                await logIntegrationEvent({
+                    companyId: job.companyId,
+                    integration: 'TELEGRAM_MTPROTO',
+                    entityId: job.id,
+                    action: 'import_finished',
+                    status: 'OK',
+                    payloadMeta: {
                         totalProcessed,
                         totalImported,
                         totalSkipped,
@@ -181,6 +227,14 @@ export class MTProtoImportWorker {
             await prisma.telegramImportJob.update({
                 where: { id: job.id },
                 data: { status: 'FAILED', lastError: e.message || 'Import failed', finishedAt: new Date() }
+            });
+            await logIntegrationEvent({
+                companyId: job.companyId,
+                integration: 'TELEGRAM_MTPROTO',
+                entityId: job.id,
+                action: 'import_failed',
+                status: 'ERROR',
+                message: e.message || 'Import failed'
             });
             if (sourceId) {
                 await this.channelSourceRepo.update(sourceId, {

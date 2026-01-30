@@ -6,6 +6,7 @@ import { emitPlatformEvent } from './events/eventEmitter.js';
 import { generatePublicId, mapRequestInput } from '../../../../services/dto.js';
 import { MetaService } from '../../../Integrations/meta/meta.service.js';
 import { logger } from '../../../../utils/logger.js';
+import { logIntegrationEvent } from '../../../../services/integrationEventLog.service.js';
 
 
 const leadRepo = new LeadRepository(prisma);
@@ -215,6 +216,19 @@ export const createOrMergeLead = async (input: LeadCreateInput, botConfig?: any)
     payload: {
       leadId: lead.id,
       phone: normalizedPhone || undefined
+    }
+  });
+
+  await logIntegrationEvent({
+    companyId,
+    integration: 'TELEGRAM_BOTAPI',
+    entityId: lead.id,
+    action: 'lead_created',
+    status: 'OK',
+    payloadMeta: {
+      botId: input.botId,
+      chatId: input.chatId || undefined,
+      userId: telegramUserId || undefined
     }
   });
 

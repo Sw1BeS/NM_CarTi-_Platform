@@ -8,6 +8,7 @@
 import cron from 'node-cron';
 import { prisma } from '../services/prisma.js';
 import { telegramOutbox } from '../modules/Communication/telegram/messaging/outbox/telegramOutbox.js';
+import { logIntegrationEvent } from '../services/integrationEventLog.service.js';
 import { logger } from '../utils/logger.js';
 
 interface ScheduledPost {
@@ -168,6 +169,18 @@ async function processPublicationJobs(): Promise<boolean> {
                     }
                 });
 
+                await logIntegrationEvent({
+                    companyId: job.companyId || null,
+                    integration: 'TELEGRAM_BOTAPI',
+                    entityId: job.id,
+                    action: 'publish_success',
+                    status: 'OK',
+                    payloadMeta: {
+                        destination: job.destination,
+                        messageId: messageId ? Number(messageId) : undefined
+                    }
+                });
+
                 if (job.draftId) {
                     await prisma.draft.update({
                         where: { id: job.draftId },
@@ -200,6 +213,17 @@ async function processPublicationJobs(): Promise<boolean> {
                 });
                 await prisma.publicationResult.create({
                     data: { jobId: job.id, status: 'FAILED', error: e.message }
+                });
+                await logIntegrationEvent({
+                    companyId: job.companyId || null,
+                    integration: 'TELEGRAM_BOTAPI',
+                    entityId: job.id,
+                    action: 'publish_failed',
+                    status: 'ERROR',
+                    message: e.message || 'Publish failed',
+                    payloadMeta: {
+                        destination: job.destination
+                    }
                 });
                 if (job.draftId) {
                     await prisma.draft.update({

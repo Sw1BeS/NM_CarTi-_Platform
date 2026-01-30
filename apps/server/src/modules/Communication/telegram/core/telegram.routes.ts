@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { prisma } from '../../../../services/prisma.js';
 import { BotRepository } from '../../../../repositories/index.js';
 import { runTelegramPipeline } from '../scenarios/pipeline.js';
+import { logIntegrationEvent } from '../../../../services/integrationEventLog.service.js';
 import { logger } from '../../../../utils/logger.js';
 import { errorResponse } from '../../../../utils/errorResponse.js';
 
@@ -28,6 +29,17 @@ router.post('/webhook/:botId', async (req, res) => {
   res.status(200).json({ ok: true });
 
   const update = req.body;
+  const updateType = update ? Object.keys(update).find(key => key !== 'update_id') : undefined;
+
+  await logIntegrationEvent({
+    companyId: bot.companyId,
+    integration: 'TELEGRAM_BOTAPI',
+    entityId: botId,
+    action: 'webhook_received',
+    status: 'OK',
+    message: updateType ? `update:${updateType}` : 'update',
+    payloadMeta: { updateId: update?.update_id, updateType }
+  });
 
   setImmediate(async () => {
     try {
@@ -35,6 +47,14 @@ router.post('/webhook/:botId', async (req, res) => {
       await runTelegramPipeline({ update, bot, botId, secretToken, source: 'webhook' });
     } catch (err) {
       logger.error('[TelegramWebhook] Pipeline error:', err);
+      await logIntegrationEvent({
+        companyId: bot.companyId,
+        integration: 'TELEGRAM_BOTAPI',
+        entityId: botId,
+        action: 'webhook_error',
+        status: 'ERROR',
+        message: err instanceof Error ? err.message : 'Pipeline error'
+      });
     }
   });
 });

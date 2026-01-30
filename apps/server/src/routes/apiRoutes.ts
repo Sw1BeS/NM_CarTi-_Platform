@@ -12,6 +12,7 @@ import { sendMetaEvent } from '../modules/Integrations/meta.service.js';
 import { importDraft } from '../modules/Inventory/inventory/inventory.service.js';
 import { mapLeadCreateInput, mapLeadOutput, mapLeadStatusFilter, mapLeadUpdateInput } from '../services/dto.js';
 import { previewTemplate, resolveTemplateBody, buildTemplateVariables, renderTemplateBody } from '../services/publication.service.js';
+import { logIntegrationEvent } from '../services/integrationEventLog.service.js';
 import { mapBotInput, mapBotOutput } from '../modules/Communication/bots/botDto.js';
 import { IntegrationService } from '../modules/Integrations/integration.service.js';
 import { setWebhookForBot, deleteWebhookForBot } from '../modules/Communication/telegram/core/telegramAdmin.service.js';
@@ -1429,6 +1430,18 @@ router.post('/content/publication-jobs', requireRole(['ADMIN', 'MANAGER']), asyn
                     }
                 });
 
+                await logIntegrationEvent({
+                    companyId: companyId || null,
+                    integration: 'TELEGRAM_BOTAPI',
+                    entityId: job.id,
+                    action: 'publish_success',
+                    status: 'OK',
+                    payloadMeta: {
+                        destination: payload.destination,
+                        messageId: messageId ? Number(messageId) : undefined
+                    }
+                });
+
                 if (draft) {
                     await prisma.draft.update({
                         where: { id: draft.id },
@@ -1455,6 +1468,17 @@ router.post('/content/publication-jobs', requireRole(['ADMIN', 'MANAGER']), asyn
                 });
                 await prisma.publicationResult.create({
                     data: { jobId: job.id, status: 'FAILED', error: e.message }
+                });
+                await logIntegrationEvent({
+                    companyId: companyId || null,
+                    integration: 'TELEGRAM_BOTAPI',
+                    entityId: job.id,
+                    action: 'publish_failed',
+                    status: 'ERROR',
+                    message: e.message || 'Publish failed',
+                    payloadMeta: {
+                        destination: payload.destination
+                    }
                 });
                 if (draft) {
                     await prisma.draft.update({

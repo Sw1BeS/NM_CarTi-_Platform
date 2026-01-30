@@ -445,6 +445,27 @@ model PublicationResult {
   @@index([status])
 }
 
+model IntegrationEventLog {
+  id          String   @id @default(cuid())
+  companyId   String?
+  workspace   Workspace? @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  integration String
+  entityId    String?
+  action      String
+  status      String
+  message     String?
+  payloadMeta Json?    @db.JsonB
+
+  createdAt DateTime @default(now())
+
+  @@index([companyId])
+  @@index([integration])
+  @@index([status])
+  @@index([createdAt])
+  @@index([entityId])
+}
+
 model CarListing {
   id          String   @id
   source      String   @default("MANUAL")
@@ -903,6 +924,7 @@ model Workspace {
   showcases            Showcase[]
   telegramDestinations TelegramDestination[]
   telegramImportJobs   TelegramImportJob[]
+  integrationEventLogs IntegrationEventLog[]
 
   @@index([deleted_at])
   @@map("workspaces")

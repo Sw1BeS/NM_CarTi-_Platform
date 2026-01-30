@@ -6,6 +6,7 @@ import { Router } from 'express';
 import { IntegrationService } from './integration.service.js';
 import { authenticateToken, requireRole } from '../../middleware/auth.js';
 import { companyContext } from '../../middleware/companyContext.js';
+import { prisma } from '../../services/prisma.js';
 import { errorResponse } from '../../utils/errorResponse.js';
 
 const router = Router();
@@ -23,6 +24,46 @@ router.use('/parsing', parsingRoutes as any);
 
 import telegramRegistryRoutes from './telegram/telegramRegistry.routes.js';
 router.use('/telegram', telegramRegistryRoutes as any);
+
+/**
+ * GET /api/integrations/logs
+ * Integration event logs
+ */
+router.get('/logs', requireRole(['OWNER', 'ADMIN', 'MANAGER', 'OPERATOR']), async (req: any, res) => {
+    try {
+        const companyId = req.companyId;
+        if (!companyId) return errorResponse(res, 400, 'Company context required', 'INTEGRATION_LOGS');
+
+        const integration = typeof req.query.integration === 'string' ? req.query.integration : undefined;
+        const entityId = typeof req.query.entityId === 'string' ? req.query.entityId : undefined;
+        const status = typeof req.query.status === 'string' ? req.query.status : undefined;
+        const action = typeof req.query.action === 'string' ? req.query.action : undefined;
+        const from = typeof req.query.from === 'string' ? new Date(req.query.from) : undefined;
+        const to = typeof req.query.to === 'string' ? new Date(req.query.to) : undefined;
+        const limit = Math.min(500, Number(req.query.limit) || 100);
+
+        const where: any = { companyId };
+        if (integration) where.integration = integration;
+        if (entityId) where.entityId = entityId;
+        if (status) where.status = status;
+        if (action) where.action = action;
+        if (from || to) {
+            where.createdAt = {};
+            if (from) where.createdAt.gte = from;
+            if (to) where.createdAt.lte = to;
+        }
+
+        const logs = await prisma.integrationEventLog.findMany({
+            where,
+            orderBy: { createdAt: 'desc' },
+            take: limit
+        });
+
+        res.json(logs);
+    } catch (e: any) {
+        return errorResponse(res, 500, e.message || 'Integration logs error', 'INTEGRATION_LOGS');
+    }
+});
 
 /**
  * GET /api/integrations
