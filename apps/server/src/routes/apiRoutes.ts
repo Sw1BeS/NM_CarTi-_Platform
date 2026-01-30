@@ -1413,7 +1413,8 @@ router.post('/content/publication-jobs', requireRole(['ADMIN', 'MANAGER']), asyn
                     text,
                     imageUrl: resolvedMediaUrl ?? undefined
                 });
-                const messageId = result?.result?.message_id || result?.message_id;
+                const publishResult = result as any;
+                const messageId = publishResult?.result?.message_id || publishResult?.message_id;
                 const postedAt = new Date();
 
                 await prisma.publicationJob.update({
@@ -1426,7 +1427,7 @@ router.post('/content/publication-jobs', requireRole(['ADMIN', 'MANAGER']), asyn
                         jobId: job.id,
                         status: 'SUCCESS',
                         messageId: messageId ? Number(messageId) : null,
-                        payload: result
+                        payload: publishResult
                     }
                 });
 
@@ -1457,7 +1458,7 @@ router.post('/content/publication-jobs', requireRole(['ADMIN', 'MANAGER']), asyn
                             messageId: Number(messageId),
                             botId: bot.id,
                             status: 'ACTIVE',
-                            payload: result
+                            payload: publishResult
                         }
                     });
                 }
