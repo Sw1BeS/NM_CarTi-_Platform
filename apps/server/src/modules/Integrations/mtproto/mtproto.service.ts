@@ -201,7 +201,7 @@ export class MTProtoService {
     /**
      * History & Sync
      */
-    static async getHistory(connectorId: string, channelId: string, limit = 20, offsetId = 0) {
+    static async getHistory(connectorId: string, channelId: string, limit = 20, offsetId = 0, offsetDate?: number) {
         const client = await this.getClient(connectorId);
         await client.connect();
 
@@ -219,6 +219,7 @@ export class MTProtoService {
             const messages = await client.getMessages(channelId, {
                 limit,
                 offsetId,
+                ...(offsetDate ? { offsetDate } : {})
             });
 
             return messages;

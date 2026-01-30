@@ -1,6 +1,7 @@
 import cron from 'node-cron';
 import { PrismaClient } from '@prisma/client';
 import { MTProtoService } from '../modules/Integrations/mtproto/mtproto.service.js';
+import { mtprotoImportWorker } from '../modules/Integrations/mtproto/mtproto.import.worker.js';
 import { logger } from '../utils/logger.js';
 
 const prisma = new PrismaClient();
@@ -18,7 +19,17 @@ export const startScheduler = () => {
         }
     });
 
-    logger.info('⏰ Scheduler: Started. Jobs: [sync_telegram_channels]');
+    // Process MTProto import jobs every minute
+    cron.schedule('* * * * *', async () => {
+        logger.info('⏰ Scheduler: Starting Job [mtproto_import_jobs]');
+        try {
+            await mtprotoImportWorker.runOnce();
+        } catch (e) {
+            logger.error('⏰ Scheduler: Job [mtproto_import_jobs] Failed', e);
+        }
+    });
+
+    logger.info('⏰ Scheduler: Started. Jobs: [sync_telegram_channels, mtproto_import_jobs]');
 };
 
 async function syncAllChannels() {

@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { ApiClient } from '../../../services/apiClient';
-import { MTProtoConnector } from '../../../types/mtproto.types';
+import { MTProtoConnector, MTProtoImportJob, MTProtoPreviewItem } from '../../../types/mtproto.types';
 import { useToast } from '../../../contexts/ToastContext';
-import { Wifi, Plus, Trash2, RefreshCw, AlertTriangle, FileCode } from 'lucide-react';
+import { Wifi, Plus, Trash2, RefreshCw, AlertTriangle, FileCode, Calendar, Eye, PlayCircle } from 'lucide-react';
 import { ParsingRuleEditor } from './ParsingRuleEditor';
 
 export const MTProtoSources = ({ botId }: { botId: string }) => {
@@ -202,6 +202,7 @@ const ConnectorItem = ({ connector, onDelete, onEditRules }: { connector: MTProt
     const [adding, setAdding] = useState(false);
     const [channelQuery, setChannelQuery] = useState('');
     const [syncing, setSyncing] = useState<string | null>(null);
+    const [importingChannel, setImportingChannel] = useState<any | null>(null);
 
     useEffect(() => {
         loadChannels();
@@ -254,6 +255,7 @@ const ConnectorItem = ({ connector, onDelete, onEditRules }: { connector: MTProt
     };
 
     return (
+        <>
         <div className="panel p-0 overflow-hidden border-l-4 border-l-gold-500">
             {/* Header */}
             <div className="p-4 bg-[var(--bg-input)] flex justify-between items-center">
@@ -299,6 +301,12 @@ const ConnectorItem = ({ connector, onDelete, onEditRules }: { connector: MTProt
                                     {syncing === ch.id ? 'Syncing...' : 'Sync'}
                                 </button>
                                 <button
+                                    onClick={() => setImportingChannel(ch)}
+                                    className="btn-secondary px-2 py-1 text-xs flex items-center gap-1"
+                                >
+                                    <Calendar size={12} /> Import
+                                </button>
+                                <button
                                     onClick={() => onEditRules(ch)}
                                     className="btn-ghost px-2 py-1 text-xs flex items-center gap-1 text-[var(--text-secondary)]"
                                 >
@@ -325,6 +333,172 @@ const ConnectorItem = ({ connector, onDelete, onEditRules }: { connector: MTProt
                     >
                         {adding ? 'Checking...' : '+ Add'}
                     </button>
+                </div>
+            </div>
+        </div>
+
+        {importingChannel && (
+            <ImportHistoryModal
+                connectorId={connector.id}
+                channel={importingChannel}
+                onClose={() => setImportingChannel(null)}
+            />
+        )}
+        </>
+    );
+};
+
+const ImportHistoryModal = ({ connectorId, channel, onClose }: { connectorId: string; channel: any; onClose: () => void }) => {
+    const { showToast } = useToast();
+    const [form, setForm] = useState({ fromDate: '', toDate: '', mode: 'INVENTORY' });
+    const [preview, setPreview] = useState<MTProtoPreviewItem[]>([]);
+    const [previewLoading, setPreviewLoading] = useState(false);
+    const [jobs, setJobs] = useState<MTProtoImportJob[]>([]);
+    const [jobsLoading, setJobsLoading] = useState(false);
+    const [creating, setCreating] = useState(false);
+
+    const buildPayload = () => ({
+        fromDate: `${form.fromDate}T00:00:00`,
+        toDate: `${form.toDate}T23:59:59`,
+        mode: form.mode
+    });
+
+    const loadJobs = async () => {
+        setJobsLoading(true);
+        try {
+            const res = await ApiClient.get<MTProtoImportJob[]>(`integrations/mtproto/import-jobs?sourceId=${channel.id}`);
+            if (res.ok) setJobs(res.data || []);
+        } catch (e) {
+            // ignore
+        } finally {
+            setJobsLoading(false);
+        }
+    };
+
+    const handlePreview = async () => {
+        if (!form.fromDate || !form.toDate) {
+            showToast('Select date range', 'error');
+            return;
+        }
+        setPreviewLoading(true);
+        try {
+            const res = await ApiClient.post<{ items: MTProtoPreviewItem[] }>(`integrations/mtproto/${connectorId}/channels/${channel.id}/preview`, buildPayload());
+            if (!res.ok) throw new Error(res.message);
+            setPreview(res.data?.items || []);
+        } catch (e: any) {
+            showToast(e.message || 'Preview failed', 'error');
+        } finally {
+            setPreviewLoading(false);
+        }
+    };
+
+    const handleImport = async () => {
+        if (!form.fromDate || !form.toDate) {
+            showToast('Select date range', 'error');
+            return;
+        }
+        setCreating(true);
+        try {
+            const res = await ApiClient.post(`integrations/mtproto/${connectorId}/channels/${channel.id}/import`, buildPayload());
+            if (!res.ok) throw new Error(res.message);
+            showToast('Import job queued', 'success');
+            loadJobs();
+        } catch (e: any) {
+            showToast(e.message || 'Import failed', 'error');
+        } finally {
+            setCreating(false);
+        }
+    };
+
+    useEffect(() => {
+        loadJobs();
+    }, [channel.id]);
+
+    return (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="panel w-full max-w-3xl p-6 overflow-hidden">
+                <div className="flex justify-between items-center mb-4">
+                    <div>
+                        <h4 className="font-bold text-[var(--text-primary)] text-lg">Import by Date Range</h4>
+                        <p className="text-xs text-[var(--text-secondary)]">{channel.title}</p>
+                    </div>
+                    <button className="btn-ghost" onClick={onClose}>Close</button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+                    <div>
+                        <label className="text-xs font-bold text-[var(--text-secondary)] uppercase block mb-1">From</label>
+                        <input type="date" className="input" value={form.fromDate} onChange={e => setForm({ ...form, fromDate: e.target.value })} />
+                    </div>
+                    <div>
+                        <label className="text-xs font-bold text-[var(--text-secondary)] uppercase block mb-1">To</label>
+                        <input type="date" className="input" value={form.toDate} onChange={e => setForm({ ...form, toDate: e.target.value })} />
+                    </div>
+                    <div>
+                        <label className="text-xs font-bold text-[var(--text-secondary)] uppercase block mb-1">Mode</label>
+                        <select className="input" value={form.mode} onChange={e => setForm({ ...form, mode: e.target.value })}>
+                            <option value="INVENTORY">Inventory</option>
+                            <option value="DRAFT_ONLY">Draft-only</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2 mb-6">
+                    <button onClick={handlePreview} className="btn-secondary px-3 py-2 text-xs flex items-center gap-2">
+                        <Eye size={12} /> {previewLoading ? 'Previewing...' : 'Preview'}
+                    </button>
+                    <button onClick={handleImport} disabled={creating} className="btn-primary px-3 py-2 text-xs flex items-center gap-2">
+                        <PlayCircle size={12} /> {creating ? 'Starting...' : 'Start Import'}
+                    </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-3">
+                        <h5 className="text-xs uppercase font-bold text-[var(--text-secondary)]">Preview (5-10 messages)</h5>
+                        {previewLoading ? (
+                            <div className="text-sm text-[var(--text-secondary)]">Loading preview...</div>
+                        ) : preview.length === 0 ? (
+                            <div className="text-sm text-[var(--text-muted)]">No preview yet</div>
+                        ) : (
+                            <div className="space-y-2 max-h-[260px] overflow-y-auto">
+                                {preview.map((item) => (
+                                    <div key={item.messageId} className="p-3 rounded border border-[var(--border-color)] bg-[var(--bg-input)]">
+                                        <div className="text-xs text-[var(--text-secondary)] flex justify-between">
+                                            <span>#{item.messageId}</span>
+                                            <span>{item.action}</span>
+                                        </div>
+                                        <div className="text-sm text-[var(--text-primary)] mt-1">{item.mapped?.title || '—'}</div>
+                                        <div className="text-[10px] text-[var(--text-muted)] mt-1">{item.textPreview}</div>
+                                        {item.reason && <div className="text-[10px] text-red-400 mt-1">{item.reason}</div>}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="space-y-3">
+                        <h5 className="text-xs uppercase font-bold text-[var(--text-secondary)]">Recent Jobs</h5>
+                        {jobsLoading ? (
+                            <div className="text-sm text-[var(--text-secondary)]">Loading jobs...</div>
+                        ) : jobs.length === 0 ? (
+                            <div className="text-sm text-[var(--text-muted)]">No jobs yet</div>
+                        ) : (
+                            <div className="space-y-2 max-h-[260px] overflow-y-auto">
+                                {jobs.map(job => (
+                                    <div key={job.id} className="p-3 rounded border border-[var(--border-color)] bg-[var(--bg-input)]">
+                                        <div className="flex justify-between text-xs text-[var(--text-secondary)]">
+                                            <span>{job.mode}</span>
+                                            <span>{job.status}</span>
+                                        </div>
+                                        <div className="text-[10px] text-[var(--text-muted)] mt-1">
+                                            {job.totalImported || 0} imported · {job.totalSkipped || 0} skipped · {job.totalErrors || 0} errors
+                                        </div>
+                                        {job.lastError && <div className="text-[10px] text-red-400 mt-1">{job.lastError}</div>}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
         </div>

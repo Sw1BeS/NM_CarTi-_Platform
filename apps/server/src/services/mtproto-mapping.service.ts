@@ -10,8 +10,10 @@
  */
 
 import { prisma } from './prisma.js';
+import { DraftSource } from '@prisma/client';
 import type { ChannelSource } from '@prisma/client';
 import { logger } from '../utils/logger.js';
+import { DraftRepository } from '../repositories/draft.repository.js';
 
 interface TelegramMessage {
     chatId: string;
@@ -20,6 +22,14 @@ interface TelegramMessage {
     date: Date;
     mediaUrls?: string[];
     mediaGroupKey?: string;
+}
+
+export type PreviewAction = 'CREATE' | 'SKIP' | 'DUPLICATE';
+
+export interface PreviewResult {
+    action: PreviewAction;
+    reason?: string;
+    mapped?: CarData;
 }
 
 interface CarData {
@@ -171,6 +181,8 @@ function applyImportRules(
     return { shouldImport: true, transformedData: transformed };
 }
 
+const draftRepo = new DraftRepository(prisma);
+
 /**
  * Main processor: parse message and create CarListing
  */
@@ -254,6 +266,79 @@ export async function processParsedMessage(
     } catch (error) {
         logger.error(`[MTProto Mapping] Error processing message ${message.messageId}:`, error);
     }
+}
+
+export async function processParsedMessageToDraft(
+    message: TelegramMessage,
+    channelSource: ChannelSource
+): Promise<{ imported: boolean; reason?: string }> {
+    try {
+        const rules = channelSource.importRules || {};
+
+        const carData = extractCarData(message.text || '');
+        if (!carData) return { imported: false, reason: 'NO_CAR_DATA' };
+
+        const { shouldImport, transformedData } = applyImportRules(carData, rules);
+        if (!shouldImport) return { imported: false, reason: 'FILTERED' };
+
+        const existing = await prisma.draft.findFirst({
+            where: {
+                sourceChatId: message.chatId,
+                sourceMessageId: message.messageId
+            }
+        });
+        if (existing) return { imported: false, reason: 'DUPLICATE' };
+
+        await draftRepo.create({
+            source: DraftSource.MANUAL,
+            title: transformedData.title,
+            price: transformedData.price ? String(transformedData.price) : undefined,
+            url: message.mediaUrls?.[0],
+            description: transformedData.description || message.text || '',
+            status: 'PENDING',
+            sourceChatId: message.chatId,
+            sourceMessageId: message.messageId,
+            mediaGroupKey: message.mediaGroupKey,
+            metadata: {
+                channelSourceId: channelSource.id,
+                importedAt: new Date().toISOString(),
+                raw: {
+                    text: message.text,
+                    date: message.date
+                }
+            }
+        });
+
+        return { imported: true };
+    } catch (error) {
+        logger.error(`[MTProto Mapping] Draft import error for message ${message.messageId}:`, error);
+        return { imported: false, reason: 'ERROR' };
+    }
+}
+
+export async function previewParsedMessage(
+    message: TelegramMessage,
+    channelSource: ChannelSource,
+    mode: 'DRAFT_ONLY' | 'INVENTORY'
+): Promise<PreviewResult> {
+    const rules = channelSource.importRules || {};
+    const carData = extractCarData(message.text || '');
+    if (!carData) return { action: 'SKIP', reason: 'NO_CAR_DATA' };
+
+    const { shouldImport, transformedData } = applyImportRules(carData, rules);
+    if (!shouldImport) return { action: 'SKIP', reason: 'FILTERED' };
+
+    const duplicate = mode === 'DRAFT_ONLY'
+        ? await prisma.draft.findFirst({
+            where: { sourceChatId: message.chatId, sourceMessageId: message.messageId }
+        })
+        : await prisma.carListing.findFirst({
+            where: { sourceChatId: message.chatId, sourceMessageId: message.messageId }
+        });
+
+    if (duplicate) return { action: 'DUPLICATE', reason: 'ALREADY_IMPORTED', mapped: transformedData };
+
+    return { action: 'CREATE', mapped: transformedData };
 }
 
 /**

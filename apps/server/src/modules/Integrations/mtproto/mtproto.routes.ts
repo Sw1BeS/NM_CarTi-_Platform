@@ -2,11 +2,13 @@
 import { Router } from 'express';
 import { prisma } from '../../../services/prisma.js';
 import { MTProtoService } from './mtproto.service.js';
+import { MTProtoImportService } from './mtproto.import.service.js';
 import { requireRole } from '../../../middleware/auth.js';
 import { logger } from '../../../utils/logger.js';
 import { errorResponse } from '../../../utils/errorResponse.js';
 
 const router = Router();
+const importService = new MTProtoImportService();
 
 // GET /api/integrations/mtproto/connectors
 router.get('/connectors', async (req: any, res) => {
@@ -157,6 +159,37 @@ router.post('/:connectorId/channels/:sourceId/sync', requireRole(['OWNER', 'ADMI
         res.json({ success: true, message: 'Sync started in background' });
     } catch (e: any) {
         return errorResponse(res, 500, e.message || 'MTProto error', 'MTPROTO_ERROR');
+    }
+});
+
+// POST /api/integrations/mtproto/:connectorId/channels/:sourceId/preview
+router.post('/:connectorId/channels/:sourceId/preview', requireRole(['OWNER', 'ADMIN']), async (req: any, res) => {
+    try {
+        const result = await importService.previewImport(req.params.connectorId, req.params.sourceId, req.body || {});
+        res.json(result);
+    } catch (e: any) {
+        return errorResponse(res, 400, e.message || 'Preview error', 'MTPROTO_PREVIEW_ERROR');
+    }
+});
+
+// POST /api/integrations/mtproto/:connectorId/channels/:sourceId/import
+router.post('/:connectorId/channels/:sourceId/import', requireRole(['OWNER', 'ADMIN']), async (req: any, res) => {
+    try {
+        const job = await importService.createImportJob(req.companyId, req.params.connectorId, req.params.sourceId, req.body || {});
+        res.json(job);
+    } catch (e: any) {
+        return errorResponse(res, 400, e.message || 'Import error', 'MTPROTO_IMPORT_ERROR');
+    }
+});
+
+// GET /api/integrations/mtproto/import-jobs
+router.get('/import-jobs', requireRole(['OWNER', 'ADMIN']), async (req: any, res) => {
+    try {
+        const sourceId = typeof req.query.sourceId === 'string' ? req.query.sourceId : undefined;
+        const jobs = await importService.listJobs(req.companyId, sourceId);
+        res.json(jobs);
+    } catch (e: any) {
+        return errorResponse(res, 500, e.message || 'Import jobs error', 'MTPROTO_IMPORT_ERROR');
     }
 });
 

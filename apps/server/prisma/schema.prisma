@@ -352,6 +352,10 @@ model Draft {
   description String?
   status      String      @default("PENDING")
 
+  sourceChatId    String?
+  sourceMessageId Int?
+  mediaGroupKey   String?
+
   // Stage B: Content Calendar fields
   scheduledAt DateTime?
   postedAt    DateTime?
@@ -366,6 +370,7 @@ model Draft {
 
   @@index([scheduledAt, status])
   @@index([postedAt])
+  @@unique([sourceChatId, sourceMessageId])
 }
 
 model CarListing {
@@ -493,6 +498,39 @@ model TelegramDestination {
   @@unique([companyId, tgId, access])
   @@index([companyId])
   @@index([status])
+}
+
+model TelegramImportJob {
+  id        String @id @default(cuid())
+  companyId String
+  workspace Workspace @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  connectorId     String
+  channelSourceId String
+
+  fromDate DateTime
+  toDate   DateTime
+  mode     String // DRAFT_ONLY | INVENTORY
+
+  status    String   @default("PENDING") // PENDING, RUNNING, DONE, FAILED
+  startedAt DateTime?
+  finishedAt DateTime?
+
+  lastMessageId   Int?
+  lastMessageDate DateTime?
+
+  totalProcessed Int @default(0)
+  totalImported  Int @default(0)
+  totalSkipped   Int @default(0)
+  totalErrors    Int @default(0)
+  lastError      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([status])
+  @@index([channelSourceId])
 }
 
 model ChannelPost {
@@ -789,6 +827,7 @@ model Workspace {
   leads                Lead[]
   showcases            Showcase[]
   telegramDestinations TelegramDestination[]
+  telegramImportJobs   TelegramImportJob[]
 
   @@index([deleted_at])
   @@map("workspaces")
