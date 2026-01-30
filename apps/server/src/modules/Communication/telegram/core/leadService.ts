@@ -11,6 +11,8 @@ import { logger } from '../../../../utils/logger.js';
 const leadRepo = new LeadRepository(prisma);
 const requestRepo = new RequestRepository(prisma);
 
+const GENERIC_NAMES = new Set(['client', 'user', 'unknown', 'unknown user']);
+
 export type LeadCreateInput = {
   botId: string;
   companyId?: string | null;
@@ -55,12 +57,17 @@ const resolveTelegramUserId = (input: LeadCreateInput) => {
   return chatId;
 };
 
+const isGenericName = (name?: string | null) => {
+  const raw = String(name || '').trim();
+  if (!raw) return true;
+  return GENERIC_NAMES.has(raw.toLowerCase());
+};
+
 const normalizeLeadName = (input: LeadCreateInput) => {
   const raw = String(input.name || '').trim();
-  const generic = new Set(['client', 'user', 'unknown', 'unknown user']);
   const telegramName = String(input.telegramName || '').trim();
   const telegramUsername = String(input.telegramUsername || '').trim().replace(/^@/, '');
-  if (raw && !generic.has(raw.toLowerCase())) return raw;
+  if (raw && !isGenericName(raw)) return raw;
   if (telegramName) return telegramName;
   if (telegramUsername) return `@${telegramUsername}`;
   return raw || 'Client';
@@ -68,6 +75,7 @@ const normalizeLeadName = (input: LeadCreateInput) => {
 
 export const createOrMergeLead = async (input: LeadCreateInput, botConfig?: any) => {
   const normalizedPhone = normalizePhone(input.phone || undefined);
+  const normalizedName = normalizeLeadName(input);
   const dedupDays = getDedupWindowDays(botConfig);
   const telegramUserId = resolveTelegramUserId(input);
   const companyId = input.companyId
@@ -82,18 +90,24 @@ export const createOrMergeLead = async (input: LeadCreateInput, botConfig?: any)
   const dup = await leadRepo.findDuplicate(scope, {
     phone: normalizedPhone,
     userTgId: telegramUserId,
-    name: input.name,
+    name: normalizedName,
     days: dedupDays
   });
 
   if (dup) {
+    const shouldUpdateClientName = !dup.clientName || isGenericName(dup.clientName);
     const nextPayload = {
       ...(dup.payload as any || {}),
       lastInteractionAt: new Date().toISOString(),
       telegramChatId: input.chatId || (dup.payload as any)?.telegramChatId,
       telegramUserId: telegramUserId || (dup.payload as any)?.telegramUserId,
-      telegramUsername: input.telegramUsername || (dup.payload as any)?.telegramUsername
+      telegramUsername: input.telegramUsername || (dup.payload as any)?.telegramUsername,
+      telegramName: input.telegramName || (dup.payload as any)?.telegramName  // P0-1 FIX: Add missing telegramName
     };
+
+    if (!nextPayload.name || isGenericName((nextPayload as any).name)) {
+      (nextPayload as any).name = normalizedName;
+    }
 
     await prisma.leadActivity.create({
       data: {
@@ -109,8 +123,24 @@ export const createOrMergeLead = async (input: LeadCreateInput, botConfig?: any)
       }
     }).catch(() => null);
 
-
-    await leadRepo.updatePayload(dup.id, nextPayload).catch(() => null);
+    let mergedLead = dup;
+    try {
+      mergedLead = await prisma.lead.update({
+        where: { id: dup.id },
+        data: {
+          ...(shouldUpdateClientName ? { clientName: normalizedName } : {}),
+          payload: nextPayload
+        }
+      });
+    } catch {
+      await leadRepo.updatePayload(dup.id, nextPayload).catch(() => null);
+      if (shouldUpdateClientName) {
+        await prisma.lead.update({
+          where: { id: dup.id },
+          data: { clientName: normalizedName }
+        }).catch(() => null);
+      }
+    }
 
     await emitPlatformEvent({
       companyId,
@@ -124,12 +154,12 @@ export const createOrMergeLead = async (input: LeadCreateInput, botConfig?: any)
       }
     });
 
-    return { lead: dup, isDuplicate: true, request: null };
+    return { lead: mergedLead, isDuplicate: true, request: null };
   }
 
   const lead = await leadRepo.createLead({
     companyId,
-    clientName: normalizeLeadName(input),
+    clientName: normalizedName,
     phone: normalizedPhone || undefined,
     request: input.request || undefined,
     userTgId: telegramUserId || undefined,
@@ -139,12 +169,13 @@ export const createOrMergeLead = async (input: LeadCreateInput, botConfig?: any)
     leadCode: buildLeadCode(),
     payload: {
       ...(input.payload || {}),
-      name: normalizeLeadName(input),
+      name: normalizedName,
       leadType: input.leadType || undefined,
       phone: normalizedPhone || undefined,
       telegramChatId: input.chatId || undefined,
       telegramUserId: telegramUserId || undefined,
-      telegramUsername: input.telegramUsername || undefined
+      telegramUsername: input.telegramUsername || undefined,
+      telegramName: input.telegramName || undefined  // P0-1 FIX: Add missing telegramName
     }
   });
 
