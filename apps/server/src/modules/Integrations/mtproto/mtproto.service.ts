@@ -2,6 +2,7 @@
 import { TelegramClient, Api } from 'telegram';
 import { StringSession } from 'telegram/sessions/index.js';
 import { prisma } from '../../../services/prisma.js';
+import { ChannelSourceRepository } from '../../../repositories/channelSource.repository.js';
 import { Logger } from 'telegram/extensions/Logger.js';
 import { detectMake } from '../../../services/taxonomy.js';
 import { ParsingService } from '../parsing/parsing.service.js';
@@ -9,6 +10,7 @@ import { processParsedMessage } from '../../../services/mtproto-mapping.service.
 
 // Minimal logger to avoid spam
 const logger = new Logger({ level: 'error' } as any);
+const channelSourceRepo = new ChannelSourceRepository(prisma);
 
 export class MTProtoService {
     private static clients: Map<string, TelegramClient> = new Map();
@@ -174,15 +176,14 @@ export class MTProtoService {
 
         if (existing) throw new Error('Channel already added');
 
-        return await prisma.channelSource.create({
-            data: {
-                connectorId,
-                channelId: channel.id,
-                title: channel.title,
-                username: channel.username,
-                importRules: importRules || {},
-                status: 'ACTIVE'
-            }
+        return await channelSourceRepo.create({
+            connectorId,
+            channelId: channel.id,
+            title: channel.title,
+            username: channel.username,
+            importRules: importRules || {},
+            status: 'ACTIVE',
+            lastError: null
         });
     }
 
@@ -194,7 +195,7 @@ export class MTProtoService {
     }
 
     static async deleteChannelSource(id: string) {
-        return await prisma.channelSource.delete({ where: { id } });
+        return await channelSourceRepo.delete(id);
     }
 
     /**
@@ -252,11 +253,8 @@ export class MTProtoService {
 
     // Simple heuristic parser
     static async updateChannel(channelSourceId: string, data: { importRules?: any }) {
-        return prisma.channelSource.update({
-            where: { id: channelSourceId },
-            data: {
-                importRules: data.importRules
-            }
+        return channelSourceRepo.update(channelSourceId, {
+            importRules: data.importRules
         });
     }
 
@@ -361,10 +359,7 @@ export class MTProtoService {
         const isReady = source.connector.status === 'READY' && !!source.connector.sessionString;
 
         // Mark sync start
-        await prisma.channelSource.update({
-            where: { id: sourceId },
-            data: { lastSyncedAt: new Date() }
-        });
+        await channelSourceRepo.update(sourceId, { lastSyncedAt: new Date() });
 
         // Fallback: allow demo/manual import even without authenticated session
         if (!isReady) {
@@ -378,6 +373,12 @@ export class MTProtoService {
                 date: new Date(),
                 mediaUrls: []
             } as any, source as any);
+
+            await channelSourceRepo.update(sourceId, {
+                status: 'ACTIVE',
+                lastError: null,
+                lastSyncedAt: new Date()
+            });
 
             return { success: true, imported: 1, mode: 'demo' };
         }
@@ -403,13 +404,19 @@ export class MTProtoService {
                 imported++;
             }
 
+            await channelSourceRepo.update(sourceId, {
+                status: 'ACTIVE',
+                lastError: null,
+                lastSyncedAt: new Date()
+            });
+
             return { success: true, imported };
 
         } catch (e: any) {
             logger.error(`Sync failed for ${source.title}: ${e.message}`);
-            await prisma.channelSource.update({
-                where: { id: sourceId },
-                data: { status: 'ERROR' }
+            await channelSourceRepo.update(sourceId, {
+                status: 'ERROR',
+                lastError: e.message || 'Sync failed'
             });
             throw e;
         }

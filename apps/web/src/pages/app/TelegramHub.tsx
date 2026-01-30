@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Data } from '../../services/data';
 import { useToast } from '../../contexts/ToastContext';
 import { Bot, Scenario } from '../../types';
-import { Plus, Bot as BotIcon, Settings, Activity, Smartphone, Wifi, Megaphone, Users, X, LayoutTemplate, GitMerge, Menu, ArrowLeft } from 'lucide-react';
+import { Plus, Bot as BotIcon, Settings, Activity, Smartphone, Wifi, Megaphone, Users, X, LayoutTemplate, GitMerge, Menu, ArrowLeft, ListChecks } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 
 // Modules
@@ -14,6 +14,7 @@ import { AudienceManager } from '../../modules/Telegram/components/AudienceManag
 import { BotMenuEditor } from '../../modules/Telegram/components/BotMenuEditor';
 import { ShowcaseManager } from '../../modules/Telegram/components/ShowcaseManager';
 import { ScenarioBuilder } from './ScenarioBuilder'; // We will use a filtered version
+import { SourcesDestinationsRegistry } from '../../modules/Telegram/SourcesDestinations/index';
 
 /**
  * TelegramHub - Unified Bot Studio Controller
@@ -26,7 +27,7 @@ export const TelegramHub = () => {
     const [viewMode, setViewMode] = useState<'STUDIO' | 'CLASSIC'>('STUDIO');
 
     // Studio Tabs
-    const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'FLOWS' | 'MENU' | 'CAMPAIGNS' | 'AUDIENCE' | 'MINIAPP' | 'SHOWCASES' | 'MTPROTO' | 'SETTINGS'>('OVERVIEW');
+    const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'FLOWS' | 'MENU' | 'CAMPAIGNS' | 'AUDIENCE' | 'MINIAPP' | 'SHOWCASES' | 'MTPROTO' | 'REGISTRY' | 'SETTINGS'>('OVERVIEW');
     const [searchParams] = useSearchParams();
 
     const [isAddBotOpen, setIsAddBotOpen] = useState(false);
@@ -60,7 +61,7 @@ export const TelegramHub = () => {
         const tabParam = searchParams.get('tab');
         if (!tabParam) return;
         const normalized = tabParam.toUpperCase();
-        const allowed = ['OVERVIEW', 'FLOWS', 'MENU', 'CAMPAIGNS', 'AUDIENCE', 'MINIAPP', 'SHOWCASES', 'MTPROTO', 'SETTINGS'];
+        const allowed = ['OVERVIEW', 'FLOWS', 'MENU', 'CAMPAIGNS', 'AUDIENCE', 'MINIAPP', 'SHOWCASES', 'MTPROTO', 'REGISTRY', 'SETTINGS'];
         if (!allowed.includes(normalized)) return;
         setActiveTab(normalized as any);
         if ((normalized === 'FLOWS' || normalized === 'MENU') && viewMode !== 'STUDIO') {
@@ -196,6 +197,7 @@ export const TelegramHub = () => {
                                 <TabBtn active={activeTab === 'MINIAPP'} onClick={() => setActiveTab('MINIAPP')} icon={Smartphone} label="Mini App" />
                                 <TabBtn active={activeTab === 'SHOWCASES'} onClick={() => setActiveTab('SHOWCASES')} icon={LayoutTemplate} label="Showcases" />
                                 <TabBtn active={activeTab === 'MTPROTO'} onClick={() => setActiveTab('MTPROTO')} icon={Wifi} label="Channels" />
+                                <TabBtn active={activeTab === 'REGISTRY'} onClick={() => setActiveTab('REGISTRY')} icon={ListChecks} label="Sources" />
                                 <TabBtn active={activeTab === 'SETTINGS'} onClick={() => setActiveTab('SETTINGS')} icon={Settings} label="Settings" />
                             </div>
 
@@ -220,6 +222,7 @@ export const TelegramHub = () => {
                                 {activeTab === 'MINIAPP' && <MiniAppManager botId={selectedBot.id} />}
                                 {activeTab === 'SHOWCASES' && <ShowcaseManager botId={selectedBot.id} />}
                                 {activeTab === 'MTPROTO' && <MTProtoSources botId={selectedBot.id} />}
+                                {activeTab === 'REGISTRY' && <SourcesDestinationsRegistry />}
                                 {activeTab === 'SETTINGS' && <BotSettings bot={selectedBot} />}
                             </div>
                         </>

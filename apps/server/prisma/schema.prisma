@@ -457,11 +457,41 @@ model ChannelSource {
   status        String    @default("ACTIVE") // ACTIVE, PAUSED, ERROR
   lastSyncedAt  DateTime?
   lastMessageId Int? // Checkpoint for backfill/sync
+  lastError     String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@unique([connectorId, channelId])
+  @@index([status])
+}
+
+model TelegramDestination {
+  id        String @id @default(cuid())
+  companyId String
+  workspace Workspace @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  tgId     String
+  type     String // USER, GROUP, CHANNEL
+  title    String
+  username String?
+
+  access String // BOT, MTPROTO
+  role   String // SOURCE, DESTINATION, BOTH
+
+  status     String   @default("ACTIVE") // ACTIVE, PAUSED, ERROR, DISCOVERED
+  lastSyncAt DateTime?
+  lastError  String?
+
+  connectorId     String?
+  channelSourceId String?
+  botId           String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, tgId, access])
+  @@index([companyId])
   @@index([status])
 }
 
@@ -758,6 +788,7 @@ model Workspace {
   mtProtoConnectors    MTProtoConnector[]
   leads                Lead[]
   showcases            Showcase[]
+  telegramDestinations TelegramDestination[]
 
   @@index([deleted_at])
   @@map("workspaces")

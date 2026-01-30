@@ -21,6 +21,9 @@ router.use('/mtproto', mtprotoRoutes as any);
 import parsingRoutes from './parsing/parsing.routes.js';
 router.use('/parsing', parsingRoutes as any);
 
+import telegramRegistryRoutes from './telegram/telegramRegistry.routes.js';
+router.use('/telegram', telegramRegistryRoutes as any);
+
 /**
  * GET /api/integrations
  * Get all integrations for company

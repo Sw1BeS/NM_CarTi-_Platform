@@ -6,12 +6,14 @@ import { processParsedMessage } from '../../../services/mtproto-mapping.service.
 // @ts-ignore
 import { v4 as uuidv4 } from 'uuid';
 import { logger } from '../../../utils/logger.js';
+import { ChannelSourceRepository } from '../../../repositories/channelSource.repository.js';
 
 /**
  * Worker to backfill messages from configured channels
  */
 export class MTProtoWorker {
     private isRunning = false;
+    private channelSourceRepo = new ChannelSourceRepository(prisma);
 
     async runBackfill() {
         if (this.isRunning) {
@@ -76,22 +78,24 @@ export class MTProtoWorker {
                 };
 
                 // Use mapping service (handles import rules, filtering, dedup)
-                await processParsedMessage(telegramMessage, source);
-                count++;
-            }
+            await processParsedMessage(telegramMessage, source);
+            count++;
+        }
 
             logger.info(`[MTProtoWorker] Processed ${count} messages from ${source.title}`);
 
             // Update source
-            await prisma.channelSource.update({
-                where: { id: source.id },
-                data: {
-                    lastSyncedAt: new Date()
-                }
+            await this.channelSourceRepo.update(source.id, {
+                lastSyncedAt: new Date(),
+                lastError: null
             });
 
         } catch (e: any) {
             logger.error(`[MTProtoWorker] Failed source ${source.title}:`, e);
+            await this.channelSourceRepo.update(source.id, {
+                status: 'ERROR',
+                lastError: e.message || 'MTProto worker failed'
+            });
         }
     }
     async startLiveSync() {
