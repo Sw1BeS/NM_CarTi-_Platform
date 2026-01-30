@@ -296,6 +296,7 @@ model B2bRequest {
 
   chatId   String?
   content  String? // Original raw text
+  payload  Json?   @db.JsonB // Mini app / tracking payload
   status   RequestStatus @default(DRAFT)
   type     RequestType   @default(BUY)
   priority String        @default("NORMAL")

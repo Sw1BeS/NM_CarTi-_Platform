@@ -2,10 +2,10 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { Bot, MiniAppConfig, CarListing } from '../../types';
-import { getPublicBots, getShowcaseInventory } from '../../services/publicApi';
+import { getPublicBots, getShowcaseInventory, getPublicRequestStatus } from '../../services/publicApi';
 import {
     Search, LayoutGrid, User, Plus, Filter, ArrowRight, DollarSign,
-    MessageSquare, Zap, List as ListIcon, Star, Phone, Home,
+    MessageSquare, Zap, List as ListIcon, Star, Phone, Home, Heart, ClipboardList,
     ChevronRight, MapPin, Calendar, CheckCircle, AlertTriangle, SlidersHorizontal,
     X, ChevronLeft, ChevronRight as ChevronRightIcon, Image as ImageIcon, History, ShieldCheck, LogOut
 } from 'lucide-react';
@@ -18,7 +18,16 @@ export const MiniApp = () => {
     const { slug } = useParams();
     const [activeBot, setActiveBot] = useState<Bot | null>(null);
     const [config, setConfig] = useState<MiniAppConfig | null>(null);
-    const [view, setView] = useState<'HOME' | 'INVENTORY' | 'REQUEST' | 'PROFILE'>('HOME');
+    const [view, setView] = useState<'HOME' | 'INVENTORY' | 'LISTING' | 'FAVORITES' | 'REQUEST' | 'STATUS' | 'PROFILE'>('HOME');
+    const [lastListingView, setLastListingView] = useState<'HOME' | 'INVENTORY' | 'FAVORITES'>('INVENTORY');
+    const [selectedCar, setSelectedCar] = useState<CarListing | null>(null);
+    const [favorites, setFavorites] = useState<string[]>(() => {
+        try {
+            return JSON.parse(localStorage.getItem('miniapp_favorites') || '[]');
+        } catch {
+            return [];
+        }
+    });
     const [tgUser, setTgUser] = useState<any>(null);
     const [isPreview, setIsPreview] = useState(false);
 
@@ -44,6 +53,10 @@ export const MiniApp = () => {
     // Request Form State
     const [reqStep, setReqStep] = useState(1);
     const [reqData, setReqData] = useState({ brand: '', budget: '', year: '' });
+    const [reqPhone, setReqPhone] = useState('');
+    const [statusQuery, setStatusQuery] = useState({ publicId: '', phone: '' });
+    const [statusResult, setStatusResult] = useState<any>(null);
+    const [trackingMeta, setTrackingMeta] = useState<any>({ startParam: '', utm: {}, ref: '' });
 
     const getCarImages = (car: CarListing) => {
         const itemUrls = (car.mediaItems || [])
@@ -54,6 +67,37 @@ export const MiniApp = () => {
         return Array.from(new Set(combined.filter(Boolean)));
     };
 
+    const isFavorite = (carId: string) => favorites.includes(carId);
+
+    const toggleFavorite = (car: CarListing) => {
+        const id = car.canonicalId || (car as any).id;
+        if (!id) return;
+        setFavorites(prev => (
+            prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+        ));
+    };
+
+    const openListing = (car: CarListing) => {
+        const origin = view === 'HOME' || view === 'FAVORITES' || view === 'INVENTORY' ? view : 'INVENTORY';
+        setLastListingView(origin);
+        setSelectedCar(car);
+        setView('LISTING');
+    };
+
+    const prefillRequestFromCar = (car: CarListing) => {
+        setReqData({
+            brand: car.title || '',
+            budget: String(car.price?.amount || ''),
+            year: String(car.year || '')
+        });
+        setReqStep(1);
+        setView('REQUEST');
+    };
+
+    useEffect(() => {
+        localStorage.setItem('miniapp_favorites', JSON.stringify(favorites));
+    }, [favorites]);
+
     const buildFallbackConfig = (target: string): MiniAppConfig => ({
         title: 'CarTié',
         welcomeText: 'Browse our live inventory',
@@ -62,7 +106,9 @@ export const MiniApp = () => {
         accentColor: '#111',
         actions: [
             { id: 'a_inv', label: 'Inventory', actionType: 'VIEW', value: 'INVENTORY', icon: 'LayoutGrid' },
-            { id: 'a_req', label: 'Request', actionType: 'VIEW', value: 'REQUEST', icon: 'MessageSquare' }
+            { id: 'a_fav', label: 'Favorites', actionType: 'VIEW', value: 'FAVORITES', icon: 'Heart' },
+            { id: 'a_req', label: 'Request', actionType: 'VIEW', value: 'REQUEST', icon: 'MessageSquare' },
+            { id: 'a_status', label: 'Status', actionType: 'VIEW', value: 'STATUS', icon: 'ClipboardList' }
         ],
         homeBlocks: [],
         showcaseSlug: target
@@ -89,6 +135,17 @@ export const MiniApp = () => {
                 const urlParams = new URLSearchParams(window.location.search);
                 startParam = urlParams.get('tgWebAppStartParam') || urlParams.get('start_param') || '';
             }
+
+            const urlParams = new URLSearchParams(window.location.search);
+            const utm = {
+                source: urlParams.get('utm_source') || undefined,
+                medium: urlParams.get('utm_medium') || undefined,
+                campaign: urlParams.get('utm_campaign') || undefined,
+                content: urlParams.get('utm_content') || undefined,
+                term: urlParams.get('utm_term') || undefined
+            };
+            const ref = urlParams.get('ref') || urlParams.get('source') || undefined;
+            setTrackingMeta({ startParam: startParam || '', utm, ref });
 
             // 2. Determine Target Slug (priority: URL slug > start_param > system)
             const resolvedSlug = slug || startParam || 'system';
@@ -135,6 +192,8 @@ export const MiniApp = () => {
         if (act.actionType === 'VIEW') {
             if (act.value === 'INVENTORY') setView('INVENTORY');
             if (act.value === 'REQUEST') setView('REQUEST');
+            if (act.value === 'FAVORITES') setView('FAVORITES');
+            if (act.value === 'STATUS') setView('STATUS');
         } else if (act.actionType === 'LINK') {
             if (tg && tg.openLink) {
                 tg.openLink(act.value);
@@ -178,6 +237,9 @@ export const MiniApp = () => {
             type: 'interest_click',
             carId: car.canonicalId,
             meta: {
+                startParam: trackingMeta.startParam,
+                utm: trackingMeta.utm,
+                ref: trackingMeta.ref,
                 userId: tgUser?.id,
                 name: tgUser?.first_name,
                 username: tgUser?.username,
@@ -301,6 +363,12 @@ export const MiniApp = () => {
                                         <ImageIcon size={32} />
                                     </div>
                                 )}
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); toggleFavorite(car); }}
+                                    className="absolute top-2 left-2 w-8 h-8 rounded-full bg-black/60 flex items-center justify-center"
+                                >
+                                    <Heart size={14} className={isFavorite(car.canonicalId || (car as any).id) ? 'text-red-400 fill-red-400' : 'text-white/70'} />
+                                </button>
                                 <div className="absolute top-2 right-2 bg-black/60 backdrop-blur px-2 py-1 rounded text-[10px] font-bold text-white">
                                     {car.year}
                                 </div>
@@ -311,6 +379,12 @@ export const MiniApp = () => {
                                 <div className="font-bold text-sm" style={{ color: primaryColor }}>
                                     {car.price.amount.toLocaleString()} $
                                 </div>
+                                <button
+                                    onClick={() => openListing(car)}
+                                    className="mt-2 w-full text-xs py-2 rounded-lg bg-white/5 text-white/80"
+                                >
+                                    View Details
+                                </button>
                             </div>
                         </div>
                     );
@@ -481,6 +555,12 @@ export const MiniApp = () => {
                                         +{images.length - 1} photos
                                     </div>
                                 )}
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); toggleFavorite(car); }}
+                                    className="absolute top-2 right-2 w-9 h-9 rounded-full bg-black/60 flex items-center justify-center"
+                                >
+                                    <Heart size={16} className={isFavorite(car.canonicalId || (car as any).id) ? 'text-red-400 fill-red-400' : 'text-white/70'} />
+                                </button>
                             </div>
                             <div className="p-4">
                                 <div className="flex justify-between items-center mb-4">
@@ -499,6 +579,12 @@ export const MiniApp = () => {
                                 >
                                     <MessageSquare size={18} /> Запросить просчет
                                 </button>
+                                <button
+                                    onClick={() => openListing(car)}
+                                    className="w-full mt-2 py-2 rounded-xl font-bold text-white/70 border border-white/10"
+                                >
+                                    View Details
+                                </button>
                             </div>
                         </div>
                     );
@@ -508,6 +594,171 @@ export const MiniApp = () => {
             </div>
         );
     };
+
+    const renderFavorites = () => {
+        const favCars = cars.filter(car => favorites.includes(car.canonicalId || (car as any).id));
+
+        return (
+            <div className="animate-fade-in pb-24 h-full flex flex-col bg-black">
+                <div className="p-4 sticky top-0 bg-[#000000]/90 backdrop-blur-md z-20 border-b border-white/10">
+                    <h2 className="text-xl font-bold text-white">Favorites</h2>
+                </div>
+                <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                    {favCars.map(car => {
+                        const images = getCarImages(car);
+                        const cover = images[0];
+                        return (
+                            <div key={car.canonicalId} className="bg-[#1c1c1e] rounded-2xl overflow-hidden border border-white/5 flex flex-col shadow-lg">
+                                <div className="h-40 bg-gray-800 relative cursor-pointer" onClick={() => openListing(car)}>
+                                    {cover ? (
+                                        <img src={cover} className="w-full h-full object-cover" />
+                                    ) : (
+                                        <div className="w-full h-full flex items-center justify-center bg-[#2c2c2e] text-white/20">
+                                            <ImageIcon size={32} />
+                                        </div>
+                                    )}
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); toggleFavorite(car); }}
+                                        className="absolute top-2 right-2 w-9 h-9 rounded-full bg-black/60 flex items-center justify-center"
+                                    >
+                                        <Heart size={16} className="text-red-400 fill-red-400" />
+                                    </button>
+                                </div>
+                                <div className="p-4">
+                                    <h3 className="text-base font-bold text-white truncate">{car.title}</h3>
+                                    <div className="text-sm text-white/60 mt-1">{car.year} • {car.mileage.toLocaleString()} km</div>
+                                    <div className="mt-2 font-bold" style={{ color: primaryColor }}>
+                                        {car.price.amount.toLocaleString()} $
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })}
+                    {favCars.length === 0 && (
+                        <div className="text-center text-white/50 mt-12">
+                            No favorites yet. Tap the heart on a car to save it.
+                        </div>
+                    )}
+                </div>
+            </div>
+        );
+    };
+
+    const renderListing = () => {
+        if (!selectedCar) {
+            return (
+                <div className="p-6 text-white/60">Select a car to view details.</div>
+            );
+        }
+        const images = getCarImages(selectedCar);
+        const cover = images[0];
+
+        return (
+            <div className="animate-fade-in pb-24 h-full bg-black">
+                <div className="p-4 flex items-center gap-3 border-b border-white/10 bg-[#000000]/90 backdrop-blur-md">
+                    <button onClick={() => setView(lastListingView)} className="text-white/70 text-sm">← Back</button>
+                    <h2 className="text-white font-bold truncate">{selectedCar.title}</h2>
+                </div>
+                <div className="p-4 space-y-4">
+                    <div className="h-60 bg-gray-800 rounded-2xl overflow-hidden relative cursor-pointer" onClick={() => { setLightboxCar(selectedCar); setLightboxImageIndex(0); }}>
+                        {cover ? (
+                            <img src={cover} className="w-full h-full object-cover" />
+                        ) : (
+                            <div className="w-full h-full flex items-center justify-center bg-[#2c2c2e] text-white/20">
+                                <ImageIcon size={48} />
+                            </div>
+                        )}
+                    </div>
+                    {images.length > 1 && (
+                        <div className="flex gap-2 overflow-x-auto">
+                            {images.map((url, idx) => (
+                                <img
+                                    key={`listing-thumb-${idx}`}
+                                    src={url}
+                                    className="w-20 h-16 object-cover rounded-lg border border-white/10"
+                                    onClick={() => { setLightboxCar(selectedCar); setLightboxImageIndex(idx); }}
+                                />
+                            ))}
+                        </div>
+                    )}
+
+                    <div className="bg-[#1c1c1e] rounded-2xl p-4 border border-white/5">
+                        <div className="flex justify-between items-center mb-2">
+                            <div className="text-xl font-bold text-white">{selectedCar.price.amount.toLocaleString()} $</div>
+                            <button
+                                onClick={() => toggleFavorite(selectedCar)}
+                                className="w-10 h-10 rounded-full bg-black/40 flex items-center justify-center"
+                            >
+                                <Heart size={18} className={isFavorite(selectedCar.canonicalId || (selectedCar as any).id) ? 'text-red-400 fill-red-400' : 'text-white/70'} />
+                            </button>
+                        </div>
+                        <div className="text-sm text-white/60">{selectedCar.year} • {selectedCar.mileage.toLocaleString()} km</div>
+                        <div className="text-sm text-white/60 mt-1">{selectedCar.specs?.engine || 'N/A'} • {selectedCar.specs?.fuel || 'N/A'}</div>
+                    </div>
+
+                    <button
+                        onClick={() => prefillRequestFromCar(selectedCar)}
+                        className="w-full py-4 rounded-xl font-bold text-black flex items-center justify-center gap-2"
+                        style={{ backgroundColor: primaryColor }}
+                    >
+                        <MessageSquare size={18} /> Request This Car
+                    </button>
+                </div>
+            </div>
+        );
+    };
+
+    const renderStatus = () => (
+        <div className="animate-fade-in pb-24 p-6 min-h-screen flex flex-col bg-black">
+            <h2 className="text-2xl font-bold text-white mb-2">Request Status</h2>
+            <p className="text-white/50 mb-6">Check your request by ID, phone, or Telegram account.</p>
+
+            <div className="space-y-4">
+                <div>
+                    <label className="text-xs font-bold text-white/70 uppercase mb-2 block">Request ID</label>
+                    <input className="w-full bg-[#1c1c1e] text-white p-4 rounded-xl outline-none border border-white/10" placeholder="e.g. RQ-12345" value={statusQuery.publicId} onChange={e => setStatusQuery({ ...statusQuery, publicId: e.target.value })} />
+                </div>
+                <div>
+                    <label className="text-xs font-bold text-white/70 uppercase mb-2 block">Phone</label>
+                    <input className="w-full bg-[#1c1c1e] text-white p-4 rounded-xl outline-none border border-white/10" placeholder="+1 555 123 4567" value={statusQuery.phone} onChange={e => setStatusQuery({ ...statusQuery, phone: e.target.value })} />
+                </div>
+                <button
+                    onClick={async () => {
+                        try {
+                            const slug = targetSlug || 'system';
+                            const res: any = await getPublicRequestStatus(slug, {
+                                publicId: statusQuery.publicId || undefined,
+                                phone: statusQuery.phone || undefined,
+                                telegramUserId: tgUser?.id ? String(tgUser.id) : undefined
+                            });
+                            setStatusResult(res.request || res);
+                        } catch (e) {
+                            setStatusResult({ error: 'Request not found' });
+                        }
+                    }}
+                    className="w-full py-4 rounded-xl font-bold text-black"
+                    style={{ backgroundColor: primaryColor }}
+                >
+                    Check Status
+                </button>
+            </div>
+
+            {statusResult && (
+                <div className="mt-6 bg-[#1c1c1e] border border-white/10 rounded-xl p-4 text-white">
+                    {statusResult.error ? (
+                        <div className="text-red-400">{statusResult.error}</div>
+                    ) : (
+                        <>
+                            <div className="text-sm text-white/60">Request ID</div>
+                            <div className="font-bold text-white mb-2">{statusResult.publicId || statusResult.id}</div>
+                            <div className="text-sm text-white/60">Status</div>
+                            <div className="font-bold text-white">{statusResult.status}</div>
+                        </>
+                    )}
+                </div>
+            )}
+        </div>
+    );
 
     const handleNextStep = async () => {
         if (reqStep === 1) {
@@ -534,14 +785,25 @@ export const MiniApp = () => {
             };
             // Use Direct API call for reliability
             try {
-                const slug = 'system'; // TODO: Dynamic slug
+                const slug = targetSlug || 'system';
                 const requestPayload = {
                     title: `Request: ${reqData.brand} ${reqData.year}+`,
-                    description: `Budget: ${reqData.budget}\nUser: ${tgUser?.first_name} @${tgUser?.username}`,
+                    description: `Budget: ${reqData.budget}\nUser: ${tgUser?.first_name} @${tgUser?.username}\nPhone: ${reqPhone || '—'}`,
                     budgetMax: Number(reqData.budget),
                     yearMin: Number(reqData.year),
                     status: 'NEW',
                     type: 'BUY',
+                    chatId: tgUser?.id ? String(tgUser.id) : undefined,
+                    payload: {
+                        phone: reqPhone || undefined,
+                        tracking: trackingMeta,
+                        telegram: {
+                            userId: tgUser?.id,
+                            username: tgUser?.username,
+                            firstName: tgUser?.first_name,
+                            lastName: tgUser?.last_name
+                        }
+                    },
                     initData: tg?.initData
                 };
 
@@ -595,6 +857,10 @@ export const MiniApp = () => {
                                         <input type="number" className="w-full bg-[#1c1c1e] text-white p-4 rounded-xl outline-none border border-white/10" placeholder="50000" value={reqData.budget} onChange={e => setReqData({ ...reqData, budget: e.target.value })} />
                                     </div>
                                 </div>
+                                <div>
+                                    <label className="text-xs font-bold text-white/70 uppercase mb-2 block">Phone (for status updates)</label>
+                                    <input type="tel" className="w-full bg-[#1c1c1e] text-white p-4 rounded-xl outline-none border border-white/10" placeholder="+1 555 123 4567" value={reqPhone} onChange={e => setReqPhone(e.target.value)} />
+                                </div>
                             </div>
                         )}
 
@@ -605,6 +871,7 @@ export const MiniApp = () => {
                                     <div className="flex justify-between"><span>Vehicle:</span> <span className="font-bold text-white">{reqData.brand}</span></div>
                                     <div className="flex justify-between"><span>Year:</span> <span className="font-bold text-white">{reqData.year}+</span></div>
                                     <div className="flex justify-between"><span>Budget:</span> <span className="font-bold text-white" style={{ color: primaryColor }}>${reqData.budget}</span></div>
+                                    <div className="flex justify-between"><span>Phone:</span> <span className="font-bold text-white">{reqPhone || '—'}</span></div>
                                 </div>
                                 <p className="text-xs text-white/50 text-center px-4">
                                     By submitting, you agree to be contacted by our concierge team via this chat.
@@ -706,9 +973,12 @@ export const MiniApp = () => {
             case 'Zap': return <Zap {...props} />;
             case 'DollarSign': return <DollarSign {...props} />;
             case 'MessageCircle': return <MessageSquare {...props} />;
-            case 'Grid': return <LayoutGrid {...props} />;
+            case 'Grid':
+            case 'LayoutGrid': return <LayoutGrid {...props} />;
             case 'List': return <ListIcon {...props} />;
             case 'Phone': return <Phone {...props} />;
+            case 'Heart': return <Heart {...props} />;
+            case 'ClipboardList': return <ClipboardList {...props} />;
             default: return <Star {...props} />;
         }
     };
@@ -724,7 +994,10 @@ export const MiniApp = () => {
 
             {view === 'HOME' && renderHome()}
             {view === 'INVENTORY' && renderInventory()}
+            {view === 'FAVORITES' && renderFavorites()}
+            {view === 'LISTING' && renderListing()}
             {view === 'REQUEST' && renderRequest()}
+            {view === 'STATUS' && renderStatus()}
             {view === 'PROFILE' && renderProfile()}
 
             {/* Gallery Lightbox */}
@@ -783,13 +1056,17 @@ export const MiniApp = () => {
                     <LayoutGrid size={22} className={view === 'INVENTORY' ? 'fill-current' : ''} style={view === 'INVENTORY' ? { color: primaryColor } : {}} />
                     <span className="text-[10px] font-medium">Stock</span>
                 </button>
+                <button onClick={() => setView('FAVORITES')} className={`flex flex-col items-center gap-1 transition-colors ${view === 'FAVORITES' ? 'text-white' : 'text-white/40'}`}>
+                    <Heart size={22} className={view === 'FAVORITES' ? 'fill-current' : ''} style={view === 'FAVORITES' ? { color: primaryColor } : {}} />
+                    <span className="text-[10px] font-medium">Saved</span>
+                </button>
                 <button onClick={() => setView('REQUEST')} className={`flex flex-col items-center gap-1 transition-colors ${view === 'REQUEST' ? 'text-white' : 'text-white/40'}`}>
                     <Search size={22} className="stroke-[3px]" style={view === 'REQUEST' ? { color: primaryColor } : {}} />
-                    <span className="text-[10px] font-medium">Find</span>
+                    <span className="text-[10px] font-medium">Request</span>
                 </button>
-                <button onClick={() => setView('PROFILE')} className={`flex flex-col items-center gap-1 transition-colors ${view === 'PROFILE' ? 'text-white' : 'text-white/40'}`}>
-                    <User size={22} className={view === 'PROFILE' ? 'fill-current' : ''} style={view === 'PROFILE' ? { color: primaryColor } : {}} />
-                    <span className="text-[10px] font-medium">Profile</span>
+                <button onClick={() => setView('STATUS')} className={`flex flex-col items-center gap-1 transition-colors ${view === 'STATUS' ? 'text-white' : 'text-white/40'}`}>
+                    <ClipboardList size={22} className={view === 'STATUS' ? 'fill-current' : ''} style={view === 'STATUS' ? { color: primaryColor } : {}} />
+                    <span className="text-[10px] font-medium">Status</span>
                 </button>
             </div>
         </div>

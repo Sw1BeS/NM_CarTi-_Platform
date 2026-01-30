@@ -87,6 +87,18 @@ export async function createPublicRequestWithSlug(slug: string, payload: Partial
   });
 }
 
+export async function getPublicRequestStatus(slug: string, params: { publicId?: string; phone?: string; telegramUserId?: string }) {
+  const query = new URLSearchParams();
+  if (params.publicId) query.append('publicId', params.publicId);
+  if (params.phone) query.append('phone', params.phone);
+  if (params.telegramUserId) query.append('telegramUserId', params.telegramUserId);
+
+  return await apiFetch(`/public/${slug}/request-status?${query.toString()}`, {
+    method: 'GET',
+    skipAuth: true
+  });
+}
+
 export async function getPublicProposal(id: string): Promise<{ proposal: Proposal | null; variants: Variant[] }> {
   return await apiFetch(`/public/proposals/${id}`, {
     method: 'GET',

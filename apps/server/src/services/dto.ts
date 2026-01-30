@@ -257,6 +257,9 @@ export const mapRequestInput = (input: any) => {
   if ('internalNote' in input || 'internalNotes' in input || 'notes' in input) {
     data.internalNotes = input.internalNote ?? input.internalNotes ?? input.notes ?? null;
   }
+  if ('payload' in input) {
+    data.payload = input.payload ?? null;
+  }
   return data;
 };
 

@@ -148,6 +148,60 @@ router.post('/:slug/requests', async (req, res) => {
   }
 });
 
+// Public Request Status
+router.get('/:slug/request-status', async (req, res) => {
+  try {
+    const { slug } = req.params;
+    const workspace = await getWorkspaceBySlug(slug);
+    if (!workspace) return errorResponse(res, 404, 'Company not found');
+
+    const publicId = typeof req.query.publicId === 'string' ? req.query.publicId : undefined;
+    const phone = typeof req.query.phone === 'string' ? req.query.phone : undefined;
+    const telegramUserId = typeof req.query.telegramUserId === 'string' ? req.query.telegramUserId : undefined;
+
+    if (!publicId && !phone && !telegramUserId) {
+      return errorResponse(res, 400, 'publicId, phone or telegramUserId is required');
+    }
+
+    const where: any = { companyId: workspace.id };
+    const or: any[] = [];
+
+    if (publicId) or.push({ publicId });
+    if (telegramUserId) or.push({ chatId: String(telegramUserId) });
+    if (phone) {
+      or.push({
+        payload: {
+          path: ['phone'],
+          equals: String(phone)
+        }
+      });
+    }
+
+    if (or.length) where.OR = or;
+
+    const request = await prisma.b2bRequest.findFirst({
+      where,
+      orderBy: { createdAt: 'desc' }
+    });
+
+    if (!request) return errorResponse(res, 404, 'Request not found');
+
+    res.json({
+      ok: true,
+      request: {
+        id: request.id,
+        publicId: request.publicId || request.id,
+        status: request.status,
+        title: request.title,
+        createdAt: request.createdAt
+      }
+    });
+  } catch (e: any) {
+    logger.error(e);
+    errorResponse(res, 500, 'Failed to fetch request status');
+  }
+});
+
 router.post('/leads', async (req, res) => {
   try {
     const mapped = mapLeadCreateInput(req.body || {});
