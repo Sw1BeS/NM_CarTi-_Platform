@@ -13,6 +13,28 @@ import { useSearchParams } from 'react-router-dom';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 
+const isRecord = (value: unknown): value is Record<string, unknown> => {
+    return !!value && typeof value === 'object' && !Array.isArray(value);
+};
+
+const getSourceLabel = (payload?: Record<string, unknown>) => {
+    if (!payload || !isRecord(payload)) return undefined;
+    const source = payload.source;
+    return typeof source === 'string' ? source : undefined;
+};
+
+const getTelegramLabel = (payload?: Record<string, unknown>, chatId?: string) => {
+    if (!payload || !isRecord(payload)) return chatId ? `TG ${chatId}` : undefined;
+    const telegram = isRecord(payload.telegram) ? payload.telegram : undefined;
+    const username = telegram && typeof telegram.username === 'string' ? telegram.username : undefined;
+    const name = telegram && typeof telegram.name === 'string' ? telegram.name : undefined;
+    const userId = telegram && typeof telegram.userId === 'string' ? telegram.userId : undefined;
+    if (username) return `@${username}`;
+    if (name) return name;
+    if (userId) return `TG ${userId}`;
+    return chatId ? `TG ${chatId}` : undefined;
+};
+
 export const RequestList: React.FC = () => {
     const [requests, setRequests] = useState<B2BRequest[]>([]);
     const [viewMode, setViewMode] = useState<'LIST' | 'BOARD'>('LIST');
@@ -118,8 +140,9 @@ export const RequestList: React.FC = () => {
             setBroadcastReq(null);
             setBroadcastDest('');
             setBroadcastTemplate('RAW');
-        } catch (e: any) {
-            showToast(e.message || 'Failed to send', 'error');
+        } catch (e: unknown) {
+            const message = e instanceof Error ? e.message : 'Failed to send';
+            showToast(message, 'error');
         } finally {
             setBroadcasting(false);
         }
@@ -164,8 +187,9 @@ export const RequestList: React.FC = () => {
             });
             loadRequests();
             showToast('Request created', 'success');
-        } catch (e: any) {
-            showToast(e.message || 'Failed to create request', 'error');
+        } catch (e: unknown) {
+            const message = e instanceof Error ? e.message : 'Failed to create request';
+            showToast(message, 'error');
         } finally {
             setCreating(false);
         }
@@ -228,12 +252,20 @@ export const RequestList: React.FC = () => {
                                         const updatedAt = new Date(r.updatedAt || r.createdAt);
                                         const isFresh = Date.now() - updatedAt.getTime() < 1000 * 60 * 60 * 24;
                                         const offersCount = Array.isArray(r.variants) ? r.variants.length : 0;
+                                        const sourceLabel = getSourceLabel(r.payload);
+                                        const telegramLabel = getTelegramLabel(r.payload, r.clientChatId);
                                         return (
                                         <tr key={r.id} className={`group cursor-pointer ${isFresh ? 'bg-amber-500/5' : ''}`}>
                                             <td className="font-mono text-sm text-[var(--text-secondary)] hidden md:table-cell">{r.publicId}</td>
                                             <td>
                                                 <div className="font-bold text-base text-[var(--text-primary)]">{r.title}</div>
                                                 <div className="text-sm text-[var(--text-secondary)] mt-0.5">{r.yearMin ? `${r.yearMin}+` : ''}</div>
+                                                {(sourceLabel || telegramLabel) && (
+                                                    <div className="text-xs text-[var(--text-secondary)] mt-1">
+                                                        {sourceLabel && <span className="mr-2">Source: {sourceLabel}</span>}
+                                                        {telegramLabel && <span>Telegram: {telegramLabel}</span>}
+                                                    </div>
+                                                )}
                                                 <div className="text-xs text-[var(--text-secondary)] mt-1 md:hidden">
                                                     {r.city || '—'} • ${r.budgetMax ? r.budgetMax.toLocaleString() : '—'}
                                                 </div>
@@ -302,6 +334,16 @@ export const RequestList: React.FC = () => {
                                 <div className="flex-1 overflow-y-auto p-4 space-y-4">
                                     {requests.filter(r => r.status === colStatus).map(r => (
                                         <div key={r.id} className="panel p-5 cursor-pointer hover:border-gold-500/50 group relative hover:-translate-y-1 transition-transform">
+                                            {(() => {
+                                                const sourceLabel = getSourceLabel(r.payload);
+                                                const telegramLabel = getTelegramLabel(r.payload, r.clientChatId);
+                                                return (sourceLabel || telegramLabel) ? (
+                                                    <div className="text-[10px] text-[var(--text-secondary)] mb-2">
+                                                        {sourceLabel && <span className="mr-2">Source: {sourceLabel}</span>}
+                                                        {telegramLabel && <span>Telegram: {telegramLabel}</span>}
+                                                    </div>
+                                                ) : null;
+                                            })()}
                                             <div className="flex justify-between items-start mb-3">
                                                 <span className="font-mono text-xs text-[var(--text-secondary)]">{r.publicId}</span>
                                                 {r.priority === 'HIGH' && <span className="w-2.5 h-2.5 rounded-full bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]"></span>}

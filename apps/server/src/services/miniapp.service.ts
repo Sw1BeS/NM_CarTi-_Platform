@@ -1,0 +1,276 @@
+import { prisma } from './prisma.js';
+import { Prisma } from '@prisma/client';
+import { ShowcaseService } from '../modules/Marketing/showcase/showcase.service.js';
+import { getWorkspaceBySlug } from './v41/readService.js';
+import { generatePublicId, mapInventoryOutput, mapRequestInput, mapRequestOutput } from './dto.js';
+
+export type MiniAppIdentity = {
+  tgUserId?: string;
+  visitorId?: string;
+};
+
+export type MiniAppTracking = Record<string, unknown>;
+
+export type MiniAppTelegram = {
+  userId?: string;
+  username?: string;
+  name?: string;
+};
+
+export type MiniAppRequestInput = {
+  slug: string;
+  title?: string;
+  description?: string;
+  budgetMax?: number | string;
+  yearMin?: number | string;
+  phone?: string;
+  comment?: string;
+  carListingId?: string;
+  tracking?: MiniAppTracking;
+  telegram?: MiniAppTelegram;
+  payload?: Record<string, unknown>;
+};
+
+export type MiniAppRequestStatusQuery = {
+  requestId?: string;
+  phone?: string;
+  telegramUserId?: string;
+};
+
+const showcaseService = new ShowcaseService();
+
+const isRecord = (value: unknown): value is Record<string, unknown> => {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+};
+
+const toOptionalString = (value: unknown): string | undefined => {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed ? trimmed : undefined;
+  }
+  if (value === null || value === undefined) return undefined;
+  const str = String(value).trim();
+  return str ? str : undefined;
+};
+
+const toOptionalNumber = (value: unknown): number | undefined => {
+  if (typeof value === 'number' && !Number.isNaN(value)) return value;
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return undefined;
+    const parsed = Number(trimmed);
+    return Number.isNaN(parsed) ? undefined : parsed;
+  }
+  return undefined;
+};
+
+const normalizeIdentity = (identity: MiniAppIdentity): MiniAppIdentity => {
+  const tgUserId = toOptionalString(identity.tgUserId);
+  const visitorId = toOptionalString(identity.visitorId);
+  return { tgUserId, visitorId };
+};
+
+const resolveCompanyIdBySlug = async (slug: string): Promise<string | null> => {
+  const trimmed = slug.trim();
+  if (!trimmed) return null;
+
+  try {
+    const showcase = await showcaseService.getShowcaseBySlug(trimmed);
+    if (showcase?.workspaceId) return showcase.workspaceId;
+  } catch {
+    // ignore showcase errors and fall back to workspace lookup
+  }
+
+  const workspace = await getWorkspaceBySlug(trimmed);
+  return workspace?.id || null;
+};
+
+export class MiniAppService {
+  async listFavorites(slug: string, identity: MiniAppIdentity) {
+    const companyId = await resolveCompanyIdBySlug(slug);
+    if (!companyId) throw new Error('Company not found');
+
+    const normalized = normalizeIdentity(identity);
+    const { tgUserId, visitorId } = normalized;
+    if (!tgUserId && !visitorId) throw new Error('Identity is required');
+
+    const where: Record<string, unknown> = { companyId };
+    if (tgUserId) {
+      where.tgUserId = tgUserId;
+    } else if (visitorId) {
+      where.visitorId = visitorId;
+    }
+
+    const favorites = await prisma.miniAppFavorite.findMany({
+      where,
+      orderBy: { createdAt: 'desc' }
+    });
+
+    const ids = favorites.map(fav => fav.carListingId);
+    if (ids.length === 0) return { ids: [], items: [] };
+
+    const cars = await prisma.carListing.findMany({
+      where: {
+        id: { in: ids },
+        companyId
+      }
+    });
+
+    const carMap = new Map(cars.map(car => [car.id, car]));
+    const items = ids
+      .map(id => carMap.get(id))
+      .filter((car): car is typeof cars[number] => Boolean(car))
+      .map(mapInventoryOutput);
+
+    return { ids, items };
+  }
+
+  async toggleFavorite(carListingId: string, identity: MiniAppIdentity, slug?: string) {
+    const normalized = normalizeIdentity(identity);
+    const { tgUserId, visitorId } = normalized;
+    if (!tgUserId && !visitorId) throw new Error('Identity is required');
+
+    const listing = await prisma.carListing.findUnique({ where: { id: carListingId } });
+    if (!listing) throw new Error('Listing not found');
+
+    let companyId = listing.companyId;
+    if (!companyId && slug) {
+      companyId = await resolveCompanyIdBySlug(slug);
+    }
+    if (!companyId) throw new Error('Company not found');
+
+    const where: Record<string, unknown> = { companyId, carListingId };
+    if (tgUserId) {
+      where.tgUserId = tgUserId;
+    } else if (visitorId) {
+      where.visitorId = visitorId;
+    }
+
+    const existing = await prisma.miniAppFavorite.findFirst({ where });
+    if (existing) {
+      await prisma.miniAppFavorite.delete({ where: { id: existing.id } });
+      return { action: 'removed', favoriteId: existing.id } as const;
+    }
+
+    const created = await prisma.miniAppFavorite.create({
+      data: {
+        companyId,
+        carListingId,
+        tgUserId: tgUserId || null,
+        visitorId: visitorId || null
+      }
+    });
+
+    return { action: 'added', favoriteId: created.id } as const;
+  }
+
+  async createRequest(input: MiniAppRequestInput) {
+    const companyId = await resolveCompanyIdBySlug(input.slug);
+    if (!companyId) throw new Error('Company not found');
+
+    const titleFromInput = toOptionalString(input.title);
+    const descriptionFromInput = toOptionalString(input.description);
+    const phone = toOptionalString(input.phone);
+    const comment = toOptionalString(input.comment);
+    const carListingId = toOptionalString(input.carListingId);
+
+    let listingTitle: string | undefined;
+    if (carListingId) {
+      const listing = await prisma.carListing.findUnique({ where: { id: carListingId } });
+      listingTitle = listing?.title || undefined;
+    }
+
+    const title = titleFromInput || (listingTitle ? `Request: ${listingTitle}` : 'Mini App Request');
+
+    const descriptionParts: string[] = [];
+    if (listingTitle) descriptionParts.push(`Listing: ${listingTitle}`);
+    if (comment) descriptionParts.push(`Comment: ${comment}`);
+    if (phone) descriptionParts.push(`Phone: ${phone}`);
+    const description = descriptionFromInput || (descriptionParts.length ? descriptionParts.join('\n') : undefined);
+
+    const tracking = isRecord(input.tracking) ? input.tracking : {};
+    const telegram = isRecord(input.telegram) ? input.telegram : {};
+    const payloadFromInput = isRecord(input.payload) ? input.payload : {};
+
+    const payload = {
+      ...payloadFromInput,
+      source: 'miniapp',
+      tracking,
+      telegram,
+      request: {
+        carListingId: carListingId || undefined,
+        phone: phone || undefined,
+        comment: comment || undefined
+      }
+    };
+
+    const requestInput = mapRequestInput({
+      title,
+      description,
+      budgetMax: toOptionalNumber(input.budgetMax),
+      yearMin: toOptionalNumber(input.yearMin),
+      chatId: toOptionalString((telegram as Record<string, unknown>)?.userId),
+      payload
+    });
+
+    if (!requestInput.publicId) requestInput.publicId = generatePublicId();
+    requestInput.companyId = companyId;
+
+    const request = await prisma.b2bRequest.create({
+      data: requestInput
+    });
+
+    return mapRequestOutput(request);
+  }
+
+  async getRequestStatus(slug: string, query: MiniAppRequestStatusQuery) {
+    const companyId = await resolveCompanyIdBySlug(slug);
+    if (!companyId) throw new Error('Company not found');
+
+    const requestId = toOptionalString(query.requestId);
+    const phone = toOptionalString(query.phone);
+    const telegramUserId = toOptionalString(query.telegramUserId);
+
+    if (!requestId && !phone && !telegramUserId) throw new Error('Search params required');
+
+    const where: Prisma.B2bRequestWhereInput = { companyId };
+    const or: Record<string, unknown>[] = [];
+
+    if (requestId) {
+      or.push({ id: requestId });
+      or.push({ publicId: requestId });
+    }
+    if (telegramUserId) {
+      or.push({ chatId: telegramUserId });
+    }
+    if (phone) {
+      or.push({
+        payload: {
+          path: ['phone'],
+          equals: phone
+        }
+      });
+    }
+
+    if (or.length) {
+      where.OR = or as Prisma.B2bRequestWhereInput[];
+    }
+
+    const request = await prisma.b2bRequest.findFirst({
+      where,
+      orderBy: { createdAt: 'desc' }
+    });
+
+    if (!request) return null;
+
+    return {
+      id: request.id,
+      publicId: request.publicId || request.id,
+      status: request.status,
+      title: request.title,
+      createdAt: request.createdAt
+    };
+  }
+}
+
+export const miniAppService = new MiniAppService();

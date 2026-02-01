@@ -279,13 +279,14 @@ export const mapRequestOutput = (request: any) => ({
   assigneeId: request.assignedTo ?? undefined,
   internalNote: request.internalNotes ?? undefined,
   clientChatId: request.chatId ?? undefined,
+  payload: request.payload ?? undefined,
   createdAt: request.createdAt,
   updatedAt: request.updatedAt,
   variants: (request.variants || []).map(mapVariantOutput)
 });
 
-export const mapInventoryInput = (input: any) => {
-  const data: any = {};
+export const mapInventoryInput = (input: Record<string, unknown>) => {
+  const data: Record<string, unknown> = {};
   const id = toString(input.id) || toString(input.canonicalId);
   if (id) data.id = id;
 
@@ -319,7 +320,7 @@ export const mapInventoryInput = (input: any) => {
   return data;
 };
 
-export const mapInventoryOutput = (car: any) => ({
+export const mapInventoryOutput = (car: Record<string, unknown>) => ({
   ...car,
   canonicalId: car.id,
   price: {

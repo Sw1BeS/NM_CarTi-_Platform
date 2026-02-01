@@ -102,6 +102,7 @@ export interface B2BRequest {
     tags?: string[];
     notes?: string;
     internalNote?: string;
+    payload?: Record<string, unknown>;
     status: RequestStatus;
     createdAt: string;
     updatedAt?: string;

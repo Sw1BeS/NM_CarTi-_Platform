@@ -9,6 +9,7 @@ import entityRoutes from './routes/entityRoutes.js';
 import inventoryRoutes from './modules/Inventory/inventory/inventory.routes.js';
 import requestsRoutes from './modules/Sales/requests/requests.routes.js';
 import publicRoutes from './routes/publicRoutes.js';
+import miniAppRoutes from './routes/miniAppRoutes.js';
 import companyRoutes from './modules/Core/companies/company.routes.js';
 import templateRoutes from './modules/Core/templates/template.routes.js';
 import integrationRoutes from './modules/Integrations/integration.routes.js';
@@ -62,6 +63,7 @@ app.use('/api/telegram', telegramRoutes);
 
 // 2) Public Routes
 app.use('/api/public', publicRoutes);
+app.use('/api/miniapp', miniAppRoutes);
 
 // 3) Auth Routes
 app.use('/api/auth', authRoutes);

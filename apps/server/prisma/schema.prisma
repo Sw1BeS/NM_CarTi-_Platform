@@ -491,6 +491,8 @@ model CarListing {
   mediaGroupKey   String?
   originalRaw     Json?   @db.JsonB // Store original raw message for debug/re-parse
 
+  miniAppFavorites MiniAppFavorite[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -503,6 +505,23 @@ model CarListing {
   @@index([companyId, status, createdAt])
   @@index([year, price])
   @@index([source])
+}
+
+model MiniAppFavorite {
+  id           String   @id @default(cuid())
+  companyId    String
+  carListingId String
+  tgUserId     String?
+  visitorId    String?
+  createdAt    DateTime @default(now())
+
+  carListing CarListing @relation(fields: [carListingId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([tgUserId])
+  @@index([visitorId])
+  @@unique([companyId, carListingId, tgUserId])
+  @@unique([companyId, carListingId, visitorId])
 }
 
 model MTProtoConnector {

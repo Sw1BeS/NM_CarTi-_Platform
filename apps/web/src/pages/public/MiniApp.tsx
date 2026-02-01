@@ -2,7 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { Bot, MiniAppConfig, CarListing } from '../../types';
-import { getPublicBots, getShowcaseInventory, getPublicRequestStatus } from '../../services/publicApi';
+import { getPublicBots, getShowcaseInventory } from '../../services/publicApi';
+import { createMiniAppRequest, getMiniAppFavorites, getMiniAppRequestStatus, toggleMiniAppFavorite, type MiniAppTrackingMeta } from '../../services/miniappApi';
 import {
     Search, LayoutGrid, User, Plus, Filter, ArrowRight, DollarSign,
     MessageSquare, Zap, List as ListIcon, Star, Phone, Home, Heart, ClipboardList,
@@ -13,6 +14,14 @@ import {
 const PLACEHOLDER_IMAGE = 'https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?auto=format&fit=crop&q=80&w=1000';
 
 type InventoryTab = 'IN_STOCK' | 'IN_TRANSIT';
+type TgUser = {
+    id?: number;
+    first_name?: string;
+    last_name?: string;
+    username?: string;
+    photo_url?: string;
+    language_code?: string;
+};
 
 export const MiniApp = () => {
     const { slug } = useParams();
@@ -21,15 +30,23 @@ export const MiniApp = () => {
     const [view, setView] = useState<'HOME' | 'INVENTORY' | 'LISTING' | 'FAVORITES' | 'REQUEST' | 'STATUS' | 'PROFILE'>('HOME');
     const [lastListingView, setLastListingView] = useState<'HOME' | 'INVENTORY' | 'FAVORITES'>('INVENTORY');
     const [selectedCar, setSelectedCar] = useState<CarListing | null>(null);
-    const [favorites, setFavorites] = useState<string[]>(() => {
+    const [favorites, setFavorites] = useState<string[]>([]);
+    const [favoriteItems, setFavoriteItems] = useState<CarListing[]>([]);
+    const [tgUser, setTgUser] = useState<TgUser | null>(null);
+    const [isPreview, setIsPreview] = useState(false);
+    const [visitorId] = useState(() => {
         try {
-            return JSON.parse(localStorage.getItem('miniapp_favorites') || '[]');
+            const existing = localStorage.getItem('miniapp_visitor_id');
+            if (existing) return existing;
+            const generated = window.crypto?.randomUUID
+                ? window.crypto.randomUUID()
+                : `v_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+            localStorage.setItem('miniapp_visitor_id', generated);
+            return generated;
         } catch {
-            return [];
+            return `v_${Date.now()}_${Math.random().toString(16).slice(2)}`;
         }
     });
-    const [tgUser, setTgUser] = useState<any>(null);
-    const [isPreview, setIsPreview] = useState(false);
 
     // Inventory State
     const [cars, setCars] = useState<CarListing[]>([]);
@@ -56,7 +73,8 @@ export const MiniApp = () => {
     const [reqPhone, setReqPhone] = useState('');
     const [statusQuery, setStatusQuery] = useState({ publicId: '', phone: '' });
     const [statusResult, setStatusResult] = useState<any>(null);
-    const [trackingMeta, setTrackingMeta] = useState<any>({ startParam: '', utm: {}, ref: '' });
+    const [trackingMeta, setTrackingMeta] = useState<MiniAppTrackingMeta>({});
+    const [reqComment, setReqComment] = useState('');
 
     const getCarImages = (car: CarListing) => {
         const itemUrls = (car.mediaItems || [])
@@ -67,14 +85,42 @@ export const MiniApp = () => {
         return Array.from(new Set(combined.filter(Boolean)));
     };
 
+    const getCarId = (car?: CarListing | null) => car?.canonicalId || car?.id || '';
+
     const isFavorite = (carId: string) => favorites.includes(carId);
 
-    const toggleFavorite = (car: CarListing) => {
-        const id = car.canonicalId || (car as any).id;
+    const loadFavorites = async (slug: string, identity: { tgUserId?: string; visitorId?: string }) => {
+        try {
+            const res = await getMiniAppFavorites({ slug, ...identity });
+            setFavorites(res.ids || []);
+            setFavoriteItems(res.items || []);
+        } catch (e) {
+            console.error('Failed to load favorites', e);
+        }
+    };
+
+    const toggleFavorite = async (car: CarListing) => {
+        const id = getCarId(car);
         if (!id) return;
-        setFavorites(prev => (
-            prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
-        ));
+        const identity = {
+            tgUserId: tgUser?.id ? String(tgUser.id) : undefined,
+            visitorId
+        };
+        try {
+            const res = await toggleMiniAppFavorite(id, { ...identity, slug: targetSlug || 'system' });
+            if (res.action === 'removed') {
+                setFavorites(prev => prev.filter(x => x !== id));
+                setFavoriteItems(prev => prev.filter(item => getCarId(item) !== id));
+            } else {
+                setFavorites(prev => (prev.includes(id) ? prev : [...prev, id]));
+                setFavoriteItems(prev => {
+                    const exists = prev.some(item => getCarId(item) === id);
+                    return exists ? prev : [car, ...prev];
+                });
+            }
+        } catch (e) {
+            console.error('Failed to toggle favorite', e);
+        }
     };
 
     const openListing = (car: CarListing) => {
@@ -90,13 +136,10 @@ export const MiniApp = () => {
             budget: String(car.price?.amount || ''),
             year: String(car.year || '')
         });
+        setReqComment('');
         setReqStep(1);
         setView('REQUEST');
     };
-
-    useEffect(() => {
-        localStorage.setItem('miniapp_favorites', JSON.stringify(favorites));
-    }, [favorites]);
 
     const buildFallbackConfig = (target: string): MiniAppConfig => ({
         title: 'CarTié',
@@ -114,23 +157,29 @@ export const MiniApp = () => {
         showcaseSlug: target
     });
 
+    const meta = import.meta as { env?: { VITE_BUILD_ID?: string; MODE?: string } };
+    const buildVersion = meta.env?.VITE_BUILD_ID || meta.env?.MODE || 'dev';
+
     useEffect(() => {
         const load = async () => {
             // 1. Initialize Telegram Web App & Extract start_param
             const tg = (window as any).Telegram?.WebApp;
             let startParam = '';
 
+            let resolvedUser: TgUser | null = null;
             if (tg && tg.initData) {
                 tg.ready();
                 tg.expand();
                 tg.enableClosingConfirmation();
-                setTgUser(tg.initDataUnsafe?.user);
+                resolvedUser = tg.initDataUnsafe?.user;
+                setTgUser(resolvedUser);
                 setIsPreview(false);
                 startParam = tg.initDataUnsafe?.start_param;
             } else {
                 // Mock environment for browser preview
                 setIsPreview(true);
-                setTgUser({ first_name: 'Guest', username: 'guest_user', id: 12345, photo_url: '' });
+                resolvedUser = { first_name: 'Guest', username: 'guest_user', id: 12345, photo_url: '' };
+                setTgUser(resolvedUser);
                 // Check URL params for start_param simulation
                 const urlParams = new URLSearchParams(window.location.search);
                 startParam = urlParams.get('tgWebAppStartParam') || urlParams.get('start_param') || '';
@@ -145,11 +194,23 @@ export const MiniApp = () => {
                 term: urlParams.get('utm_term') || undefined
             };
             const ref = urlParams.get('ref') || urlParams.get('source') || undefined;
-            setTrackingMeta({ startParam: startParam || '', utm, ref });
+            setTrackingMeta({
+                startParam: startParam || undefined,
+                utm,
+                ref,
+                entrypoint: window.location.pathname,
+                referrer: document.referrer || undefined,
+                miniappVersion: buildVersion,
+                buildSha: buildVersion
+            });
 
             // 2. Determine Target Slug (priority: URL slug > start_param > system)
             const resolvedSlug = slug || startParam || 'system';
             setTargetSlug(resolvedSlug);
+            await loadFavorites(resolvedSlug, {
+                tgUserId: resolvedUser?.id ? String(resolvedUser.id) : undefined,
+                visitorId
+            });
 
             // 3. Load Bot Configuration matched by showcase slug
             const bots = await getPublicBots();
@@ -187,7 +248,7 @@ export const MiniApp = () => {
 
     const primaryColor = config.primaryColor || '#D4AF37';
 
-    const handleAction = (act: any) => {
+    const handleAction = (act: MiniAppConfig['actions'][number]) => {
         const tg = (window as any).Telegram?.WebApp;
         if (act.actionType === 'VIEW') {
             if (act.value === 'INVENTORY') setView('INVENTORY');
@@ -210,7 +271,7 @@ export const MiniApp = () => {
         }
     };
 
-    const sendLeadPayload = (payload: any) => {
+    const sendLeadPayload = (payload: Record<string, unknown>) => {
         const tg = (window as any).Telegram?.WebApp;
         if (tg && tg.initData) {
             tg.sendData(JSON.stringify(payload));
@@ -367,7 +428,7 @@ export const MiniApp = () => {
                                     onClick={(e) => { e.stopPropagation(); toggleFavorite(car); }}
                                     className="absolute top-2 left-2 w-8 h-8 rounded-full bg-black/60 flex items-center justify-center"
                                 >
-                                    <Heart size={14} className={isFavorite(car.canonicalId || (car as any).id) ? 'text-red-400 fill-red-400' : 'text-white/70'} />
+                                    <Heart size={14} className={isFavorite(getCarId(car)) ? 'text-red-400 fill-red-400' : 'text-white/70'} />
                                 </button>
                                 <div className="absolute top-2 right-2 bg-black/60 backdrop-blur px-2 py-1 rounded text-[10px] font-bold text-white">
                                     {car.year}
@@ -559,7 +620,7 @@ export const MiniApp = () => {
                                     onClick={(e) => { e.stopPropagation(); toggleFavorite(car); }}
                                     className="absolute top-2 right-2 w-9 h-9 rounded-full bg-black/60 flex items-center justify-center"
                                 >
-                                    <Heart size={16} className={isFavorite(car.canonicalId || (car as any).id) ? 'text-red-400 fill-red-400' : 'text-white/70'} />
+                                    <Heart size={16} className={isFavorite(getCarId(car)) ? 'text-red-400 fill-red-400' : 'text-white/70'} />
                                 </button>
                             </div>
                             <div className="p-4">
@@ -596,7 +657,9 @@ export const MiniApp = () => {
     };
 
     const renderFavorites = () => {
-        const favCars = cars.filter(car => favorites.includes(car.canonicalId || (car as any).id));
+        const favCars = favoriteItems.length
+            ? favoriteItems
+            : cars.filter(car => favorites.includes(getCarId(car)));
 
         return (
             <div className="animate-fade-in pb-24 h-full flex flex-col bg-black">
@@ -689,7 +752,7 @@ export const MiniApp = () => {
                                 onClick={() => toggleFavorite(selectedCar)}
                                 className="w-10 h-10 rounded-full bg-black/40 flex items-center justify-center"
                             >
-                                <Heart size={18} className={isFavorite(selectedCar.canonicalId || (selectedCar as any).id) ? 'text-red-400 fill-red-400' : 'text-white/70'} />
+                                <Heart size={18} className={isFavorite(getCarId(selectedCar)) ? 'text-red-400 fill-red-400' : 'text-white/70'} />
                             </button>
                         </div>
                         <div className="text-sm text-white/60">{selectedCar.year} • {selectedCar.mileage.toLocaleString()} km</div>
@@ -726,8 +789,9 @@ export const MiniApp = () => {
                     onClick={async () => {
                         try {
                             const slug = targetSlug || 'system';
-                            const res: any = await getPublicRequestStatus(slug, {
-                                publicId: statusQuery.publicId || undefined,
+                            const res = await getMiniAppRequestStatus({
+                                slug,
+                                requestId: statusQuery.publicId || undefined,
                                 phone: statusQuery.phone || undefined,
                                 telegramUserId: tgUser?.id ? String(tgUser.id) : undefined
                             });
@@ -766,48 +830,36 @@ export const MiniApp = () => {
         } else {
             const tg = (window as any).Telegram?.WebApp;
 
-            const reqParts = (reqData.brand || '').split(' ');
-            const payload = {
-                v: 1,
-                type: 'lead_submit',
-                fields: {
-                    name: tgUser?.first_name || 'User',
-                    brand: reqParts[0] || reqData.brand,
-                    model: reqParts.slice(1).join(' ').trim(),
-                    budget: Number(reqData.budget),
-                    year: Number(reqData.year),
-                    lang: detectLang()
-                },
-                meta: {
-                    userId: tgUser?.id,
-                    username: tgUser?.username
-                }
-            };
             // Use Direct API call for reliability
             try {
                 const slug = targetSlug || 'system';
+                const listingId = getCarId(selectedCar) || undefined;
+                const descriptionParts = [
+                    reqData.brand ? `Vehicle: ${reqData.brand}` : null,
+                    reqData.year ? `Year: ${reqData.year}+` : null,
+                    reqData.budget ? `Budget: ${reqData.budget}` : null,
+                    reqComment ? `Comment: ${reqComment}` : null,
+                    reqPhone ? `Phone: ${reqPhone}` : null
+                ].filter(Boolean);
+
                 const requestPayload = {
-                    title: `Request: ${reqData.brand} ${reqData.year}+`,
-                    description: `Budget: ${reqData.budget}\nUser: ${tgUser?.first_name} @${tgUser?.username}\nPhone: ${reqPhone || '—'}`,
-                    budgetMax: Number(reqData.budget),
-                    yearMin: Number(reqData.year),
-                    status: 'NEW',
-                    type: 'BUY',
-                    chatId: tgUser?.id ? String(tgUser.id) : undefined,
-                    payload: {
-                        phone: reqPhone || undefined,
-                        tracking: trackingMeta,
-                        telegram: {
-                            userId: tgUser?.id,
-                            username: tgUser?.username,
-                            firstName: tgUser?.first_name,
-                            lastName: tgUser?.last_name
-                        }
-                    },
-                    initData: tg?.initData
+                    slug,
+                    title: listingId && selectedCar?.title ? `Request: ${selectedCar.title}` : `Request: ${reqData.brand || 'Car'} ${reqData.year || ''}`.trim(),
+                    description: descriptionParts.length ? descriptionParts.join('\n') : undefined,
+                    budgetMax: reqData.budget ? Number(reqData.budget) : undefined,
+                    yearMin: reqData.year ? Number(reqData.year) : undefined,
+                    phone: reqPhone || undefined,
+                    comment: reqComment || undefined,
+                    carListingId: listingId || undefined,
+                    tracking: trackingMeta,
+                    telegram: {
+                        userId: tgUser?.id ? String(tgUser.id) : undefined,
+                        username: tgUser?.username,
+                        name: [tgUser?.first_name, tgUser?.last_name].filter(Boolean).join(' ')
+                    }
                 };
 
-                await import('../../services/publicApi').then(m => m.createPublicRequestWithSlug(slug, requestPayload as any));
+                await createMiniAppRequest(requestPayload);
 
                 if (tg && tg.initData) {
                     // Also close/notify telegram
@@ -861,6 +913,10 @@ export const MiniApp = () => {
                                     <label className="text-xs font-bold text-white/70 uppercase mb-2 block">Phone (for status updates)</label>
                                     <input type="tel" className="w-full bg-[#1c1c1e] text-white p-4 rounded-xl outline-none border border-white/10" placeholder="+1 555 123 4567" value={reqPhone} onChange={e => setReqPhone(e.target.value)} />
                                 </div>
+                                <div>
+                                    <label className="text-xs font-bold text-white/70 uppercase mb-2 block">Comment (optional)</label>
+                                    <textarea className="w-full bg-[#1c1c1e] text-white p-4 rounded-xl outline-none border border-white/10 min-h-[96px]" placeholder="Tell us details or preferences" value={reqComment} onChange={e => setReqComment(e.target.value)} />
+                                </div>
                             </div>
                         )}
 
@@ -872,6 +928,7 @@ export const MiniApp = () => {
                                     <div className="flex justify-between"><span>Year:</span> <span className="font-bold text-white">{reqData.year}+</span></div>
                                     <div className="flex justify-between"><span>Budget:</span> <span className="font-bold text-white" style={{ color: primaryColor }}>${reqData.budget}</span></div>
                                     <div className="flex justify-between"><span>Phone:</span> <span className="font-bold text-white">{reqPhone || '—'}</span></div>
+                                    <div className="flex justify-between"><span>Comment:</span> <span className="font-bold text-white">{reqComment || '—'}</span></div>
                                 </div>
                                 <p className="text-xs text-white/50 text-center px-4">
                                     By submitting, you agree to be contacted by our concierge team via this chat.
