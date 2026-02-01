@@ -1,6 +1,6 @@
 import { PipelineMiddleware } from '../core/types.js';
 import { logger } from '../../../../utils/logger.js';
-import { channelIngestionService } from '../../../../services/channel-ingestion.service.js';
+import { channelIngestionService, type MediaItem } from '../../../../services/channel-ingestion.service.js';
 import { saveTelegramBotFile } from '../../../../services/mediaStorage.service.js';
 
 /**
@@ -24,7 +24,7 @@ export const routeChannelPost: PipelineMiddleware = async (ctx, next) => {
     const text = post.caption || post.text || '';
     if (!text) return next();
 
-    const mediaItems: any[] = [];
+    const mediaItems: MediaItem[] = [];
     let mediaUrls: string[] = [];
     if (post.photo && post.photo.length > 0) {
         const largest = post.photo[post.photo.length - 1];
@@ -85,7 +85,8 @@ export const routeChannelPost: PipelineMiddleware = async (ctx, next) => {
             requireSignals: true
         });
 
-        logger.info(`[ChannelPost] ${result.created ? 'Created' : 'Skipped'} ${mode === 'INVENTORY' ? 'CarListing' : 'Draft'} from channel ${channelId} (${channelMode} mode)`);
+        const outcome = result.created ? 'Created' : (result.reason === 'MERGED' ? 'Merged' : 'Skipped');
+        logger.info(`[ChannelPost] ${outcome} ${mode === 'INVENTORY' ? 'CarListing' : 'Draft'} from channel ${channelId} (${channelMode} mode)`);
     } catch (e) {
         logger.error('[ChannelPost] Failed to process post', e);
     }

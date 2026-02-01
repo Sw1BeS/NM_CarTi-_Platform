@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-01T14:13:39.200814+00:00",
+  "generatedAt": "2026-02-01T14:25:14.891459+00:00",
   "entries": [
     {
       "file": "apps/server/prisma/seed.ts",
@@ -547,11 +547,6 @@
       "signature": "const sendMessage = async (ctx: PipelineContext, text: string, replyMarkup?: any) => {"
     },
     {
-      "file": "apps/server/src/modules/Communication/telegram/routing/routeChannelPost.ts",
-      "line": 27,
-      "signature": "const mediaItems: any[] = [];"
-    },
-    {
       "file": "apps/server/src/modules/Communication/telegram/routing/routeMessage.ts",
       "line": 42,
       "signature": "const sendMessage = async (ctx: PipelineContext, text: string, replyMarkup?: any, targetChatId?: string) => {"
@@ -1093,7 +1088,7 @@
     },
     {
       "file": "apps/server/src/modules/Integrations/mtproto/mtproto.import.worker.ts",
-      "line": 226,
+      "line": 222,
       "signature": "} catch (e: any) {"
     },
     {
@@ -2128,32 +2123,12 @@
     },
     {
       "file": "apps/server/src/services/channel-ingestion.service.ts",
-      "line": 15,
-      "signature": "mediaItems?: any[];"
-    },
-    {
-      "file": "apps/server/src/services/channel-ingestion.service.ts",
-      "line": 48,
-      "signature": "mediaItems?: any[];"
-    },
-    {
-      "file": "apps/server/src/services/channel-ingestion.service.ts",
-      "line": 65,
+      "line": 152,
       "signature": "applyRules(text: string, rules: any, options?: { requireSignals?: boolean }) {"
     },
     {
       "file": "apps/server/src/services/channel-ingestion.service.ts",
-      "line": 86,
-      "signature": "const mediaUrls = mediaItems.map((item: any) => item.url || item.previewUrl).filter(Boolean);"
-    },
-    {
-      "file": "apps/server/src/services/channel-ingestion.service.ts",
-      "line": 155,
-      "signature": "[...existingItems, ...(media.mediaItems || [])].map((item: any) => [item.url || item.previewUrl || JSON.stringify(item), item])"
-    },
-    {
-      "file": "apps/server/src/services/channel-ingestion.service.ts",
-      "line": 295,
+      "line": 411,
       "signature": "private applyImportRules(carData: CarData, rules: any) {"
     },
     {
@@ -2270,11 +2245,6 @@
       "file": "apps/server/src/services/integrationEventLog.service.ts",
       "line": 27,
       "signature": "} catch (e: any) {"
-    },
-    {
-      "file": "apps/server/src/services/mtproto-mapping.service.ts",
-      "line": 23,
-      "signature": "mediaItems?: any[];"
     },
     {
       "file": "apps/server/src/services/normalization.service.ts",

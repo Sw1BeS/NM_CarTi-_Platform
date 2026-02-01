@@ -6,6 +6,7 @@
 🔘 Preview endpoint отдаёт 5–10 сообщений с результатом маппинга + skipReason (без записи в БД)
 🔘 Импорт работает в режиме `INVENTORY` или `DRAFT_ONLY`
 🔘 Семантика дат: UTC, `fromDate` inclusive, `toDate` exclusive
+🔘 Дедуп/merge: `(sourceChatId, sourceMessageId)` — не создаём дубль, обновляем media/meta
 
 📌 2️⃣ API
 🔘 `POST /api/integrations/mtproto/:connectorId/channels/:sourceId/preview` (fromDate, toDate, mode)

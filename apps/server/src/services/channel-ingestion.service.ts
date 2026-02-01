@@ -1,4 +1,4 @@
-import { DraftSource, type ChannelSource } from '@prisma/client';
+import { DraftSource, type ChannelSource, type CarListing } from '@prisma/client';
 import { prisma } from './prisma.js';
 import { CarRepository } from '../repositories/car.repository.js';
 import { DraftRepository } from '../repositories/draft.repository.js';
@@ -12,7 +12,7 @@ export interface NormalizedChannelMessage {
     text: string;
     date: Date;
     mediaUrls: string[];
-    mediaItems?: any[];
+    mediaItems?: MediaItem[];
     mediaGroupKey?: string;
     channelTitle?: string;
     sourceUrl?: string;
@@ -28,7 +28,7 @@ export interface CarData {
     location?: string;
     brand?: string;
     model?: string;
-    specs?: Record<string, any>;
+    specs?: Record<string, unknown>;
     description?: string;
 }
 
@@ -38,14 +38,101 @@ export interface IngestionResult {
     reason?: string;
 }
 
+export type MediaItem = {
+    url?: string;
+    previewUrl?: string;
+    tgFileId?: string;
+    source?: string;
+};
+
 const carRepo = new CarRepository(prisma);
 const draftRepo = new DraftRepository(prisma);
+
+const isNonEmptyString = (value?: string | null) => !!value && value.trim().length > 0;
+
+const isMeaningfulNumber = (value?: number | null) => typeof value === 'number' && value > 0;
+
+const isMeaningfulYear = (value?: number | null) =>
+    typeof value === 'number' && value >= 1900 && value <= new Date().getFullYear() + 1;
+
+const isRealUrl = (value?: string | null) => typeof value === 'string' && /^https?:\/\//.test(value);
+
+const mergeSpecs = (current?: Record<string, unknown> | null, incoming?: Record<string, unknown> | null) => {
+    const result: Record<string, unknown> = { ...(current || {}) };
+    if (incoming) {
+        for (const [key, value] of Object.entries(incoming)) {
+            if (result[key] === undefined) result[key] = value;
+        }
+    }
+    return Object.keys(result).length ? result : undefined;
+};
+
+const buildSourceMeta = (message: NormalizedChannelMessage, sourceLabel: string, botId?: string | null, channelSource?: ChannelSource | null) => ({
+    sourceType: message.sourceType,
+    sourceLabel,
+    messageId: message.messageId,
+    chatId: message.chatId,
+    receivedAt: new Date().toISOString(),
+    botId: botId || undefined,
+    channelSourceId: channelSource?.id
+});
+
+const mergeOriginalRaw = (existingRaw: unknown, message: NormalizedChannelMessage, sourceMeta: Record<string, unknown>) => {
+    const base = (existingRaw && typeof existingRaw === 'object' && !Array.isArray(existingRaw))
+        ? (existingRaw as Record<string, unknown>)
+        : {};
+    const existingSources = Array.isArray(base.sources) ? base.sources as Record<string, unknown>[] : [];
+    const nextSources = [
+        ...existingSources.filter((entry) => entry.sourceType !== sourceMeta.sourceType || entry.sourceLabel !== sourceMeta.sourceLabel),
+        sourceMeta
+    ];
+    return {
+        ...base,
+        sources: nextSources,
+        lastMessage: {
+            text: message.text,
+            date: message.date,
+            sourceUrl: message.sourceUrl
+        }
+    };
+};
+
+const mergeMedia = (existing: CarListing, incoming: { mediaUrls: string[]; mediaItems: MediaItem[]; thumbnail?: string }) => {
+    const existingUrls = existing.mediaUrls || [];
+    const existingItems = Array.isArray(existing.mediaItems) ? existing.mediaItems as MediaItem[] : [];
+    const incomingUrls = incoming.mediaUrls || [];
+    const incomingItems = incoming.mediaItems || [];
+
+    const existingHasReal = existingUrls.some((url) => isRealUrl(url));
+    const incomingHasReal = incomingUrls.some((url) => isRealUrl(url));
+
+    const baseUrls = existingHasReal || !incomingHasReal ? existingUrls : incomingUrls;
+    const baseItems = existingHasReal || !incomingHasReal ? existingItems : incomingItems;
+
+    const mergedUrls = Array.from(new Set([...baseUrls, ...incomingUrls].filter(Boolean)));
+    const mergedItems = Array.from(new Map(
+        [...baseItems, ...incomingItems].map((item) => [
+            item.url || item.previewUrl || item.tgFileId || JSON.stringify(item),
+            item
+        ])
+    ).values());
+
+    const thumbnail = incoming.thumbnail && (!existing.thumbnail || !isRealUrl(existing.thumbnail))
+        ? incoming.thumbnail
+        : existing.thumbnail || incoming.thumbnail;
+
+    return {
+        mediaUrls: mergedUrls,
+        mediaItems: mergedItems,
+        thumbnail
+    };
+};
 
 export class ChannelIngestionService {
     normalizeMessage(input: Omit<NormalizedChannelMessage, 'text' | 'mediaUrls' | 'sourceType'> & {
         text?: string | null;
         mediaUrls?: string[];
-        mediaItems?: any[];
+        mediaItems?: MediaItem[];
         sourceType: 'MTPROTO' | 'BOTAPI';
     }): NormalizedChannelMessage {
         return {
@@ -83,7 +170,7 @@ export class ChannelIngestionService {
         const mediaItems = (message.mediaItems && message.mediaItems.length)
             ? message.mediaItems
             : (message.mediaUrls || []).map((url) => ({ url }));
-        const mediaUrls = mediaItems.map((item: any) => item.url || item.previewUrl).filter(Boolean);
+        const mediaUrls = mediaItems.map((item) => item.url || item.previewUrl).filter(Boolean) as string[];
         return {
             thumbnail: mediaUrls.length ? mediaUrls[0] : undefined,
             mediaUrls,
@@ -149,17 +236,8 @@ export class ChannelIngestionService {
             });
             if (existingGroup) {
                 const media = this.attachMediaRefs(message);
-                const mergedUrls = Array.from(new Set([...(existingGroup.mediaUrls || []), ...media.mediaUrls]));
-                const existingItems = Array.isArray((existingGroup as any).mediaItems) ? (existingGroup as any).mediaItems : [];
-                const mergedItems = Array.from(new Map(
-                    [...existingItems, ...(media.mediaItems || [])].map((item: any) => [item.url || item.previewUrl || JSON.stringify(item), item])
-                ).values());
-
-                await carRepo.updateCar(existingGroup.id, {
-                    mediaUrls: mergedUrls,
-                    mediaItems: mergedItems
-                });
-
+                const mergedMedia = mergeMedia(existingGroup, media);
+                await carRepo.updateCar(existingGroup.id, mergedMedia);
                 return { created: false, entity: 'CAR', reason: 'MEDIA_GROUP_APPEND' };
             }
         }
@@ -170,7 +248,28 @@ export class ChannelIngestionService {
                 sourceMessageId: message.messageId
             }
         });
-        if (existing) return { created: false, entity: 'CAR', reason: 'DUPLICATE' };
+        if (existing) {
+            const sourceMeta = buildSourceMeta(message, sourceLabel, botId, channelSource);
+            const media = this.attachMediaRefs(message);
+            const mergedMedia = mergeMedia(existing, media);
+            const updates: Partial<CarListing> = {
+                sourceUrl: isNonEmptyString(existing.sourceUrl) ? existing.sourceUrl : message.sourceUrl,
+                description: isNonEmptyString(existing.description) ? existing.description : (transformedData.description || message.text),
+                location: isNonEmptyString(existing.location) ? existing.location : transformedData.location,
+                currency: isNonEmptyString(existing.currency) ? existing.currency : (transformedData.currency || 'USD'),
+                specs: mergeSpecs(existing.specs as Record<string, unknown> | null, transformedData.specs),
+                originalRaw: mergeOriginalRaw(existing.originalRaw, message, sourceMeta),
+                ...mergedMedia
+            };
+
+            if (!isNonEmptyString(existing.title)) updates.title = transformedData.title;
+            if (!isMeaningfulNumber(existing.price)) updates.price = transformedData.price || existing.price;
+            if (!isMeaningfulYear(existing.year)) updates.year = transformedData.year || existing.year;
+            if (!isMeaningfulNumber(existing.mileage)) updates.mileage = transformedData.mileage || existing.mileage;
+
+            await carRepo.updateCar(existing.id, updates);
+            return { created: false, entity: 'CAR', reason: 'MERGED' };
+        }
 
         let companyId = params.companyId || null;
         if (!companyId && channelSource) {
@@ -190,34 +289,51 @@ export class ChannelIngestionService {
         const autoPublish = (channelSource?.importRules as any)?.autoPublish;
         const status = autoPublish ? 'AVAILABLE' : 'PENDING';
 
-        await carRepo.createFromChannelMessage({
-            source: sourceLabel,
-            sourceUrl: message.sourceUrl,
-            title: transformedData.title,
-            price: transformedData.price || 0,
-            currency: transformedData.currency || 'USD',
-            year: transformedData.year || new Date().getFullYear(),
-            mileage: transformedData.mileage || 0,
-            location: transformedData.location,
-            thumbnail: media.thumbnail,
-            mediaUrls: media.mediaUrls,
-            mediaItems: media.mediaItems,
-            specs: transformedData.specs,
-            description: transformedData.description || message.text,
-            status,
-            companyId,
-            sourceChatId: message.chatId,
-            sourceMessageId: message.messageId,
-            mediaGroupKey: message.mediaGroupKey,
-            originalRaw: {
-                text: message.text,
-                channelTitle: message.channelTitle,
-                date: message.date,
-                sourceType: message.sourceType,
-                botId
-            },
-            postedAt: message.date
-        });
+        const sourceMeta = buildSourceMeta(message, sourceLabel, botId, channelSource);
+        try {
+            await carRepo.createFromChannelMessage({
+                source: sourceLabel,
+                sourceUrl: message.sourceUrl,
+                title: transformedData.title,
+                price: transformedData.price || 0,
+                currency: transformedData.currency || 'USD',
+                year: transformedData.year || new Date().getFullYear(),
+                mileage: transformedData.mileage || 0,
+                location: transformedData.location,
+                thumbnail: media.thumbnail,
+                mediaUrls: media.mediaUrls,
+                mediaItems: media.mediaItems,
+                specs: transformedData.specs,
+                description: transformedData.description || message.text,
+                status,
+                companyId,
+                sourceChatId: message.chatId,
+                sourceMessageId: message.messageId,
+                mediaGroupKey: message.mediaGroupKey,
+                originalRaw: {
+                    text: message.text,
+                    channelTitle: message.channelTitle,
+                    date: message.date,
+                    sourceType: message.sourceType,
+                    botId,
+                    sources: [sourceMeta]
+                },
+                postedAt: message.date
+            });
+        } catch (e) {
+            const err = e as { code?: string };
+            if (err?.code !== 'P2002') throw e;
+            const duplicate = await prisma.carListing.findFirst({
+                where: { sourceChatId: message.chatId, sourceMessageId: message.messageId }
+            });
+            if (!duplicate) throw e;
+            const mergedMedia = mergeMedia(duplicate, media);
+            await carRepo.updateCar(duplicate.id, {
+                ...mergedMedia,
+                originalRaw: mergeOriginalRaw(duplicate.originalRaw, message, sourceMeta)
+            });
+            return { created: false, entity: 'CAR', reason: 'MERGED' };
+        }
 
         return { created: true, entity: 'CAR' };
     }
@@ -273,7 +389,7 @@ export class ChannelIngestionService {
             data.location = locationMatch[1];
         }
 
-        const specs: Record<string, any> = {};
+        const specs: Record<string, unknown> = {};
         if (text.match(/diesel|дизель/i)) specs.fuel = 'diesel';
         else if (text.match(/petrol|бензин|gasoline/i)) specs.fuel = 'petrol';
         else if (text.match(/electric|електро|электро/i)) specs.fuel = 'electric';

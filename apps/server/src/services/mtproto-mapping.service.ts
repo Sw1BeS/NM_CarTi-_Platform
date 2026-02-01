@@ -12,7 +12,7 @@
 import { prisma } from './prisma.js';
 import type { ChannelSource } from '@prisma/client';
 import { logger } from '../utils/logger.js';
-import { channelIngestionService, type CarData } from './channel-ingestion.service.js';
+import { channelIngestionService, type CarData, type IngestionResult, type MediaItem } from './channel-ingestion.service.js';
 
 interface TelegramMessage {
     chatId: string;
@@ -20,7 +20,7 @@ interface TelegramMessage {
     text?: string;
     date: Date;
     mediaUrls?: string[];
-    mediaItems?: any[];
+    mediaItems?: MediaItem[];
     mediaGroupKey?: string;
 }
 
@@ -41,7 +41,7 @@ const buildSourceUrl = (chatId: string, messageId: number) =>
 export async function processParsedMessage(
     message: TelegramMessage,
     channelSource: ChannelSource
-): Promise<void> {
+): Promise<IngestionResult> {
     try {
         const normalized = channelIngestionService.normalizeMessage({
             chatId: message.chatId,
@@ -66,11 +66,15 @@ export async function processParsedMessage(
 
         if (result.created) {
             logger.info(`✅ [MTProto Mapping] Created CarListing from message ${message.messageId}`);
+        } else if (result.reason === 'MERGED') {
+            logger.info(`[MTProto Mapping] Merged CarListing from message ${message.messageId}`);
         } else if (result.reason === 'DUPLICATE') {
             logger.info(`[MTProto Mapping] Car from message ${message.messageId} already imported`);
         }
+        return result;
     } catch (error) {
         logger.error(`[MTProto Mapping] Error processing message ${message.messageId}:`, error);
+        return { created: false, entity: null, reason: 'ERROR' };
     }
 }
 

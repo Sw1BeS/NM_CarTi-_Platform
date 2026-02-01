@@ -1,7 +1,7 @@
 import { prisma } from '../../../services/prisma.js';
 import type { TelegramImportJob } from '@prisma/client';
 import { MTProtoService } from './mtproto.service.js';
-import { previewParsedMessage, processParsedMessage, processParsedMessageToDraft } from '../../../services/mtproto-mapping.service.js';
+import { processParsedMessage, processParsedMessageToDraft } from '../../../services/mtproto-mapping.service.js';
 import { ChannelSourceRepository } from '../../../repositories/channelSource.repository.js';
 import { logIntegrationEvent } from '../../../services/integrationEventLog.service.js';
 import { logger } from '../../../utils/logger.js';
@@ -137,13 +137,9 @@ export class MTProtoImportWorker {
                             if (result.imported) totalImported += 1;
                             else totalSkipped += 1;
                         } else {
-                            const preview = await previewParsedMessage(message, source, 'INVENTORY');
-                            if (preview.action === 'CREATE') {
-                                await processParsedMessage(message, source);
-                                totalImported += 1;
-                            } else {
-                                totalSkipped += 1;
-                            }
+                            const result = await processParsedMessage(message, source);
+                            if (result.created) totalImported += 1;
+                            else totalSkipped += 1;
                         }
                     } catch (e) {
                         totalErrors += 1;
