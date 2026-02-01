@@ -22,6 +22,11 @@ services:
     restart: unless-stopped
     env_file:
       - ../.env
+    environment:
+      - MEDIA_STORAGE_PATH=/srv/cartie/storage
+    volumes:
+      - /srv/cartie/storage:/srv/cartie/storage
+      - /srv/cartie/storage/media:/app/storage
     build:
       context: ..
       dockerfile: infra/Dockerfile.api
