@@ -4,6 +4,19 @@ import { previewParsedMessage } from '../../../services/mtproto-mapping.service.
 
 const PREVIEW_LIMIT = 10;
 const BATCH_LIMIT = 50;
+const SKIP_REASON_MESSAGES: Record<string, string> = {
+    NO_CAR_DATA: 'No car data detected',
+    NO_SIGNALS: 'Missing price/year/mileage signals',
+    FILTERED: 'Filtered by import rules',
+    ALREADY_IMPORTED: 'Already imported',
+    SKIPPED: 'Skipped'
+};
+
+type ImportPayload = {
+    fromDate?: string;
+    toDate?: string;
+    mode?: string;
+};
 
 const parseDate = (value: any, label: string) => {
     if (!value) throw new Error(`${label} is required`);
@@ -17,6 +30,14 @@ const parseDate = (value: any, label: string) => {
 const normalizeMode = (value: any) => {
     const mode = String(value || 'INVENTORY').toUpperCase();
     return mode === 'DRAFT_ONLY' ? 'DRAFT_ONLY' : 'INVENTORY';
+};
+
+const buildSkipReason = (reason?: string) => {
+    const code = reason || 'SKIPPED';
+    return {
+        code,
+        message: SKIP_REASON_MESSAGES[code] || 'Skipped'
+    };
 };
 
 export class MTProtoImportService {
@@ -39,7 +60,7 @@ export class MTProtoImportService {
                     done = true;
                     break;
                 }
-                if (msgDate > toDate) continue;
+                if (msgDate >= toDate) continue;
 
                 results.push(msg);
                 if (results.length >= limit) {
@@ -57,10 +78,10 @@ export class MTProtoImportService {
         return results;
     }
 
-    async previewImport(connectorId: string, sourceId: string, payload: any) {
+    async previewImport(connectorId: string, sourceId: string, payload: ImportPayload) {
         const fromDate = parseDate(payload?.fromDate, 'fromDate');
         const toDate = parseDate(payload?.toDate, 'toDate');
-        if (fromDate > toDate) throw new Error('fromDate must be <= toDate');
+        if (fromDate >= toDate) throw new Error('fromDate must be < toDate');
 
         const mode = normalizeMode(payload?.mode);
 
@@ -86,13 +107,16 @@ export class MTProtoImportService {
             };
 
             const result = await previewParsedMessage(message, source, mode);
+            const mapped = result.action === 'CREATE';
             preview.push({
                 messageId: msg.id,
                 date: message.date,
                 textPreview: (message.text || '').slice(0, 200),
                 action: result.action,
+                mapped,
+                skipReason: mapped ? undefined : buildSkipReason(result.reason),
                 reason: result.reason,
-                mapped: result.mapped
+                mappedData: result.mapped
             });
         }
 
@@ -104,10 +128,10 @@ export class MTProtoImportService {
         };
     }
 
-    async createImportJob(companyId: string, connectorId: string, sourceId: string, payload: any) {
+    async createImportJob(companyId: string, connectorId: string, sourceId: string, payload: ImportPayload) {
         const fromDate = parseDate(payload?.fromDate, 'fromDate');
         const toDate = parseDate(payload?.toDate, 'toDate');
-        if (fromDate > toDate) throw new Error('fromDate must be <= toDate');
+        if (fromDate >= toDate) throw new Error('fromDate must be < toDate');
 
         const mode = normalizeMode(payload?.mode);
 

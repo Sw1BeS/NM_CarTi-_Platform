@@ -357,11 +357,31 @@ const ImportHistoryModal = ({ connectorId, channel, onClose }: { connectorId: st
     const [jobsLoading, setJobsLoading] = useState(false);
     const [creating, setCreating] = useState(false);
 
-    const buildPayload = () => ({
-        fromDate: `${form.fromDate}T00:00:00`,
-        toDate: `${form.toDate}T23:59:59`,
-        mode: form.mode
-    });
+    const getLegacyMappedData = (item: MTProtoPreviewItem) => {
+        const legacy = (item as { mapped?: unknown }).mapped;
+        if (!legacy || typeof legacy !== 'object') return undefined;
+        return legacy as MTProtoPreviewItem['mappedData'];
+    };
+
+    const toUtcStart = (value: string) => new Date(`${value}T00:00:00Z`);
+
+    const buildPayload = () => {
+        const from = toUtcStart(form.fromDate);
+        const to = toUtcStart(form.toDate);
+        to.setUTCDate(to.getUTCDate() + 1);
+        return {
+            fromDate: from.toISOString(),
+            toDate: to.toISOString(),
+            mode: form.mode
+        };
+    };
+
+    const isRangeValid = () => {
+        if (!form.fromDate || !form.toDate) return false;
+        const from = toUtcStart(form.fromDate);
+        const to = toUtcStart(form.toDate);
+        return from.getTime() <= to.getTime();
+    };
 
     const loadJobs = async () => {
         setJobsLoading(true);
@@ -380,6 +400,10 @@ const ImportHistoryModal = ({ connectorId, channel, onClose }: { connectorId: st
             showToast('Select date range', 'error');
             return;
         }
+        if (!isRangeValid()) {
+            showToast('fromDate must be <= toDate', 'error');
+            return;
+        }
         setPreviewLoading(true);
         try {
             const res = await ApiClient.post<{ items: MTProtoPreviewItem[] }>(`integrations/mtproto/${connectorId}/channels/${channel.id}/preview`, buildPayload());
@@ -395,6 +419,10 @@ const ImportHistoryModal = ({ connectorId, channel, onClose }: { connectorId: st
     const handleImport = async () => {
         if (!form.fromDate || !form.toDate) {
             showToast('Select date range', 'error');
+            return;
+        }
+        if (!isRangeValid()) {
+            showToast('fromDate must be <= toDate', 'error');
             return;
         }
         setCreating(true);
@@ -425,7 +453,7 @@ const ImportHistoryModal = ({ connectorId, channel, onClose }: { connectorId: st
                     <button className="btn-ghost" onClick={onClose}>Close</button>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-2">
                     <div>
                         <label className="text-xs font-bold text-[var(--text-secondary)] uppercase block mb-1">From</label>
                         <input type="date" className="input" value={form.fromDate} onChange={e => setForm({ ...form, fromDate: e.target.value })} />
@@ -441,6 +469,9 @@ const ImportHistoryModal = ({ connectorId, channel, onClose }: { connectorId: st
                             <option value="DRAFT_ONLY">Draft-only</option>
                         </select>
                     </div>
+                </div>
+                <div className="text-[10px] text-[var(--text-muted)] mb-4">
+                    UTC · toDate is exclusive (end at 00:00 next day)
                 </div>
 
                 <div className="flex flex-wrap gap-2 mb-6">
@@ -461,17 +492,28 @@ const ImportHistoryModal = ({ connectorId, channel, onClose }: { connectorId: st
                             <div className="text-sm text-[var(--text-muted)]">No preview yet</div>
                         ) : (
                             <div className="space-y-2 max-h-[260px] overflow-y-auto">
-                                {preview.map((item) => (
+                                {preview.map((item) => {
+                                    const mappedData = item.mappedData || getLegacyMappedData(item);
+                                    const isMapped = item.mapped ?? item.action === 'CREATE';
+                                    return (
                                     <div key={item.messageId} className="p-3 rounded border border-[var(--border-color)] bg-[var(--bg-input)]">
                                         <div className="text-xs text-[var(--text-secondary)] flex justify-between">
                                             <span>#{item.messageId}</span>
-                                            <span>{item.action}</span>
+                                            <span>{isMapped ? 'CREATE' : 'SKIP'}</span>
                                         </div>
-                                        <div className="text-sm text-[var(--text-primary)] mt-1">{item.mapped?.title || '—'}</div>
+                                        <div className="text-sm text-[var(--text-primary)] mt-1">{mappedData?.title || '—'}</div>
                                         <div className="text-[10px] text-[var(--text-muted)] mt-1">{item.textPreview}</div>
-                                        {item.reason && <div className="text-[10px] text-red-400 mt-1">{item.reason}</div>}
+                                        {item.skipReason && (
+                                            <div className="text-[10px] text-red-400 mt-1">
+                                                {item.skipReason.code}: {item.skipReason.message}
+                                            </div>
+                                        )}
+                                        {!item.skipReason && item.reason && (
+                                            <div className="text-[10px] text-red-400 mt-1">{item.reason}</div>
+                                        )}
                                     </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         )}
                     </div>

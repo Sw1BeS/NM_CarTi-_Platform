@@ -7,6 +7,7 @@ import { processParsedMessage } from '../../../services/mtproto-mapping.service.
 import { v4 as uuidv4 } from 'uuid';
 import { logger } from '../../../utils/logger.js';
 import { ChannelSourceRepository } from '../../../repositories/channelSource.repository.js';
+import { mtprotoImportWorker } from './mtproto.import.worker.js';
 
 /**
  * Worker to backfill messages from configured channels
@@ -48,6 +49,10 @@ export class MTProtoWorker {
         } finally {
             this.isRunning = false;
         }
+    }
+
+    async runImportJobs() {
+        await mtprotoImportWorker.runOnce();
     }
 
     private async processSource(source: any) {

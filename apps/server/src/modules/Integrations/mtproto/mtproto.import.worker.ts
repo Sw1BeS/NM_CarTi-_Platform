@@ -1,4 +1,5 @@
 import { prisma } from '../../../services/prisma.js';
+import type { TelegramImportJob } from '@prisma/client';
 import { MTProtoService } from './mtproto.service.js';
 import { previewParsedMessage, processParsedMessage, processParsedMessageToDraft } from '../../../services/mtproto-mapping.service.js';
 import { ChannelSourceRepository } from '../../../repositories/channelSource.repository.js';
@@ -55,7 +56,7 @@ export class MTProtoImportWorker {
         }
     }
 
-    private async processJob(job: any) {
+    private async processJob(job: TelegramImportJob) {
         let sourceId: string | null = job.channelSourceId || null;
         try {
             const source = await prisma.channelSource.findUnique({
@@ -114,7 +115,7 @@ export class MTProtoImportWorker {
                         done = true;
                         break;
                     }
-                    if (msgDate > toDate) continue;
+                    if (msgDate >= toDate) continue;
 
                     const media = await MTProtoService.extractMediaItems(client, msg, `mtproto_${source.channelId}_${msg.id}`);
                     const message = {

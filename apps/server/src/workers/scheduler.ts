@@ -1,7 +1,7 @@
 import cron from 'node-cron';
 import { PrismaClient } from '@prisma/client';
 import { MTProtoService } from '../modules/Integrations/mtproto/mtproto.service.js';
-import { mtprotoImportWorker } from '../modules/Integrations/mtproto/mtproto.import.worker.js';
+import { mtprotoWorker } from '../modules/Integrations/mtproto/mtproto.worker.js';
 import { logIntegrationEvent } from '../services/integrationEventLog.service.js';
 import { logger } from '../utils/logger.js';
 
@@ -24,7 +24,7 @@ export const startScheduler = () => {
     cron.schedule('* * * * *', async () => {
         logger.info('⏰ Scheduler: Starting Job [mtproto_import_jobs]');
         try {
-            await mtprotoImportWorker.runOnce();
+            await mtprotoWorker.runImportJobs();
         } catch (e) {
             logger.error('⏰ Scheduler: Job [mtproto_import_jobs] Failed', e);
         }

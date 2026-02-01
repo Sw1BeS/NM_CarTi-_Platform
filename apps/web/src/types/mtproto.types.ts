@@ -37,8 +37,13 @@ export interface MTProtoPreviewItem {
     date: string;
     textPreview?: string;
     action: 'CREATE' | 'SKIP' | 'DUPLICATE' | string;
+    mapped?: boolean;
+    skipReason?: {
+        code: string;
+        message: string;
+    };
     reason?: string;
-    mapped?: {
+    mappedData?: {
         title?: string;
         price?: number;
         year?: number;
