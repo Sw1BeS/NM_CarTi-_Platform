@@ -9,7 +9,7 @@ Use a single ingestion path for BotAPI `channel_post` and MTProto, with shared d
 - [x] Implement merge-on-duplicate rules (media + metadata; no overwrite of filled business fields) → Verify: duplicate updates media/metadata only.
 - [x] Update docs `docs/stage2/30_MEDIA_MVP.md` or `docs/stage2/20_IMPORT_BY_DATE.md` if needed for merge behavior → Verify: DoD reflects merge rules.
 - [x] Run required validation scripts and minimal tests → Verify: lint/type checks succeed.
-- [ ] Commit M3 with DoD report → Verify: git log shows commit and DoD summary file updated.
+- [x] Commit M3 with DoD report → Verify: git log shows commit and DoD summary file updated.
 
 ## Done When
 - [x] BotAPI + MTProto share one ingestion path and dedup key.
