@@ -1,7 +1,7 @@
 # 00_STAGE2_EXEC_SUMMARY
 
 📌 1️⃣ Что сделано (Stage-2)
-🔘 M1 Sources & Destinations Registry (TG Ops core)
+✅ M1 Sources & Destinations Registry (TG Ops core)
 🔘 M2 MTProto import by date range + preview + job
 🔘 M3 Unified ingestion service (BotAPI + MTProto)
 🔘 M4 Media MVP (storage + gallery)
@@ -10,23 +10,30 @@
 🔘 M7 Observability (IntegrationEventLog + UI Logs)
 
 📌 2️⃣ Что дальше
+🔘 M2 (Import by date + preview + job)
+🔘 M3 (Unified ingestion service)
+🔘 M4 (Media MVP)
+🔘 M5 (Mini app portal)
+🔘 M6 (Content/Calendar)
+🔘 M7 (Observability)
 🔘 Прогон release gate (health/webhook/UI smoke) на dev/prod
 🔘 UX polishing контент-планера (bulk preview, quick retry)
 🔘 Расширение логов (агрегация по интеграциям)
 
 📌 3️⃣ DoD (проверки)
-✅ `api/health` = 200
-✅ TG webhook принимает апдейт и не падает
-✅ нет дублей по source ids
-✅ мини-приложение создаёт заявку
-✅ публикации уходят и статусы корректны
-✅ логи доступны в UI
+✅ M1: Sources/Destinations управляются из UI (sync/retry/pause + логи)
+☑️ `api/health` = 200
+☑️ TG webhook принимает апдейт и не падает
+☑️ нет дублей по source ids
+☑️ мини-приложение создаёт заявку
+☑️ публикации уходят и статусы корректны
+☑️ логи доступны в UI
 
 📌 4️⃣ Финальный критерий успеха Stage-2
 ✅ Sources/Destinations управляются из UI (sync/retry/pause + логи)
-✅ MTProto импорт по диапазону дат + preview работает
-✅ Нет dual pipeline, один ingestion-service, 0 дублей
-✅ Фото видны в Inventory и mini app
-✅ Mini app = портал (витрины + заявка + статус)
-✅ Content/Calendar публикует с шаблонами и статусами
-✅ Логи интеграций доступны в UI
+☑️ MTProto импорт по диапазону дат + preview работает
+☑️ Нет dual pipeline, один ingestion-service, 0 дублей
+☑️ Фото видны в Inventory и mini app
+☑️ Mini app = портал (витрины + заявка + статус)
+☑️ Content/Calendar публикует с шаблонами и статусами
+☑️ Логи интеграций доступны в UI
