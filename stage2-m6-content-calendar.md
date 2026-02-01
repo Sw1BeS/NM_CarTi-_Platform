@@ -9,7 +9,7 @@ Deliver templates + preview + schedule + status/retry for Telegram content publi
 - [x] Content UI: templates, variables, preview, schedule, status filter → Verify: jobs list shows status + result.
 - [x] Update docs `docs/stage2/50_CONTENT_CALENDAR.md` + exec summary → Verify: DoD + checks updated.
 - [x] Run required validation scripts and minimal tests (type_coverage) → Verify: checks green.
-- [ ] Commit M6 with DoD report → Verify: git log shows commit and DoD summary file updated.
+- [x] Commit M6 with DoD report → Verify: git log shows commit and DoD summary file updated.
 
 ## Done When
 - [x] Templates support variables + preview.
