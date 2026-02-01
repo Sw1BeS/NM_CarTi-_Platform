@@ -18,6 +18,12 @@
     reverse_proxy api:3001
   }
 
+  @media path /media/*
+  handle @media {
+    header Cache-Control "public, max-age=86400"
+    reverse_proxy api:3001
+  }
+
   handle {
     header Cache-Control "no-cache"
     root * /srv/www
