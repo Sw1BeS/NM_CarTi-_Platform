@@ -15,6 +15,7 @@
 🔘 Content Manager: шаблоны + предпросмотр + публикации + retry
 🔘 Calendar: очередь/календарь использует `PublicationJob`
 🔘 Вставки переменных: {title} {brand} {price} {year} {location} {link} {car}
+🔘 Фильтр статусов + last result/lastError отображаются в списке
 
 📌 DoD
 ✅ 10 публикаций уходят в канал, статусы корректны

@@ -6,11 +6,10 @@
 ✅ M3 Unified ingestion service (BotAPI + MTProto)
 ✅ M4 Media MVP (storage + gallery)
 ✅ M5 Mini App Portal (favorites + request + status + tracking)
-🔘 M6 Content/Calendar (Templates + Preview + Schedule + Status/Retry)
+✅ M6 Content/Calendar (Templates + Preview + Schedule + Status/Retry)
 🔘 M7 Observability (IntegrationEventLog + UI Logs)
 
 📌 2️⃣ Что дальше
-🔘 M6 (Content/Calendar)
 🔘 M7 (Observability)
 🔘 Прогон release gate (health/webhook/UI smoke) на dev/prod
 🔘 UX polishing контент-планера (bulk preview, quick retry)
@@ -22,6 +21,7 @@
 ✅ M3: BotAPI + MTProto единый ingestion, merge при dedup
 ✅ M4: Фото видны в Inventory и mini app (local storage)
 ✅ M5: Mini app = портал (favorites + request + status + tracking)
+✅ M6: Content/Calendar публикует с шаблонами и статусами
 ☑️ `api/health` = 200
 ☑️ TG webhook принимает апдейт и не падает
 ☑️ нет дублей по source ids
@@ -35,5 +35,5 @@
 ✅ Нет dual pipeline, один ingestion-service, 0 дублей
 ✅ Фото видны в Inventory и mini app
 ✅ Mini app = портал (витрины + заявка + статус)
-☑️ Content/Calendar публикует с шаблонами и статусами
+✅ Content/Calendar публикует с шаблонами и статусами
 ☑️ Логи интеграций доступны в UI

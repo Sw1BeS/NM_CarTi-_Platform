@@ -29,6 +29,7 @@ export const ContentPage = () => {
     const [destinations, setDestinations] = useState<TelegramDestination[]>([]);
     const [bots, setBots] = useState<Bot[]>([]);
     const [jobs, setJobs] = useState<PublicationJob[]>([]);
+    const [jobStatusFilter, setJobStatusFilter] = useState<'ALL' | 'SCHEDULED' | 'QUEUED' | 'RUNNING' | 'POSTED' | 'FAILED'>('ALL');
     const [templates, setTemplates] = useState<ContentTemplate[]>([]);
     const [isCreating, setIsCreating] = useState(false);
     const [selectedCar, setSelectedCar] = useState<CarListing | null>(null);
@@ -46,19 +47,34 @@ export const ContentPage = () => {
         loadData();
     }, []);
 
+    useEffect(() => {
+        loadJobs();
+    }, [jobStatusFilter]);
+
+    const loadJobs = async () => {
+        try {
+            const jobList = await PublicationService.listJobs({
+                status: jobStatusFilter === 'ALL' ? undefined : jobStatusFilter,
+                limit: 100
+            });
+            setJobs(jobList);
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
     const loadData = async () => {
-        const [inv, dests, botList, jobList, tplList] = await Promise.all([
+        const [inv, dests, botList, tplList] = await Promise.all([
             Data.getInventory(),
             Data.getDestinations(),
             Data.getBots(),
-            PublicationService.listJobs(),
             PublicationService.listTemplates().catch(() => [])
         ]);
         setInventory(inv.filter(c => c.status === 'AVAILABLE'));
         setDestinations(dests.filter(d => d.type === 'CHANNEL'));
         setBots(botList.filter(b => b.active));
-        setJobs(jobList);
         setTemplates(tplList);
+        loadJobs();
     };
 
     const getTemplateText = () => {
@@ -160,8 +176,9 @@ export const ContentPage = () => {
             showToast('Posted to channel!', 'success');
             setIsCreating(false);
             resetForm();
-        } catch (e: any) {
-            showToast(`Failed: ${e.message}`, 'error');
+        } catch (e: unknown) {
+            const message = e instanceof Error ? e.message : 'Failed to publish';
+            showToast(`Failed: ${message}`, 'error');
         }
     };
 
@@ -198,8 +215,9 @@ export const ContentPage = () => {
             });
             showToast("Template Saved");
             loadData();
-        } catch (e: any) {
-            showToast(e.message, 'error');
+        } catch (e: unknown) {
+            const message = e instanceof Error ? e.message : 'Failed to save template';
+            showToast(message, 'error');
         }
     };
 
@@ -232,12 +250,32 @@ export const ContentPage = () => {
 
             {/* Drafts List */}
             <div className="panel flex-1 overflow-hidden p-6">
-                <h3 className="font-bold text-[var(--text-primary)] mb-4">Drafts & Scheduled</h3>
+                <div className="flex items-center justify-between gap-4 mb-4">
+                    <h3 className="font-bold text-[var(--text-primary)]">Drafts & Scheduled</h3>
+                    <div className="flex items-center gap-2">
+                        <select
+                            className="input text-xs py-1.5"
+                            value={jobStatusFilter}
+                            onChange={e => setJobStatusFilter(e.target.value as typeof jobStatusFilter)}
+                        >
+                            <option value="ALL">All</option>
+                            <option value="SCHEDULED">Scheduled</option>
+                            <option value="QUEUED">Queued</option>
+                            <option value="RUNNING">Running</option>
+                            <option value="POSTED">Posted</option>
+                            <option value="FAILED">Failed</option>
+                        </select>
+                        <button onClick={loadJobs} className="btn-secondary text-xs px-3 py-2">
+                            Refresh
+                        </button>
+                    </div>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 overflow-y-auto max-h-[calc(100%-2rem)]">
                     {jobs.map(job => {
                         const carId = typeof job.metadata === 'object' ? job.metadata?.carId : undefined;
                         const car = inventory.find(c => c.canonicalId === carId);
                         const dest = destinations.find(d => d.identifier === job.destination);
+                        const lastResult = job.results?.[0];
 
                         return (
                             <div key={job.id} className="bg-[var(--bg-input)] rounded-xl border border-[var(--border-color)] p-4 flex flex-col gap-3">
@@ -275,6 +313,11 @@ export const ContentPage = () => {
                                     <div className="text-[10px] text-[var(--text-secondary)] flex items-center gap-1">
                                         <Check size={10} />
                                         {new Date(job.postedAt).toLocaleString()}
+                                    </div>
+                                )}
+                                {lastResult && (
+                                    <div className="text-[10px] text-[var(--text-secondary)]">
+                                        Result: {lastResult.status}{lastResult.messageId ? ` • #${lastResult.messageId}` : ''}
                                     </div>
                                 )}
                                 {job.lastError && (
