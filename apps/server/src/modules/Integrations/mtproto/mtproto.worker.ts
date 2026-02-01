@@ -73,7 +73,12 @@ export class MTProtoWorker {
             let count = 0;
             for (const msg of messages) {
                 if (!msg.message) continue; // Skip empty messages (service messages)
-                const media = await MTProtoService.extractMediaItems(client, msg, `mtproto_${source.channelId}_${msg.id}`);
+                const media = await MTProtoService.extractMediaItems(client, msg, {
+                    companyId: source.connector?.companyId,
+                    sourceChatId: source.channelId,
+                    sourceMessageId: msg.id,
+                    channelSourceId: source.id
+                });
 
                 // Convert MTProto message to our standard format
                 const telegramMessage = {
@@ -163,7 +168,12 @@ export class MTProtoWorker {
     private async syncMessage(source: any, msg: any) {
         const client = await MTProtoService.getClient(source.connectorId);
         await client.connect();
-        const media = await MTProtoService.extractMediaItems(client, msg, `mtproto_${source.channelId}_${msg.id}`);
+        const media = await MTProtoService.extractMediaItems(client, msg, {
+            companyId: source.connector?.companyId,
+            sourceChatId: source.channelId,
+            sourceMessageId: msg.id,
+            channelSourceId: source.id
+        });
 
         // Convert live message to standard format
         const telegramMessage = {

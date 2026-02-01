@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-01T14:25:14.891459+00:00",
+  "generatedAt": "2026-02-01T14:57:31.480234+00:00",
   "entries": [
     {
       "file": "apps/server/prisma/seed.ts",
@@ -1088,7 +1088,7 @@
     },
     {
       "file": "apps/server/src/modules/Integrations/mtproto/mtproto.import.worker.ts",
-      "line": 222,
+      "line": 227,
       "signature": "} catch (e: any) {"
     },
     {
@@ -1268,47 +1268,62 @@
     },
     {
       "file": "apps/server/src/modules/Integrations/mtproto/mtproto.service.ts",
-      "line": 96,
+      "line": 98,
       "signature": "} catch (e: any) {"
     },
     {
       "file": "apps/server/src/modules/Integrations/mtproto/mtproto.service.ts",
-      "line": 161,
+      "line": 163,
       "signature": "} catch (e: any) {"
     },
     {
       "file": "apps/server/src/modules/Integrations/mtproto/mtproto.service.ts",
-      "line": 167,
+      "line": 169,
       "signature": "static async addChannelSource(connectorId: string, channel: { id: string, title: string, username?: string }, importRules: any) {"
     },
     {
       "file": "apps/server/src/modules/Integrations/mtproto/mtproto.service.ts",
-      "line": 227,
+      "line": 229,
       "signature": "} catch (e: any) {"
     },
     {
       "file": "apps/server/src/modules/Integrations/mtproto/mtproto.service.ts",
-      "line": 233,
-      "signature": "static async extractMediaItems(client: TelegramClient, msg: any, prefix: string) {"
+      "line": 237,
+      "signature": "msg: any,"
     },
     {
       "file": "apps/server/src/modules/Integrations/mtproto/mtproto.service.ts",
-      "line": 262,
+      "line": 264,
+      "signature": "msg.media?.photo?.sizes?.map((s: any) => s?.size || 0),"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/mtproto/mtproto.service.ts",
+      "line": 265,
+      "signature": "msg.photo?.sizes?.map((s: any) => s?.size || 0)"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/mtproto/mtproto.service.ts",
+      "line": 266,
+      "signature": "].flat().filter((v: any) => typeof v === 'number' && v > 0) as number[];"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/mtproto/mtproto.service.ts",
+      "line": 320,
       "signature": "static async addEventHandler(connectorId: string, handler: (event: any) => void) {"
     },
     {
       "file": "apps/server/src/modules/Integrations/mtproto/mtproto.service.ts",
-      "line": 282,
+      "line": 340,
       "signature": "static async updateChannel(channelSourceId: string, data: { importRules?: any }) {"
     },
     {
       "file": "apps/server/src/modules/Integrations/mtproto/mtproto.service.ts",
-      "line": 293,
+      "line": 351,
       "signature": "public static parseMessageToInventory(text: string): any {"
     },
     {
       "file": "apps/server/src/modules/Integrations/mtproto/mtproto.service.ts",
-      "line": 445,
+      "line": 508,
       "signature": "} catch (e: any) {"
     },
     {
@@ -1323,27 +1338,27 @@
     },
     {
       "file": "apps/server/src/modules/Integrations/mtproto/mtproto.worker.ts",
-      "line": 102,
+      "line": 107,
       "signature": "} catch (e: any) {"
     },
     {
       "file": "apps/server/src/modules/Integrations/mtproto/mtproto.worker.ts",
-      "line": 126,
+      "line": 131,
       "signature": "const channelIds = new Set(sources.map((s: any) => s.channelId)); // These are strings"
     },
     {
       "file": "apps/server/src/modules/Integrations/mtproto/mtproto.worker.ts",
-      "line": 129,
+      "line": 134,
       "signature": "await MTProtoService.addEventHandler(conn.id, async (event: any) => {"
     },
     {
       "file": "apps/server/src/modules/Integrations/mtproto/mtproto.worker.ts",
-      "line": 147,
+      "line": 152,
       "signature": "const source = sources.find((s: any) => s.channelId === chatIdStr || s.channelId === `-100${chatIdStr}`);"
     },
     {
       "file": "apps/server/src/modules/Integrations/mtproto/mtproto.worker.ts",
-      "line": 163,
+      "line": 168,
       "signature": "private async syncMessage(source: any, msg: any) {"
     },
     {

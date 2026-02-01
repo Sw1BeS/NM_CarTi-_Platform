@@ -1,7 +1,8 @@
 import { PipelineMiddleware } from '../core/types.js';
 import { logger } from '../../../../utils/logger.js';
 import { channelIngestionService, type MediaItem } from '../../../../services/channel-ingestion.service.js';
-import { saveTelegramBotFile } from '../../../../services/mediaStorage.service.js';
+import { MediaLimitError, saveTelegramBotFile } from '../../../../services/mediaStorage.service.js';
+import { logIntegrationEvent } from '../../../../services/integrationEventLog.service.js';
 
 /**
  * routeChannelPost - Handles channel_post updates
@@ -24,16 +25,44 @@ export const routeChannelPost: PipelineMiddleware = async (ctx, next) => {
     const text = post.caption || post.text || '';
     if (!text) return next();
 
+    // P0-3 FIX: Check bot config for channelMode
+    const channelMode = (ctx.bot?.config as any)?.channelMode || 'CONTENT';
+    const mode = channelMode === 'INVENTORY' ? 'INVENTORY' : 'DRAFT_ONLY';
+    const shouldDownloadMedia = mode === 'INVENTORY';
+
     const mediaItems: MediaItem[] = [];
     let mediaUrls: string[] = [];
-    if (post.photo && post.photo.length > 0) {
+    const hasPhoto = Array.isArray(post.photo) && post.photo.length > 0;
+    const hasUnsupportedMedia = !!(post.video || post.document || post.voice || post.audio || post.sticker || post.animation);
+
+    if (!hasPhoto && hasUnsupportedMedia) {
+        await logIntegrationEvent({
+            companyId: ctx.companyId,
+            integration: 'TELEGRAM_BOTAPI',
+            entityId: ctx.bot?.id || ctx.botId || null,
+            action: 'media_skipped',
+            status: 'WARN',
+            message: 'MEDIA_UNSUPPORTED',
+            payloadMeta: {
+                sourceChatId: channelId,
+                sourceMessageId: post.message_id
+            }
+        });
+    }
+
+    if (hasPhoto) {
         const largest = post.photo[post.photo.length - 1];
         const fileId = largest.file_id;
         const botToken = ctx.bot?.token;
 
-        if (botToken) {
+        if (botToken && shouldDownloadMedia) {
             try {
-                const saved = await saveTelegramBotFile(botToken, fileId, `bot_${channelId}_${post.message_id}`);
+                const saved = await saveTelegramBotFile(botToken, fileId, {
+                    companyId: ctx.companyId,
+                    sourceChatId: channelId,
+                    sourceMessageId: post.message_id,
+                    fileSize: largest.file_size
+                });
                 mediaItems.push({
                     url: saved.url,
                     previewUrl: saved.url,
@@ -41,28 +70,54 @@ export const routeChannelPost: PipelineMiddleware = async (ctx, next) => {
                     source: 'BOTAPI'
                 });
             } catch (e) {
+                if (e instanceof MediaLimitError) {
+                    await logIntegrationEvent({
+                        companyId: ctx.companyId,
+                        integration: 'TELEGRAM_BOTAPI',
+                        entityId: ctx.bot?.id || ctx.botId || null,
+                        action: 'media_skipped',
+                        status: 'WARN',
+                        message: 'MEDIA_TOO_LARGE',
+                        payloadMeta: {
+                            sourceChatId: channelId,
+                            sourceMessageId: post.message_id,
+                            sizeBytes: e.sizeBytes,
+                            limitBytes: e.limitBytes
+                        }
+                    });
+                }
                 mediaItems.push({
-                    url: `tg_file_id:${fileId}`,
                     tgFileId: fileId,
                     source: 'BOTAPI'
                 });
             }
         } else {
+            if (!botToken && shouldDownloadMedia) {
+                await logIntegrationEvent({
+                    companyId: ctx.companyId,
+                    integration: 'TELEGRAM_BOTAPI',
+                    entityId: ctx.bot?.id || ctx.botId || null,
+                    action: 'media_skipped',
+                    status: 'WARN',
+                    message: 'MEDIA_NO_BOT_TOKEN',
+                    payloadMeta: {
+                        sourceChatId: channelId,
+                        sourceMessageId: post.message_id
+                    }
+                });
+            }
             mediaItems.push({
-                url: `tg_file_id:${fileId}`,
                 tgFileId: fileId,
                 source: 'BOTAPI'
             });
         }
 
-        mediaUrls = mediaItems.map(item => item.url);
+        mediaUrls = mediaItems
+            .map(item => item.url || item.previewUrl)
+            .filter((url): url is string => typeof url === 'string' && !url.startsWith('tg_file_id:'));
     }
 
     try {
-        // P0-3 FIX: Check bot config for channelMode
-        const channelMode = (ctx.bot?.config as any)?.channelMode || 'CONTENT';
-        const mode = channelMode === 'INVENTORY' ? 'INVENTORY' : 'DRAFT_ONLY';
-
         const normalized = channelIngestionService.normalizeMessage({
             chatId: channelId,
             messageId: post.message_id,

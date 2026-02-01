@@ -4,13 +4,12 @@
 ✅ M1 Sources & Destinations Registry (TG Ops core)
 ✅ M2 MTProto import by date range + preview + job
 ✅ M3 Unified ingestion service (BotAPI + MTProto)
-🔘 M4 Media MVP (storage + gallery)
+✅ M4 Media MVP (storage + gallery)
 🔘 M5 Mini App Portal (favorites + request + status + tracking)
 🔘 M6 Content/Calendar (Templates + Preview + Schedule + Status/Retry)
 🔘 M7 Observability (IntegrationEventLog + UI Logs)
 
 📌 2️⃣ Что дальше
-🔘 M4 (Media MVP)
 🔘 M5 (Mini app portal)
 🔘 M6 (Content/Calendar)
 🔘 M7 (Observability)
@@ -22,6 +21,7 @@
 ✅ M1: Sources/Destinations управляются из UI (sync/retry/pause + логи)
 ✅ M2: MTProto импорт по диапазону дат + preview работает (UTC, toDate exclusive)
 ✅ M3: BotAPI + MTProto единый ingestion, merge при dedup
+✅ M4: Фото видны в Inventory и mini app (local storage)
 ☑️ `api/health` = 200
 ☑️ TG webhook принимает апдейт и не падает
 ☑️ нет дублей по source ids
@@ -33,7 +33,7 @@
 ✅ Sources/Destinations управляются из UI (sync/retry/pause + логи)
 ✅ MTProto импорт по диапазону дат + preview работает
 ✅ Нет dual pipeline, один ingestion-service, 0 дублей
-☑️ Фото видны в Inventory и mini app
+✅ Фото видны в Inventory и mini app
 ☑️ Mini app = портал (витрины + заявка + статус)
 ☑️ Content/Calendar публикует с шаблонами и статусами
 ☑️ Логи интеграций доступны в UI

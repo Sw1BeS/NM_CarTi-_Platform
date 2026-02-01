@@ -93,9 +93,11 @@ const __dirname = path.dirname(__filename);
 
 // apps/server/dist/index.js -> apps/web/dist
 const clientBuildPath = path.join(__dirname, '../../web/dist');
-const mediaStoragePath = path.join(__dirname, '../../storage');
+const mediaStorageRoot = process.env.MEDIA_STORAGE_PATH || path.join(__dirname, '../../storage');
+const mediaStoragePath = path.join(mediaStorageRoot, 'media');
 
 // Serve local media files
+app.use('/media/telegram', express.static(path.join(mediaStorageRoot, 'telegram')));
 app.use('/media', express.static(mediaStoragePath));
 
 app.use(express.static(clientBuildPath));

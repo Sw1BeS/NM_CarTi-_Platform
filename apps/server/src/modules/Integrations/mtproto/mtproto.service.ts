@@ -7,7 +7,9 @@ import { Logger } from 'telegram/extensions/Logger.js';
 import { detectMake } from '../../../services/taxonomy.js';
 import { ParsingService } from '../parsing/parsing.service.js';
 import { processParsedMessage } from '../../../services/mtproto-mapping.service.js';
-import { saveBufferToStorage } from '../../../services/mediaStorage.service.js';
+import { MediaLimitError, saveMediaBuffer } from '../../../services/mediaStorage.service.js';
+import { logIntegrationEvent } from '../../../services/integrationEventLog.service.js';
+import type { MediaItem } from '../../../services/channel-ingestion.service.js';
 
 // Minimal logger to avoid spam
 const logger = new Logger({ level: 'error' } as any);
@@ -230,16 +232,56 @@ export class MTProtoService {
         }
     }
 
-    static async extractMediaItems(client: TelegramClient, msg: any, prefix: string) {
+    static async extractMediaItems(
+        client: TelegramClient,
+        msg: any,
+        context: {
+            companyId?: string | null;
+            sourceChatId: string;
+            sourceMessageId: number;
+            channelSourceId?: string | null;
+        }
+    ): Promise<{ mediaUrls: string[]; mediaItems: MediaItem[] }> {
         try {
-            if (!msg.media) return { mediaUrls: [], mediaItems: [] };
+            const isPhoto = !!(msg.photo || msg.media?.photo || msg.media?.className === 'MessageMediaPhoto');
+            if (!msg.media || !isPhoto) {
+                await logIntegrationEvent({
+                    companyId: context.companyId,
+                    integration: 'TELEGRAM_MTPROTO',
+                    entityId: context.channelSourceId || undefined,
+                    action: 'media_skipped',
+                    status: 'WARN',
+                    message: 'MEDIA_UNSUPPORTED',
+                    payloadMeta: {
+                        sourceChatId: context.sourceChatId,
+                        sourceMessageId: context.sourceMessageId
+                    }
+                });
+                return { mediaUrls: [], mediaItems: [] };
+            }
+            const sizeCandidates = [
+                msg.media?.document?.size,
+                msg.media?.photo?.sizes?.map((s: any) => s?.size || 0),
+                msg.photo?.sizes?.map((s: any) => s?.size || 0)
+            ].flat().filter((v: any) => typeof v === 'number' && v > 0) as number[];
+            const estimatedSize = sizeCandidates.length ? Math.max(...sizeCandidates) : undefined;
+            const maxBytes = Number(process.env.MEDIA_MAX_BYTES || 25 * 1024 * 1024);
+            if (estimatedSize && estimatedSize > maxBytes) {
+                throw new MediaLimitError(estimatedSize, maxBytes);
+            }
             const raw = await client.downloadMedia(msg);
             if (!raw) {
                 return { mediaUrls: [], mediaItems: [] };
             }
             const buffer = raw instanceof Buffer ? raw : Buffer.from(raw as any);
-            const filename = `${prefix}_${Date.now()}.jpg`;
-            const saved = await saveBufferToStorage(buffer, filename, 'telegram');
+            const filename = `${context.sourceMessageId}_${Date.now()}.jpg`;
+            const saved = await saveMediaBuffer({
+                buffer,
+                filename,
+                companyId: context.companyId,
+                sourceChatId: context.sourceChatId,
+                sourceMessageId: context.sourceMessageId
+            });
             const item = {
                 url: saved.url,
                 previewUrl: saved.url,
@@ -250,7 +292,23 @@ export class MTProtoService {
                 }
             };
             return { mediaUrls: [saved.url], mediaItems: [item] };
-        } catch {
+        } catch (e) {
+            if (e instanceof MediaLimitError) {
+                await logIntegrationEvent({
+                    companyId: context.companyId,
+                    integration: 'TELEGRAM_MTPROTO',
+                    entityId: context.channelSourceId || undefined,
+                    action: 'media_skipped',
+                    status: 'WARN',
+                    message: 'MEDIA_TOO_LARGE',
+                    payloadMeta: {
+                        sourceChatId: context.sourceChatId,
+                        sourceMessageId: context.sourceMessageId,
+                        sizeBytes: e.sizeBytes,
+                        limitBytes: e.limitBytes
+                    }
+                });
+            }
             return { mediaUrls: [], mediaItems: [] };
         }
     }
@@ -420,7 +478,12 @@ export class MTProtoService {
             for (const msg of messages) {
                 if (!msg.message) continue;
 
-                const media = await MTProtoService.extractMediaItems(client, msg, `mtproto_${source.channelId}_${msg.id}`);
+                const media = await MTProtoService.extractMediaItems(client, msg, {
+                    companyId: source.connector?.companyId,
+                    sourceChatId: source.channelId,
+                    sourceMessageId: msg.id,
+                    channelSourceId: source.id
+                });
 
                 await processParsedMessage({
                     chatId: source.channelId,

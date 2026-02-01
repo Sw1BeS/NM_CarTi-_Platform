@@ -117,7 +117,12 @@ export class MTProtoImportWorker {
                     }
                     if (msgDate >= toDate) continue;
 
-                    const media = await MTProtoService.extractMediaItems(client, msg, `mtproto_${source.channelId}_${msg.id}`);
+                    const media = await MTProtoService.extractMediaItems(client, msg, {
+                        companyId: source.connector?.companyId,
+                        sourceChatId: source.channelId,
+                        sourceMessageId: msg.id,
+                        channelSourceId: source.id
+                    });
                     const message = {
                         chatId: source.channelId,
                         messageId: msg.id,
