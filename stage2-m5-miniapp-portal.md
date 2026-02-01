@@ -10,7 +10,7 @@ Ship a Mini App portal: inventory + listing + favorites + request create + reque
 - [x] Add tracking meta end-to-end (start_param/utm/ref + tg identity) → Verify: payload stored in B2bRequest.
 - [x] Update docs `docs/stage2/40_MINIAPP_PORTAL.md` + exec summary → Verify: DoD + checks updated.
 - [x] Run required validation scripts and minimal tests (type_coverage) → Verify: checks green.
-- [ ] Commit M5 with DoD report → Verify: git log shows commit and DoD summary file updated.
+- [x] Commit M5 with DoD report → Verify: git log shows commit and DoD summary file updated.
 
 ## Done When
 - [x] User can browse inventory, open listing, favorite, submit request, and check status.
