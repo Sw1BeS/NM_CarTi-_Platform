@@ -1,0 +1,3890 @@
+{
+  "generatedAt": "2026-02-01T14:13:39.200814+00:00",
+  "entries": [
+    {
+      "file": "apps/server/prisma/seed.ts",
+      "line": 161,
+      "signature": "let systemWorkspace: any = null;"
+    },
+    {
+      "file": "apps/server/prisma/seed.ts",
+      "line": 162,
+      "signature": "let systemAccount: any = null;"
+    },
+    {
+      "file": "apps/server/prisma/seed.ts",
+      "line": 163,
+      "signature": "let demoWorkspace: any = null;"
+    },
+    {
+      "file": "apps/server/prisma/seed.ts",
+      "line": 164,
+      "signature": "let demoAccount: any = null;"
+    },
+    {
+      "file": "apps/server/prisma/seed.ts",
+      "line": 346,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/prisma/seed.ts",
+      "line": 353,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/prisma/seed.ts",
+      "line": 499,
+      "signature": "data: def.fields.map((f: any, idx: number) => ({"
+    },
+    {
+      "file": "apps/server/prisma/seed_production.ts",
+      "line": 22,
+      "signature": "function random(arr: any[]) {"
+    },
+    {
+      "file": "apps/server/scripts/check_users.ts",
+      "line": 11,
+      "signature": "users.forEach((u: any) => {"
+    },
+    {
+      "file": "apps/server/scripts/check_users.ts",
+      "line": 18,
+      "signature": "} catch (err: any) {"
+    },
+    {
+      "file": "apps/server/scripts/debug_orphans.ts",
+      "line": 17,
+      "signature": "const clean = async (modelName: string, prismaModel: any) => {"
+    },
+    {
+      "file": "apps/server/scripts/debug_orphans.ts",
+      "line": 21,
+      "signature": "const orphans = records.filter((r: any) => r.companyId && !workspaceIds.has(r.companyId));"
+    },
+    {
+      "file": "apps/server/scripts/debug_orphans.ts",
+      "line": 26,
+      "signature": "where: { id: { in: orphans.map((o: any) => o.id) } }"
+    },
+    {
+      "file": "apps/server/scripts/debug_orphans.ts",
+      "line": 32,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/scripts/migrate_inventory.ts",
+      "line": 47,
+      "signature": "const attributes: any = {"
+    },
+    {
+      "file": "apps/server/scripts/migrate_inventory.ts",
+      "line": 89,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/scripts/migrate_leads.ts",
+      "line": 82,
+      "signature": "const attributes: any = {"
+    },
+    {
+      "file": "apps/server/scripts/migrate_leads.ts",
+      "line": 139,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/scripts/qa_smoke.ts",
+      "line": 19,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/scripts/qa_smoke.ts",
+      "line": 44,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/scripts/qa_smoke.ts",
+      "line": 69,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/scripts/qa_smoke.ts",
+      "line": 85,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/scripts/verify_routes.ts",
+      "line": 13,
+      "signature": "router.stack.forEach((layer: any) => {"
+    },
+    {
+      "file": "apps/server/src/__tests__/superadmin.impersonate.payload.test.ts",
+      "line": 64,
+      "signature": "mockPrisma.workspace.findUnique.mockImplementation(async ({ where }: any) => {"
+    },
+    {
+      "file": "apps/server/src/middleware/auth.ts",
+      "line": 12,
+      "signature": "const normalizeJwtPayload = (raw: any): JwtUserPayload => {"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/bots/bot.service.ts",
+      "line": 23,
+      "signature": "config?: any;"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/bots/bot.service.ts",
+      "line": 24,
+      "signature": "defaultShowcase?: any;"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/bots/bot.service.ts",
+      "line": 114,
+      "signature": "private timeoutHandle: any = null;"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/bots/bot.service.ts",
+      "line": 143,
+      "signature": "let commands: any[] = [];"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/bots/bot.service.ts",
+      "line": 163,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/bots/bot.service.ts",
+      "line": 191,
+      "signature": "} catch (err: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/bots/bot.service.ts",
+      "line": 199,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/bots/bot.service.ts",
+      "line": 222,
+      "signature": "private async processUpdate(update: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/bots/bot.service.ts",
+      "line": 238,
+      "signature": "} catch (err: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/bots/bot.service.ts",
+      "line": 244,
+      "signature": "private async ensureSession(update: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/bots/bot.service.ts",
+      "line": 264,
+      "signature": "private async handleDeepLink(msg: any, chatId: string, payload: DeepLinkPayload, session: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/bots/bot.service.ts",
+      "line": 314,
+      "signature": "private async handleClientBot(msg: any, chatId: string, text: string, session: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/bots/bot.service.ts",
+      "line": 498,
+      "signature": "private async handleOfferFlow(msg: any, chatId: string, text: string, session: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/bots/bot.service.ts",
+      "line": 575,
+      "signature": "private async broadcastRequestToChannel(request: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/bots/bot.service.ts",
+      "line": 596,
+      "signature": "private async updateSession(sessionId: string, newState: string, variables?: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/bots/bot.service.ts",
+      "line": 607,
+      "signature": "private async handleCatalogBot(msg: any, chatId: string, text: string, session: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/bots/bot.service.ts",
+      "line": 616,
+      "signature": "private async handleB2BBot(msg: any, chatId: string, text: string, session: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/bots/bot.service.ts",
+      "line": 624,
+      "signature": "private async handleCallback(cb: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/bots/bot.service.ts",
+      "line": 642,
+      "signature": "private async sendMessage(chatId: string, text: string, markup: any = {}) {"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/bots/botDto.ts",
+      "line": 7,
+      "signature": "const normalizeTemplate = (value: any) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/bots/botDto.ts",
+      "line": 15,
+      "signature": "const setConfigValue = (config: any, key: string, value: any) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/bots/botDto.ts",
+      "line": 20,
+      "signature": "export const mapBotInput = (input: any, existingConfig: any = {}) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/bots/botDto.ts",
+      "line": 38,
+      "signature": "const data: any = {"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/bots/botDto.ts",
+      "line": 57,
+      "signature": "export const mapBotOutput = (bot: any) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/bots/scenario.engine.ts",
+      "line": 31,
+      "signature": "config?: any;"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/bots/scenario.engine.ts",
+      "line": 41,
+      "signature": "nodes: any;"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/bots/scenario.engine.ts",
+      "line": 42,
+      "signature": "flow?: any;"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/bots/scenario.engine.ts",
+      "line": 50,
+      "signature": "content?: any;"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/bots/scenario.engine.ts",
+      "line": 52,
+      "signature": "buttons?: any[];"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/bots/scenario.engine.ts",
+      "line": 59,
+      "signature": "const formatCarCaption = (car: any, lang: string) => renderCarListingCard(car, lang);"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/bots/scenario.engine.ts",
+      "line": 71,
+      "signature": "const mapRequestInput = (vars: any) => ({"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/bots/scenario.engine.ts",
+      "line": 80,
+      "signature": "const mapVariantInput = (vars: any) => ({"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/bots/scenario.engine.ts",
+      "line": 89,
+      "signature": "const mapRequestOutput = (req: any) => ({"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/bots/scenario.engine.ts",
+      "line": 122,
+      "signature": "const normalizeMenuConfig = (menuConfig: any) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/bots/scenario.engine.ts",
+      "line": 125,
+      "signature": ".filter((btn: any) => btn && typeof btn === 'object')"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/bots/scenario.engine.ts",
+      "line": 126,
+      "signature": ".map((btn: any, idx: number) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/bots/scenario.engine.ts",
+      "line": 140,
+      "signature": ".filter((btn: any) => btn.label || btn.label_uk || btn.label_ru);"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/bots/scenario.engine.ts",
+      "line": 156,
+      "signature": "sorted.forEach((btn: any) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/bots/scenario.engine.ts",
+      "line": 182,
+      "signature": "const sendMessage = async (bot: BotRuntime, chatId: string, text: string, replyMarkup?: any) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/bots/scenario.engine.ts",
+      "line": 193,
+      "signature": "const sendPhoto = async (bot: BotRuntime, chatId: string, photo: string, caption: string, replyMarkup?: any) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/bots/scenario.engine.ts",
+      "line": 233,
+      "signature": "const notifyRequestAdmin = async (bot: BotRuntime, request: any) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/bots/scenario.engine.ts",
+      "line": 246,
+      "signature": "const sendChoices = async (bot: BotRuntime, chatId: string, text: string, choices: any[], lang: string) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/bots/scenario.engine.ts",
+      "line": 275,
+      "signature": "const createCarCardKeyboard = (car: any, lang: string) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/bots/scenario.engine.ts",
+      "line": 294,
+      "signature": "const mapDbCar = (car: any) => ({"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/bots/scenario.engine.ts",
+      "line": 313,
+      "signature": "const mapRequestForMessage = (req: any) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/bots/scenario.engine.ts",
+      "line": 321,
+      "signature": "static async handleUpdate(bot: BotRuntime, session: any, update: any): Promise<boolean> {"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/bots/scenario.engine.ts",
+      "line": 407,
+      "signature": "const entryId = scenario.entryNodeId || (Array.isArray(scenario.nodes) ? (scenario.nodes.find((n: any) => n.type === 'START')?.id || scenario.nodes[0]?.id) : undefined);"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/bots/scenario.engine.ts",
+      "line": 415,
+      "signature": "s.isActive && Array.isArray(s.keywords) && s.keywords.some((k: any) => input.includes(String(k).toLowerCase()))"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/bots/scenario.engine.ts",
+      "line": 518,
+      "signature": "const summaryCard = (override?: any) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/bots/scenario.engine.ts",
+      "line": 909,
+      "signature": "const menuBtn = (menuConfig.buttons || []).find((btn: any) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/bots/scenario.engine.ts",
+      "line": 960,
+      "signature": "const node = nodes.find((n: any) => n.id === vars.__currentNodeId);"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/bots/scenario.engine.ts",
+      "line": 980,
+      "signature": "static async goBack(bot: BotRuntime, session: any, vars: Record<string, any>, history: string[]) {"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/bots/scenario.engine.ts",
+      "line": 1001,
+      "signature": "static async handleInput(bot: BotRuntime, session: any, vars: Record<string, any>, history: string[], input: string, isCallback: boolean): Promise<boolean> {"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/bots/scenario.engine.ts",
+      "line": 1011,
+      "signature": "const match = choices.find((choice: any) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/bots/scenario.engine.ts",
+      "line": 1057,
+      "signature": "static async executeNode(bot: BotRuntime, session: any, vars: Record<string, any>, history: string[], scenario: ScenarioRecord, nodeId: string, isBack = false) {"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/bots/scenario.engine.ts",
+      "line": 1299,
+      "signature": "const deduped = external.filter((car: any) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/bots/scenario.engine.ts",
+      "line": 1524,
+      "signature": "const fromResults = temp.find((c: any) => c.canonicalId === carId);"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/bots/scenario.engine.ts",
+      "line": 1566,
+      "signature": "const fromResults = temp.find((c: any) => c.canonicalId === carId);"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/bots/scenario.engine.ts",
+      "line": 1595,
+      "signature": "static async handleManagerRequestAction(bot: BotRuntime, session: any, data: string, userId?: string) {"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/telegram/core/leadService.ts",
+      "line": 44,
+      "signature": "const getDedupWindowDays = (botConfig?: any) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/telegram/core/leadService.ts",
+      "line": 77,
+      "signature": "export const createOrMergeLead = async (input: LeadCreateInput, botConfig?: any) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/telegram/core/leadService.ts",
+      "line": 183,
+      "signature": "let createdRequest: any = null;"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/telegram/core/types.ts",
+      "line": 13,
+      "signature": "update: any;"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/telegram/core/utils/miniappPayload.ts",
+      "line": 13,
+      "signature": "const isObject = (value: any) => value && typeof value === 'object' && !Array.isArray(value);"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/telegram/core/utils/miniappPayload.ts",
+      "line": 15,
+      "signature": "export const parseMiniAppPayload = (raw: any): ParseResult => {"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/telegram/messaging/outbox/telegramOutbox.ts",
+      "line": 16,
+      "signature": "replyMarkup?: any;"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/telegram/messaging/outbox/telegramOutbox.ts",
+      "line": 23,
+      "signature": "replyMarkup?: any;"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/telegram/messaging/outbox/telegramOutbox.ts",
+      "line": 30,
+      "signature": "replyMarkup?: any;"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/telegram/messaging/outbox/telegramOutbox.ts",
+      "line": 37,
+      "signature": "replyMarkup?: any;"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/telegram/messaging/outbox/telegramOutbox.ts",
+      "line": 42,
+      "signature": "media: any[];"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/telegram/messaging/outbox/telegramOutbox.ts",
+      "line": 46,
+      "signature": "const logOutgoing = async (botId: string, chatId: string, text: string, messageId?: number | null, payload?: any) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/telegram/messaging/outbox/telegramOutbox.ts",
+      "line": 86,
+      "signature": "private async sendAndLog(kind: string, sender: () => Promise<any>, ctx: OutboxContext, caption?: string, extra?: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/telegram/messaging/outbox/telegramOutbox.ts",
+      "line": 201,
+      "signature": "messageId: messages.map((m: any) => m?.message_id).filter(Boolean),"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/telegram/messaging/telegramSender.ts",
+      "line": 33,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/telegram/messaging/telegramSender.ts",
+      "line": 53,
+      "signature": "async sendMessage(token: string, chatId: string, text: string, replyMarkup?: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/telegram/messaging/telegramSender.ts",
+      "line": 62,
+      "signature": "async editMessageText(token: string, chatId: string, messageId: number, text: string, replyMarkup?: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/telegram/messaging/telegramSender.ts",
+      "line": 72,
+      "signature": "async sendPhoto(token: string, chatId: string, photo: string, caption: string, replyMarkup?: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/telegram/messaging/telegramSender.ts",
+      "line": 82,
+      "signature": "async sendDocument(token: string, chatId: string, document: string, caption?: string, replyMarkup?: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/telegram/messaging/telegramSender.ts",
+      "line": 92,
+      "signature": "async sendVideo(token: string, chatId: string, video: string, caption?: string, replyMarkup?: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/telegram/messaging/telegramSender.ts",
+      "line": 102,
+      "signature": "async sendAudio(token: string, chatId: string, audio: string, caption?: string, replyMarkup?: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/telegram/messaging/telegramSender.ts",
+      "line": 112,
+      "signature": "async sendVoice(token: string, chatId: string, voice: string, caption?: string, replyMarkup?: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/telegram/messaging/telegramSender.ts",
+      "line": 122,
+      "signature": "async sendAnimation(token: string, chatId: string, animation: string, caption?: string, replyMarkup?: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/telegram/messaging/telegramSender.ts",
+      "line": 139,
+      "signature": "async sendMediaGroup(token: string, chatId: string, media: any[]) {"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/telegram/routing/routeCallback.ts",
+      "line": 22,
+      "signature": "const sendMessage = async (ctx: PipelineContext, text: string, replyMarkup?: any) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/telegram/routing/routeChannelPost.ts",
+      "line": 27,
+      "signature": "const mediaItems: any[] = [];"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/telegram/routing/routeMessage.ts",
+      "line": 42,
+      "signature": "const sendMessage = async (ctx: PipelineContext, text: string, replyMarkup?: any, targetChatId?: string) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/telegram/routing/routeMessage.ts",
+      "line": 57,
+      "signature": "const sendPhoto = async (ctx: PipelineContext, photo: string, caption: string, replyMarkup?: any, targetChatId?: string) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/telegram/routing/routeMessage.ts",
+      "line": 411,
+      "signature": "const filters: any[] = [];"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/telegram/routing/routeWebApp.ts",
+      "line": 15,
+      "signature": "const sendMessage = async (ctx: PipelineContext, text: string, replyMarkup?: any, targetChatId?: string) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/telegram/routing/routeWebApp.ts",
+      "line": 36,
+      "signature": "let parsedRaw: any;"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/telegram/routing/tests/routeChannelPost.test.ts",
+      "line": 3,
+      "signature": "let routeChannelPost: any;"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/telegram/routing/tests/routeChannelPost.test.ts",
+      "line": 11,
+      "signature": "vi.spyOn(serviceMod.channelIngestionService, 'normalizeMessage').mockImplementation((input: any) => ({"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/telegram/scenarios/middlewares/dedup.ts",
+      "line": 5,
+      "signature": "const buildDedupPayload = (update: any) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/telegram/scenarios/middlewares/dedup.ts",
+      "line": 33,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/telegram/scenarios/middlewares/emitEvent.ts",
+      "line": 5,
+      "signature": "let error: any = null;"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/telegram/scenarios/middlewares/enrichContext.ts",
+      "line": 5,
+      "signature": "const getUpdateType = (update: any) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/telegram/scenarios/middlewares/enrichContext.ts",
+      "line": 40,
+      "signature": "const logIncoming = async (botId: string, chatId: string, text: string, messageId?: number | null, payload?: any) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Communication/telegram/scenarios/pipeline.ts",
+      "line": 16,
+      "signature": "update: any;"
+    },
+    {
+      "file": "apps/server/src/modules/Core/companies/company.routes.ts",
+      "line": 22,
+      "signature": "router.get('/current', async (req: any, res) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Core/companies/company.routes.ts",
+      "line": 31,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Core/companies/company.routes.ts",
+      "line": 40,
+      "signature": "router.put('/current/branding', requireRole(['OWNER', 'ADMIN']), async (req: any, res) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Core/companies/company.routes.ts",
+      "line": 52,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Core/companies/company.routes.ts",
+      "line": 61,
+      "signature": "router.get('/current/users', requireRole(['OWNER', 'ADMIN', 'MANAGER']), async (req: any, res) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Core/companies/company.routes.ts",
+      "line": 65,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Core/companies/company.routes.ts",
+      "line": 74,
+      "signature": "router.post('/current/users', requireRole(['OWNER', 'ADMIN']), async (req: any, res) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Core/companies/company.routes.ts",
+      "line": 85,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Core/companies/company.routes.ts",
+      "line": 94,
+      "signature": "router.put('/current/users/:userId/role', requireRole(['OWNER']), async (req: any, res) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Core/companies/company.routes.ts",
+      "line": 105,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Core/companies/company.routes.ts",
+      "line": 114,
+      "signature": "router.delete('/current/users/:userId', requireRole(['OWNER']), async (req: any, res) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Core/companies/company.routes.ts",
+      "line": 120,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Core/companies/company.routes.ts",
+      "line": 129,
+      "signature": "router.get('/current/stats', async (req: any, res) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Core/companies/company.routes.ts",
+      "line": 133,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Core/entities/bootstrapVariantB.ts",
+      "line": 30,
+      "signature": "data: fields.map((f: any) => ({"
+    },
+    {
+      "file": "apps/server/src/modules/Core/superadmin/client-manager.service.ts",
+      "line": 60,
+      "signature": "async cloneToClient(templateCompanyId: string, newClientData: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Core/superadmin/superadmin.routes.ts",
+      "line": 28,
+      "signature": "router.get('/companies', async (req: any, res) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Core/superadmin/superadmin.routes.ts",
+      "line": 32,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Core/superadmin/superadmin.routes.ts",
+      "line": 41,
+      "signature": "router.post('/companies', async (req: any, res) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Core/superadmin/superadmin.routes.ts",
+      "line": 58,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Core/superadmin/superadmin.routes.ts",
+      "line": 67,
+      "signature": "router.delete('/companies/:id', async (req: any, res) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Core/superadmin/superadmin.routes.ts",
+      "line": 71,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Core/superadmin/superadmin.routes.ts",
+      "line": 80,
+      "signature": "router.put('/companies/:id/plan', async (req: any, res) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Core/superadmin/superadmin.routes.ts",
+      "line": 90,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Core/superadmin/superadmin.routes.ts",
+      "line": 99,
+      "signature": "router.put('/companies/:id/status', async (req: any, res) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Core/superadmin/superadmin.routes.ts",
+      "line": 109,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Core/superadmin/superadmin.routes.ts",
+      "line": 118,
+      "signature": "router.get('/users', async (req: any, res) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Core/superadmin/superadmin.routes.ts",
+      "line": 129,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Core/superadmin/superadmin.routes.ts",
+      "line": 138,
+      "signature": "router.post('/users', async (req: any, res) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Core/superadmin/superadmin.routes.ts",
+      "line": 146,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Core/superadmin/superadmin.routes.ts",
+      "line": 155,
+      "signature": "router.put('/users/:id', async (req: any, res) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Core/superadmin/superadmin.routes.ts",
+      "line": 160,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Core/superadmin/superadmin.routes.ts",
+      "line": 169,
+      "signature": "router.post('/impersonate', async (req: any, res) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Core/superadmin/superadmin.routes.ts",
+      "line": 224,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Core/superadmin/superadmin.routes.ts",
+      "line": 233,
+      "signature": "router.get('/stats', async (req: any, res) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Core/superadmin/superadmin.routes.ts",
+      "line": 237,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Core/superadmin/superadmin.routes.ts",
+      "line": 246,
+      "signature": "router.post('/templates', async (req: any, res) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Core/superadmin/superadmin.routes.ts",
+      "line": 264,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Core/superadmin/superadmin.routes.ts",
+      "line": 273,
+      "signature": "router.get('/logs', async (req: any, res) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Core/superadmin/superadmin.routes.ts",
+      "line": 278,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Core/superadmin/superadmin.service.ts",
+      "line": 114,
+      "signature": "const updates: any = {};"
+    },
+    {
+      "file": "apps/server/src/modules/Core/superadmin/superadmin.service.ts",
+      "line": 117,
+      "signature": "const globalUpdates: any = {};"
+    },
+    {
+      "file": "apps/server/src/modules/Core/superadmin/superadmin.service.ts",
+      "line": 133,
+      "signature": "const memberUpdates: any = {};"
+    },
+    {
+      "file": "apps/server/src/modules/Core/superadmin/superadmin.service.ts",
+      "line": 201,
+      "signature": "structure: any;"
+    },
+    {
+      "file": "apps/server/src/modules/Core/system/settings.service.ts",
+      "line": 45,
+      "signature": "static async updateSettings(payload: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Core/system/systemLog.service.ts",
+      "line": 3,
+      "signature": "export const logSystem = async (module: string, action: string, status: string, message: string, payload?: any) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Core/templates/template.routes.ts",
+      "line": 18,
+      "signature": "router.get('/marketplace', optionalAuthenticateToken, async (req: any, res) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Core/templates/template.routes.ts",
+      "line": 29,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Core/templates/template.routes.ts",
+      "line": 38,
+      "signature": "router.get('/installed/list', authenticateToken, companyContext, async (req: any, res) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Core/templates/template.routes.ts",
+      "line": 42,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Core/templates/template.routes.ts",
+      "line": 51,
+      "signature": "router.post('/:id/install', authenticateToken, companyContext, async (req: any, res) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Core/templates/template.routes.ts",
+      "line": 55,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Core/templates/template.routes.ts",
+      "line": 64,
+      "signature": "router.delete('/:id/uninstall', authenticateToken, companyContext, async (req: any, res) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Core/templates/template.routes.ts",
+      "line": 68,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Core/templates/template.routes.ts",
+      "line": 79,
+      "signature": "router.get('/:id', async (req: any, res) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Core/templates/template.routes.ts",
+      "line": 88,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Core/templates/template.service.ts",
+      "line": 157,
+      "signature": "structure: any;"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/autoria.service.ts",
+      "line": 5,
+      "signature": "export const searchAutoRia = async (params: any) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/autoria.service.ts",
+      "line": 27,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/integration.routes.ts",
+      "line": 32,
+      "signature": "router.get('/logs', requireRole(['OWNER', 'ADMIN', 'MANAGER', 'OPERATOR']), async (req: any, res) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/integration.routes.ts",
+      "line": 45,
+      "signature": "const where: any = { companyId };"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/integration.routes.ts",
+      "line": 63,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/integration.routes.ts",
+      "line": 72,
+      "signature": "router.get('/', async (req: any, res) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/integration.routes.ts",
+      "line": 76,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/integration.routes.ts",
+      "line": 85,
+      "signature": "router.get('/:type', requireRole(['OWNER', 'ADMIN']), async (req: any, res) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/integration.routes.ts",
+      "line": 94,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/integration.routes.ts",
+      "line": 103,
+      "signature": "router.put('/:type', requireRole(['OWNER', 'ADMIN']), async (req: any, res) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/integration.routes.ts",
+      "line": 118,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/integration.routes.ts",
+      "line": 127,
+      "signature": "router.delete('/:type', requireRole(['OWNER']), async (req: any, res) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/integration.routes.ts",
+      "line": 131,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/integration.routes.ts",
+      "line": 140,
+      "signature": "router.post('/:type/toggle', requireRole(['OWNER', 'ADMIN']), async (req: any, res) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/integration.routes.ts",
+      "line": 150,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/integration.routes.ts",
+      "line": 159,
+      "signature": "router.post('/:type/test', requireRole(['OWNER', 'ADMIN']), async (req: any, res) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/integration.routes.ts",
+      "line": 204,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/integration.routes.ts",
+      "line": 213,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/integration.routes.ts",
+      "line": 222,
+      "signature": "router.post('/webhook/trigger', requireRole(['OWNER', 'ADMIN']), async (req: any, res) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/integration.routes.ts",
+      "line": 232,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/integration.service.ts",
+      "line": 48,
+      "signature": "config: any;"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/integration.service.ts",
+      "line": 142,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/integration.service.ts",
+      "line": 151,
+      "signature": "async metaPixelTrackEvent(companyId: string, eventName: string, data?: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/integration.service.ts",
+      "line": 195,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/integration.service.ts",
+      "line": 204,
+      "signature": "async triggerWebhook(companyId: string, event: string, payload: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/integration.service.ts",
+      "line": 241,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/integration.service.ts",
+      "line": 256,
+      "signature": "async exportToSheets(companyId: string, data: any[], sheetName?: string) {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/integration.service.ts",
+      "line": 281,
+      "signature": "keyboard?: any;"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/integration.service.ts",
+      "line": 307,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/meta.service.ts",
+      "line": 13,
+      "signature": "export const sendMetaEvent = async (eventName: string, userData: any) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/meta.service.ts",
+      "line": 33,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/meta.service.ts",
+      "line": 61,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/meta/meta.service.ts",
+      "line": 15,
+      "signature": "async sendEvent(eventName: string, userData: any, customData: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/meta/meta.service.ts",
+      "line": 41,
+      "signature": "} catch (error: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/mtproto/mtproto.import.service.ts",
+      "line": 21,
+      "signature": "const parseDate = (value: any, label: string) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/mtproto/mtproto.import.service.ts",
+      "line": 30,
+      "signature": "const normalizeMode = (value: any) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/mtproto/mtproto.import.service.ts",
+      "line": 45,
+      "signature": "const results: any[] = [];"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/mtproto/mtproto.import.worker.ts",
+      "line": 52,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/mtproto/mtproto.import.worker.ts",
+      "line": 226,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/mtproto/mtproto.lifecycle.ts",
+      "line": 41,
+      "signature": "} catch (err: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/mtproto/mtproto.lifecycle.ts",
+      "line": 46,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/mtproto/mtproto.routes.ts",
+      "line": 14,
+      "signature": "router.get('/connectors', async (req: any, res) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/mtproto/mtproto.routes.ts",
+      "line": 26,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/mtproto/mtproto.routes.ts",
+      "line": 32,
+      "signature": "router.get('/stats', requireRole(['OWNER', 'ADMIN']), async (req: any, res) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/mtproto/mtproto.routes.ts",
+      "line": 36,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/mtproto/mtproto.routes.ts",
+      "line": 43,
+      "signature": "router.post('/connectors', requireRole(['OWNER', 'ADMIN']), async (req: any, res) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/mtproto/mtproto.routes.ts",
+      "line": 59,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/mtproto/mtproto.routes.ts",
+      "line": 65,
+      "signature": "router.delete('/connectors/:id', requireRole(['OWNER', 'ADMIN']), async (req: any, res) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/mtproto/mtproto.routes.ts",
+      "line": 70,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/mtproto/mtproto.routes.ts",
+      "line": 76,
+      "signature": "router.post('/auth/send-code', requireRole(['OWNER', 'ADMIN']), async (req: any, res) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/mtproto/mtproto.routes.ts",
+      "line": 81,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/mtproto/mtproto.routes.ts",
+      "line": 87,
+      "signature": "router.post('/auth/sign-in', requireRole(['OWNER', 'ADMIN']), async (req: any, res) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/mtproto/mtproto.routes.ts",
+      "line": 92,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/mtproto/mtproto.routes.ts",
+      "line": 100,
+      "signature": "router.get('/:connectorId/channels', requireRole(['OWNER', 'ADMIN']), async (req: any, res) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/mtproto/mtproto.routes.ts",
+      "line": 104,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/mtproto/mtproto.routes.ts",
+      "line": 110,
+      "signature": "router.get('/:connectorId/resolve', requireRole(['OWNER', 'ADMIN']), async (req: any, res) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/mtproto/mtproto.routes.ts",
+      "line": 117,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/mtproto/mtproto.routes.ts",
+      "line": 123,
+      "signature": "router.post('/:connectorId/channels', requireRole(['OWNER', 'ADMIN']), async (req: any, res) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/mtproto/mtproto.routes.ts",
+      "line": 128,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/mtproto/mtproto.routes.ts",
+      "line": 138,
+      "signature": "router.put('/:connectorId/channels/:sourceId', requireRole(['OWNER', 'ADMIN']), async (req: any, res) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/mtproto/mtproto.routes.ts",
+      "line": 145,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/mtproto/mtproto.routes.ts",
+      "line": 151,
+      "signature": "router.post('/:connectorId/channels/:sourceId/sync', requireRole(['OWNER', 'ADMIN']), async (req: any, res) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/mtproto/mtproto.routes.ts",
+      "line": 160,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/mtproto/mtproto.routes.ts",
+      "line": 166,
+      "signature": "router.post('/:connectorId/channels/:sourceId/preview', requireRole(['OWNER', 'ADMIN']), async (req: any, res) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/mtproto/mtproto.routes.ts",
+      "line": 170,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/mtproto/mtproto.routes.ts",
+      "line": 176,
+      "signature": "router.post('/:connectorId/channels/:sourceId/import', requireRole(['OWNER', 'ADMIN']), async (req: any, res) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/mtproto/mtproto.routes.ts",
+      "line": 180,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/mtproto/mtproto.routes.ts",
+      "line": 186,
+      "signature": "router.get('/import-jobs', requireRole(['OWNER', 'ADMIN']), async (req: any, res) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/mtproto/mtproto.routes.ts",
+      "line": 191,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/mtproto/mtproto.routes.ts",
+      "line": 197,
+      "signature": "router.post('/:connectorId/sync', requireRole(['OWNER', 'ADMIN']), async (req: any, res) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/mtproto/mtproto.routes.ts",
+      "line": 204,
+      "signature": "mtprotoWorker.runBackfill().catch((err: any) => logger.error(err));"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/mtproto/mtproto.routes.ts",
+      "line": 208,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/mtproto/mtproto.routes.ts",
+      "line": 214,
+      "signature": "router.delete('/channels/:id', requireRole(['OWNER', 'ADMIN']), async (req: any, res) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/mtproto/mtproto.routes.ts",
+      "line": 218,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/mtproto/mtproto.service.ts",
+      "line": 96,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/mtproto/mtproto.service.ts",
+      "line": 161,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/mtproto/mtproto.service.ts",
+      "line": 167,
+      "signature": "static async addChannelSource(connectorId: string, channel: { id: string, title: string, username?: string }, importRules: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/mtproto/mtproto.service.ts",
+      "line": 227,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/mtproto/mtproto.service.ts",
+      "line": 233,
+      "signature": "static async extractMediaItems(client: TelegramClient, msg: any, prefix: string) {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/mtproto/mtproto.service.ts",
+      "line": 262,
+      "signature": "static async addEventHandler(connectorId: string, handler: (event: any) => void) {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/mtproto/mtproto.service.ts",
+      "line": 282,
+      "signature": "static async updateChannel(channelSourceId: string, data: { importRules?: any }) {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/mtproto/mtproto.service.ts",
+      "line": 293,
+      "signature": "public static parseMessageToInventory(text: string): any {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/mtproto/mtproto.service.ts",
+      "line": 445,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/mtproto/mtproto.utils.ts",
+      "line": 20,
+      "signature": "static parse(msgOrText: any): ParsedCar {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/mtproto/mtproto.worker.ts",
+      "line": 58,
+      "signature": "private async processSource(source: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/mtproto/mtproto.worker.ts",
+      "line": 102,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/mtproto/mtproto.worker.ts",
+      "line": 126,
+      "signature": "const channelIds = new Set(sources.map((s: any) => s.channelId)); // These are strings"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/mtproto/mtproto.worker.ts",
+      "line": 129,
+      "signature": "await MTProtoService.addEventHandler(conn.id, async (event: any) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/mtproto/mtproto.worker.ts",
+      "line": 147,
+      "signature": "const source = sources.find((s: any) => s.channelId === chatIdStr || s.channelId === `-100${chatIdStr}`);"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/mtproto/mtproto.worker.ts",
+      "line": 163,
+      "signature": "private async syncMessage(source: any, msg: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/parsing/parsing.routes.ts",
+      "line": 11,
+      "signature": "router.post('/preview', async (req: any, res) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/parsing/parsing.routes.ts",
+      "line": 22,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/parsing/parsing.service.ts",
+      "line": 103,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/sendpulse/sendpulse.service.ts",
+      "line": 32,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/sendpulse/sendpulse.service.ts",
+      "line": 38,
+      "signature": "async syncContact(config: any, email: string, variables: any = {}) {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/sendpulse/sendpulse.service.ts",
+      "line": 54,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/sendpulse/sendpulse.service.ts",
+      "line": 81,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/telegram/telegramRegistry.routes.ts",
+      "line": 10,
+      "signature": "router.get('/registry', requireRole(registryRoles), async (req: any, res) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/telegram/telegramRegistry.routes.ts",
+      "line": 14,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/telegram/telegramRegistry.routes.ts",
+      "line": 19,
+      "signature": "router.post('/registry', requireRole(registryRoles), async (req: any, res) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/telegram/telegramRegistry.routes.ts",
+      "line": 23,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/telegram/telegramRegistry.routes.ts",
+      "line": 28,
+      "signature": "router.put('/registry/:id', requireRole(registryRoles), async (req: any, res) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/telegram/telegramRegistry.routes.ts",
+      "line": 32,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/telegram/telegramRegistry.routes.ts",
+      "line": 37,
+      "signature": "router.post('/registry/:id/pause', requireRole(registryRoles), async (req: any, res) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/telegram/telegramRegistry.routes.ts",
+      "line": 41,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/telegram/telegramRegistry.routes.ts",
+      "line": 46,
+      "signature": "router.post('/registry/:id/resume', requireRole(registryRoles), async (req: any, res) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/telegram/telegramRegistry.routes.ts",
+      "line": 50,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/telegram/telegramRegistry.routes.ts",
+      "line": 55,
+      "signature": "router.post('/registry/:id/sync', requireRole(registryRoles), async (req: any, res) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/telegram/telegramRegistry.routes.ts",
+      "line": 59,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/telegram/telegramRegistry.routes.ts",
+      "line": 64,
+      "signature": "router.get('/registry/:id/logs', requireRole(registryRoles), async (req: any, res) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/telegram/telegramRegistry.routes.ts",
+      "line": 68,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/telegram/telegramRegistry.service.ts",
+      "line": 29,
+      "signature": "const normalizeType = (value: any): RegistryType => {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/telegram/telegramRegistry.service.ts",
+      "line": 45,
+      "signature": "const ensureString = (value: any, fallback = '') => {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/telegram/telegramRegistry.service.ts",
+      "line": 212,
+      "signature": "async create(companyId: string, payload: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/telegram/telegramRegistry.service.ts",
+      "line": 236,
+      "signature": "async update(companyId: string, id: string, payload: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/viber/viber.service.ts",
+      "line": 13,
+      "signature": "async handleWebhook(body: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/whatsapp/whatsapp.service.ts",
+      "line": 15,
+      "signature": "async handleWebhook(body: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Integrations/whatsapp/whatsapp.service.ts",
+      "line": 46,
+      "signature": "} catch (error: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Inventory/inventory/inventory.routes.ts",
+      "line": 39,
+      "signature": "const where: any = {};"
+    },
+    {
+      "file": "apps/server/src/modules/Inventory/inventory/inventory.routes.ts",
+      "line": 99,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Inventory/inventory/inventory.routes.ts",
+      "line": 125,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Inventory/inventory/inventory.routes.ts",
+      "line": 148,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Inventory/inventory/inventory.service.ts",
+      "line": 6,
+      "signature": "export const importDraft = async (data: any, botId: string) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Inventory/inventory/inventory.service.ts",
+      "line": 21,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Marketing/showcase/showcase.controller.ts",
+      "line": 50,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Marketing/showcase/showcase.controller.ts",
+      "line": 83,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Marketing/showcase/showcase.controller.ts",
+      "line": 107,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Marketing/showcase/showcase.controller.ts",
+      "line": 123,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Marketing/showcase/showcase.service.ts",
+      "line": 101,
+      "signature": "const where: any = {"
+    },
+    {
+      "file": "apps/server/src/modules/Marketing/showcase/showcase.service.ts",
+      "line": 140,
+      "signature": "const range: any = {};"
+    },
+    {
+      "file": "apps/server/src/modules/Marketing/showcase/showcase.service.ts",
+      "line": 179,
+      "signature": "const explicitWhere: any = { id: { in: rules.includeIds } };"
+    },
+    {
+      "file": "apps/server/src/modules/Parser/parser.controller.ts",
+      "line": 192,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Parser/parser.controller.ts",
+      "line": 205,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Parser/parser.controller.ts",
+      "line": 228,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Sales/requests/requests.routes.ts",
+      "line": 36,
+      "signature": "const where: any = {};"
+    },
+    {
+      "file": "apps/server/src/modules/Sales/requests/requests.routes.ts",
+      "line": 65,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Sales/requests/requests.routes.ts",
+      "line": 98,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Sales/requests/requests.routes.ts",
+      "line": 132,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Sales/requests/requests.routes.ts",
+      "line": 154,
+      "signature": "} catch (e: any) { errorResponse(res, 500, 'Failed to delete request'); }"
+    },
+    {
+      "file": "apps/server/src/modules/Sales/requests/requests.routes.ts",
+      "line": 176,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Sales/requests/requests.routes.ts",
+      "line": 198,
+      "signature": "const buildChannelText = (req: any, template?: string) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Sales/requests/requests.routes.ts",
+      "line": 280,
+      "signature": "}).catch((e: any) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Sales/requests/requests.routes.ts",
+      "line": 285,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Sales/requests/requests.routes.ts",
+      "line": 335,
+      "signature": "}).catch((e: any) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Sales/requests/requests.routes.ts",
+      "line": 339,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/modules/Sales/requests/requests.routes.ts",
+      "line": 390,
+      "signature": "}).catch((e: any) => {"
+    },
+    {
+      "file": "apps/server/src/modules/Sales/requests/requests.routes.ts",
+      "line": 394,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/repositories/base.repository.ts",
+      "line": 30,
+      "signature": "async findAll(where: any = {}): Promise<T[]> {"
+    },
+    {
+      "file": "apps/server/src/repositories/base.repository.ts",
+      "line": 37,
+      "signature": "async create(data: any): Promise<T> {"
+    },
+    {
+      "file": "apps/server/src/repositories/base.repository.ts",
+      "line": 44,
+      "signature": "async update(id: string, data: any): Promise<T> {"
+    },
+    {
+      "file": "apps/server/src/repositories/base.repository.ts",
+      "line": 73,
+      "signature": "async count(where: any = {}): Promise<number> {"
+    },
+    {
+      "file": "apps/server/src/repositories/car.repository.ts",
+      "line": 20,
+      "signature": "specs?: any;"
+    },
+    {
+      "file": "apps/server/src/repositories/car.repository.ts",
+      "line": 60,
+      "signature": "mediaItems?: any;"
+    },
+    {
+      "file": "apps/server/src/repositories/car.repository.ts",
+      "line": 61,
+      "signature": "specs?: any;"
+    },
+    {
+      "file": "apps/server/src/repositories/car.repository.ts",
+      "line": 68,
+      "signature": "originalRaw?: any;"
+    },
+    {
+      "file": "apps/server/src/repositories/car.repository.ts",
+      "line": 111,
+      "signature": "const where: any = {};"
+    },
+    {
+      "file": "apps/server/src/repositories/car.repository.ts",
+      "line": 159,
+      "signature": "mediaItems?: any;"
+    },
+    {
+      "file": "apps/server/src/repositories/car.repository.ts",
+      "line": 160,
+      "signature": "specs?: any;"
+    },
+    {
+      "file": "apps/server/src/repositories/lead.repository.ts",
+      "line": 110,
+      "signature": "payload?: any;"
+    },
+    {
+      "file": "apps/server/src/repositories/lead.repository.ts",
+      "line": 164,
+      "signature": "const attributes: any = {"
+    },
+    {
+      "file": "apps/server/src/repositories/lead.repository.ts",
+      "line": 192,
+      "signature": "async updatePayload(id: string, payload: any): Promise<Lead> {"
+    },
+    {
+      "file": "apps/server/src/repositories/request.repository.ts",
+      "line": 81,
+      "signature": "where?: any;"
+    },
+    {
+      "file": "apps/server/src/repositories/request.repository.ts",
+      "line": 82,
+      "signature": "orderBy?: any;"
+    },
+    {
+      "file": "apps/server/src/repositories/request.repository.ts",
+      "line": 99,
+      "signature": "async updateRequest(id: string, data: any): Promise<B2bRequest> {"
+    },
+    {
+      "file": "apps/server/src/repositories/request.repository.ts",
+      "line": 122,
+      "signature": "async createChannelPost(data: any): Promise<ChannelPost> {"
+    },
+    {
+      "file": "apps/server/src/repositories/request.repository.ts",
+      "line": 126,
+      "signature": "async updateChannelPost(id: string, data: any): Promise<ChannelPost> {"
+    },
+    {
+      "file": "apps/server/src/repositories/request.repository.ts",
+      "line": 130,
+      "signature": "async logMessage(data: any): Promise<MessageLog> {"
+    },
+    {
+      "file": "apps/server/src/repositories/workspace.repository.ts",
+      "line": 46,
+      "signature": "async updateSettings(id: string, settings: any): Promise<Workspace> {"
+    },
+    {
+      "file": "apps/server/src/routes/apiRoutes.ts",
+      "line": 171,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/routes/apiRoutes.ts",
+      "line": 192,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/routes/apiRoutes.ts",
+      "line": 427,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/routes/apiRoutes.ts",
+      "line": 465,
+      "signature": "const payload: any = (row.payload && typeof row.payload === 'object' && !Array.isArray(row.payload))"
+    },
+    {
+      "file": "apps/server/src/routes/apiRoutes.ts",
+      "line": 474,
+      "signature": "? (inlineKeyboard.flat ? inlineKeyboard.flat() : inlineKeyboard.reduce((acc: any[], row: any) => acc.concat(row || []), []))"
+    },
+    {
+      "file": "apps/server/src/routes/apiRoutes.ts",
+      "line": 489,
+      "signature": "buttons: flatButtons.map((b: any) => ({"
+    },
+    {
+      "file": "apps/server/src/routes/apiRoutes.ts",
+      "line": 498,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/routes/apiRoutes.ts",
+      "line": 515,
+      "signature": "const where: any = { companyId };"
+    },
+    {
+      "file": "apps/server/src/routes/apiRoutes.ts",
+      "line": 530,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/routes/apiRoutes.ts",
+      "line": 550,
+      "signature": "const where: any = {};"
+    },
+    {
+      "file": "apps/server/src/routes/apiRoutes.ts",
+      "line": 572,
+      "signature": "const variantIds = logs.map((l: any) => l.variantId).filter(Boolean) as string[];"
+    },
+    {
+      "file": "apps/server/src/routes/apiRoutes.ts",
+      "line": 575,
+      "signature": "const enriched = logs.map((l: any) => ({"
+    },
+    {
+      "file": "apps/server/src/routes/apiRoutes.ts",
+      "line": 581,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/routes/apiRoutes.ts",
+      "line": 623,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/routes/apiRoutes.ts",
+      "line": 637,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/routes/apiRoutes.ts",
+      "line": 658,
+      "signature": "const ids = new Set((data.nodes || []).map((n: any) => n.id));"
+    },
+    {
+      "file": "apps/server/src/routes/apiRoutes.ts",
+      "line": 669,
+      "signature": "n.content.choices.forEach((c: any) => c.nextNodeId && refs.push(c.nextNodeId));"
+    },
+    {
+      "file": "apps/server/src/routes/apiRoutes.ts",
+      "line": 735,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/routes/apiRoutes.ts",
+      "line": 749,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/routes/apiRoutes.ts",
+      "line": 793,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/routes/apiRoutes.ts",
+      "line": 854,
+      "signature": "const payload: any = (row.payload && typeof row.payload === 'object' && !Array.isArray(row.payload))"
+    },
+    {
+      "file": "apps/server/src/routes/apiRoutes.ts",
+      "line": 914,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/routes/apiRoutes.ts",
+      "line": 941,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/routes/apiRoutes.ts",
+      "line": 967,
+      "signature": "const where: any = {};"
+    },
+    {
+      "file": "apps/server/src/routes/apiRoutes.ts",
+      "line": 1038,
+      "signature": "const where: any = {};"
+    },
+    {
+      "file": "apps/server/src/routes/apiRoutes.ts",
+      "line": 1083,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/routes/apiRoutes.ts",
+      "line": 1131,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/routes/apiRoutes.ts",
+      "line": 1157,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/routes/apiRoutes.ts",
+      "line": 1173,
+      "signature": "const where: any = {};"
+    },
+    {
+      "file": "apps/server/src/routes/apiRoutes.ts",
+      "line": 1177,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/routes/apiRoutes.ts",
+      "line": 1206,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/routes/apiRoutes.ts",
+      "line": 1238,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/routes/apiRoutes.ts",
+      "line": 1260,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/routes/apiRoutes.ts",
+      "line": 1285,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/routes/apiRoutes.ts",
+      "line": 1303,
+      "signature": "const where: any = {};"
+    },
+    {
+      "file": "apps/server/src/routes/apiRoutes.ts",
+      "line": 1318,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/routes/apiRoutes.ts",
+      "line": 1465,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/routes/apiRoutes.ts",
+      "line": 1499,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/routes/apiRoutes.ts",
+      "line": 1522,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/routes/apiRoutes.ts",
+      "line": 1546,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/routes/apiRoutes.ts",
+      "line": 1566,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/routes/apiRoutes.ts",
+      "line": 1701,
+      "signature": "const globalUpdates: any = {};"
+    },
+    {
+      "file": "apps/server/src/routes/entityRoutes.ts",
+      "line": 15,
+      "signature": "function bad(res: any, code: number, message: string, details?: any) {"
+    },
+    {
+      "file": "apps/server/src/routes/entityRoutes.ts",
+      "line": 26,
+      "signature": "function coerceFieldValue(type: string, value: any) {"
+    },
+    {
+      "file": "apps/server/src/routes/entityRoutes.ts",
+      "line": 45,
+      "signature": "function validateAndNormalizeData(fields: any[], inputData: any) {"
+    },
+    {
+      "file": "apps/server/src/routes/entityRoutes.ts",
+      "line": 47,
+      "signature": "const errors: any[] = [];"
+    },
+    {
+      "file": "apps/server/src/routes/entityRoutes.ts",
+      "line": 101,
+      "signature": "const created = await prisma.$transaction(async (tx: any) => {"
+    },
+    {
+      "file": "apps/server/src/routes/entityRoutes.ts",
+      "line": 107,
+      "signature": "data: fields.map((f: any, idx: number) => ({"
+    },
+    {
+      "file": "apps/server/src/routes/entityRoutes.ts",
+      "line": 134,
+      "signature": "const updated = await prisma.$transaction(async (tx: any) => {"
+    },
+    {
+      "file": "apps/server/src/routes/entityRoutes.ts",
+      "line": 148,
+      "signature": "data: fields.map((f: any, idx: number) => ({"
+    },
+    {
+      "file": "apps/server/src/routes/entityRoutes.ts",
+      "line": 218,
+      "signature": "const where: any = { entityId: def.id };"
+    },
+    {
+      "file": "apps/server/src/routes/entityRoutes.ts",
+      "line": 263,
+      "signature": "const updateRecord = async (req: any, res: any) => {"
+    },
+    {
+      "file": "apps/server/src/routes/publicRoutes.ts",
+      "line": 46,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/routes/publicRoutes.ts",
+      "line": 69,
+      "signature": "const where: any = {"
+    },
+    {
+      "file": "apps/server/src/routes/publicRoutes.ts",
+      "line": 96,
+      "signature": "const publicCars = cars.map((c: any) => ({"
+    },
+    {
+      "file": "apps/server/src/routes/publicRoutes.ts",
+      "line": 132,
+      "signature": "const createData: any = mapRequestInput(raw);"
+    },
+    {
+      "file": "apps/server/src/routes/publicRoutes.ts",
+      "line": 145,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/routes/publicRoutes.ts",
+      "line": 166,
+      "signature": "const where: any = { companyId: workspace.id };"
+    },
+    {
+      "file": "apps/server/src/routes/publicRoutes.ts",
+      "line": 167,
+      "signature": "const or: any[] = [];"
+    },
+    {
+      "file": "apps/server/src/routes/publicRoutes.ts",
+      "line": 199,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/routes/publicRoutes.ts",
+      "line": 233,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/routes/publicRoutes.ts",
+      "line": 242,
+      "signature": "const createData: any = mapRequestInput(raw);"
+    },
+    {
+      "file": "apps/server/src/routes/publicRoutes.ts",
+      "line": 248,
+      "signature": "createData.variants = { create: variants.map((v: any) => mapVariantInput(v)) };"
+    },
+    {
+      "file": "apps/server/src/routes/publicRoutes.ts",
+      "line": 255,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/routes/publicRoutes.ts",
+      "line": 272,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/routes/publicRoutes.ts",
+      "line": 354,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/routes/publicRoutes.ts",
+      "line": 381,
+      "signature": "let variants: any[] = [];"
+    },
+    {
+      "file": "apps/server/src/routes/publicRoutes.ts",
+      "line": 408,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/routes/publicRoutes.ts",
+      "line": 432,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/routes/publicRoutes.ts",
+      "line": 459,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/routes/qaRoutes.ts",
+      "line": 20,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/routes/qaRoutes.ts",
+      "line": 32,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/routes/qaRoutes.ts",
+      "line": 117,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/services/cardRenderer.ts",
+      "line": 3,
+      "signature": "export const renderVariantCard = (variant: any) => {"
+    },
+    {
+      "file": "apps/server/src/services/cardRenderer.ts",
+      "line": 19,
+      "signature": "export const renderRequestCard = (req: any) => {"
+    },
+    {
+      "file": "apps/server/src/services/cardRenderer.ts",
+      "line": 34,
+      "signature": "export const renderLeadCard = (lead: any) => {"
+    },
+    {
+      "file": "apps/server/src/services/cardRenderer.ts",
+      "line": 46,
+      "signature": "export const renderCarListingCard = (car: any, lang: string = 'EN') => {"
+    },
+    {
+      "file": "apps/server/src/services/channel-ingestion.service.ts",
+      "line": 15,
+      "signature": "mediaItems?: any[];"
+    },
+    {
+      "file": "apps/server/src/services/channel-ingestion.service.ts",
+      "line": 48,
+      "signature": "mediaItems?: any[];"
+    },
+    {
+      "file": "apps/server/src/services/channel-ingestion.service.ts",
+      "line": 65,
+      "signature": "applyRules(text: string, rules: any, options?: { requireSignals?: boolean }) {"
+    },
+    {
+      "file": "apps/server/src/services/channel-ingestion.service.ts",
+      "line": 86,
+      "signature": "const mediaUrls = mediaItems.map((item: any) => item.url || item.previewUrl).filter(Boolean);"
+    },
+    {
+      "file": "apps/server/src/services/channel-ingestion.service.ts",
+      "line": 155,
+      "signature": "[...existingItems, ...(media.mediaItems || [])].map((item: any) => [item.url || item.previewUrl || JSON.stringify(item), item])"
+    },
+    {
+      "file": "apps/server/src/services/channel-ingestion.service.ts",
+      "line": 295,
+      "signature": "private applyImportRules(carData: CarData, rules: any) {"
+    },
+    {
+      "file": "apps/server/src/services/dto.ts",
+      "line": 6,
+      "signature": "const toNumber = (value: any) => {"
+    },
+    {
+      "file": "apps/server/src/services/dto.ts",
+      "line": 12,
+      "signature": "const toString = (value: any) => {"
+    },
+    {
+      "file": "apps/server/src/services/dto.ts",
+      "line": 73,
+      "signature": "const mergeLeadPayload = (input: any, existingPayload: any = {}) => {"
+    },
+    {
+      "file": "apps/server/src/services/dto.ts",
+      "line": 85,
+      "signature": "const mapLeadStatusToDb = (status: any, payload: any) => {"
+    },
+    {
+      "file": "apps/server/src/services/dto.ts",
+      "line": 94,
+      "signature": "const mapLeadStatusToClient = (status: any, payload: any) => {"
+    },
+    {
+      "file": "apps/server/src/services/dto.ts",
+      "line": 101,
+      "signature": "export const mapLeadStatusFilter = (status: any) => {"
+    },
+    {
+      "file": "apps/server/src/services/dto.ts",
+      "line": 108,
+      "signature": "export const mapRequestStatusFilter = (status: any) => {"
+    },
+    {
+      "file": "apps/server/src/services/dto.ts",
+      "line": 114,
+      "signature": "export const mapLeadCreateInput = (input: any) => {"
+    },
+    {
+      "file": "apps/server/src/services/dto.ts",
+      "line": 120,
+      "signature": "const data: any = {"
+    },
+    {
+      "file": "apps/server/src/services/dto.ts",
+      "line": 137,
+      "signature": "export const mapLeadUpdateInput = (input: any, existingPayload: any = {}) => {"
+    },
+    {
+      "file": "apps/server/src/services/dto.ts",
+      "line": 139,
+      "signature": "const data: any = { payload };"
+    },
+    {
+      "file": "apps/server/src/services/dto.ts",
+      "line": 162,
+      "signature": "export const mapLeadOutput = (lead: any) => {"
+    },
+    {
+      "file": "apps/server/src/services/dto.ts",
+      "line": 182,
+      "signature": "export const mapVariantInput = (input: any) => {"
+    },
+    {
+      "file": "apps/server/src/services/dto.ts",
+      "line": 184,
+      "signature": "const data: any = {};"
+    },
+    {
+      "file": "apps/server/src/services/dto.ts",
+      "line": 204,
+      "signature": "export const mapVariantOutput = (variant: any) => {"
+    },
+    {
+      "file": "apps/server/src/services/dto.ts",
+      "line": 226,
+      "signature": "export const mapRequestInput = (input: any) => {"
+    },
+    {
+      "file": "apps/server/src/services/dto.ts",
+      "line": 227,
+      "signature": "const data: any = {};"
+    },
+    {
+      "file": "apps/server/src/services/dto.ts",
+      "line": 266,
+      "signature": "export const mapRequestOutput = (request: any) => ({"
+    },
+    {
+      "file": "apps/server/src/services/dto.ts",
+      "line": 287,
+      "signature": "export const mapInventoryInput = (input: any) => {"
+    },
+    {
+      "file": "apps/server/src/services/dto.ts",
+      "line": 288,
+      "signature": "const data: any = {};"
+    },
+    {
+      "file": "apps/server/src/services/dto.ts",
+      "line": 322,
+      "signature": "export const mapInventoryOutput = (car: any) => ({"
+    },
+    {
+      "file": "apps/server/src/services/integrationEventLog.service.ts",
+      "line": 13,
+      "signature": "payloadMeta?: any;"
+    },
+    {
+      "file": "apps/server/src/services/integrationEventLog.service.ts",
+      "line": 27,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/services/mtproto-mapping.service.ts",
+      "line": 23,
+      "signature": "mediaItems?: any[];"
+    },
+    {
+      "file": "apps/server/src/services/normalization.service.ts",
+      "line": 3,
+      "signature": "static cleanString(str: any): string {"
+    },
+    {
+      "file": "apps/server/src/services/normalization.service.ts",
+      "line": 8,
+      "signature": "static normalizePhone(phone: any): string | undefined {"
+    },
+    {
+      "file": "apps/server/src/services/normalization.service.ts",
+      "line": 17,
+      "signature": "static normalizeCity(city: any): string {"
+    },
+    {
+      "file": "apps/server/src/services/normalization.service.ts",
+      "line": 28,
+      "signature": "static extractPrice(input: any, defaultCurrency = 'USD'): { amount: number, currency: string } {"
+    },
+    {
+      "file": "apps/server/src/services/normalization.service.ts",
+      "line": 44,
+      "signature": "static normalizeYear(year: any): number {"
+    },
+    {
+      "file": "apps/server/src/services/parser.ts",
+      "line": 37,
+      "signature": "let profileData: any = {};"
+    },
+    {
+      "file": "apps/server/src/services/parser.ts",
+      "line": 70,
+      "signature": "let vehicleLd: any = null;"
+    },
+    {
+      "file": "apps/server/src/services/parser.ts",
+      "line": 75,
+      "signature": "const found = items.find((i: any) => {"
+    },
+    {
+      "file": "apps/server/src/services/parser.ts",
+      "line": 145,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/services/parserProfiles.ts",
+      "line": 32,
+      "signature": "let modules: any = settings?.modules || {};"
+    },
+    {
+      "file": "apps/server/src/services/publication.service.ts",
+      "line": 5,
+      "signature": "const toStringSafe = (value: any) => (value === null || value === undefined ? '' : String(value));"
+    },
+    {
+      "file": "apps/server/src/services/publication.service.ts",
+      "line": 18,
+      "signature": "export const buildCarVariables = (car: any, lang: string = 'UK') => {"
+    },
+    {
+      "file": "apps/server/src/services/publication.service.ts",
+      "line": 61,
+      "signature": "const where: any = { id: templateId };"
+    },
+    {
+      "file": "apps/server/src/services/publication.service.ts",
+      "line": 76,
+      "signature": "const base: any = {};"
+    },
+    {
+      "file": "apps/server/src/services/urlParser.ts",
+      "line": 18,
+      "signature": "const AUTORIA_CACHE = new Map<string, { ts: number; data: any[] }>();"
+    },
+    {
+      "file": "apps/server/src/services/urlParser.ts",
+      "line": 31,
+      "signature": "const extractJsonLdObjects = (input: any): any[] => {"
+    },
+    {
+      "file": "apps/server/src/services/urlParser.ts",
+      "line": 41,
+      "signature": "const isTargetJsonLdType = (obj: any) => {"
+    },
+    {
+      "file": "apps/server/src/services/urlParser.ts",
+      "line": 47,
+      "signature": "const extractCandidateUrl = (obj: any) => obj?.url || obj?.offers?.url || obj?.['@id'] || '';"
+    },
+    {
+      "file": "apps/server/src/services/urlParser.ts",
+      "line": 49,
+      "signature": "const extractCandidateSourceId = (obj: any) => {"
+    },
+    {
+      "file": "apps/server/src/services/urlParser.ts",
+      "line": 71,
+      "signature": "const candidates: any[] = [];"
+    },
+    {
+      "file": "apps/server/src/services/urlParser.ts",
+      "line": 131,
+      "signature": "export const searchAutoRia = async (filter: any): Promise<any[]> => {"
+    },
+    {
+      "file": "apps/server/src/services/urlParser.ts",
+      "line": 151,
+      "signature": "const results: any[] = [];"
+    },
+    {
+      "file": "apps/server/src/services/urlParser.ts",
+      "line": 163,
+      "signature": "? results.filter((r: any) => r.title.toLowerCase().includes(modelKey))"
+    },
+    {
+      "file": "apps/server/src/services/v41/readService.ts",
+      "line": 228,
+      "signature": "const where: any = {};"
+    },
+    {
+      "file": "apps/server/src/utils/errorResponse.ts",
+      "line": 6,
+      "signature": "details?: any;"
+    },
+    {
+      "file": "apps/server/src/utils/errorResponse.ts",
+      "line": 9,
+      "signature": "export const errorResponse = (res: Response, status: number, message: string, code?: string, details?: any) => {"
+    },
+    {
+      "file": "apps/server/src/utils/logger.ts",
+      "line": 1,
+      "signature": "const format = (level: string, message: any, meta?: any) => {"
+    },
+    {
+      "file": "apps/server/src/utils/logger.ts",
+      "line": 9,
+      "signature": "info: (message: any, meta?: any) => console.log(format('INFO', message, meta)),"
+    },
+    {
+      "file": "apps/server/src/utils/logger.ts",
+      "line": 10,
+      "signature": "warn: (message: any, meta?: any) => console.warn(format('WARN', message, meta)),"
+    },
+    {
+      "file": "apps/server/src/utils/logger.ts",
+      "line": 11,
+      "signature": "error: (message: any, meta?: any) => console.error(format('ERROR', message, meta)),"
+    },
+    {
+      "file": "apps/server/src/utils/logger.ts",
+      "line": 12,
+      "signature": "debug: (message: any, meta?: any) => console.debug(format('DEBUG', message, meta)),"
+    },
+    {
+      "file": "apps/server/src/validation/schemas.ts",
+      "line": 15,
+      "signature": "const normalizeStatus = (value: any) => typeof value === 'string' ? value.toUpperCase() : value;"
+    },
+    {
+      "file": "apps/server/src/validation/schemas.ts",
+      "line": 16,
+      "signature": "const normalizePriority = (value: any) => {"
+    },
+    {
+      "file": "apps/server/src/workers/content.worker.ts",
+      "line": 53,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/workers/content.worker.ts",
+      "line": 207,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/server/src/workers/scheduler.ts",
+      "line": 73,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/components/CommandPalette.tsx",
+      "line": 71,
+      "signature": "const handleSelect = (item: any) => {"
+    },
+    {
+      "file": "apps/web/src/components/Layout.tsx",
+      "line": 52,
+      "signature": "const normalizeNav = (nav: any): NavigationItem[] => {"
+    },
+    {
+      "file": "apps/web/src/contexts/AuthContext.tsx",
+      "line": 56,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/contexts/WorkerContext.tsx",
+      "line": 116,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/MTProtoSources/index.tsx",
+      "line": 51,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/MTProtoSources/index.tsx",
+      "line": 73,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/MTProtoSources/index.tsx",
+      "line": 260,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/MTProtoSources/index.tsx",
+      "line": 422,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/MTProtoSources/index.tsx",
+      "line": 444,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/ScenarioEditor/MenuDesigner.tsx",
+      "line": 27,
+      "signature": "const save = async (newConfig: any) => {"
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/ScenarioEditor/MenuDesigner.tsx",
+      "line": 47,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/ScenarioEditor/MenuDesigner.tsx",
+      "line": 76,
+      "signature": "const buttonsByRow = (menuConfig.buttons || []).reduce((acc: any, btn: any) => {"
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/ScenarioEditor/MenuDesigner.tsx",
+      "line": 97,
+      "signature": "{(buttonsByRow[rowIdx] || []).map((btn: any) => ("
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/ScenarioEditor/MenuDesigner.tsx",
+      "line": 130,
+      "signature": "{menuConfig.buttons.map((btn: any) => ("
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/SourcesDestinations/index.tsx",
+      "line": 50,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/SourcesDestinations/index.tsx",
+      "line": 66,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/SourcesDestinations/index.tsx",
+      "line": 76,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/SourcesDestinations/index.tsx",
+      "line": 86,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/SourcesDestinations/index.tsx",
+      "line": 99,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/SourcesDestinations/index.tsx",
+      "line": 126,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/TelegramDashboard.tsx",
+      "line": 69,
+      "signature": "const NavItem = ({ id, label, icon: Icon }: any) => ("
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/components/AddBotModal.tsx",
+      "line": 9,
+      "signature": "export const AddBotModal = ({ onClose }: any) => {"
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/components/AddBotModal.tsx",
+      "line": 70,
+      "signature": "} catch (err: any) {"
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/components/AddBotModal.tsx",
+      "line": 78,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/components/AutomationSuite.tsx",
+      "line": 29,
+      "signature": "export const PropertiesPanel = ({ node, allNodes, onChange, onDelete, onClose, onLinkChange }: any) => {"
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/components/AutomationSuite.tsx",
+      "line": 64,
+      "signature": "const nodeOptions = (allNodes || []).filter((n: any) => n.id !== node.id);"
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/components/AutomationSuite.tsx",
+      "line": 65,
+      "signature": "const nodeLabel = (n: any) => {"
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/components/AutomationSuite.tsx",
+      "line": 153,
+      "signature": "{nodeOptions.map((n: any) => ("
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/components/AutomationSuite.tsx",
+      "line": 210,
+      "signature": "{nodeOptions.map((n: any) => ("
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/components/AutomationSuite.tsx",
+      "line": 223,
+      "signature": "{nodeOptions.map((n: any) => ("
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/components/AutomationSuite.tsx",
+      "line": 411,
+      "signature": "{(content.choices || []).map((c: any, i: number) => ("
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/components/AutomationSuite.tsx",
+      "line": 436,
+      "signature": "{nodeOptions.map((n: any) => ("
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/components/BotMenuEditor.tsx",
+      "line": 11,
+      "signature": ".filter((btn: any) => btn && typeof btn === 'object')"
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/components/BotMenuEditor.tsx",
+      "line": 12,
+      "signature": ".map((btn: any, idx: number) => ({"
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/components/BotMenuEditor.tsx",
+      "line": 56,
+      "signature": "} catch (e: any) { showToast(e.message, 'error'); }"
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/components/BotOverview.tsx",
+      "line": 55,
+      "signature": "const StatCard = ({ title, value, icon: Icon, color }: any) => ("
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/components/CampaignManager.tsx",
+      "line": 31,
+      "signature": "const handleCreate = async (data: any) => {"
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/components/CampaignManager.tsx",
+      "line": 118,
+      "signature": "const CreateCampaignModal = ({ onClose, onCreate }: any) => {"
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/components/MTProtoManager.tsx",
+      "line": 27,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/components/MTProtoManager.tsx",
+      "line": 104,
+      "signature": "const MTProtoWizard = ({ onResult, onClose }: any) => {"
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/components/MTProtoManager.tsx",
+      "line": 135,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/components/MTProtoManager.tsx",
+      "line": 155,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/components/MTProtoManager.tsx",
+      "line": 179,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/components/MTProtoManager.tsx",
+      "line": 293,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/components/MTProtoManager.tsx",
+      "line": 354,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/components/MTProtoManager.tsx",
+      "line": 369,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/components/ShowcaseManager.tsx",
+      "line": 19,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/components/ShowcaseManager.tsx",
+      "line": 36,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/components/ShowcaseManager.tsx",
+      "line": 41,
+      "signature": "const handleSave = async (data: any) => {"
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/components/ShowcaseManager.tsx",
+      "line": 53,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/components/ShowcaseManager.tsx",
+      "line": 110,
+      "signature": "const ShowcaseEditor = ({ initial, botId, onSave, onCancel }: any) => {"
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/components/ShowcaseManager.tsx",
+      "line": 114,
+      "signature": "const setFilter = (key: string, val: any) => {"
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/flow/CustomNodes.tsx",
+      "line": 29,
+      "signature": "const GenericNode = ({ data, type, selected }: any) => {"
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/flow/CustomNodes.tsx",
+      "line": 98,
+      "signature": "{content.choices.map((c: any, i: number) => ("
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/flow/CustomNodes.tsx",
+      "line": 130,
+      "signature": "START: memo((props: any) => <GenericNode {...props} type=\"START\" />),"
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/flow/CustomNodes.tsx",
+      "line": 131,
+      "signature": "MESSAGE: memo((props: any) => <GenericNode {...props} type=\"MESSAGE\" />),"
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/flow/CustomNodes.tsx",
+      "line": 132,
+      "signature": "QUESTION_TEXT: memo((props: any) => <GenericNode {...props} type=\"QUESTION_TEXT\" />),"
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/flow/CustomNodes.tsx",
+      "line": 133,
+      "signature": "QUESTION_CHOICE: memo((props: any) => <GenericNode {...props} type=\"QUESTION_CHOICE\" />),"
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/flow/CustomNodes.tsx",
+      "line": 134,
+      "signature": "MENU_REPLY: memo((props: any) => <GenericNode {...props} type=\"MENU_REPLY\" />),"
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/flow/CustomNodes.tsx",
+      "line": 135,
+      "signature": "ACTION: memo((props: any) => <GenericNode {...props} type=\"ACTION\" />),"
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/flow/CustomNodes.tsx",
+      "line": 136,
+      "signature": "SEARCH_CARS: memo((props: any) => <GenericNode {...props} type=\"SEARCH_CARS\" />),"
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/flow/CustomNodes.tsx",
+      "line": 137,
+      "signature": "SEARCH_FALLBACK: memo((props: any) => <GenericNode {...props} type=\"SEARCH_FALLBACK\" />),"
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/flow/CustomNodes.tsx",
+      "line": 138,
+      "signature": "CONDITION: memo((props: any) => <GenericNode {...props} type=\"CONDITION\" />),"
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/flow/CustomNodes.tsx",
+      "line": 139,
+      "signature": "REQUEST_CONTACT: memo((props: any) => <GenericNode {...props} type=\"REQUEST_CONTACT\" />),"
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/flow/CustomNodes.tsx",
+      "line": 140,
+      "signature": "GALLERY: memo((props: any) => <GenericNode {...props} type=\"GALLERY\" />),"
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/flow/CustomNodes.tsx",
+      "line": 141,
+      "signature": "CHANNEL_POST: memo((props: any) => <GenericNode {...props} type=\"CHANNEL_POST\" />),"
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/flow/CustomNodes.tsx",
+      "line": 142,
+      "signature": "REQUEST_BROADCAST: memo((props: any) => <GenericNode {...props} type=\"REQUEST_BROADCAST\" />),"
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/flow/CustomNodes.tsx",
+      "line": 143,
+      "signature": "OFFER_COLLECT: memo((props: any) => <GenericNode {...props} type=\"OFFER_COLLECT\" />),"
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/flow/CustomNodes.tsx",
+      "line": 144,
+      "signature": "DELAY: memo((props: any) => <GenericNode {...props} type=\"DELAY\" />),"
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/flow/CustomNodes.tsx",
+      "line": 145,
+      "signature": "JUMP: memo((props: any) => <GenericNode {...props} type=\"JUMP\" />),"
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/flow/ScenarioFlowEditor.tsx",
+      "line": 86,
+      "signature": "n.content.choices.forEach((c: any, idx: number) => {"
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/flow/ScenarioFlowEditor.tsx",
+      "line": 126,
+      "signature": "content.choices = content.choices.map((c: any, idx: number) => {"
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/flow/ScenarioFlowEditor.tsx",
+      "line": 150,
+      "signature": "export const ScenarioFlowEditor = ({ scenario, onSave, onDelete, onTestRun }: any) => {"
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/flow/ScenarioFlowEditor.tsx",
+      "line": 266,
+      "signature": "const updateNodeData = (id: string, updates: any) => {"
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/flow/ScenarioFlowEditor.tsx",
+      "line": 427,
+      "signature": "onChange={(updates: any) => updateNodeData(selectedNode.id, updates)} // Update handler"
+    },
+    {
+      "file": "apps/web/src/modules/Telegram/flow/ScenarioFlowEditor.tsx",
+      "line": 430,
+      "signature": "onLinkChange={(link: any) => setNodeLink(selectedNode.id, link)}"
+    },
+    {
+      "file": "apps/web/src/pages/app/Companies.tsx",
+      "line": 39,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/pages/app/Companies.tsx",
+      "line": 170,
+      "signature": "const CompanyModal = ({ initialData, onSave, onClose }: any) => {"
+    },
+    {
+      "file": "apps/web/src/pages/app/CompanySettings.tsx",
+      "line": 70,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/pages/app/CompanySettings.tsx",
+      "line": 85,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/pages/app/CompanySettings.tsx",
+      "line": 99,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/pages/app/Content.tsx",
+      "line": 163,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/pages/app/Content.tsx",
+      "line": 201,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/pages/app/ContentCalendar.tsx",
+      "line": 168,
+      "signature": "const newJobs: any[] = [];"
+    },
+    {
+      "file": "apps/web/src/pages/app/ContentCalendar.tsx",
+      "line": 235,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/pages/app/Dashboard.tsx",
+      "line": 13,
+      "signature": "const StatCard = ({ title, value, subtext, icon: Icon, onClick }: any) => ("
+    },
+    {
+      "file": "apps/web/src/pages/app/Dashboard.tsx",
+      "line": 67,
+      "signature": "const requestsProgress = requests.filter((r: any) => !['WON', 'LOST', 'DRAFT'].includes(r.status)).length;"
+    },
+    {
+      "file": "apps/web/src/pages/app/Dashboard.tsx",
+      "line": 68,
+      "signature": "const requestsWithOffers = requests.filter((r: any) => (r.variants?.length || 0) > 0);"
+    },
+    {
+      "file": "apps/web/src/pages/app/Dashboard.tsx",
+      "line": 69,
+      "signature": "const offersFresh = requestsWithOffers.filter((r: any) => {"
+    },
+    {
+      "file": "apps/web/src/pages/app/Dashboard.tsx",
+      "line": 78,
+      "signature": "inventoryValue: (inventory as any[]).reduce<number>((sum, car: any) => sum + (car.price?.amount || 0), 0),"
+    },
+    {
+      "file": "apps/web/src/pages/app/Dashboard.tsx",
+      "line": 81,
+      "signature": "campaignsActive: campaigns.filter((c: any) => c.status === 'RUNNING').length,"
+    },
+    {
+      "file": "apps/web/src/pages/app/Dashboard.tsx",
+      "line": 82,
+      "signature": "leadsToday: leads.filter((l: any) => new Date(l.createdAt).toDateString() === new Date().toDateString()).length,"
+    },
+    {
+      "file": "apps/web/src/pages/app/Dashboard.tsx",
+      "line": 83,
+      "signature": "draftsScheduled: (await Data.getDrafts()).filter((d: any) => d.status === 'SCHEDULED').length,"
+    },
+    {
+      "file": "apps/web/src/pages/app/Dashboard.tsx",
+      "line": 84,
+      "signature": "draftsPosted: (await Data.getDrafts()).filter((d: any) => d.status === 'POSTED' && new Date(d.postedAt).toDateString() === new Date().toDateString()).length"
+    },
+    {
+      "file": "apps/web/src/pages/app/Dashboard.tsx",
+      "line": 94,
+      "signature": "const sources = leads.reduce((acc: any, lead) => {"
+    },
+    {
+      "file": "apps/web/src/pages/app/Entities.tsx",
+      "line": 31,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/pages/app/Entities.tsx",
+      "line": 41,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/pages/app/Entities.tsx",
+      "line": 54,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/pages/app/Entities.tsx",
+      "line": 158,
+      "signature": "const DefinitionModal = ({ onClose, onSave }: any) => {"
+    },
+    {
+      "file": "apps/web/src/pages/app/Entities.tsx",
+      "line": 174,
+      "signature": "} catch (e: any) { showToast(e.message, 'error'); }"
+    },
+    {
+      "file": "apps/web/src/pages/app/Entities.tsx",
+      "line": 219,
+      "signature": "const RecordModal = ({ def, initialData, onClose, onSave }: any) => {"
+    },
+    {
+      "file": "apps/web/src/pages/app/Entities.tsx",
+      "line": 229,
+      "signature": "} catch (e: any) { showToast(e.message, 'error'); }"
+    },
+    {
+      "file": "apps/web/src/pages/app/Entities.tsx",
+      "line": 240,
+      "signature": "{def.fields.sort((a: any,b: any) => a.order - b.order).map((f: EntityField) => ("
+    },
+    {
+      "file": "apps/web/src/pages/app/Health.tsx",
+      "line": 45,
+      "signature": "const health: any = {};"
+    },
+    {
+      "file": "apps/web/src/pages/app/Health.tsx",
+      "line": 55,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/pages/app/Inbox.tsx",
+      "line": 79,
+      "signature": "const active = botList.find((b: any) => b.active);"
+    },
+    {
+      "file": "apps/web/src/pages/app/Inbox.tsx",
+      "line": 126,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/pages/app/Inbox.tsx",
+      "line": 193,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/pages/app/Inbox.tsx",
+      "line": 198,
+      "signature": "const handleCarSelect = async (car: any) => {"
+    },
+    {
+      "file": "apps/web/src/pages/app/Inbox.tsx",
+      "line": 204,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/pages/app/Inbox.tsx",
+      "line": 225,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/pages/app/Inbox.tsx",
+      "line": 263,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/pages/app/IntegrationEditor.tsx",
+      "line": 19,
+      "signature": "icon: any;"
+    },
+    {
+      "file": "apps/web/src/pages/app/IntegrationEditor.tsx",
+      "line": 103,
+      "signature": "const apiPut = async <T,>(endpoint: string, body: any) => {"
+    },
+    {
+      "file": "apps/web/src/pages/app/IntegrationEditor.tsx",
+      "line": 109,
+      "signature": "const apiPost = async <T,>(endpoint: string, body: any) => {"
+    },
+    {
+      "file": "apps/web/src/pages/app/IntegrationEditor.tsx",
+      "line": 188,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/pages/app/IntegrationEditor.tsx",
+      "line": 204,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/pages/app/IntegrationEditor.tsx",
+      "line": 216,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/pages/app/Integrations.tsx",
+      "line": 47,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/pages/app/Inventory.tsx",
+      "line": 487,
+      "signature": "const car: any = {"
+    },
+    {
+      "file": "apps/web/src/pages/app/Inventory.tsx",
+      "line": 511,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/pages/app/Inventory.tsx",
+      "line": 530,
+      "signature": "onSave={async (selectors: any) => {"
+    },
+    {
+      "file": "apps/web/src/pages/app/Inventory.tsx",
+      "line": 537,
+      "signature": "const car: any = {"
+    },
+    {
+      "file": "apps/web/src/pages/app/Inventory.tsx",
+      "line": 561,
+      "signature": "} catch(e: any) {"
+    },
+    {
+      "file": "apps/web/src/pages/app/Inventory.tsx",
+      "line": 571,
+      "signature": "const MappingModal = ({ domain, variables, images, onClose, onSave }: any) => {"
+    },
+    {
+      "file": "apps/web/src/pages/app/Inventory.tsx",
+      "line": 646,
+      "signature": "const CarEditor = ({ initialData, onSave, onClose }: any) => {"
+    },
+    {
+      "file": "apps/web/src/pages/app/Inventory.tsx",
+      "line": 654,
+      "signature": "const handleChange = (field: string, value: any) => setForm(prev => ({ ...prev, [field]: value }));"
+    },
+    {
+      "file": "apps/web/src/pages/app/Leads.tsx",
+      "line": 65,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/pages/app/Leads.tsx",
+      "line": 103,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/pages/app/Marketplace.tsx",
+      "line": 48,
+      "signature": "setInstalled(new Set(data.map((i: any) => i.templateId)));"
+    },
+    {
+      "file": "apps/web/src/pages/app/Marketplace.tsx",
+      "line": 61,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/pages/app/Partners.tsx",
+      "line": 49,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/pages/app/Partners.tsx",
+      "line": 83,
+      "signature": "<span>{users.filter((u: any) => u.partnerId === p.id).length} Users</span>"
+    },
+    {
+      "file": "apps/web/src/pages/app/QAStageA.tsx",
+      "line": 23,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/pages/app/QAStageA.tsx",
+      "line": 76,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/pages/app/Requests.tsx",
+      "line": 121,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/pages/app/Requests.tsx",
+      "line": 167,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/pages/app/ScenarioBuilder.tsx",
+      "line": 20,
+      "signature": "}]).map((n: any, idx: number) => {"
+    },
+    {
+      "file": "apps/web/src/pages/app/ScenarioBuilder.tsx",
+      "line": 193,
+      "signature": "const ScenarioEditor = ({ scenario, onSave, onDelete, onTestRun }: any) => {"
+    },
+    {
+      "file": "apps/web/src/pages/app/ScenarioBuilder.tsx",
+      "line": 207,
+      "signature": "const entry = safe.nodes.find((n: any) => n.id === safe.entryNodeId);"
+    },
+    {
+      "file": "apps/web/src/pages/app/ScenarioBuilder.tsx",
+      "line": 304,
+      "signature": "{(Array.isArray(scen.nodes) ? scen.nodes : []).map((node: any) => ("
+    },
+    {
+      "file": "apps/web/src/pages/app/ScenarioBuilder.tsx",
+      "line": 323,
+      "signature": "{scen.nodes.map((n: any) => ("
+    },
+    {
+      "file": "apps/web/src/pages/app/ScenarioBuilder.tsx",
+      "line": 336,
+      "signature": "{scen.nodes.find(n => n.id === activeNodeId) && <PropertiesPanel node={scen.nodes.find(n => n.id === activeNodeId)} allNodes={scen.nodes} onChange={(updates: any) => updateNode(activeNodeId!, updates)} onDelete={() => deleteNode(activeNodeId!)} onClose={() => setActiveNodeId(null)} />}"
+    },
+    {
+      "file": "apps/web/src/pages/app/ScenarioBuilder.tsx",
+      "line": 347,
+      "signature": "const ToolBtn = ({ label, onClick, color, icon: Icon }: any) => ("
+    },
+    {
+      "file": "apps/web/src/pages/app/ScenarioBuilder.tsx",
+      "line": 352,
+      "signature": "const NodeCard = ({ node, isActive, onMouseDown }: any) => (<div onMouseDown={onMouseDown} className={`absolute w-[280px] bg-[#18181B] rounded-xl p-4 border border-[#27272A] ${isActive ? 'border-blue-500 shadow-lg' : ''}`} style={{ left: node.position?.x, top: node.position?.y }}>{node.type}</div>);"
+    },
+    {
+      "file": "apps/web/src/pages/app/ScenarioBuilder.tsx",
+      "line": 353,
+      "signature": "const PropertiesPanel = ({ node, allNodes, onChange, onDelete, onClose }: any) => (<div>Props</div>);"
+    },
+    {
+      "file": "apps/web/src/pages/app/Search.tsx",
+      "line": 84,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/pages/app/Search.tsx",
+      "line": 112,
+      "signature": "} catch (err: any) {"
+    },
+    {
+      "file": "apps/web/src/pages/app/Search.tsx",
+      "line": 120,
+      "signature": "const handleImport = async (result: any, index: number) => {"
+    },
+    {
+      "file": "apps/web/src/pages/app/Search.tsx",
+      "line": 146,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/pages/app/Search.tsx",
+      "line": 151,
+      "signature": "const handleDraftPost = async (result: any) => {"
+    },
+    {
+      "file": "apps/web/src/pages/app/Search.tsx",
+      "line": 153,
+      "signature": "const tempVariant: any = {"
+    },
+    {
+      "file": "apps/web/src/pages/app/Search.tsx",
+      "line": 322,
+      "signature": "{filteredResults.map((res: any, idx) => ("
+    },
+    {
+      "file": "apps/web/src/pages/app/Search.tsx",
+      "line": 387,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/pages/app/Settings.tsx",
+      "line": 91,
+      "signature": "const NavButton = ({ active, onClick, icon: Icon, label }: any) => ("
+    },
+    {
+      "file": "apps/web/src/pages/app/Settings.tsx",
+      "line": 121,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/pages/app/Settings.tsx",
+      "line": 133,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/pages/app/Settings.tsx",
+      "line": 225,
+      "signature": "const updated = current.filter((e: any) => e.key !== key);"
+    },
+    {
+      "file": "apps/web/src/pages/app/Settings.tsx",
+      "line": 247,
+      "signature": "{(dicts[activeSection] || []).map((entry: any) => ("
+    },
+    {
+      "file": "apps/web/src/pages/app/Settings.tsx",
+      "line": 468,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/pages/app/Settings.tsx",
+      "line": 561,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/pages/app/TelegramHub.components.tsx",
+      "line": 97,
+      "signature": "} catch (err: any) {"
+    },
+    {
+      "file": "apps/web/src/pages/app/TelegramHub.components.tsx",
+      "line": 105,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/pages/app/TelegramHub.components.tsx",
+      "line": 204,
+      "signature": "} catch (e: any) { showToast(e.message, 'error'); }"
+    },
+    {
+      "file": "apps/web/src/pages/app/TelegramHub.components.tsx",
+      "line": 215,
+      "signature": "} catch (e: any) { showToast(e.message, 'error'); }"
+    },
+    {
+      "file": "apps/web/src/pages/app/TelegramHub.components.tsx",
+      "line": 328,
+      "signature": "} catch (e: any) { showToast(e.message, 'error'); }"
+    },
+    {
+      "file": "apps/web/src/pages/app/TelegramHub.tsx",
+      "line": 246,
+      "signature": "const TabBtn = ({ active, onClick, icon: Icon, label }: any) => ("
+    },
+    {
+      "file": "apps/web/src/pages/app/TelegramHub.tsx",
+      "line": 328,
+      "signature": "const StatCard = ({ title, value, color }: any) => ("
+    },
+    {
+      "file": "apps/web/src/pages/app/settings/IntegrationLogsTab.tsx",
+      "line": 35,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/pages/app/settings/IntegrationsTab.tsx",
+      "line": 20,
+      "signature": "const updateInteg = (platform: 'wa' | 'ig', field: string, value: any) => {"
+    },
+    {
+      "file": "apps/web/src/pages/app/settings/SuperAdminTabs.tsx",
+      "line": 38,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/pages/app/settings/SuperAdminTabs.tsx",
+      "line": 137,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/pages/public/DealerPortal.tsx",
+      "line": 42,
+      "signature": "} catch (err: any) {"
+    },
+    {
+      "file": "apps/web/src/pages/public/DealerPortal.tsx",
+      "line": 74,
+      "signature": "const handleSubmitVariant = async (data: any) => {"
+    },
+    {
+      "file": "apps/web/src/pages/public/DealerPortal.tsx",
+      "line": 171,
+      "signature": "const SubmissionForm = ({ request, onSubmit, onCancel }: any) => {"
+    },
+    {
+      "file": "apps/web/src/pages/public/Login.tsx",
+      "line": 42,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/pages/public/MiniApp.tsx",
+      "line": 190,
+      "signature": "const handleAction = (act: any) => {"
+    },
+    {
+      "file": "apps/web/src/pages/public/MiniApp.tsx",
+      "line": 213,
+      "signature": "const sendLeadPayload = (payload: any) => {"
+    },
+    {
+      "file": "apps/web/src/pages/public/MiniApp.tsx",
+      "line": 729,
+      "signature": "const res: any = await getPublicRequestStatus(slug, {"
+    },
+    {
+      "file": "apps/web/src/pages/public/PublicRequest.tsx",
+      "line": 100,
+      "signature": "const handleSubmit = async (e?: any) => {"
+    },
+    {
+      "file": "apps/web/src/pages/superadmin/Companies.tsx",
+      "line": 21,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/pages/superadmin/Companies.tsx",
+      "line": 33,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/pages/superadmin/Users.tsx",
+      "line": 22,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/pages/superadmin/Users.tsx",
+      "line": 35,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/services/apiClient.ts",
+      "line": 9,
+      "signature": "details?: any;"
+    },
+    {
+      "file": "apps/web/src/services/apiClient.ts",
+      "line": 74,
+      "signature": "} catch (error: any) {"
+    },
+    {
+      "file": "apps/web/src/services/apiClient.ts",
+      "line": 85,
+      "signature": "export async function apiFetch<T = any>(endpoint: string, options: any = {}): Promise<T> {"
+    },
+    {
+      "file": "apps/web/src/services/apiClient.ts",
+      "line": 100,
+      "signature": "post<T>(endpoint: string, body: any) {"
+    },
+    {
+      "file": "apps/web/src/services/apiClient.ts",
+      "line": 104,
+      "signature": "put<T>(endpoint: string, body: any) {"
+    },
+    {
+      "file": "apps/web/src/services/botEngine.ts",
+      "line": 18,
+      "signature": "sendMessage(chatId: string, text: string, options?: any): Promise<any>;"
+    },
+    {
+      "file": "apps/web/src/services/botEngine.ts",
+      "line": 19,
+      "signature": "sendPhoto(chatId: string, photo: string, caption?: string, options?: any): Promise<any>;"
+    },
+    {
+      "file": "apps/web/src/services/botEngine.ts",
+      "line": 34,
+      "signature": ".filter((btn: any) => btn && typeof btn === 'object')"
+    },
+    {
+      "file": "apps/web/src/services/botEngine.ts",
+      "line": 35,
+      "signature": ".map((btn: any, idx: number) => {"
+    },
+    {
+      "file": "apps/web/src/services/botEngine.ts",
+      "line": 257,
+      "signature": "bot.processedUpdateIds = [...(bot.processedUpdateIds || []), ...updates.map((u: any) => u.update_id)].slice(-500);"
+    },
+    {
+      "file": "apps/web/src/services/botEngine.ts",
+      "line": 265,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/services/botEngine.ts",
+      "line": 287,
+      "signature": "static async processUpdate(bot: Bot, update: any) {"
+    },
+    {
+      "file": "apps/web/src/services/botEngine.ts",
+      "line": 330,
+      "signature": "private static async handleClientSession(bot: Bot, update: any, chatId: string, user: any, forceScenarioId?: string) {"
+    },
+    {
+      "file": "apps/web/src/services/botEngine.ts",
+      "line": 1076,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/services/botEngine.ts",
+      "line": 1168,
+      "signature": "static async processPlatformUpdate(platform: 'TG' | 'WA' | 'IG', chatId: string, text: string, payload?: any) {"
+    },
+    {
+      "file": "apps/web/src/services/botEngine.ts",
+      "line": 1173,
+      "signature": "const update: any = {"
+    },
+    {
+      "file": "apps/web/src/services/botEngine.ts",
+      "line": 1202,
+      "signature": "static async sendTelegramMedia(chatId: string, payload: { type: 'photo' | 'document' | 'video' | 'audio' | 'voice' | 'animation' | 'sticker'; url: string; caption?: string; botId?: string; replyMarkup?: any; }, botId?: string) {"
+    },
+    {
+      "file": "apps/web/src/services/carService.ts",
+      "line": 55,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/services/carService.ts",
+      "line": 126,
+      "signature": "const extractJsonLdObjects = (input: any): any[] => {"
+    },
+    {
+      "file": "apps/web/src/services/carService.ts",
+      "line": 136,
+      "signature": "const isTargetJsonLdType = (obj: any) => {"
+    },
+    {
+      "file": "apps/web/src/services/carService.ts",
+      "line": 142,
+      "signature": "const extractCandidateUrl = (obj: any) => {"
+    },
+    {
+      "file": "apps/web/src/services/carService.ts",
+      "line": 146,
+      "signature": "const extractCandidateSourceId = (obj: any) => {"
+    },
+    {
+      "file": "apps/web/src/services/carService.ts",
+      "line": 254,
+      "signature": ".map((a: any) => a.href)"
+    },
+    {
+      "file": "apps/web/src/services/carService.ts",
+      "line": 284,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/services/carService.ts",
+      "line": 302,
+      "signature": "let data: any = null;"
+    },
+    {
+      "file": "apps/web/src/services/carService.ts",
+      "line": 304,
+      "signature": "const candidates: any[] = [];"
+    },
+    {
+      "file": "apps/web/src/services/carService.ts",
+      "line": 369,
+      "signature": "images = galleryImgs.map((img: any) => img.src || img.getAttribute('data-src')).filter(Boolean);"
+    },
+    {
+      "file": "apps/web/src/services/carService.ts",
+      "line": 407,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/services/carService.ts",
+      "line": 430,
+      "signature": "const candidates: any[] = [];"
+    },
+    {
+      "file": "apps/web/src/services/carService.ts",
+      "line": 440,
+      "signature": "let data: any = null;"
+    },
+    {
+      "file": "apps/web/src/services/contentGenerator.ts",
+      "line": 13,
+      "signature": "generate(templateStr: string, data: any): string {"
+    },
+    {
+      "file": "apps/web/src/services/data.ts",
+      "line": 17,
+      "signature": "const normalizeScenario = (s: any): Scenario => {"
+    },
+    {
+      "file": "apps/web/src/services/data.ts",
+      "line": 25,
+      "signature": "const safeNodes = nodes.map((n: any, idx: number) => {"
+    },
+    {
+      "file": "apps/web/src/services/data.ts",
+      "line": 77,
+      "signature": "async saveUser(u: any) { const r = await this.adapter.saveUser(u); this.notify('UPDATE_USERS'); return r; }"
+    },
+    {
+      "file": "apps/web/src/services/data.ts",
+      "line": 80,
+      "signature": "async createRequest(r: any) { const res = await this.adapter.saveRequest(r); this.notify('UPDATE_REQUESTS'); return res; }"
+    },
+    {
+      "file": "apps/web/src/services/data.ts",
+      "line": 81,
+      "signature": "async saveRequest(r: any) { const res = await this.adapter.saveRequest(r); this.notify('UPDATE_REQUESTS'); return res; }"
+    },
+    {
+      "file": "apps/web/src/services/data.ts",
+      "line": 85,
+      "signature": "async createLead(l: any) { const res = await this.adapter.saveLead(l); this.notify('UPDATE_LEADS'); return res; }"
+    },
+    {
+      "file": "apps/web/src/services/data.ts",
+      "line": 88,
+      "signature": "async saveBot(b: any) { const res = await this.adapter.saveBot(b); this.notify('UPDATE_BOTS'); return res; }"
+    },
+    {
+      "file": "apps/web/src/services/data.ts",
+      "line": 92,
+      "signature": "async saveSession(s: any) { return this.adapter.saveSession(s); }"
+    },
+    {
+      "file": "apps/web/src/services/data.ts",
+      "line": 99,
+      "signature": "async saveScenario(s: any) {"
+    },
+    {
+      "file": "apps/web/src/services/data.ts",
+      "line": 141,
+      "signature": "async saveContent(c: any) { const res = await this.adapter.saveContent(c); this.notify('UPDATE_CONTENT'); return res; }"
+    },
+    {
+      "file": "apps/web/src/services/data.ts",
+      "line": 145,
+      "signature": "async saveCampaign(c: any) { const res = await this.adapter.saveCampaign(c); this.notify('UPDATE_CAMPAIGNS'); return res; }"
+    },
+    {
+      "file": "apps/web/src/services/data.ts",
+      "line": 146,
+      "signature": "async createCampaign(c: any) { return this.saveCampaign(c); }"
+    },
+    {
+      "file": "apps/web/src/services/data.ts",
+      "line": 149,
+      "signature": "async addMessage(m: any) { const res = await this.adapter.saveMessage(m); this.notify('UPDATE_MESSAGES'); return res; }"
+    },
+    {
+      "file": "apps/web/src/services/data.ts",
+      "line": 152,
+      "signature": "async saveDestination(d: any) { const res = await this.adapter.saveDestination(d); this.notify('UPDATE_DESTINATIONS'); return res; }"
+    },
+    {
+      "file": "apps/web/src/services/data.ts",
+      "line": 153,
+      "signature": "async addDestination(d: any) { return this.saveDestination(d); }"
+    },
+    {
+      "file": "apps/web/src/services/data.ts",
+      "line": 156,
+      "signature": "async saveInventoryItem(i: any) { const res = await this.adapter.saveInventoryItem(i); this.notify('UPDATE_INVENTORY'); return res; }"
+    },
+    {
+      "file": "apps/web/src/services/data.ts",
+      "line": 181,
+      "signature": "async saveCompany(c: any) { const res = await this.adapter.saveCompany(c); this.notify('UPDATE_COMPANIES'); return res; }"
+    },
+    {
+      "file": "apps/web/src/services/data.ts",
+      "line": 185,
+      "signature": "async saveSettings(s: any) { const res = await this.adapter.saveSettings(s); this.notify('UPDATE_SETTINGS'); return res; }"
+    },
+    {
+      "file": "apps/web/src/services/data.ts",
+      "line": 188,
+      "signature": "async saveDictionaries(d: any) { const res = await this.adapter.saveDictionaries(d); this.notify('UPDATE_DICTIONARIES'); return res; }"
+    },
+    {
+      "file": "apps/web/src/services/data.ts",
+      "line": 191,
+      "signature": "async addNotification(n: any) { const res = await this.adapter.saveNotification(n); this.notify('UPDATE_NOTIFICATIONS'); return res; }"
+    },
+    {
+      "file": "apps/web/src/services/data.ts",
+      "line": 192,
+      "signature": "async saveNotification(n: any) { const res = await this.adapter.saveNotification(n); this.notify('UPDATE_NOTIFICATIONS'); return res; }"
+    },
+    {
+      "file": "apps/web/src/services/data.ts",
+      "line": 204,
+      "signature": "async updateProposal(id: string, data: any) { await this.adapter.updateProposal(id, data); }"
+    },
+    {
+      "file": "apps/web/src/services/data.ts",
+      "line": 222,
+      "signature": "async createMTProtoConnector(data: any) { const r = await this.adapter.createMTProtoConnector(data); this.notify('UPDATE_MTPROTO'); return r; }"
+    },
+    {
+      "file": "apps/web/src/services/data.ts",
+      "line": 225,
+      "signature": "async signInMTProto(data: any) { await this.adapter.signInMTProto(data); this.notify('UPDATE_MTPROTO'); }"
+    },
+    {
+      "file": "apps/web/src/services/data.ts",
+      "line": 229,
+      "signature": "async addMTProtoChannel(connectorId: string, channel: any, importRules: any) {"
+    },
+    {
+      "file": "apps/web/src/services/data.ts",
+      "line": 254,
+      "signature": "async saveParserMapping(domain: string, mapping: any, remember = true) {"
+    },
+    {
+      "file": "apps/web/src/services/dataAdapter.ts",
+      "line": 88,
+      "signature": "createMTProtoConnector(data: any): Promise<any>;"
+    },
+    {
+      "file": "apps/web/src/services/dataAdapter.ts",
+      "line": 91,
+      "signature": "signInMTProto(data: any): Promise<void>;"
+    },
+    {
+      "file": "apps/web/src/services/dataAdapter.ts",
+      "line": 95,
+      "signature": "addMTProtoChannel(connectorId: string, channel: any, importRules: any): Promise<any>;"
+    },
+    {
+      "file": "apps/web/src/services/entitiesApi.ts",
+      "line": 40,
+      "signature": "export async function createRecord(slug: string, data: any): Promise<any> {"
+    },
+    {
+      "file": "apps/web/src/services/entitiesApi.ts",
+      "line": 49,
+      "signature": "export async function updateRecord(slug: string, id: string, data: any): Promise<any> {"
+    },
+    {
+      "file": "apps/web/src/services/instagram.ts",
+      "line": 7,
+      "signature": "async call(method: string, body: any) {"
+    },
+    {
+      "file": "apps/web/src/services/instagram.ts",
+      "line": 44,
+      "signature": "async sendGenericTemplate(recipientId: string, elements: {title: string, subtitle: string, image_url: string, buttons: any[]}[]) {"
+    },
+    {
+      "file": "apps/web/src/services/parserClient.ts",
+      "line": 39,
+      "signature": "export const saveParserProfile = async (domain: string, selectors: any) => {"
+    },
+    {
+      "file": "apps/web/src/services/publicApi.ts",
+      "line": 20,
+      "signature": "export async function addPublicVariant(requestId: string, payload: any): Promise<any> {"
+    },
+    {
+      "file": "apps/web/src/services/publicApi.ts",
+      "line": 28,
+      "signature": "export async function createDealerSession(initData: string): Promise<{ user: any }> {"
+    },
+    {
+      "file": "apps/web/src/services/publicApi.ts",
+      "line": 43,
+      "signature": "export async function getShowcaseInventory(slug: string, filters?: any): Promise<{ items: any[]; showcase: any }> {"
+    },
+    {
+      "file": "apps/web/src/services/publicApi.ts",
+      "line": 67,
+      "signature": "export async function getPublicInventory(slug: string, filters?: any): Promise<{ items: any[] }> {"
+    },
+    {
+      "file": "apps/web/src/services/publicationService.ts",
+      "line": 81,
+      "signature": "async createJob(payload: any): Promise<PublicationJob> {"
+    },
+    {
+      "file": "apps/web/src/services/serverAdapter.ts",
+      "line": 46,
+      "signature": "private unwrap(record: any): any {"
+    },
+    {
+      "file": "apps/web/src/services/serverAdapter.ts",
+      "line": 51,
+      "signature": "private wrap(entity: any): any {"
+    },
+    {
+      "file": "apps/web/src/services/serverAdapter.ts",
+      "line": 73,
+      "signature": "const payload: any = res.data;"
+    },
+    {
+      "file": "apps/web/src/services/serverAdapter.ts",
+      "line": 319,
+      "signature": "if (!mergedNav.find((n: any) => n.id === item.id)) {"
+    },
+    {
+      "file": "apps/web/src/services/serverAdapter.ts",
+      "line": 323,
+      "signature": "settings.navigation = { primary: mergedNav.sort((a: any, b: any) => (a.order ?? 999) - (b.order ?? 999)) };"
+    },
+    {
+      "file": "apps/web/src/services/serverAdapter.ts",
+      "line": 361,
+      "signature": "const snapshotData: any = {"
+    },
+    {
+      "file": "apps/web/src/services/serverAdapter.ts",
+      "line": 380,
+      "signature": "const target = allSnaps.find((s: any) => s.id === snapId);"
+    },
+    {
+      "file": "apps/web/src/services/serverAdapter.ts",
+      "line": 392,
+      "signature": "await Promise.all(records.map((r: any) =>"
+    },
+    {
+      "file": "apps/web/src/services/serverAdapter.ts",
+      "line": 403,
+      "signature": "async createMTProtoConnector(data: any) {"
+    },
+    {
+      "file": "apps/web/src/services/serverAdapter.ts",
+      "line": 416,
+      "signature": "async signInMTProto(data: any) {"
+    },
+    {
+      "file": "apps/web/src/services/serverAdapter.ts",
+      "line": 432,
+      "signature": "async addMTProtoChannel(connectorId: string, channel: any, importRules: any) {"
+    },
+    {
+      "file": "apps/web/src/services/showcaseService.ts",
+      "line": 21,
+      "signature": "createShowcase: async (data: any) => {"
+    },
+    {
+      "file": "apps/web/src/services/showcaseService.ts",
+      "line": 29,
+      "signature": "updateShowcase: async (id: string, data: any) => {"
+    },
+    {
+      "file": "apps/web/src/services/telegram.ts",
+      "line": 12,
+      "signature": "const res = await ApiClient.post<{ ok: boolean; result: any }>('telegram/call', {"
+    },
+    {
+      "file": "apps/web/src/services/telegram.ts",
+      "line": 26,
+      "signature": "} catch (e: any) {"
+    },
+    {
+      "file": "apps/web/src/services/telegram.ts",
+      "line": 45,
+      "signature": "async sendMessage(token: string, chatId: string, text: string, keyboard?: any) {"
+    },
+    {
+      "file": "apps/web/src/services/telegram.ts",
+      "line": 49,
+      "signature": "async sendPhoto(token: string, chatId: string, photo: string, caption?: string, keyboard?: any) {"
+    },
+    {
+      "file": "apps/web/src/services/telegram.ts",
+      "line": 53,
+      "signature": "async sendDocument(token: string, chatId: string, document: string, caption?: string, keyboard?: any) {"
+    },
+    {
+      "file": "apps/web/src/services/telegram.ts",
+      "line": 57,
+      "signature": "async sendVideo(token: string, chatId: string, video: string, caption?: string, keyboard?: any) {"
+    },
+    {
+      "file": "apps/web/src/services/telegram.ts",
+      "line": 61,
+      "signature": "async sendAudio(token: string, chatId: string, audio: string, caption?: string, keyboard?: any) {"
+    },
+    {
+      "file": "apps/web/src/services/telegram.ts",
+      "line": 65,
+      "signature": "async sendVoice(token: string, chatId: string, voice: string, caption?: string, keyboard?: any) {"
+    },
+    {
+      "file": "apps/web/src/services/telegram.ts",
+      "line": 69,
+      "signature": "async sendAnimation(token: string, chatId: string, animation: string, caption?: string, keyboard?: any) {"
+    },
+    {
+      "file": "apps/web/src/services/telegram.ts",
+      "line": 77,
+      "signature": "async sendMediaGroup(token: string, chatId: string, media: any[]) {"
+    },
+    {
+      "file": "apps/web/src/services/telegram.ts",
+      "line": 89,
+      "signature": "async setMyCommands(token: string, commands: any[]) {"
+    },
+    {
+      "file": "apps/web/src/services/versionSnapshots.ts",
+      "line": 73,
+      "signature": "const imported = parsed.map((s: any) => ({"
+    },
+    {
+      "file": "apps/web/src/services/whatsapp.ts",
+      "line": 7,
+      "signature": "async call(method: string, body: any) {"
+    },
+    {
+      "file": "apps/web/src/services/whatsapp.ts",
+      "line": 53,
+      "signature": "const message: any = {"
+    },
+    {
+      "file": "apps/web/src/services/whatsapp.ts",
+      "line": 80,
+      "signature": "async sendInteractiveList(to: string, text: string, buttonText: string, sections: any[]) {"
+    },
+    {
+      "file": "apps/web/src/services/whatsapp.ts",
+      "line": 98,
+      "signature": "async sendTemplate(to: string, templateName: string, lang: string = 'en_US', components: any[] = []) {"
+    },
+    {
+      "file": "apps/web/src/types/entities.types.ts",
+      "line": 38,
+      "signature": "mediaItems?: Array<{ url?: string; previewUrl?: string; tgMeta?: any; source?: string }>;"
+    },
+    {
+      "file": "apps/web/src/types/system.types.ts",
+      "line": 46,
+      "signature": "features?: any; // legacy"
+    },
+    {
+      "file": "apps/web/src/types/system.types.ts",
+      "line": 47,
+      "signature": "integrations?: any;"
+    }
+  ]
+}

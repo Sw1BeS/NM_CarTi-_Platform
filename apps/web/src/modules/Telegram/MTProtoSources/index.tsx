@@ -5,6 +5,16 @@ import { useToast } from '../../../contexts/ToastContext';
 import { Wifi, Plus, Trash2, RefreshCw, AlertTriangle, FileCode, Calendar, Eye, PlayCircle } from 'lucide-react';
 import { ParsingRuleEditor } from './ParsingRuleEditor';
 
+type MTProtoChannel = {
+    id: string;
+    title: string;
+    username?: string | null;
+    connectorId?: string;
+    importRules?: Record<string, unknown> | null;
+    channelId?: string;
+    status?: string;
+};
+
 export const MTProtoSources = ({ botId }: { botId: string }) => {
     const { showToast } = useToast();
     const [connectors, setConnectors] = useState<MTProtoConnector[]>([]);
@@ -12,7 +22,7 @@ export const MTProtoSources = ({ botId }: { botId: string }) => {
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [newConnector, setNewConnector] = useState({ name: '', phone: '' });
     const [creating, setCreating] = useState(false);
-    const [editingRulesFor, setEditingRulesFor] = useState<any>(null); // { id, rules, title }
+    const [editingRulesFor, setEditingRulesFor] = useState<MTProtoChannel | null>(null); // { id, rules, title }
 
     useEffect(() => {
         loadConnectors();
@@ -195,14 +205,14 @@ export const MTProtoSources = ({ botId }: { botId: string }) => {
     );
 };
 
-const ConnectorItem = ({ connector, onDelete, onEditRules }: { connector: MTProtoConnector, onDelete: () => void, onEditRules: (s: any) => void }) => {
+const ConnectorItem = ({ connector, onDelete, onEditRules }: { connector: MTProtoConnector, onDelete: () => void, onEditRules: (s: MTProtoChannel) => void }) => {
     const { showToast } = useToast();
-    const [channels, setChannels] = useState<any[]>([]);
+    const [channels, setChannels] = useState<MTProtoChannel[]>([]);
     const [loading, setLoading] = useState(false);
     const [adding, setAdding] = useState(false);
     const [channelQuery, setChannelQuery] = useState('');
     const [syncing, setSyncing] = useState<string | null>(null);
-    const [importingChannel, setImportingChannel] = useState<any | null>(null);
+    const [importingChannel, setImportingChannel] = useState<MTProtoChannel | null>(null);
 
     useEffect(() => {
         loadChannels();
@@ -282,7 +292,7 @@ const ConnectorItem = ({ connector, onDelete, onEditRules }: { connector: MTProt
                     Import Sources
                 </h5>
                 <div className="space-y-2 mb-4">
-                    {channels.map((ch: any) => (
+                    {channels.map((ch) => (
                         <div key={ch.id} className="flex justify-between items-center p-2 rounded bg-[var(--bg-app)] border border-[var(--border-color)]">
                             <div className="flex items-center gap-3">
                                 <div className="w-8 h-8 rounded-full bg-blue-500/20 text-blue-500 flex items-center justify-center font-bold text-xs">TG</div>
@@ -348,7 +358,7 @@ const ConnectorItem = ({ connector, onDelete, onEditRules }: { connector: MTProt
     );
 };
 
-const ImportHistoryModal = ({ connectorId, channel, onClose }: { connectorId: string; channel: any; onClose: () => void }) => {
+const ImportHistoryModal = ({ connectorId, channel, onClose }: { connectorId: string; channel: MTProtoChannel; onClose: () => void }) => {
     const { showToast } = useToast();
     const [form, setForm] = useState({ fromDate: '', toDate: '', mode: 'INVENTORY' });
     const [preview, setPreview] = useState<MTProtoPreviewItem[]>([]);

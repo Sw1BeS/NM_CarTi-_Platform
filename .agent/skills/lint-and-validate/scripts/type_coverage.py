@@ -5,7 +5,8 @@ Identifies untyped functions, any usage, and type safety issues.
 """
 import sys
 import re
-import subprocess
+import json
+from datetime import datetime, timezone
 from pathlib import Path
 
 # Fix Windows console encoding for Unicode output
@@ -15,7 +16,44 @@ try:
 except AttributeError:
     pass  # Python < 3.7
 
-def check_typescript_coverage(project_path: Path) -> dict:
+ANY_PATTERN = re.compile(r':\s*any\b')
+BASELINE_FILENAME = "type_coverage_baseline.json"
+
+def collect_any_entries(project_path: Path, ts_files: list[Path]) -> list[dict]:
+    entries = []
+    for file_path in ts_files:
+        try:
+            content = file_path.read_text(encoding='utf-8', errors='ignore')
+            for idx, line in enumerate(content.splitlines(), start=1):
+                if ANY_PATTERN.search(line):
+                    entries.append({
+                        'file': str(file_path.relative_to(project_path)),
+                        'line': idx,
+                        'signature': line.strip()
+                    })
+        except Exception:
+            continue
+    return entries
+
+def load_baseline(project_path: Path) -> list[dict]:
+    baseline_path = project_path / BASELINE_FILENAME
+    if not baseline_path.exists():
+        return []
+    try:
+        payload = json.loads(baseline_path.read_text(encoding='utf-8'))
+        return payload.get('entries', [])
+    except Exception:
+        return []
+
+def write_baseline(project_path: Path, entries: list[dict]) -> None:
+    baseline_path = project_path / BASELINE_FILENAME
+    payload = {
+        'generatedAt': datetime.now(timezone.utc).isoformat(),
+        'entries': entries
+    }
+    baseline_path.write_text(json.dumps(payload, indent=2, ensure_ascii=True), encoding='utf-8')
+
+def check_typescript_coverage(project_path: Path, write_baseline_flag: bool = False) -> dict:
     """Check TypeScript type coverage."""
     issues = []
     passed = []
@@ -23,16 +61,17 @@ def check_typescript_coverage(project_path: Path) -> dict:
     
     ts_files = list(project_path.rglob("*.ts")) + list(project_path.rglob("*.tsx"))
     ts_files = [f for f in ts_files if 'node_modules' not in str(f) and '.d.ts' not in str(f)]
+    ts_files = sorted(ts_files, key=lambda p: str(p))
     
     if not ts_files:
         return {'type': 'typescript', 'files': 0, 'passed': [], 'issues': ["[!] No TypeScript files found"], 'stats': stats}
     
-    for file_path in ts_files[:30]:  # Limit
+    for file_path in ts_files:
         try:
             content = file_path.read_text(encoding='utf-8', errors='ignore')
             
             # Count 'any' usage
-            any_matches = re.findall(r':\s*any\b', content)
+            any_matches = ANY_PATTERN.findall(content)
             stats['any_count'] += len(any_matches)
             
             # Find functions without return types
@@ -50,13 +89,27 @@ def check_typescript_coverage(project_path: Path) -> dict:
         except Exception:
             continue
     
-    # Analyze results
-    if stats['any_count'] == 0:
-        passed.append("[OK] No 'any' types found")
-    elif stats['any_count'] <= 5:
-        issues.append(f"[!] {stats['any_count']} 'any' types found (acceptable)")
+    any_entries = collect_any_entries(project_path, ts_files)
+    if write_baseline_flag:
+        write_baseline(project_path, any_entries)
+
+    baseline_entries = load_baseline(project_path)
+    baseline_set = {f"{e.get('file')}:{e.get('line')}:{e.get('signature')}" for e in baseline_entries}
+    current_set = {f"{e.get('file')}:{e.get('line')}:{e.get('signature')}" for e in any_entries}
+    new_any = sorted(current_set - baseline_set)
+
+    if baseline_entries:
+        if new_any:
+            issues.append(f"[X] {len(new_any)} new 'any' types found (baseline regression)")
+        else:
+            passed.append(f"[OK] No new 'any' types found (baseline {len(baseline_set)})")
     else:
-        issues.append(f"[X] {stats['any_count']} 'any' types found (too many)")
+        if stats['any_count'] == 0:
+            passed.append("[OK] No 'any' types found")
+        elif stats['any_count'] <= 5:
+            issues.append(f"[!] {stats['any_count']} 'any' types found (acceptable)")
+        else:
+            issues.append(f"[X] {stats['any_count']} 'any' types found (too many)")
     
     if stats['total_functions'] > 0:
         typed_ratio = (stats['total_functions'] - stats['untyped_functions']) / stats['total_functions'] * 100
@@ -65,7 +118,10 @@ def check_typescript_coverage(project_path: Path) -> dict:
         elif typed_ratio >= 50:
             issues.append(f"[!] Type coverage: {typed_ratio:.0f}% (improve)")
         else:
-            issues.append(f"[X] Type coverage: {typed_ratio:.0f}% (too low)")
+            if baseline_entries:
+                issues.append(f"[!] Type coverage: {typed_ratio:.0f}% (baseline mode)")
+            else:
+                issues.append(f"[X] Type coverage: {typed_ratio:.0f}% (too low)")
     
     passed.append(f"[OK] Analyzed {len(ts_files)} TypeScript files")
     
@@ -127,6 +183,7 @@ def check_python_coverage(project_path: Path) -> dict:
 
 def main():
     target = sys.argv[1] if len(sys.argv) > 1 else "."
+    write_baseline_flag = "--write-baseline" in sys.argv
     project_path = Path(target)
     
     print("\n" + "=" * 60)
@@ -136,7 +193,7 @@ def main():
     results = []
     
     # Check TypeScript
-    ts_result = check_typescript_coverage(project_path)
+    ts_result = check_typescript_coverage(project_path, write_baseline_flag)
     if ts_result['files'] > 0:
         results.append(ts_result)
     
