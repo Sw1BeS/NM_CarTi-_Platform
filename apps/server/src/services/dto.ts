@@ -1,4 +1,4 @@
-import { LeadStatus as DbLeadStatus, RequestStatus as DbRequestStatus, VariantStatus as DbVariantStatus } from '@prisma/client';
+import { LeadStatus as DbLeadStatus, RequestStatus as DbRequestStatus, VariantStatus as DbVariantStatus, Prisma } from '@prisma/client';
 import { NormalizationService } from './normalization.service.js';
 
 const DEFAULT_CURRENCY = 'USD';
@@ -285,16 +285,40 @@ export const mapRequestOutput = (request: any) => ({
   variants: (request.variants || []).map(mapVariantOutput)
 });
 
-export const mapInventoryInput = (input: Record<string, unknown>) => {
-  const data: Record<string, unknown> = {};
+export type InventoryInput = {
+  id?: string;
+  source?: string;
+  sourceUrl?: string | null;
+  title?: string;
+  price?: number;
+  currency?: string;
+  year?: number;
+  mileage?: number;
+  location?: string | null;
+  thumbnail?: string | null;
+  mediaUrls?: string[];
+  specs?: Prisma.InputJsonValue;
+  description?: string | null;
+  status?: string;
+  postedAt?: Date;
+};
+
+export const mapInventoryInput = (input: Record<string, unknown>): InventoryInput => {
+  const data: InventoryInput = {};
   const id = toString(input.id) || toString(input.canonicalId);
   if (id) data.id = id;
 
-  if ('source' in input) data.source = input.source;
-  if ('sourceUrl' in input) data.sourceUrl = input.sourceUrl ?? null;
+  if ('source' in input) {
+    const source = toString(input.source);
+    if (source) data.source = source;
+  }
+  if ('sourceUrl' in input) {
+    data.sourceUrl = input.sourceUrl === null ? null : toString(input.sourceUrl);
+  }
   if ('title' in input) data.title = toString(input.title);
 
-  const price = NormalizationService.extractPrice(input.price, input.currency);
+  const currency = toString(input.currency);
+  const price = NormalizationService.extractPrice(input.price, currency || DEFAULT_CURRENCY);
   if (price.amount !== undefined) data.price = price.amount;
   if (price.currency) data.currency = price.currency;
 
@@ -304,18 +328,32 @@ export const mapInventoryInput = (input: Record<string, unknown>) => {
   if (mileage !== undefined) data.mileage = mileage;
 
   if ('location' in input) data.location = NormalizationService.normalizeCity(input.location) ?? null;
-  if ('thumbnail' in input) data.thumbnail = input.thumbnail ?? null;
+  if ('thumbnail' in input) data.thumbnail = input.thumbnail === null ? null : toString(input.thumbnail);
   if ('mediaUrls' in input) {
-    data.mediaUrls = Array.isArray(input.mediaUrls)
-      ? input.mediaUrls
-      : input.mediaUrls
-        ? [input.mediaUrls]
+    const rawMediaUrls = input.mediaUrls;
+    const mediaUrls = Array.isArray(rawMediaUrls)
+      ? rawMediaUrls
+      : rawMediaUrls
+        ? [rawMediaUrls]
         : [];
+    data.mediaUrls = mediaUrls.filter((url): url is string => typeof url === 'string' && url.trim().length > 0);
   }
-  if ('specs' in input) data.specs = input.specs ?? null;
-  if ('description' in input) data.description = input.description ?? null;
-  if ('status' in input) data.status = input.status;
-  if ('postedAt' in input && input.postedAt) data.postedAt = input.postedAt;
+  if ('specs' in input) {
+    const specs = input.specs as Prisma.InputJsonValue | undefined;
+    if (specs !== undefined) data.specs = specs;
+  }
+  if ('description' in input) {
+    const description = typeof input.description === 'string' ? input.description : undefined;
+    data.description = description ?? null;
+  }
+  if ('status' in input) {
+    const status = toString(input.status);
+    if (status) data.status = status;
+  }
+  if ('postedAt' in input && input.postedAt) {
+    const postedAt = input.postedAt instanceof Date ? input.postedAt : new Date(String(input.postedAt));
+    if (!Number.isNaN(postedAt.getTime())) data.postedAt = postedAt;
+  }
 
   return data;
 };

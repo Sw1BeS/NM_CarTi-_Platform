@@ -1,4 +1,4 @@
-import { PrismaClient, CarListing } from '@prisma/client';
+import { PrismaClient, CarListing, Prisma } from '@prisma/client';
 import { BaseRepository } from './base.repository.js';
 import { generateULID } from '../utils/ulid.js';
 
@@ -13,12 +13,12 @@ export class CarRepository extends BaseRepository<CarListing> {
         year: number;
         mileage: number;
         source?: string;
-        sourceUrl?: string;
-        location?: string;
-        thumbnail?: string;
+        sourceUrl?: string | null;
+        location?: string | null;
+        thumbnail?: string | null;
         mediaUrls?: string[];
-        specs?: any;
-        description?: string;
+        specs?: Prisma.InputJsonValue;
+        description?: string | null;
         status?: string;
         companyId?: string;
         currency?: string;
@@ -39,8 +39,8 @@ export class CarRepository extends BaseRepository<CarListing> {
                 location: data.location,
                 thumbnail: data.thumbnail,
                 mediaUrls: data.mediaUrls || [],
-                specs: data.specs,
-                description: data.description,
+                specs: data.specs ?? undefined,
+                description: data.description ?? undefined,
                 companyId: data.companyId
             }
         });
@@ -48,7 +48,7 @@ export class CarRepository extends BaseRepository<CarListing> {
 
     async createFromChannelMessage(data: {
         source: string;
-        sourceUrl?: string;
+        sourceUrl?: string | null;
         title: string;
         price: number;
         currency?: string;
@@ -57,15 +57,15 @@ export class CarRepository extends BaseRepository<CarListing> {
         location?: string | null;
         thumbnail?: string | null;
         mediaUrls?: string[];
-        mediaItems?: any;
-        specs?: any;
+        mediaItems?: Prisma.InputJsonValue;
+        specs?: Prisma.InputJsonValue;
         description?: string | null;
         status?: string;
         companyId?: string | null;
         sourceChatId: string;
         sourceMessageId: number;
         mediaGroupKey?: string | null;
-        originalRaw?: any;
+        originalRaw?: Prisma.InputJsonValue;
         postedAt?: Date;
     }): Promise<CarListing> {
         const carId = `car_${generateULID()}`;
@@ -83,9 +83,9 @@ export class CarRepository extends BaseRepository<CarListing> {
                 location: data.location || undefined,
                 thumbnail: data.thumbnail || undefined,
                 mediaUrls: data.mediaUrls || [],
-                mediaItems: data.mediaItems,
-                specs: data.specs,
-                description: data.description || undefined,
+                mediaItems: data.mediaItems ?? undefined,
+                specs: data.specs ?? undefined,
+                description: data.description ?? undefined,
                 status: data.status || 'AVAILABLE',
                 companyId: data.companyId || undefined,
                 sourceChatId: data.sourceChatId,
@@ -152,16 +152,18 @@ export class CarRepository extends BaseRepository<CarListing> {
         year?: number;
         mileage?: number;
         source?: string;
-        sourceUrl?: string;
-        location?: string;
-        thumbnail?: string;
+        sourceUrl?: string | null;
+        location?: string | null;
+        thumbnail?: string | null;
         mediaUrls?: string[];
-        mediaItems?: any;
-        specs?: any;
-        description?: string;
+        mediaItems?: Prisma.InputJsonValue;
+        specs?: Prisma.InputJsonValue;
+        description?: string | null;
         status?: string;
         currency?: string;
         companyId?: string;
+        originalRaw?: Prisma.InputJsonValue;
+        postedAt?: Date;
     }>): Promise<CarListing> {
         return this.prisma.carListing.update({
             where: { id },

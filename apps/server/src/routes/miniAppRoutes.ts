@@ -14,6 +14,12 @@ const readString = (value: unknown): string | undefined => {
   return str ? str : undefined;
 };
 
+const readNumber = (value: unknown): number | undefined => {
+  if (value === null || value === undefined || value === '') return undefined;
+  const n = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(n) ? n : undefined;
+};
+
 router.get('/favorites', async (req, res) => {
   try {
     const slug = readString(req.query.slug);
@@ -62,8 +68,8 @@ router.post('/requests', async (req, res) => {
       slug,
       title: readString(body.title),
       description: readString(body.description),
-      budgetMax: body.budgetMax as unknown,
-      yearMin: body.yearMin as unknown,
+      budgetMax: readNumber(body.budgetMax),
+      yearMin: readNumber(body.yearMin),
       phone: readString(body.phone),
       comment: readString(body.comment),
       carListingId: readString(body.carListingId),

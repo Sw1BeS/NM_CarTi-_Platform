@@ -1,4 +1,4 @@
-import { DraftSource, type ChannelSource, type CarListing } from '@prisma/client';
+import { DraftSource, type ChannelSource, type CarListing, Prisma } from '@prisma/client';
 import { prisma } from './prisma.js';
 import { CarRepository } from '../repositories/car.repository.js';
 import { DraftRepository } from '../repositories/draft.repository.js';
@@ -43,6 +43,7 @@ export type MediaItem = {
     previewUrl?: string;
     tgFileId?: string;
     source?: string;
+    tgMeta?: Record<string, string | number | null>;
 };
 
 const carRepo = new CarRepository(prisma);
@@ -57,17 +58,40 @@ const isMeaningfulYear = (value?: number | null) =>
 
 const isRealUrl = (value?: string | null) => typeof value === 'string' && /^https?:\/\//.test(value);
 
-const mergeSpecs = (current?: Record<string, unknown> | null, incoming?: Record<string, unknown> | null) => {
-    const result: Record<string, unknown> = { ...(current || {}) };
+const normalizeMediaItem = (item: MediaItem): Prisma.InputJsonObject => {
+    const normalized: Record<string, Prisma.InputJsonValue> = {};
+    if (item.url) normalized.url = item.url;
+    if (item.previewUrl) normalized.previewUrl = item.previewUrl;
+    if (item.tgFileId) normalized.tgFileId = item.tgFileId;
+    if (item.source) normalized.source = item.source;
+    if (item.tgMeta) normalized.tgMeta = item.tgMeta as Prisma.InputJsonObject;
+    return normalized;
+};
+
+const mergeSpecs = (
+    current?: Prisma.JsonValue | null,
+    incoming?: Record<string, unknown> | null
+): Prisma.JsonObject | undefined => {
+    const result: Prisma.JsonObject = {};
+    if (current && typeof current === 'object' && !Array.isArray(current)) {
+        Object.assign(result, current as Prisma.JsonObject);
+    }
     if (incoming) {
         for (const [key, value] of Object.entries(incoming)) {
-            if (result[key] === undefined) result[key] = value;
+            if (result[key] === undefined && value !== undefined) {
+                result[key] = value as Prisma.JsonValue;
+            }
         }
     }
     return Object.keys(result).length ? result : undefined;
 };
 
-const buildSourceMeta = (message: NormalizedChannelMessage, sourceLabel: string, botId?: string | null, channelSource?: ChannelSource | null) => ({
+const buildSourceMeta = (
+    message: NormalizedChannelMessage,
+    sourceLabel: string,
+    botId?: string | null,
+    channelSource?: ChannelSource | null
+): Prisma.JsonObject => ({
     sourceType: message.sourceType,
     sourceLabel,
     messageId: message.messageId,
@@ -77,13 +101,21 @@ const buildSourceMeta = (message: NormalizedChannelMessage, sourceLabel: string,
     channelSourceId: channelSource?.id
 });
 
-const mergeOriginalRaw = (existingRaw: unknown, message: NormalizedChannelMessage, sourceMeta: Record<string, unknown>) => {
-    const base = (existingRaw && typeof existingRaw === 'object' && !Array.isArray(existingRaw))
-        ? (existingRaw as Record<string, unknown>)
-        : {};
-    const existingSources = Array.isArray(base.sources) ? base.sources as Record<string, unknown>[] : [];
+const isJsonObject = (value: unknown): value is Prisma.JsonObject =>
+    !!value && typeof value === 'object' && !Array.isArray(value);
+
+const mergeOriginalRaw = (
+    existingRaw: unknown,
+    message: NormalizedChannelMessage,
+    sourceMeta: Prisma.JsonObject
+): Prisma.JsonObject => {
+    const base = isJsonObject(existingRaw) ? (existingRaw as Prisma.JsonObject) : {};
+    const existingSources = Array.isArray(base.sources) ? (base.sources as Prisma.JsonValue[]) : [];
     const nextSources = [
-        ...existingSources.filter((entry) => entry.sourceType !== sourceMeta.sourceType || entry.sourceLabel !== sourceMeta.sourceLabel),
+        ...existingSources.filter((entry) => {
+            if (!isJsonObject(entry)) return false;
+            return entry.sourceType !== sourceMeta.sourceType || entry.sourceLabel !== sourceMeta.sourceLabel;
+        }),
         sourceMeta
     ];
     return {
@@ -91,7 +123,7 @@ const mergeOriginalRaw = (existingRaw: unknown, message: NormalizedChannelMessag
         sources: nextSources,
         lastMessage: {
             text: message.text,
-            date: message.date,
+            date: message.date.toISOString(),
             sourceUrl: message.sourceUrl
         }
     };
@@ -123,7 +155,7 @@ const mergeMedia = (existing: CarListing, incoming: { mediaUrls: string[]; media
 
     return {
         mediaUrls: mergedUrls,
-        mediaItems: mergedItems,
+        mediaItems: mergedItems.map(normalizeMediaItem) as Prisma.InputJsonValue,
         thumbnail
     };
 };
@@ -169,7 +201,7 @@ export class ChannelIngestionService {
     attachMediaRefs(message: NormalizedChannelMessage) {
         const mediaItems = (message.mediaItems && message.mediaItems.length)
             ? message.mediaItems
-            : (message.mediaUrls || []).map((url) => ({ url }));
+            : (message.mediaUrls || []).map((url): MediaItem => ({ url }));
         const mediaUrls = mediaItems.map((item) => item.url || item.previewUrl).filter(Boolean) as string[];
         return {
             thumbnail: mediaUrls.length ? mediaUrls[0] : undefined,
@@ -252,12 +284,13 @@ export class ChannelIngestionService {
             const sourceMeta = buildSourceMeta(message, sourceLabel, botId, channelSource);
             const media = this.attachMediaRefs(message);
             const mergedMedia = mergeMedia(existing, media);
-            const updates: Partial<CarListing> = {
+            type UpdatePayload = Parameters<typeof carRepo.updateCar>[1];
+            const updates: UpdatePayload = {
                 sourceUrl: isNonEmptyString(existing.sourceUrl) ? existing.sourceUrl : message.sourceUrl,
                 description: isNonEmptyString(existing.description) ? existing.description : (transformedData.description || message.text),
                 location: isNonEmptyString(existing.location) ? existing.location : transformedData.location,
                 currency: isNonEmptyString(existing.currency) ? existing.currency : (transformedData.currency || 'USD'),
-                specs: mergeSpecs(existing.specs as Record<string, unknown> | null, transformedData.specs),
+                specs: mergeSpecs(existing.specs as Prisma.JsonValue | null, transformedData.specs) as Prisma.InputJsonValue | undefined,
                 originalRaw: mergeOriginalRaw(existing.originalRaw, message, sourceMeta),
                 ...mergedMedia
             };
@@ -286,6 +319,7 @@ export class ChannelIngestionService {
         }
 
         const media = this.attachMediaRefs(message);
+        const normalizedMediaItems = media.mediaItems.map(normalizeMediaItem) as Prisma.InputJsonValue;
         const autoPublish = (channelSource?.importRules as any)?.autoPublish;
         const status = autoPublish ? 'AVAILABLE' : 'PENDING';
 
@@ -302,8 +336,8 @@ export class ChannelIngestionService {
                 location: transformedData.location,
                 thumbnail: media.thumbnail,
                 mediaUrls: media.mediaUrls,
-                mediaItems: media.mediaItems,
-                specs: transformedData.specs,
+                mediaItems: normalizedMediaItems,
+                specs: (transformedData.specs as Prisma.InputJsonValue | undefined),
                 description: transformedData.description || message.text,
                 status,
                 companyId,
@@ -313,9 +347,9 @@ export class ChannelIngestionService {
                 originalRaw: {
                     text: message.text,
                     channelTitle: message.channelTitle,
-                    date: message.date,
+                    date: message.date.toISOString(),
                     sourceType: message.sourceType,
-                    botId,
+                    botId: botId || undefined,
                     sources: [sourceMeta]
                 },
                 postedAt: message.date

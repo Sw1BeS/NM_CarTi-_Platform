@@ -91,8 +91,16 @@ router.post('/', requireRole(['ADMIN', 'MANAGER']), async (req, res) => {
         if (!companyId && !isSuperadmin) return errorResponse(res, 400, 'Company context required', 'COMPANY_REQUIRED');
 
         const mapped = mapInventoryInput(req.body || {});
+        const { id: _id, title, price, year, mileage, ...rest } = mapped;
+        if (!title || price === undefined || year === undefined || mileage === undefined) {
+            return errorResponse(res, 400, 'title, price, year, mileage are required', 'INVALID_INPUT');
+        }
         const car = await carRepo.createCar({
-            ...mapped,
+            ...rest,
+            title,
+            price,
+            year,
+            mileage,
             companyId: companyId || undefined
         });
         res.json(mapInventoryOutput(car));
