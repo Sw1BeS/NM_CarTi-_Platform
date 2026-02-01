@@ -11,7 +11,7 @@ Persist Telegram photos locally and expose them via `/media/...` for Inventory +
 - [x] Ensure CarListing stores `mediaItems[]` + `mediaUrls[]` for gallery (Inventory + Mini App) → Verify: images render.
 - [x] Update docs `docs/stage2/30_MEDIA_MVP.md` + exec summary → Verify: DoD + checks updated.
 - [x] Run required validation scripts and minimal tests → Verify: lint/type checks succeed.
-- [ ] Commit M4 with DoD report → Verify: git log shows commit and DoD summary file updated.
+- [x] Commit M4 with DoD report → Verify: git log shows commit and DoD summary file updated.
 
 ## Done When
 - [x] Inventory + Mini App show photos for imported listings.
