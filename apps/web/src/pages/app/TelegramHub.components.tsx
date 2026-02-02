@@ -47,16 +47,20 @@ export const AddBotModal = ({ onClose }: { onClose: () => void }) => {
     const { showToast } = useToast();
 
     const handleAdd = async () => {
-        if (!name.trim() || !token.trim()) {
-            showToast('Name and token are required', 'error');
+        if (!token.trim()) {
+            showToast('Token is required', 'error');
             return;
         }
         setSaving(true);
         try {
-            const fallbackSlug = 'system';
+            // Auto-generate fallback
+            const fallbackName = 'My New Bot';
+            const fallbackSlug = name.trim() ? name.trim().toLowerCase().replace(/\s+/g, '_') : 'bot';
+
             const { base, detectedSlug } = resolveBaseUrl(publicBaseUrl || window.location.origin);
             const slug = detectedSlug || fallbackSlug;
             const miniAppUrl = buildMiniAppUrl(base, slug);
+
             const menuConfig = {
                 ...DEFAULT_MENU_CONFIG,
                 buttons: DEFAULT_MENU_CONFIG.buttons.map(btn =>
@@ -68,8 +72,8 @@ export const AddBotModal = ({ onClose }: { onClose: () => void }) => {
             const miniAppConfig = { ...DEFAULT_MINI_APP_CONFIG, url: miniAppUrl, showcaseSlug: slug };
 
             const bot = await Data.saveBot({
-                name: name.trim(),
-                username: name.trim().toLowerCase().replace(/\s+/g, '_'),
+                name: name.trim() || fallbackName, // Backend will likely overwrite this with real TG name
+                username: slug, // Backend will overwrite
                 token: token.trim(),
                 role: 'CLIENT',
                 active: true,
@@ -115,7 +119,7 @@ export const AddBotModal = ({ onClose }: { onClose: () => void }) => {
             <div className="panel w-full max-w-md p-8 animate-slide-up shadow-2xl">
                 <h3 className="font-bold text-2xl text-[var(--text-primary)] mb-6">Connect Bot</h3>
                 <div className="space-y-4">
-                    <input className="input" placeholder="Name" value={name} onChange={e => setName(e.target.value)} />
+                    <input className="input" placeholder="Name (Auto-detected if empty)" value={name} onChange={e => setName(e.target.value)} />
                     <input className="input" placeholder="Token" value={token} onChange={e => setToken(e.target.value)} />
                     <input className="input" placeholder="Channel ID (optional)" value={channelId} onChange={e => setChannelId(e.target.value)} />
                     <input className="input" placeholder="Admin Chat ID (optional)" value={adminChatId} onChange={e => setAdminChatId(e.target.value)} />
