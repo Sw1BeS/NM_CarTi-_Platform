@@ -130,9 +130,14 @@ const TelegramAdapter = (token: string): PlatformAdapter => ({
         const keyboard = createCarCardKeyboard(car, lang as any);
 
         // Handle Base64 or URL
-        if (car.thumbnail && (car.thumbnail.startsWith('http') || car.thumbnail.length < 1024)) {
+        let finalPhoto = car.thumbnail;
+        if (finalPhoto && finalPhoto.startsWith('/')) {
+            finalPhoto = `${window.location.origin}${finalPhoto}`;
+        }
+
+        if (finalPhoto && (finalPhoto.startsWith('http') || finalPhoto.length < 1024)) {
             try {
-                return await TelegramAPI.sendPhoto(token, chatId, car.thumbnail, caption, keyboard);
+                return await TelegramAPI.sendPhoto(token, chatId, finalPhoto, caption, keyboard);
             } catch (e) {
                 return await TelegramAPI.sendMessage(token, chatId, caption, keyboard);
             }
@@ -1191,7 +1196,7 @@ export class BotEngine {
             const res = await ApiClient.post('messages/send', { chatId, text, imageUrl, botId: active.id });
             if (!res.ok) throw new Error(res.message || 'Failed to send message');
             // Refresh messages to reflect outgoing message
-            Data.getMessages().then(() => Data._notify('UPDATE_MESSAGES')).catch(() => {});
+            Data.getMessages().then(() => Data._notify('UPDATE_MESSAGES')).catch(() => { });
         } else if (platform === 'WA') {
             await WhatsAppAPI.sendMessage(chatId, text);
         } else if (platform === 'IG') {

@@ -974,7 +974,8 @@ export class ScenarioEngine {
       }
     }
 
-    return scenarios.length > 0;
+    // CRITICAL FIX: processing should fall back to next handler if no scenario matched
+    return false;
   }
 
   static async goBack(bot: BotRuntime, session: any, vars: Record<string, any>, history: string[]) {
@@ -1054,7 +1055,12 @@ export class ScenarioEngine {
     return true;
   }
 
-  static async executeNode(bot: BotRuntime, session: any, vars: Record<string, any>, history: string[], scenario: ScenarioRecord, nodeId: string, isBack = false) {
+  static async executeNode(bot: BotRuntime, session: any, vars: Record<string, any>, history: string[], scenario: ScenarioRecord, nodeId: string, isBack = false, depth = 0) {
+    if (depth > 25) {
+      logger.warn(`[ScenarioEngine] Infinite loop detected for scenario ${scenario.id}, node ${nodeId}`);
+      await sendMessage(bot, session.chatId, '⚠️ Error: Scenario loop detected.');
+      return;
+    }
     const nodes = Array.isArray(scenario.nodes) ? (scenario.nodes as ScenarioNode[]) : [];
     const node: ScenarioNode | undefined = nodes.find((n: ScenarioNode) => n.id === nodeId);
     const lang = getLanguage(vars);
@@ -1102,12 +1108,12 @@ export class ScenarioEngine {
     switch (node.type) {
       case 'START':
       case 'JUMP':
-        if (node.nextNodeId) await this.executeNode(bot, session, vars, history, scenario, node.nextNodeId, isBack);
+        if (node.nextNodeId) await this.executeNode(bot, session, vars, history, scenario, node.nextNodeId, isBack, depth + 1);
         break;
 
       case 'MESSAGE':
         await sendMessage(bot, session.chatId, text);
-        if (node.nextNodeId) await this.executeNode(bot, session, vars, history, scenario, node.nextNodeId, isBack);
+        if (node.nextNodeId) await this.executeNode(bot, session, vars, history, scenario, node.nextNodeId, isBack, depth + 1);
         else {
           await emitScenarioCompleted(bot, session.chatId, scenario.id, { reason: 'end' }, vars.__telegramUserId);
           delete vars.__activeScenarioId;
@@ -1161,7 +1167,7 @@ export class ScenarioEngine {
         else result = String(val) === String(target);
 
         const nextId = result ? node.content?.trueNodeId : node.content?.falseNodeId;
-        if (nextId) await this.executeNode(bot, session, vars, history, scenario, nextId, isBack);
+        if (nextId) await this.executeNode(bot, session, vars, history, scenario, nextId, isBack, depth + 1);
         else {
           await emitScenarioCompleted(bot, session.chatId, scenario.id, { reason: 'end' }, vars.__telegramUserId);
           delete vars.__activeScenarioId;
@@ -1176,7 +1182,7 @@ export class ScenarioEngine {
         const ms = parseInt(String(node.content?.conditionValue || '1000'), 10);
         await sendChatAction(bot, session.chatId, 'typing');
         await new Promise(r => setTimeout(r, ms));
-        if (node.nextNodeId) await this.executeNode(bot, session, vars, history, scenario, node.nextNodeId, isBack);
+        if (node.nextNodeId) await this.executeNode(bot, session, vars, history, scenario, node.nextNodeId, isBack, depth + 1);
         break;
       }
 
@@ -1193,7 +1199,7 @@ export class ScenarioEngine {
           }
           await new Promise(r => setTimeout(r, 600));
         }
-        if (node.nextNodeId) await this.executeNode(bot, session, vars, history, scenario, node.nextNodeId, isBack);
+        if (node.nextNodeId) await this.executeNode(bot, session, vars, history, scenario, node.nextNodeId, isBack, depth + 1);
         else {
           await emitScenarioCompleted(bot, session.chatId, scenario.id, { reason: 'end' }, vars.__telegramUserId);
           delete vars.__activeScenarioId;
@@ -1260,7 +1266,7 @@ export class ScenarioEngine {
           await sendMessage(bot, bot.adminChatId, text || '🔔 Notification');
         }
 
-        if (node.nextNodeId) await this.executeNode(bot, session, vars, history, scenario, node.nextNodeId, isBack);
+        if (node.nextNodeId) await this.executeNode(bot, session, vars, history, scenario, node.nextNodeId, isBack, depth + 1);
         else {
           await emitScenarioCompleted(bot, session.chatId, scenario.id, { reason: 'end' }, vars.__telegramUserId);
           delete vars.__activeScenarioId;
@@ -1308,7 +1314,7 @@ export class ScenarioEngine {
         vars.__tempResults = merged.slice(0, 5);
         vars.found_count = merged.length;
 
-        if (node.nextNodeId) await this.executeNode(bot, session, vars, history, scenario, node.nextNodeId, isBack);
+        if (node.nextNodeId) await this.executeNode(bot, session, vars, history, scenario, node.nextNodeId, isBack, depth + 1);
         else {
           await emitScenarioCompleted(bot, session.chatId, scenario.id, { reason: 'end' }, vars.__telegramUserId);
           delete vars.__activeScenarioId;
@@ -1330,7 +1336,7 @@ export class ScenarioEngine {
         vars.__tempResults = external.slice(0, 5);
         vars.found_count = external.length;
 
-        if (node.nextNodeId) await this.executeNode(bot, session, vars, history, scenario, node.nextNodeId, isBack);
+        if (node.nextNodeId) await this.executeNode(bot, session, vars, history, scenario, node.nextNodeId, isBack, depth + 1);
         else {
           await emitScenarioCompleted(bot, session.chatId, scenario.id, { reason: 'end' }, vars.__telegramUserId);
           delete vars.__activeScenarioId;
@@ -1392,7 +1398,7 @@ export class ScenarioEngine {
           });
         }
 
-        if (node.nextNodeId) await this.executeNode(bot, session, vars, history, scenario, node.nextNodeId, isBack);
+        if (node.nextNodeId) await this.executeNode(bot, session, vars, history, scenario, node.nextNodeId, isBack, depth + 1);
         else {
           await emitScenarioCompleted(bot, session.chatId, scenario.id, { reason: 'end' }, vars.__telegramUserId);
           delete vars.__activeScenarioId;
@@ -1430,7 +1436,7 @@ export class ScenarioEngine {
         const keyboard = createDeepLinkKeyboard([{ text: buttonText, link }]);
         await sendMessage(bot, destination, messageText, keyboard);
 
-        if (node.nextNodeId) await this.executeNode(bot, session, vars, history, scenario, node.nextNodeId, isBack);
+        if (node.nextNodeId) await this.executeNode(bot, session, vars, history, scenario, node.nextNodeId, isBack, depth + 1);
         else {
           await emitScenarioCompleted(bot, session.chatId, scenario.id, { reason: 'end' }, vars.__telegramUserId);
           delete vars.__activeScenarioId;
@@ -1468,7 +1474,7 @@ export class ScenarioEngine {
         const keyboard = createDeepLinkKeyboard([{ text: buttonText, link }]);
         await sendMessage(bot, destination, messageText, keyboard);
 
-        if (node.nextNodeId) await this.executeNode(bot, session, vars, history, scenario, node.nextNodeId, isBack);
+        if (node.nextNodeId) await this.executeNode(bot, session, vars, history, scenario, node.nextNodeId, isBack, depth + 1);
         else {
           await emitScenarioCompleted(bot, session.chatId, scenario.id, { reason: 'end' }, vars.__telegramUserId);
           delete vars.__activeScenarioId;

@@ -4,6 +4,7 @@ import { resolveBotTenant } from './middlewares/resolveBotTenant.js';
 import { dedup } from './middlewares/dedup.js';
 import { enrichContext } from './middlewares/enrichContext.js';
 import { normalize } from './middlewares/normalize.js';
+import { saveMessage } from './middlewares/saveMessage.js';
 import { emitEvent } from './middlewares/emitEvent.js';
 import { routeMessage } from '../routing/routeMessage.js';
 import { routeCallback } from '../routing/routeCallback.js';
@@ -33,7 +34,7 @@ const routeUpdate: PipelineMiddleware = async (ctx, next) => {
     } else if (ctx.update?.message) {
       await routeMessage(ctx);
     } else if (ctx.update?.channel_post) {
-      await routeChannelPost(ctx, async () => {});
+      await routeChannelPost(ctx, async () => { });
     }
   }
 
@@ -58,6 +59,7 @@ const pipeline = compose([
   dedup,
   enrichContext,
   normalize,
+  saveMessage,
   routeMyChatMember,
   routeUpdate,
   emitEvent

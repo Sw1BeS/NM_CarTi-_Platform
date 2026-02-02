@@ -60,18 +60,37 @@ const extractVariables = (html: string, url: string) => {
     const vinMatch = text.match(/\b[A-HJ-NPR-Z0-9]{17}\b/i);
     const vin = vinMatch ? vinMatch[0] : undefined;
 
+    // FALLBACK: OpenGraph / Meta Tags (Universal)
+    // If regex failed, rely on meta
+    const finalTitle = title || $('meta[name="twitter:title"]').attr('content') || '';
+    const finalDesc = description || $('meta[name="twitter:description"]').attr('content') || '';
+    const finalImage = imageCandidates[0] || '';
+
+    // Heuristic for Price/Currency if regex failed but OG title has it (e.g. "BMW X5 - $50,000")
+    let finalPrice = price;
+    let finalCurrency = currency;
+    if (!finalPrice && finalTitle) {
+        const pMatch = finalTitle.match(/([$€£₴])\s?([\d,.]+)/);
+        if (pMatch) {
+            finalCurrency = pMatch[1] === '$' ? 'USD' : (pMatch[1] === '€' ? 'EUR' : 'UAH');
+            finalPrice = Number(pMatch[2].replace(/,/g, ''));
+        }
+    }
+
     return {
-        meta: { title, description },
+        meta: { title: finalTitle, description: finalDesc },
         images: Array.from(new Set(imageCandidates)).filter(Boolean),
         variables: {
-            title: title || undefined,
-            description: description || undefined,
-            price,
-            currency,
+            title: finalTitle || undefined,
+            description: finalDesc || undefined,
+            price: finalPrice,
+            currency: finalCurrency,
             mileage,
             year,
             vin,
-            url
+            url,
+            // Add raw meta for UI debugging
+            ogImage: finalImage
         }
     };
 };

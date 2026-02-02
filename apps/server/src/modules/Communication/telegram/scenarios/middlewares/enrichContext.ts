@@ -93,37 +93,37 @@ export const enrichContext: PipelineMiddleware = async (ctx: PipelineContext, ne
       // Auto-create Lead for context
       try {
         const existingLead = await prisma.lead.findFirst({
-            where: {
-                botId: ctx.bot.id,
-                userTgId: ctx.userId || ctx.chatId
-            }
+          where: {
+            botId: ctx.bot.id,
+            userTgId: ctx.userId || ctx.chatId
+          }
         });
 
         if (!existingLead && ctx.bot.companyId) {
-            const from = message?.from;
-            const telegramUsername = from?.username ? String(from.username) : undefined;
-            const telegramName = [from?.first_name, from?.last_name].filter(Boolean).join(' ').trim() || undefined;
-            await prisma.lead.create({
-                data: {
-                    botId: ctx.bot.id,
-                    companyId: ctx.bot.companyId,
-                    userTgId: ctx.userId || ctx.chatId,
-                    clientName: telegramName || (telegramUsername ? `@${telegramUsername}` : 'Unknown User'),
-                    source: 'TELEGRAM',
-                    status: 'NEW',
-                    phone: message?.contact?.phone_number || undefined,
-                    payload: {
-                        telegramUsername,
-                        name: telegramName || (telegramUsername ? `@${telegramUsername}` : undefined),
-                        telegramChatId: ctx.chatId,
-                        telegramUserId: ctx.userId
-                    }
-                }
-            });
-            logger.info(`[TelegramPipeline] Auto-created lead for ${ctx.chatId}`);
+          const from = message?.from;
+          const telegramUsername = from?.username ? String(from.username) : undefined;
+          const telegramName = [from?.first_name, from?.last_name].filter(Boolean).join(' ').trim() || undefined;
+          await prisma.lead.create({
+            data: {
+              botId: ctx.bot.id,
+              companyId: ctx.bot.companyId,
+              userTgId: ctx.userId || ctx.chatId,
+              clientName: telegramName || (telegramUsername ? `@${telegramUsername}` : 'Unknown User'),
+              source: 'TELEGRAM',
+              status: 'NEW',
+              phone: message?.contact?.phone_number || undefined,
+              payload: {
+                telegramUsername,
+                name: telegramName || (telegramUsername ? `@${telegramUsername}` : undefined),
+                telegramChatId: ctx.chatId,
+                telegramUserId: ctx.userId
+              }
+            }
+          });
+          logger.info(`[TelegramPipeline] Auto-created lead for ${ctx.chatId}`);
         }
-      } catch(e) {
-          logger.error('[TelegramPipeline] Lead creation failed:', e);
+      } catch (e) {
+        logger.error('[TelegramPipeline] Lead creation failed:', e);
       }
 
       // SendPulse Subscription (Placeholder)
@@ -161,14 +161,8 @@ export const enrichContext: PipelineMiddleware = async (ctx: PipelineContext, ne
       text = '[update]';
     }
 
-    await logIncoming(ctx.bot.id, ctx.chatId, text, messageId, {
-      updateId: update?.update_id,
-      from: message?.from || callback?.from || inline?.from,
-      chat: message?.chat || callback?.message?.chat,
-      data: callback?.data,
-      web_app_data: message?.web_app_data,
-      inline_query: inline ? { id: inline.id, query: inline.query } : undefined
-    });
+    // Logging moved to saveMessage middleware
+    // await logIncoming(...)
   }
 
   await next();

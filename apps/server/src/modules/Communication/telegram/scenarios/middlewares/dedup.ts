@@ -33,7 +33,8 @@ export const dedup: PipelineMiddleware = async (ctx: PipelineContext, next) => {
   } catch (e: any) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
       ctx.dedup = { isDuplicate: true, updateId: Number(updateId) };
-      await next();
+      // CRITICAL FIX: Stop pipeline execution on duplicate to prevent double-reply
+      // logger.warn(`[Dedup] Duplicate update ${updateId} ignored.`);
       return;
     }
     throw e;

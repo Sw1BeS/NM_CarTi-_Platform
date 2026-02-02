@@ -8,7 +8,8 @@ export const buildMiniAppUrl = (bot: BotConfig, filters: Record<string, any>) =>
   const baseUrl = config?.miniAppConfig?.url
     || config?.miniAppConfig?.baseUrl
     || config?.publicBaseUrl
-    || process.env.MINIAPP_URL;
+    || process.env.MINIAPP_URL
+    || 'https://cartie2.umanoff-analytics.space';
 
   if (!baseUrl) return '';
 

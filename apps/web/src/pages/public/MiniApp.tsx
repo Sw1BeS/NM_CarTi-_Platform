@@ -335,8 +335,8 @@ export const MiniApp = () => {
                     const res = await getShowcaseInventory(target, apiFilters);
                     setCars(res.items);
                 } catch (e) {
-                     const res = await import('../../services/publicApi').then(m => m.getPublicInventory(target, apiFilters));
-                     setCars(res.items);
+                    const res = await import('../../services/publicApi').then(m => m.getPublicInventory(target, apiFilters));
+                    setCars(res.items);
                 }
             } catch (e) {
                 console.error("Fetch inventory failed", e);
@@ -387,7 +387,7 @@ export const MiniApp = () => {
             <div className="px-4 -mt-6 relative z-20">
                 <div className="bg-[#1c1c1e] rounded-2xl p-4 shadow-2xl border border-white/5">
                     <div className={`grid gap-3 ${config.layout === 'GRID' ? 'grid-cols-2' : 'grid-cols-1'}`}>
-                        {config.actions.map(act => (
+                        {(config.actions || []).map(act => (
                             <button
                                 key={act.id}
                                 onClick={() => handleAction(act)}
@@ -415,40 +415,40 @@ export const MiniApp = () => {
                         const cover = images[0];
 
                         return (
-                        <div key={car.canonicalId} className="min-w-[220px] bg-[#1c1c1e] rounded-xl overflow-hidden border border-white/5 shadow-lg">
-                            <div className="h-32 bg-gray-800 relative cursor-pointer" onClick={() => { setLightboxCar(car); setLightboxImageIndex(0); }}>
-                                {cover ? (
-                                    <img src={cover} className="w-full h-full object-cover opacity-90" />
-                                ) : (
-                                    <div className="w-full h-full flex items-center justify-center bg-[#2c2c2e] text-white/20">
-                                        <ImageIcon size={32} />
+                            <div key={car.canonicalId} className="min-w-[220px] bg-[#1c1c1e] rounded-xl overflow-hidden border border-white/5 shadow-lg">
+                                <div className="h-32 bg-gray-800 relative cursor-pointer" onClick={() => { setLightboxCar(car); setLightboxImageIndex(0); }}>
+                                    {cover ? (
+                                        <img src={cover} className="w-full h-full object-cover opacity-90" />
+                                    ) : (
+                                        <div className="w-full h-full flex items-center justify-center bg-[#2c2c2e] text-white/20">
+                                            <ImageIcon size={32} />
+                                        </div>
+                                    )}
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); toggleFavorite(car); }}
+                                        className="absolute top-2 left-2 w-8 h-8 rounded-full bg-black/60 flex items-center justify-center"
+                                    >
+                                        <Heart size={14} className={isFavorite(getCarId(car)) ? 'text-red-400 fill-red-400' : 'text-white/70'} />
+                                    </button>
+                                    <div className="absolute top-2 right-2 bg-black/60 backdrop-blur px-2 py-1 rounded text-[10px] font-bold text-white">
+                                        {car.year}
                                     </div>
-                                )}
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); toggleFavorite(car); }}
-                                    className="absolute top-2 left-2 w-8 h-8 rounded-full bg-black/60 flex items-center justify-center"
-                                >
-                                    <Heart size={14} className={isFavorite(getCarId(car)) ? 'text-red-400 fill-red-400' : 'text-white/70'} />
-                                </button>
-                                <div className="absolute top-2 right-2 bg-black/60 backdrop-blur px-2 py-1 rounded text-[10px] font-bold text-white">
-                                    {car.year}
+                                </div>
+                                <div className="p-3">
+                                    <h4 className="text-sm font-bold text-white truncate">{car.title}</h4>
+                                    <p className="text-xs text-white/50 mt-1 mb-2">{car.specs?.engine} • {car.mileage / 1000}k km</p>
+                                    <div className="font-bold text-sm" style={{ color: primaryColor }}>
+                                        {car.price.amount.toLocaleString()} $
+                                    </div>
+                                    <button
+                                        onClick={() => openListing(car)}
+                                        className="mt-2 w-full text-xs py-2 rounded-lg bg-white/5 text-white/80"
+                                    >
+                                        View Details
+                                    </button>
                                 </div>
                             </div>
-                            <div className="p-3">
-                                <h4 className="text-sm font-bold text-white truncate">{car.title}</h4>
-                                <p className="text-xs text-white/50 mt-1 mb-2">{car.specs?.engine} • {car.mileage / 1000}k km</p>
-                                <div className="font-bold text-sm" style={{ color: primaryColor }}>
-                                    {car.price.amount.toLocaleString()} $
-                                </div>
-                                <button
-                                    onClick={() => openListing(car)}
-                                    className="mt-2 w-full text-xs py-2 rounded-lg bg-white/5 text-white/80"
-                                >
-                                    View Details
-                                </button>
-                            </div>
-                        </div>
-                    );
+                        );
                     })}
                 </div>
             </div>
@@ -599,56 +599,56 @@ export const MiniApp = () => {
                         const cover = images[0];
 
                         return (
-                        <div key={car.canonicalId} className="bg-[#1c1c1e] rounded-2xl overflow-hidden border border-white/5 flex flex-col shadow-lg">
-                            <div className="h-48 bg-gray-800 relative cursor-pointer" onClick={() => { setLightboxCar(car); setLightboxImageIndex(0); }}>
-                                {cover ? (
-                                    <img src={cover} className="w-full h-full object-cover" />
-                                ) : (
-                                    <div className="w-full h-full flex items-center justify-center bg-[#2c2c2e] text-white/20">
-                                        <ImageIcon size={48} />
+                            <div key={car.canonicalId} className="bg-[#1c1c1e] rounded-2xl overflow-hidden border border-white/5 flex flex-col shadow-lg">
+                                <div className="h-48 bg-gray-800 relative cursor-pointer" onClick={() => { setLightboxCar(car); setLightboxImageIndex(0); }}>
+                                    {cover ? (
+                                        <img src={cover} className="w-full h-full object-cover" />
+                                    ) : (
+                                        <div className="w-full h-full flex items-center justify-center bg-[#2c2c2e] text-white/20">
+                                            <ImageIcon size={48} />
+                                        </div>
+                                    )}
+                                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-4 pt-12">
+                                        <h3 className="text-lg font-bold text-white">{car.title}</h3>
                                     </div>
-                                )}
-                                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-4 pt-12">
-                                    <h3 className="text-lg font-bold text-white">{car.title}</h3>
+                                    {images.length > 1 && (
+                                        <div className="absolute top-2 left-2 bg-black/60 backdrop-blur px-2 py-1 rounded text-[10px] font-bold text-white">
+                                            +{images.length - 1} photos
+                                        </div>
+                                    )}
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); toggleFavorite(car); }}
+                                        className="absolute top-2 right-2 w-9 h-9 rounded-full bg-black/60 flex items-center justify-center"
+                                    >
+                                        <Heart size={16} className={isFavorite(getCarId(car)) ? 'text-red-400 fill-red-400' : 'text-white/70'} />
+                                    </button>
                                 </div>
-                                {images.length > 1 && (
-                                    <div className="absolute top-2 left-2 bg-black/60 backdrop-blur px-2 py-1 rounded text-[10px] font-bold text-white">
-                                        +{images.length - 1} photos
+                                <div className="p-4">
+                                    <div className="flex justify-between items-center mb-4">
+                                        <div className="text-xl font-bold" style={{ color: primaryColor }}>{car.price.amount.toLocaleString()} $</div>
+                                        <div className="text-xs text-white/50 bg-white/5 px-2 py-1 rounded">{car.year}</div>
                                     </div>
-                                )}
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); toggleFavorite(car); }}
-                                    className="absolute top-2 right-2 w-9 h-9 rounded-full bg-black/60 flex items-center justify-center"
-                                >
-                                    <Heart size={16} className={isFavorite(getCarId(car)) ? 'text-red-400 fill-red-400' : 'text-white/70'} />
-                                </button>
-                            </div>
-                            <div className="p-4">
-                                <div className="flex justify-between items-center mb-4">
-                                    <div className="text-xl font-bold" style={{ color: primaryColor }}>{car.price.amount.toLocaleString()} $</div>
-                                    <div className="text-xs text-white/50 bg-white/5 px-2 py-1 rounded">{car.year}</div>
+                                    <div className="grid grid-cols-3 gap-2 text-xs text-white/70 mb-4">
+                                        <div className="bg-black/30 p-2 rounded text-center border border-white/5">{car.specs?.engine || 'N/A'}</div>
+                                        <div className="bg-black/30 p-2 rounded text-center border border-white/5">{car.mileage.toLocaleString()} km</div>
+                                        <div className="bg-black/30 p-2 rounded text-center border border-white/5">{car.specs?.fuel || 'N/A'}</div>
+                                    </div>
+                                    <button
+                                        onClick={() => handleCarInterest(car)}
+                                        className="w-full py-3 rounded-xl font-bold text-black flex items-center justify-center gap-2 active:scale-95 transition-transform"
+                                        style={{ backgroundColor: primaryColor }}
+                                    >
+                                        <MessageSquare size={18} /> Запросить просчет
+                                    </button>
+                                    <button
+                                        onClick={() => openListing(car)}
+                                        className="w-full mt-2 py-2 rounded-xl font-bold text-white/70 border border-white/10"
+                                    >
+                                        View Details
+                                    </button>
                                 </div>
-                                <div className="grid grid-cols-3 gap-2 text-xs text-white/70 mb-4">
-                                    <div className="bg-black/30 p-2 rounded text-center border border-white/5">{car.specs?.engine || 'N/A'}</div>
-                                    <div className="bg-black/30 p-2 rounded text-center border border-white/5">{car.mileage.toLocaleString()} km</div>
-                                    <div className="bg-black/30 p-2 rounded text-center border border-white/5">{car.specs?.fuel || 'N/A'}</div>
-                                </div>
-                                <button
-                                    onClick={() => handleCarInterest(car)}
-                                    className="w-full py-3 rounded-xl font-bold text-black flex items-center justify-center gap-2 active:scale-95 transition-transform"
-                                    style={{ backgroundColor: primaryColor }}
-                                >
-                                    <MessageSquare size={18} /> Запросить просчет
-                                </button>
-                                <button
-                                    onClick={() => openListing(car)}
-                                    className="w-full mt-2 py-2 rounded-xl font-bold text-white/70 border border-white/10"
-                                >
-                                    View Details
-                                </button>
                             </div>
-                        </div>
-                    );
+                        );
                     })}
                     {filteredCars.length === 0 && <div className="text-center text-white/50 mt-10">No cars found. Try adjusting filters.</div>}
                 </div>
@@ -969,7 +969,7 @@ export const MiniApp = () => {
 
                     <div className="flex gap-2">
                         <span className="px-3 py-1 rounded-full bg-white/10 border border-white/5 text-[10px] text-white font-bold flex items-center gap-1">
-                            <ShieldCheck size={12} className="text-green-500"/> Verified Client
+                            <ShieldCheck size={12} className="text-green-500" /> Verified Client
                         </span>
                         <span className="px-3 py-1 rounded-full bg-white/10 border border-white/5 text-[10px] text-white font-bold">
                             ID: {tgUser?.id}
@@ -981,7 +981,7 @@ export const MiniApp = () => {
             <div className="px-4 mt-6 space-y-4">
                 <div className="bg-[#1c1c1e] rounded-xl p-4 border border-white/5">
                     <h3 className="font-bold text-white text-sm mb-4 flex items-center gap-2">
-                        <History size={16} style={{ color: primaryColor }}/> Recent Activity
+                        <History size={16} style={{ color: primaryColor }} /> Recent Activity
                     </h3>
 
                     {/* Mock Activity Data */}
@@ -1009,7 +1009,7 @@ export const MiniApp = () => {
 
                 <div className="bg-[#1c1c1e] rounded-xl p-4 border border-white/5">
                     <h3 className="font-bold text-white text-sm mb-4 flex items-center gap-2">
-                        <Star size={16} style={{ color: primaryColor }}/> Saved Vehicles
+                        <Star size={16} style={{ color: primaryColor }} /> Saved Vehicles
                     </h3>
                     <div className="text-center py-6 text-white/30 text-xs">
                         No saved vehicles yet.

@@ -668,7 +668,7 @@ const handleB2B = async (ctx: PipelineContext, text: string) => {
 export const routeMessage = async (ctx: PipelineContext) => {
   if (!ctx.bot || !ctx.session) return false;
 
-  const handledScenario = await ScenarioEngine.handleUpdate(ctx.bot as any, ctx.session, ctx.update).catch(() => false);
+  const handledScenario = await ScenarioEngine.handleUpdate(ctx.bot as any, ctx.session, ctx.update);
   if (handledScenario) return true;
 
   const message = ctx.update?.message;

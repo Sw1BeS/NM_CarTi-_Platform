@@ -15,6 +15,12 @@ import { previewTemplate, resolveTemplateBody, buildTemplateVariables, renderTem
 import { logIntegrationEvent } from '../services/integrationEventLog.service.js';
 import { mapBotInput, mapBotOutput } from '../modules/Communication/bots/botDto.js';
 import { IntegrationService } from '../modules/Integrations/integration.service.js';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 import { setWebhookForBot, deleteWebhookForBot } from '../modules/Communication/telegram/core/telegramAdmin.service.js';
 import { telegramOutbox } from '../modules/Communication/telegram/messaging/outbox/telegramOutbox.js';
 import { whatsAppRouter } from '../modules/Integrations/whatsapp/whatsapp.service.js';
@@ -131,8 +137,50 @@ router.post('/bots', requireRole(['ADMIN']), async (req, res) => {
             }
         } catch (tgError: any) {
             logger.warn(`Failed to fetch getMe for token: ${tgError.message}`);
-            // If name is missing and TG failed, we can't create it properly unless we default something
+            // Fallback: Use manual name or default
             if (!botName) botName = 'My New Bot';
+        }
+
+        // Fallback Slug if Telegram didn't return username
+        if (!botUsername) {
+            // GENERATE RANDOM SLUG: "bot_x8z2"
+            const randomSuffix = Math.random().toString(36).substring(2, 7);
+            const saneName = botName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase().substring(0, 10) || 'bot';
+            botUsername = `${saneName}_${randomSuffix}`;
+            finalSlug = botUsername;
+
+            const baseUrl = (data.config?.publicBaseUrl || '').replace(/\/$/, '');
+            const publicAppUrl = baseUrl ? `${baseUrl}/p/app/${botUsername}` : `https://t.me/${botUsername}/app`; // Theoretical
+
+            finalMiniAppConfig = {
+                ...finalMiniAppConfig,
+                url: publicAppUrl,
+                showcaseSlug: botUsername
+            };
+        }
+
+        // UX IMPROVEMENT: Fetch existing menu/commands
+        try {
+            const [commands, menuButton] = await Promise.all([
+                callTelegram(data.token, 'getMyCommands', {}).catch(() => []),
+                callTelegram(data.token, 'getChatMenuButton', {}).catch(() => null)
+            ]);
+
+            if (commands && Array.isArray(commands) && commands.length > 0) {
+                // Map commands to menu buttons if no manual menu exists
+                if (!finalMenuConfig.buttons || finalMenuConfig.buttons.length === 0) {
+                    finalMenuConfig.buttons = commands.map((c: any) => ({
+                        type: 'COMMAND',
+                        label: c.description,
+                        value: `/${c.command}`
+                    }));
+                }
+            }
+
+            // We could also store the raw commands in config if needed, but for now we map to buttons.
+
+        } catch (menuErr) {
+            logger.warn('Failed to fetch menu info', menuErr);
         }
 
         const newBot = await prisma.botConfig.create({
@@ -549,6 +597,8 @@ router.get('/messages', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), async (re
                 direction: row.direction,
                 from: fromName,
                 fromId: fromPayload.id ? String(fromPayload.id) : undefined,
+                username: fromPayload.username || undefined,
+                firstName: fromPayload.first_name || undefined,
                 text: row.text,
                 date: new Date(row.createdAt).toISOString(),
                 status: 'NEW',
@@ -693,10 +743,40 @@ router.post('/messages', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), async (r
 });
 
 // --- Scenarios (Missing Routes Implemented) ---
+// --- Scenarios ---
+router.get('/scenarios/templates', requireRole(['ADMIN', 'MANAGER']), async (req, res) => {
+    try {
+        const templatesDir = path.join(__dirname, '../data/templates');
+        if (!fs.existsSync(templatesDir)) {
+            return res.json([]);
+        }
+        const files = fs.readdirSync(templatesDir).filter(f => f.endsWith('.json'));
+        const templates = files.map(f => {
+            try {
+                const content = fs.readFileSync(path.join(templatesDir, f), 'utf-8');
+                return JSON.parse(content);
+            } catch (e) { return null; }
+        }).filter(Boolean);
+        res.json(templates);
+    } catch (e) {
+        logger.error('[Templates] List error:', e);
+        res.json([]);
+    }
+});
+
 router.get('/scenarios', requireRole(['ADMIN', 'MANAGER']), async (req, res) => {
     try {
+        const user = (req as any).user || {};
+        const isSuperadmin = user.role === 'SUPER_ADMIN';
+        const userCompanyId = user.companyId || user.workspaceId;
+        const requestedCompanyId = typeof req.query.companyId === 'string' ? req.query.companyId : undefined;
+        const companyId = isSuperadmin ? requestedCompanyId : userCompanyId;
+
+        const where: any = {};
+        if (companyId) where.companyId = companyId;
+
         const scenarios = await prisma.scenario.findMany({
-            where: (req as any).user?.companyId ? { companyId: (req as any).user.companyId } : {},
+            where,
             orderBy: { updatedAt: 'desc' }
         });
         res.json(scenarios);
@@ -1810,6 +1890,39 @@ router.delete('/users/:id', requireRole(['ADMIN']), async (req, res) => {
 router.get('/logs', requireRole(['ADMIN']), async (req, res) => {
     const logs = await prisma.systemLog.findMany({ orderBy: { createdAt: 'desc' }, take: 50 });
     res.json(logs);
+});
+
+router.post('/storage/upload', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
+    try {
+        const { name, content, type } = req.body || {};
+        if (!name || !content) return errorResponse(res, 400, 'name and content required');
+
+        // Content is base64 string: "data:image/png;base64,....." or just "...."
+        const matches = content.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+        let buffer;
+
+        if (matches && matches.length === 3) {
+            buffer = Buffer.from(matches[2], 'base64');
+        } else {
+            buffer = Buffer.from(content, 'base64');
+        }
+
+        const fileName = `${Date.now()}_${name.replace(/[^a-z0-9.]/gi, '_')}`;
+        // Ensure media directory exists
+        const mediaDir = path.join(__dirname, '../../storage/media');
+        if (!fs.existsSync(mediaDir)) {
+            fs.mkdirSync(mediaDir, { recursive: true });
+        }
+
+        const filePath = path.join(mediaDir, fileName);
+        fs.writeFileSync(filePath, buffer);
+
+        const url = `/media/${fileName}`;
+        res.json({ ok: true, url, name });
+    } catch (e: any) {
+        logger.error('[Upload] Error:', e);
+        errorResponse(res, 500, 'Upload failed');
+    }
 });
 
 export default router;

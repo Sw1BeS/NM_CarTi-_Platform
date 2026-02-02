@@ -87,37 +87,37 @@ export const InboxPage = () => {
                 }
                 setMsgs(finalMessages);
 
-            const chatMap = new Map<string, ChatInfo>();
-            const reqMap: Record<string, B2BRequest> = {};
+                const chatMap = new Map<string, ChatInfo>();
+                const reqMap: Record<string, B2BRequest> = {};
 
-            requestRes.items.forEach(req => {
-                if (!req.clientChatId) return;
-                const existing = reqMap[req.clientChatId];
-                if (!existing || new Date(req.createdAt) > new Date(existing.createdAt)) {
-                    reqMap[req.clientChatId] = req;
-                }
-            });
-
-            setRequestByChat(reqMap);
-
-            finalMessages.forEach(m => {
-                const linkedReq = reqMap[m.chatId];
-                if (!chatMap.has(m.chatId)) {
-                    chatMap.set(m.chatId, {
-                        chatId: m.chatId,
-                        lastMsg: m,
-                        assignedTo: linkedReq?.assigneeId,
-                        internalNote: linkedReq?.internalNote,
-                        requestId: linkedReq?.id,
-                        unreadCount: 0
-                    });
-                } else {
-                    const existing = chatMap.get(m.chatId)!;
-                    if (new Date(m.date) > new Date(existing.lastMsg.date)) {
-                        existing.lastMsg = m;
+                requestRes.items.forEach(req => {
+                    if (!req.clientChatId) return;
+                    const existing = reqMap[req.clientChatId];
+                    if (!existing || new Date(req.createdAt) > new Date(existing.createdAt)) {
+                        reqMap[req.clientChatId] = req;
                     }
-                }
-            });
+                });
+
+                setRequestByChat(reqMap);
+
+                finalMessages.forEach(m => {
+                    const linkedReq = reqMap[m.chatId];
+                    if (!chatMap.has(m.chatId)) {
+                        chatMap.set(m.chatId, {
+                            chatId: m.chatId,
+                            lastMsg: m,
+                            assignedTo: linkedReq?.assigneeId,
+                            internalNote: linkedReq?.internalNote,
+                            requestId: linkedReq?.id,
+                            unreadCount: 0
+                        });
+                    } else {
+                        const existing = chatMap.get(m.chatId)!;
+                        if (new Date(m.date) > new Date(existing.lastMsg.date)) {
+                            existing.lastMsg = m;
+                        }
+                    }
+                });
 
                 const sortedChats = Array.from(chatMap.values()).sort((a, b) =>
                     new Date(b.lastMsg.date).getTime() - new Date(a.lastMsg.date).getTime()
@@ -209,6 +209,51 @@ export const InboxPage = () => {
     const insertEmoji = (emoji: string) => {
         setReplyText(prev => prev + emoji);
         setShowEmojis(false);
+    };
+
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        // 5MB Limit
+        if (file.size > 5 * 1024 * 1024) {
+            showToast('File is too large (max 5MB)', 'error');
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = async () => {
+            const content = reader.result as string;
+            try {
+                // Use new Base64 upload endpoint
+                const res = await fetch('/api/storage/upload', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    },
+                    body: JSON.stringify({ name: file.name, content, type: file.type })
+                }).then(r => r.json());
+
+                if (res.ok && res.url) {
+                    let type: 'photo' | 'document' | 'video' | 'audio' | 'voice' | 'animation' | 'sticker' = 'document';
+                    if (file.type.startsWith('image/')) type = 'photo';
+                    else if (file.type.startsWith('video/')) type = 'video';
+                    else if (file.type.startsWith('audio/')) type = 'audio';
+
+                    setAttachmentUrl(res.url);
+                    setAttachmentType(type);
+                    setShowAttachment(true);
+                    showToast('File attached', 'success');
+                } else {
+                    showToast('Upload failed', 'error');
+                }
+            } catch (err) {
+                console.error(err);
+                showToast('Upload error', 'error');
+            }
+        };
+        reader.readAsDataURL(file);
     };
 
     const createLead = async () => {
@@ -441,36 +486,40 @@ export const InboxPage = () => {
                                         </select>
                                         <input className="input flex-1" placeholder="File URL or Telegram file_id" value={attachmentUrl} onChange={e => setAttachmentUrl(e.target.value)} />
                                         <button onClick={() => { setAttachmentUrl(''); }} className="btn-secondary text-xs">Clear</button>
+                                        <label className="btn-secondary text-xs cursor-pointer flex items-center gap-1">
+                                            Upload
+                                            <input type="file" hidden onChange={handleFileUpload} />
+                                        </label>
                                     </div>
-                            <p className="text-[10px] text-[var(--text-secondary)]">Tip: paste a public https:// URL or an existing Telegram file_id to reuse Telegram storage.</p>
-                        </div>
-                    )}
+                                    <p className="text-[10px] text-[var(--text-secondary)]">Tip: paste a public https:// URL or an existing Telegram file_id to reuse Telegram storage.</p>
+                                </div>
+                            )}
 
-                    {activeChat && (
-                        <div className="px-4 pt-3 text-xs text-[var(--text-secondary)] flex items-center gap-2">
-                            Replying to <span className="font-bold text-[var(--text-primary)]">{activeChat.lastMsg.from}</span>
-                            {activeRequest && <span className="px-2 py-1 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px]">Linked request</span>}
-                        </div>
-                    )}
+                            {activeChat && (
+                                <div className="px-4 pt-3 text-xs text-[var(--text-secondary)] flex items-center gap-2">
+                                    Replying to <span className="font-bold text-[var(--text-primary)]">{activeChat.lastMsg.from}</span>
+                                    {activeRequest && <span className="px-2 py-1 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px]">Linked request</span>}
+                                </div>
+                            )}
 
-                    <div className="p-4 flex gap-3 items-end">
-                        <div className="flex flex-col gap-2">
-                            <button onClick={() => setShowCarPicker(true)} className="btn-secondary w-10 h-10 rounded-full !p-0 flex items-center justify-center shrink-0 text-blue-400 border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20" title="Attach Car">
-                                <Car size={18} />
-                            </button>
+                            <div className="p-4 flex gap-3 items-end">
+                                <div className="flex flex-col gap-2">
+                                    <button onClick={() => setShowCarPicker(true)} className="btn-secondary w-10 h-10 rounded-full !p-0 flex items-center justify-center shrink-0 text-blue-400 border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20" title="Attach Car">
+                                        <Car size={18} />
+                                    </button>
                                     <button onClick={() => setShowEmojis(!showEmojis)} className={`btn-secondary w-10 h-10 rounded-full !p-0 flex items-center justify-center shrink-0 ${showEmojis ? 'bg-amber-500 text-black' : 'text-amber-500 border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20'}`} title="Emoji">
                                         <Smile size={18} />
                                     </button>
                                 </div>
 
-                            <textarea
-                                className="input min-h-[50px] max-h-[120px] py-3"
-                                placeholder="Type message..."
-                                value={replyText}
-                                ref={replyInputRef}
-                                onChange={e => setReplyText(e.target.value)}
-                                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleReply(); } }}
-                            />
+                                <textarea
+                                    className="input min-h-[50px] max-h-[120px] py-3"
+                                    placeholder="Type message..."
+                                    value={replyText}
+                                    ref={replyInputRef}
+                                    onChange={e => setReplyText(e.target.value)}
+                                    onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleReply(); } }}
+                                />
 
                                 <div className="flex flex-col gap-2">
                                     <button onClick={() => setShowAttachment(!showAttachment)} className={`btn-secondary w-10 h-10 rounded-full !p-0 flex items-center justify-center shrink-0 ${showAttachment ? 'bg-blue-500 text-white' : ''}`} title="Attach file/photo/video">

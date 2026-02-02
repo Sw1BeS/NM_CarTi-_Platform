@@ -23,7 +23,13 @@ export const MiniAppManager = ({ botId }: { botId: string }) => {
             const found = bots.find(b => b.id === botId);
             if (found) {
                 setBot(found);
-                setConfig(found.miniAppConfig || config);
+                // Fix for crash: ensure actions is always an array
+                const loadedConfig = found.miniAppConfig || {};
+                setConfig({
+                    ...config,
+                    ...loadedConfig,
+                    actions: Array.isArray(loadedConfig.actions) ? loadedConfig.actions : []
+                });
             }
         };
         loadBot();
