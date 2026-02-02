@@ -1,14 +1,14 @@
-# BASELINE SNAPSHOT - Mon Feb  2 11:35:55 UTC 2026
+# BASELINE STATE
 
-## 1. File System
-total 332
-drwxr-xr-x 18 root root   4096 Feb  2 11:22 .
+## 1. Directory Structure
+total 336
+drwxr-xr-x 18 root root   4096 Feb  2 18:02 .
 drwxr-xr-x  4 root root   4096 Dec 28 11:26 ..
 drwxrwxr-x  8 root root   4096 Jan 27 02:09 .agent
 -rw-r--r--  1 root root     34 Jan 20 01:30 .dockerignore
 -rw-------  1 root root    562 Jan 29 09:18 .env
 -rw-r--r--  1 root root    200 Jan 28 13:48 .env.example
-drwxr-xr-x  9 root root   4096 Feb  2 11:27 .git
+drwxr-xr-x  9 root root   4096 Feb  2 18:08 .git
 drwxr-xr-x  3 root root   4096 Jan 20 01:46 .github
 -rw-r--r--  1 root root    525 Feb  2 11:22 .gitignore
 -rw-r--r--  1 root root     57 Jan 22 08:13 ARCHITECTURE.md
@@ -29,7 +29,7 @@ drwxr-xr-x  3 root root   4096 Jan 20 01:46 .github
 drwxr-xr-x  3 root root   4096 Jan 22 04:28 _archive
 drwxr-xr-x  2 root root   4096 Jan 23 10:47 _backup_root
 drwxr-xr-x  2 root root   4096 Jan 20 01:04 _backups
-drwxr-xr-x  2 root root   4096 Feb  2 11:23 _logs
+drwxr-xr-x  2 root root   4096 Feb  2 18:08 _logs
 drwxr-xr-x  5 root root   4096 Jan 23 10:47 apps
 drwx------  3 root root   4096 Jan 12 17:53 data
 drwxr-xr-x  6 root root   4096 Feb  2 11:22 docs
@@ -48,19 +48,17 @@ drwxr-xr-x  2 root root   4096 Jan 13 05:59 services
 drwxr-xr-x  3 root root   4096 Feb  2 11:22 storage
 -rw-r--r--  1 root root 130786 Feb  2 11:22 type_coverage_baseline.json
 drwxr-xr-x  2 root root   4096 Jan 28 13:48 verification
+-rw-r--r--  1 root root   2002 Feb  2 13:34 verify_bot_create.js
 
-## 2. Docker Containers
-NAMES          STATUS                    PORTS
-infra2-web-1   Up 11 minutes (healthy)   80/tcp, 443/tcp, 2019/tcp, 443/udp, 127.0.0.1:8082->8080/tcp
-infra2-api-1   Up 11 minutes (healthy)   127.0.0.1:3002->3001/tcp
-infra2-db-1    Up 3 days (healthy)       127.0.0.1:5433->5432/tcp
+## 2. Docker Status
+NAMES          STATUS                   PORTS
+infra2-web-1   Up 9 minutes (healthy)   80/tcp, 443/tcp, 2019/tcp, 443/udp, 127.0.0.1:8082->8080/tcp
+infra2-api-1   Up 9 minutes (healthy)   127.0.0.1:3002->3001/tcp
+infra2-db-1    Up 9 minutes (healthy)   127.0.0.1:5433->5432/tcp
 
 ## 3. Public Health
-{"status":"ok","timestamp":"2026-02-02T11:35:55.874Z","uptime":668.672215625,"environment":"production","build":{"buildSha":"8b452622554df3496e44d785033a46f30c080027","buildTime":"2026-02-02T11:23:50Z"},"database":{"status":"connected","latency_ms":1},"bots":{"activeCount":1,"activeBotIds":["cml536zgi0007kjhs7y86vyxm"]},"worker":{"running":true,"processing":false,"nextRun":null},"services":{"bots":{"activeCount":1,"activeBotIds":["cml536zgi0007kjhs7y86vyxm"]},"contentWorker":{"running":true,"processing":false,"nextRun":null}},"memory":{"rss":139513856,"heapTotal":44802048,"heapUsed":36779288,"external":4001567,"arrayBuffers":267604},"response_time_ms":2}
+{"status":"ok","timestamp":"2026-02-02T18:59:42.277Z","uptime":583.126585905,"environment":"production","build":{"buildSha":"ef9473dba2351437f864306d31fbf0df27597f20","buildTime":"2026-02-02T18:39:49Z"},"database":{"status":"connected","latency_ms":1},"bots":{"activeCount":1,"activeBotIds":["cml5iz0y6000113m1abidrat1"]},"worker":{"running":true,"processing":false,"nextRun":null},"services":{"bots":{"activeCount":1,"activeBotIds":["cml5iz0y6000113m1abidrat1"]},"contentWorker":{"running":true,"processing":false,"nextRun":null}},"memory":{"rss":140091392,"heapTotal":46112768,"heapUsed":42495376,"external":4032184,"arrayBuffers":306413},"response_time_ms":1}
 ## 4. Local Health
-{"status":"ok","timestamp":"2026-02-02T11:35:55.898Z","uptime":668.695579352,"environment":"production","build":{"buildSha":"8b452622554df3496e44d785033a46f30c080027","buildTime":"2026-02-02T11:23:50Z"},"database":{"status":"connected","latency_ms":1},"bots":{"activeCount":1,"activeBotIds":["cml536zgi0007kjhs7y86vyxm"]},"worker":{"running":true,"processing":false,"nextRun":null},"services":{"bots":{"activeCount":1,"activeBotIds":["cml536zgi0007kjhs7y86vyxm"]},"contentWorker":{"running":true,"processing":false,"nextRun":null}},"memory":{"rss":139513856,"heapTotal":44802048,"heapUsed":36826672,"external":4001567,"arrayBuffers":267604},"response_time_ms":1}
-## 5. Git Context
-## main...origin/main
- M docs/audit/fix-stage1/BASELINE.md
-?? docs/audit/fix-stage1/PLAN.md
-8b452622554df3496e44d785033a46f30c080027
+{"status":"ok","timestamp":"2026-02-02T18:59:42.302Z","uptime":583.151108064,"environment":"production","build":{"buildSha":"ef9473dba2351437f864306d31fbf0df27597f20","buildTime":"2026-02-02T18:39:49Z"},"database":{"status":"connected","latency_ms":2},"bots":{"activeCount":1,"activeBotIds":["cml5iz0y6000113m1abidrat1"]},"worker":{"running":true,"processing":false,"nextRun":null},"services":{"bots":{"activeCount":1,"activeBotIds":["cml5iz0y6000113m1abidrat1"]},"contentWorker":{"running":true,"processing":false,"nextRun":null}},"memory":{"rss":140091392,"heapTotal":46112768,"heapUsed":42544160,"external":4032184,"arrayBuffers":306413},"response_time_ms":2}
+## 5. Git Status
+ef9473dba2351437f864306d31fbf0df27597f20

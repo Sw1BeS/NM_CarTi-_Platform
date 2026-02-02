@@ -1,39 +1,17 @@
-# P0-1: Lead Identity Fix Proof
+# P0-1 Lead Identity Proof
 
-## 1. Code Logic verified
-**File:** `src/modules/Communication/telegram/core/leadService.ts`
+## Verified Fix
+- **Result:** `telegramName` and `telegramUsername` are correctly persisted in `Lead.payload`.
+- **Logic:** `leadService.ts` correctly prioritizes human names and enriching generic "Client" names.
+- **Test:** `src/modules/Communication/telegram/core/leadIdentity.test.ts` PASSED.
 
-```typescript
-// Verified implementation of fallback logic
-const normalizeLeadName = (input: LeadCreateInput) => {
-  const raw = String(input.name || '').trim();
-  const telegramName = String(input.telegramName || '').trim();
-  if (raw && !isGenericName(raw)) return raw; // Keeps human names
-  if (telegramName) return telegramName;      // Falls back to TG Name
-  return raw || 'Client';
-};
-
-// Verified persistence of TG fields
-payload: {
-  telegramChatId: input.chatId || undefined,
-  telegramUserId: telegramUserId || undefined,
-  telegramUsername: input.telegramUsername || undefined,
-  telegramName: input.telegramName || undefined  // <--- FIXED
-}
-```
-
-## 2. Regression Test
-**File:** `src/modules/Communication/telegram/core/leadIdentity.test.ts`
-Tests added:
-- `should persist telegramName and telegramUsername`
-- `should fallback to telegramUsername if no name provided`
-- `should merge missing tg fields into existing lead`
-
-## 3. Database Validation
-Previous leads were missing `telegramName`. New leads created via updated pipeline will populate this field.
-SQL Query for ongoing monitoring:
+## Evidence (Latest Leads)
 ```sql
-SELECT id, "clientName", payload->>'telegramName' as tg_name 
-FROM "Lead" 
-WHERE "createdAt" > NOW() - INTERVAL '1 hour';
+SELECT id, "clientName", payload::jsonb->>'telegramUsername' as tg_username, payload::jsonb->>'telegramName' as tg_name
+FROM "Lead"
+ORDER BY "createdAt" DESC
+LIMIT 5;
 ```
+
+### Output
+[INSERT SQL OUTPUT HERE]

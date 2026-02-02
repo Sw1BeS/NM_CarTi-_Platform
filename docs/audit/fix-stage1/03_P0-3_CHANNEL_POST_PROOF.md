@@ -1,32 +1,30 @@
-# P0-3: Channel Post Pipeline Proof
+# P0-3 Dual Pipeline Proof
 
-## 1. Dedup Constraint
-**Status:** ✅ ENFORCED
-**Schema:** `@@unique([sourceChatId, sourceMessageId])` in `CarListing`.
+## 1. Unified Pipeline Logic
+- **File:** `src/modules/Communication/telegram/routing/routeChannelPost.ts`
+- **Logic:**
+  ```typescript
+  const channelMode = (ctx.bot?.config as any)?.channelMode || 'CONTENT'; // Defaults to CONTENT
+  const mode = channelMode === 'INVENTORY' ? 'INVENTORY' : 'DRAFT_ONLY';
+  ```
+- **Result:** `INVENTORY` mode creates `CarListing`, `CONTENT` creates `Draft`.
 
-## 2. Database Integrity Check
-**Query:**
+## 2. Bot Configuration
+- **Action:** Updated active BotConfig `channelMode` to `INVENTORY`.
 ```sql
-SELECT "sourceChatId", "sourceMessageId", COUNT(*) 
-FROM "CarListing" 
-GROUP BY "sourceChatId", "sourceMessageId" 
-HAVING COUNT(*) > 1;
+UPDATE "BotConfig"
+SET config = jsonb_set(COALESCE(config,'{}'::jsonb), '{channelMode}', '"INVENTORY"')
+WHERE id IN (SELECT id FROM "BotConfig" ORDER BY "createdAt" DESC LIMIT 1);
 ```
-**Result:** `0 rows` (No duplicates).
 
-## 3. Configuration Update
-**Status:** ✅ UPDATED
-**Command:**
-```sql
-UPDATE "BotConfig" SET config = jsonb_set(..., '{channelMode}', '"INVENTORY"')
-```
-**Effect:** New channel posts will be treated as `INVENTORY` (creating CarListing) instead of `CONTENT` (Draft), utilizing the dedup constraint.
+## 3. Deduplication (DB Level)
+- **Constraint:** `CarListing` has `@@unique([sourceChatId, sourceMessageId])`.
+- **Migration:** `npx prisma migrate deploy` executed.
+- **Verification:**
+  - Duplicate count check returned 0 rows.
+  - Unique constraint exists in Schema.
 
-## 4. Pipeline Logic
-**File:** `src/modules/Communication/telegram/routing/routeChannelPost.ts`
-```typescript
-const channelMode = (ctx.bot?.config as any)?.channelMode || 'CONTENT';
-const mode = channelMode === 'INVENTORY' ? 'INVENTORY' : 'DRAFT_ONLY';
-// ...
-await channelIngestionService.upsertCarListingOrDraft({ mode, ... });
-```
+## 4. Entity Separation
+- `Draft` implies content planning.
+- `CarListing` implies inventory item.
+- No more "Auto-Draft" from BotAPI if mode is INVENTORY.
