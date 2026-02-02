@@ -144,13 +144,13 @@ router.post('/bots', requireRole(['ADMIN']), async (req, res) => {
                 channelId: cleanChannelId,
                 adminChatId: cleanAdminChatId,
                 isEnabled: data.isEnabled ?? true,
-                defaultShowcaseSlug: finalSlug, // Update slug
-                miniAppConfig: finalMiniAppConfig, // Update URLs
-                menuConfig: finalMenuConfig, // Update Buttons
                 config: {
                     ...(data.config || {}),
-                    botUsername, // Save username for slug generation
-                    autoDiscovered: true
+                    botUsername,
+                    autoDiscovered: true,
+                    defaultShowcaseSlug: finalSlug,
+                    miniAppConfig: finalMiniAppConfig,
+                    menuConfig: finalMenuConfig
                 }
             }
         });
