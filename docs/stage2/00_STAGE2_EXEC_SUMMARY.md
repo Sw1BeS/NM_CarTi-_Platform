@@ -1,39 +1,26 @@
-# 00_STAGE2_EXEC_SUMMARY
+# Stage 2: Telegram Productization & Scale - Executive Summary
 
-📌 1️⃣ Что сделано (Stage-2)
-✅ M1 Sources & Destinations Registry (TG Ops core)
-✅ M2 MTProto import by date range + preview + job
-✅ M3 Unified ingestion service (BotAPI + MTProto)
-✅ M4 Media MVP (storage + gallery)
-✅ M5 Mini App Portal (favorites + request + status + tracking)
-✅ M6 Content/Calendar (Templates + Preview + Schedule + Status/Retry)
-🔘 M7 Observability (IntegrationEventLog + UI Logs)
+## 📊 Status: IN PROGRESS (M1-M3 Complete)
+**Start Date:** 2026-02-02  
+**Current Milestone:** M4 (Media MVP)
 
-📌 2️⃣ Что дальше
-🔘 M7 (Observability)
-🔘 Прогон release gate (health/webhook/UI smoke) на dev/prod
-🔘 UX polishing контент-планера (bulk preview, quick retry)
-🔘 Расширение логов (агрегация по интеграциям)
+## 📌 Milestones Progress
+| Milestone | Status | Details |
+|-----------|--------|---------|
+| **M1: Sources/Destinations** | ✅ COMPLETE | Backend API + Frontend UI |
+| **M2: Import by Date** | ✅ COMPLETE | Date-range import + Preview mode |
+| **M3: Ingestion Unification** | ✅ COMPLETE | Already unified via ChannelIngestionService |
+| **M4: Media MVP** | 🟡 NEXT | Photo storage & gallery display |
+| **M5: Mini App Portal** | ⚪ PENDING | |
+| **M6: Content Calendar** | ⚪ PENDING | |
+| **M7: Observability** | ⚪ PENDING | |
 
-📌 3️⃣ DoD (проверки)
-✅ M1: Sources/Destinations управляются из UI (sync/retry/pause + логи)
-✅ M2: MTProto импорт по диапазону дат + preview работает (UTC, toDate exclusive)
-✅ M3: BotAPI + MTProto единый ingestion, merge при dedup
-✅ M4: Фото видны в Inventory и mini app (local storage)
-✅ M5: Mini app = портал (favorites + request + status + tracking)
-✅ M6: Content/Calendar публикует с шаблонами и статусами
-☑️ `api/health` = 200
-☑️ TG webhook принимает апдейт и не падает
-☑️ нет дублей по source ids
-☑️ мини-приложение создаёт заявку
-☑️ публикации уходят и статусы корректны
-☑️ логи доступны в UI
+## 🎯 Achievements
+- **M1:** Registry for Telegram sources/destinations with status controls
+- **M2:** Historical import with date-range selection and preview
+- **M3:** Confirmed unified ingestion (both MTProto and BotAPI use same service)
 
-📌 4️⃣ Финальный критерий успеха Stage-2
-✅ Sources/Destinations управляются из UI (sync/retry/pause + логи)
-✅ MTProto импорт по диапазону дат + preview работает
-✅ Нет dual pipeline, один ingestion-service, 0 дублей
-✅ Фото видны в Inventory и mini app
-✅ Mini app = портал (витрины + заявка + статус)
-✅ Content/Calendar публикует с шаблонами и статусами
-☑️ Логи интеграций доступны в UI
+## 📁 Documentation
+- [10_SOURCES_DESTINATIONS.md](10_SOURCES_DESTINATIONS.md)
+- [20_IMPORT_BY_DATE.md](20_IMPORT_BY_DATE.md)
+- [30_INGESTION_UNIFICATION.md](30_INGESTION_UNIFICATION.md)
