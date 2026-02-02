@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Data } from '../../services/data';
+import { ApiClient } from '../../services/apiClient';
 import { useToast } from '../../contexts/ToastContext';
 import { Bot, Scenario } from '../../types';
 import { Plus, Bot as BotIcon, Settings, Activity, Smartphone, Wifi, Megaphone, Users, X, LayoutTemplate, GitMerge, Menu, ArrowLeft, ListChecks } from 'lucide-react';
