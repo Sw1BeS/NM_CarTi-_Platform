@@ -190,7 +190,12 @@ router.post('/preview', requireRole(['ADMIN', 'MANAGER', 'SUPER_ADMIN']), async 
         const domain = sanitizeDomain(url);
         if (!domain) return errorResponse(res, 400, 'invalid url');
 
-        const response = await axios.get(url, { timeout: 15000 });
+        const response = await axios.get(url, {
+            timeout: 15000,
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            }
+        });
         const html = response.data || '';
         const parsed = extractVariables(html, url);
         const { modules } = await getSettingsModules();
