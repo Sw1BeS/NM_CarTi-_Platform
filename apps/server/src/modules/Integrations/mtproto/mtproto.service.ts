@@ -171,8 +171,8 @@ export class MTProtoService {
                 }
             }
             return discovered;
-        } catch (e) {
-            logger.error(`Discovery failed for ${connectorId}:`, e);
+        } catch (e: any) {
+            logger.error(`Discovery failed for ${connectorId}: ${e.message || e}`);
             return 0;
         }
     }
