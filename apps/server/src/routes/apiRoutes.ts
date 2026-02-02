@@ -86,11 +86,48 @@ router.post('/bots', requireRole(['ADMIN']), async (req, res) => {
         // UX IMPROVEMENT: Auto-fetch details from Telegram
         let botName = data.name;
         let botUsername = '';
+
+        // Auto-generation vars
+        let finalSlug = data.defaultShowcaseSlug || 'system';
+        let finalMiniAppConfig = data.miniAppConfig || {};
+        let finalMenuConfig = data.menuConfig || {};
+
         try {
             const me = await callTelegram(data.token, 'getMe', {});
             if (me) {
-                if (!botName) botName = me.first_name;
+                // Always act as authoritative source if we got a valid response
+                // especially if the user just sent a fallback like "My New Bot" or "bot"
+                if (!botName || botName === 'My New Bot' || botName === 'bot') {
+                    botName = me.first_name;
+                }
                 botUsername = me.username || '';
+
+                // If we have a username, we can generate a real slug and URL
+                if (botUsername) {
+                    finalSlug = botUsername; // Use username as the primary slug
+
+                    const baseUrl = (data.config?.publicBaseUrl || '').replace(/\/$/, '');
+                    // Construct the deep link if we have a base URL, otherwise we rely on t.me link
+                    // standard deep link: https://t.me/SEARCH_ENGINE_BOT/app?startapp=SLUG
+                    // but for our internal routing we want the app url: https://DOMAIN/p/app/USERNAME
+                    const publicAppUrl = baseUrl ? `${baseUrl}/p/app/${botUsername}` : `https://t.me/${botUsername}/app`;
+
+                    // Update Mini App Config
+                    finalMiniAppConfig = {
+                        ...finalMiniAppConfig,
+                        url: publicAppUrl,
+                        showcaseSlug: botUsername
+                    };
+
+                    // Update Menu Config (replace placeholder)
+                    if (finalMenuConfig.buttons) {
+                        finalMenuConfig.buttons = finalMenuConfig.buttons.map((btn: any) =>
+                            btn.type === 'LINK' && (btn.value === '{{MINI_APP_URL}}' || btn.value.includes('/p/app/bot'))
+                                ? { ...btn, value: publicAppUrl }
+                                : btn
+                        );
+                    }
+                }
             }
         } catch (tgError: any) {
             logger.warn(`Failed to fetch getMe for token: ${tgError.message}`);
@@ -107,6 +144,9 @@ router.post('/bots', requireRole(['ADMIN']), async (req, res) => {
                 channelId: cleanChannelId,
                 adminChatId: cleanAdminChatId,
                 isEnabled: data.isEnabled ?? true,
+                defaultShowcaseSlug: finalSlug, // Update slug
+                miniAppConfig: finalMiniAppConfig, // Update URLs
+                menuConfig: finalMenuConfig, // Update Buttons
                 config: {
                     ...(data.config || {}),
                     botUsername, // Save username for slug generation
