@@ -130,6 +130,14 @@ class BotInstance {
             return;
         }
 
+        // Polling mode: Must clear webhook first to avoid 409 Conflict
+        try {
+            await axios.get(`https://api.telegram.org/bot${this.config.token}/deleteWebhook`);
+            logger.info(`🧹 Cleared webhook for polling bot [${this.config.name}]`);
+        } catch (e: any) {
+            logger.warn(`⚠️ Failed to clear webhook for ${this.config.name}: ${e.message}`);
+        }
+
         this.loop();
     }
 
