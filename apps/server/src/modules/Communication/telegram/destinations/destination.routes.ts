@@ -1,12 +1,12 @@
 import express from 'express';
 import { telegramDestinationService } from './destination.service.js';
-import { requireAuth } from '../../../../middleware/auth.js';
+import { authenticateToken } from '../../../../middleware/auth.js';
 import { logger } from '../../../../utils/logger.js';
 
 const router = express.Router();
 
 // List
-router.get('/', requireAuth, async (req: any, res) => {
+router.get('/', authenticateToken, async (req: any, res) => {
     try {
         const companyId = req.user.companyId;
         const { role, status } = req.query;
@@ -22,7 +22,7 @@ router.get('/', requireAuth, async (req: any, res) => {
 });
 
 // Pause
-router.patch('/:id/pause', requireAuth, async (req: any, res) => {
+router.patch('/:id/pause', authenticateToken, async (req: any, res) => {
     try {
         const companyId = req.user.companyId;
         const updated = await telegramDestinationService.pauseDestination(req.params.id, companyId);
@@ -33,7 +33,7 @@ router.patch('/:id/pause', requireAuth, async (req: any, res) => {
 });
 
 // Resume
-router.patch('/:id/resume', requireAuth, async (req: any, res) => {
+router.patch('/:id/resume', authenticateToken, async (req: any, res) => {
     try {
         const companyId = req.user.companyId;
         const updated = await telegramDestinationService.resumeDestination(req.params.id, companyId);
@@ -44,7 +44,7 @@ router.patch('/:id/resume', requireAuth, async (req: any, res) => {
 });
 
 // Sync
-router.post('/:id/sync', requireAuth, async (req: any, res) => {
+router.post('/:id/sync', authenticateToken, async (req: any, res) => {
     try {
         const companyId = req.user.companyId;
         const result = await telegramDestinationService.syncSource(req.params.id, companyId);
