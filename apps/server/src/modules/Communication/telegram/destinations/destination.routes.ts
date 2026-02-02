@@ -1,6 +1,6 @@
 import express from 'express';
 import { telegramDestinationService } from './destination.service.js';
-import { requireAuth } from '../../../../middleware/auth.middleware.js'; // Assuming auth middleware exists
+import { requireAuth } from '../../../../middleware/auth.js';
 import { logger } from '../../../../utils/logger.js';
 
 const router = express.Router();
