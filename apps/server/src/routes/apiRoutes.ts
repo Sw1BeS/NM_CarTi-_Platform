@@ -72,7 +72,7 @@ router.post('/bots', requireRole(['ADMIN']), async (req, res) => {
     const { data } = mapBotInput(req.body || {});
     if (!data.token) return errorResponse(res, 400, 'Token is required');
 
-    // Sanitize optional fields: Convert empty strings to null
+    // MIGRATION: Sanitize optional fields
     const cleanChannelId = data.channelId && String(data.channelId).trim() !== '' ? String(data.channelId).trim() : null;
     const cleanAdminChatId = data.adminChatId && String(data.adminChatId).trim() !== '' ? String(data.adminChatId).trim() : null;
 
@@ -83,21 +83,47 @@ router.post('/bots', requireRole(['ADMIN']), async (req, res) => {
         const companyId = await resolveCompanyId(isSuperadmin ? data.companyId : null, userCompanyId);
         if (!companyId && !isSuperadmin) return errorResponse(res, 400, 'Company context required');
 
+        // UX IMPROVEMENT: Auto-fetch details from Telegram
+        let botName = data.name;
+        let botUsername = '';
+        try {
+            const me = await callTelegram(data.token, 'getMe', {});
+            if (me) {
+                if (!botName) botName = me.first_name;
+                botUsername = me.username || '';
+            }
+        } catch (tgError: any) {
+            logger.warn(`Failed to fetch getMe for token: ${tgError.message}`);
+            // If name is missing and TG failed, we can't create it properly unless we default something
+            if (!botName) botName = 'My New Bot';
+        }
+
         const newBot = await prisma.botConfig.create({
             data: {
                 ...data,
+                name: botName,
                 companyId,
                 token: data.token.trim(),
                 channelId: cleanChannelId,
                 adminChatId: cleanAdminChatId,
-                isEnabled: data.isEnabled ?? true
+                isEnabled: data.isEnabled ?? true,
+                config: {
+                    ...(data.config || {}),
+                    botUsername, // Save username for slug generation
+                    autoDiscovered: true
+                }
             }
         });
 
         // Fire and forget restart to avoid blocking the UI response
         botManager.restartBot(newBot.id).catch(e => logger.error("Async Bot Restart Failed:", e));
 
-        res.json(mapBotOutput(newBot));
+        // Return the enriched object so UI updates immediately
+        const output = mapBotOutput(newBot);
+        // @ts-ignore
+        output.botUsername = botUsername;
+
+        res.json(output);
     } catch (e) {
         logger.error("Create Bot Error:", e);
         errorResponse(res, 500, "Failed to create bot. Token might be duplicate or invalid.");

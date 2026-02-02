@@ -84,11 +84,30 @@ router.post('/auth/send-code', requireRole(['OWNER', 'ADMIN']), async (req: any,
 });
 
 // POST /api/integrations/mtproto/auth/sign-in
+// POST /api/integrations/mtproto/auth/sign-in
 router.post('/auth/sign-in', requireRole(['OWNER', 'ADMIN']), async (req: any, res) => {
     try {
         const { connectorId, phone, code, phoneCodeHash, password } = req.body;
         await MTProtoService.signIn(connectorId, phone, code, phoneCodeHash, password);
-        res.json({ success: true });
+
+        // UX: Fetch User Info for immediate feedback
+        const client = await MTProtoService.getClient(connectorId);
+        const me = await client.getMe() as any;
+
+        // UX: Trigger background discovery
+        MTProtoService.discoverDialogs(connectorId)
+            .then(count => logger.info(`[MTProto] Discovered ${count} dialogs for ${connectorId}`))
+            .catch(err => logger.error(`[MTProto] Discovery failed:`, err));
+
+        res.json({
+            success: true,
+            user: {
+                id: me.id.toString(),
+                firstName: me.firstName,
+                username: me.username,
+                phone: me.phone
+            }
+        });
     } catch (e: any) {
         return errorResponse(res, 400, e.message || 'MTProto validation error', 'MTPROTO_VALIDATION');
     }

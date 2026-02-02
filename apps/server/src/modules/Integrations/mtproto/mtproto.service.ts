@@ -136,6 +136,48 @@ export class MTProtoService {
     }
 
     /**
+     * Discovery Logic
+     */
+    static async discoverDialogs(connectorId: string) {
+        const client = await this.getClient(connectorId);
+        await client.connect();
+
+        try {
+            const dialogs = await client.getDialogs({ limit: 50 }); // Limit to top 50 active
+            let discovered = 0;
+
+            for (const d of dialogs) {
+                if (d.isChannel || d.isGroup) {
+                    const entity = d.entity as any;
+                    const channelId = entity.id.toString(); // BigInt
+
+                    // Check if exists
+                    const exists = await prisma.channelSource.findUnique({
+                        where: { connectorId_channelId: { connectorId, channelId } }
+                    });
+
+                    if (!exists) {
+                        await channelSourceRepo.create({
+                            connectorId,
+                            channelId,
+                            title: entity.title || 'Unknown',
+                            username: entity.username || undefined,
+                            importRules: { autoPublish: false }, // Safe default
+                            status: 'PAUSED', // Don't auto-sync yet
+                            lastError: null
+                        });
+                        discovered++;
+                    }
+                }
+            }
+            return discovered;
+        } catch (e) {
+            logger.error(`Discovery failed for ${connectorId}:`, e);
+            return 0;
+        }
+    }
+
+    /**
      * Channel Management
      */
     static async resolveChannel(connectorId: string, query: string) {
