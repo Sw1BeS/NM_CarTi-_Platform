@@ -451,11 +451,13 @@ model IntegrationEventLog {
   workspace   Workspace? @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   integration String
+  entityType  String?
   entityId    String?
   action      String
   status      String
   message     String?
-  payloadMeta Json?    @db.JsonB
+  meta        Json?    @map("payloadMeta") @db.JsonB
+  traceId     String?
 
   createdAt DateTime @default(now())
 
@@ -464,6 +466,8 @@ model IntegrationEventLog {
   @@index([status])
   @@index([createdAt])
   @@index([entityId])
+  @@index([entityType])
+  @@index([traceId])
 }
 
 model CarListing {
