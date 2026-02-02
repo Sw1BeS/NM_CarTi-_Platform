@@ -7,6 +7,7 @@ import { SkeletonLoader } from './components/SkeletonLoader';
 const Dashboard = React.lazy(() => import('./pages/app/Dashboard').then(m => ({ default: m.Dashboard })));
 const RequestList = React.lazy(() => import('./pages/app/Requests').then(m => ({ default: m.RequestList })));
 const TelegramHub = React.lazy(() => import('./pages/app/TelegramHub').then(m => ({ default: m.TelegramHub })));
+const TelegramSources = React.lazy(() => import('./pages/app/TelegramSources').then(m => ({ default: m.TelegramSourcesPage })));
 const InboxPage = React.lazy(() => import('./pages/app/Inbox').then(m => ({ default: m.InboxPage })));
 const ScenarioBuilder = React.lazy(() => import('./pages/app/ScenarioBuilder').then(m => ({ default: m.ScenarioBuilder })));
 const AutomationBuilder = React.lazy(() => import('./pages/app/AutomationBuilder').then(m => ({ default: m.AutomationBuilder })));
@@ -27,6 +28,7 @@ const ContentCalendarPage = React.lazy(() => import('./pages/app/ContentCalendar
 const PartnersPage = React.lazy(() => import('./pages/app/Partners').then(m => ({ default: m.PartnersPage })));
 const CompanySettingsPage = React.lazy(() => import('./pages/app/CompanySettings').then(m => ({ default: m.CompanySettingsPage })));
 const IntegrationsPage = React.lazy(() => import('./pages/app/Integrations').then(m => ({ default: m.IntegrationsPage })));
+const MTProtoIntegration = React.lazy(() => import('./pages/app/MTProtoIntegration').then(m => ({ default: m.MTProtoIntegrationPage })));
 const IntegrationsLayout = React.lazy(() => import('./pages/app/IntegrationsLayout').then(m => ({ default: m.IntegrationsLayout })));
 const IntegrationEditor = React.lazy(() => import('./pages/app/IntegrationEditor').then(m => ({ default: m.IntegrationEditor })));
 const QAStageA = React.lazy(() => import('./pages/app/QAStageA').then(m => ({ default: m.QAStageA })));
@@ -87,6 +89,7 @@ export default function App() {
                       <Route path="/requests" element={<ProtectedRoute path="/requests"><RequestList /></ProtectedRoute>} />
 
                       <Route path="/telegram" element={<ProtectedRoute path="/telegram"><TelegramHub /></ProtectedRoute>} />
+                      <Route path="/telegram/sources" element={<ProtectedRoute path="/telegram"><TelegramSources /></ProtectedRoute>} />
                       <Route path="/scenarios" element={<ProtectedRoute path="/scenarios"><ScenarioBuilder /></ProtectedRoute>} />
                       {/* <Route path="/automations" element={<ProtectedRoute path="/automations"><AutomationBuilder /></ProtectedRoute>} /> */}
                       <Route path="/leads" element={<ProtectedRoute path="/leads"><Leads /></ProtectedRoute>} />
@@ -102,6 +105,7 @@ export default function App() {
                       <Route path="/help" element={<ProtectedRoute path="/help"><HelpPage /></ProtectedRoute>} />
                       <Route path="/integrations" element={<ProtectedRoute path="/integrations"><IntegrationsLayout /></ProtectedRoute>}>
                         <Route index element={<IntegrationsPage />} />
+                        <Route path="mtproto" element={<MTProtoIntegration />} />
                         <Route path=":type" element={<IntegrationEditor />} />
                       </Route>
                       <Route path="/qa" element={<ProtectedRoute path="/qa"><QAStageA /></ProtectedRoute>} />

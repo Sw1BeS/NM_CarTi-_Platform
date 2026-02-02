@@ -1,31 +1,32 @@
-# 20_IMPORT_BY_DATE
+# M2: Import by Date Range (MTProto)
 
-📌 1️⃣ Что сделано (Backend)
-🔘 Добавлен `TelegramImportJob` (queue/job) с чекпоинтом `lastMessageId/lastMessageDate`
-🔘 MTProto history читает по `offsetDate` и идёт назад по диапазону дат
-🔘 Preview endpoint отдаёт 5–10 сообщений с результатом маппинга + skipReason (без записи в БД)
-🔘 Импорт работает в режиме `INVENTORY` или `DRAFT_ONLY`
-🔘 Семантика дат: UTC, `fromDate` inclusive, `toDate` exclusive
-🔘 Дедуп/merge: `(sourceChatId, sourceMessageId)` — не создаём дубль, обновляем media/meta
+## 1. Overview
+Enhances the MTProto import capabilities by allowing precise date-range imports and a "Preview" mode to inspect results before committing to the database.
 
-📌 2️⃣ API
-🔘 `POST /api/integrations/mtproto/:connectorId/channels/:sourceId/preview` (fromDate, toDate, mode)
-🔘 `POST /api/integrations/mtproto/:connectorId/channels/:sourceId/import` (fromDate, toDate, mode)
-🔘 `GET /api/integrations/mtproto/import-jobs?sourceId=...` — статус/прогресс
+## 2. Data Model
+**Model:** `TelegramImportJob` (Update)
+- Add `fromDate` (DateTime) - already likely present or needed
+- Add `toDate` (DateTime)
+- Add `mode`: `DRAFT_ONLY` | `INVENTORY`
 
-📌 3️⃣ UX
-🔘 В MTProto Sources добавлен Import modal
-🔘 Форма диапазона дат + mode + Preview → подтверждение → Import
-🔘 Видны статусы/прогресс импорт-джобов + причины skip в preview
-🔘 Подсказка в UI: UTC, `toDate` не включительно
+## 3. Backend API
+**Prefix:** `/api/integrations/mtproto`
 
-📌 DoD
-✅ Импорт по диапазону дат даёт предсказуемый результат
-✅ Повторный импорт диапазона не создаёт дублей
-✅ Preview показывает “что будет создано” и что будет пропущено до запуска
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/import/preview` | Dry-run import. Returns list of parsed items (CarListing/Draft) without saving. |
+| POST | `/import` | Start background job. Returns job ID. |
+| GET | `/jobs/:id` | Check job status and progress. |
 
-📌 Как проверить
-🔘 SQL: `SELECT id, status, totalImported, lastMessageDate FROM "TelegramImportJob" ORDER BY "createdAt" DESC LIMIT 5;`
-🔘 curl: `POST /api/integrations/mtproto/{connectorId}/channels/{sourceId}/preview` с датами
-🔘 curl: `POST /api/integrations/mtproto/{connectorId}/channels/{sourceId}/import`
-🔘 UI: Telegram Hub → Channels → Import → Preview → Start Import → Jobs
+## 4. Frontend UI
+**Page:** `/integrations/mtproto/:id` (Source Details)
+**Components:**
+- **Date Range Picker:** Start/End date.
+- **Mode Toggle:** Inventory / Content Draft.
+- **Preview Button:** Shows modal/list of found items (Title, Price, Photos count).
+- **Import Button:** Starts the job.
+
+## 5. DoD (Verification)
+1. [ ] Preview returns JSON of parsed messages from the requested period.
+2. [ ] Import job successfully creates non-duplicate entities.
+3. [ ] Re-running import for same period adds 0 new items.

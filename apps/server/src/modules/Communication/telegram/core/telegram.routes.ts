@@ -8,7 +8,11 @@ import { errorResponse } from '../../../../utils/errorResponse.js';
 
 const botRepo = new BotRepository(prisma);
 
+import { destinationRoutes } from '../destinations/destination.routes.js';
+
 const router = Router();
+
+router.use('/destinations', destinationRoutes);
 
 router.post('/webhook/:botId', async (req, res) => {
   const { botId } = req.params;
