@@ -25,8 +25,10 @@ export const routeChannelPost: PipelineMiddleware = async (ctx, next) => {
     const text = post.caption || post.text || '';
     if (!text) return next();
 
-    // P0-3 FIX: Check bot config for channelMode
-    const channelMode = (ctx.bot?.config as any)?.channelMode || 'CONTENT';
+    // P0 FIX: Default to INVENTORY mode so media is downloaded
+    // Previous default was 'CONTENT' which skipped media download (shouldDownloadMedia=false)
+    // This caused all CarListings to have mediaItems=null
+    const channelMode = (ctx.bot?.config as any)?.channelMode || 'INVENTORY';
     const mode = channelMode === 'INVENTORY' ? 'INVENTORY' : 'DRAFT_ONLY';
     const shouldDownloadMedia = mode === 'INVENTORY';
 
