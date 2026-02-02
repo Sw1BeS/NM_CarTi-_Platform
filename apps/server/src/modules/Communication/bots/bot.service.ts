@@ -119,7 +119,7 @@ class BotInstance {
         this.onFatalStop = onFatalStop;
     }
 
-    public start() {
+    public async start() {
         if (this.isRunning) return;
         this.isRunning = true;
         this.registerCommands();
