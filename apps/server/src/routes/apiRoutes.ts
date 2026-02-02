@@ -1437,7 +1437,7 @@ router.post('/content/publication-jobs', requireRole(['ADMIN', 'MANAGER']), asyn
                     entityId: job.id,
                     action: 'publish_success',
                     status: 'OK',
-                    payloadMeta: {
+                    meta: {
                         destination: payload.destination,
                         messageId: messageId ? Number(messageId) : undefined
                     }
@@ -1477,7 +1477,7 @@ router.post('/content/publication-jobs', requireRole(['ADMIN', 'MANAGER']), asyn
                     action: 'publish_failed',
                     status: 'ERROR',
                     message: e.message || 'Publish failed',
-                    payloadMeta: {
+                    meta: {
                         destination: payload.destination
                     }
                 });

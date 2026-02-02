@@ -10,7 +10,7 @@ export const logIntegrationEvent = async (input: {
   action: string;
   status: IntegrationLogStatus;
   message?: string | null;
-  payloadMeta?: any;
+  meta?: any;
 }) => {
   try {
     await prisma.integrationEventLog.create({
@@ -21,7 +21,7 @@ export const logIntegrationEvent = async (input: {
         action: input.action,
         status: input.status,
         message: input.message || null,
-        payloadMeta: input.payloadMeta ?? null
+        meta: input.meta ?? null
       }
     });
   } catch (e: any) {

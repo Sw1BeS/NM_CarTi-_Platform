@@ -43,7 +43,7 @@ export const routeChannelPost: PipelineMiddleware = async (ctx, next) => {
             action: 'media_skipped',
             status: 'WARN',
             message: 'MEDIA_UNSUPPORTED',
-            payloadMeta: {
+            meta: {
                 sourceChatId: channelId,
                 sourceMessageId: post.message_id
             }
@@ -78,7 +78,7 @@ export const routeChannelPost: PipelineMiddleware = async (ctx, next) => {
                         action: 'media_skipped',
                         status: 'WARN',
                         message: 'MEDIA_TOO_LARGE',
-                        payloadMeta: {
+                        meta: {
                             sourceChatId: channelId,
                             sourceMessageId: post.message_id,
                             sizeBytes: e.sizeBytes,
@@ -100,7 +100,7 @@ export const routeChannelPost: PipelineMiddleware = async (ctx, next) => {
                     action: 'media_skipped',
                     status: 'WARN',
                     message: 'MEDIA_NO_BOT_TOKEN',
-                    payloadMeta: {
+                    meta: {
                         sourceChatId: channelId,
                         sourceMessageId: post.message_id
                     }

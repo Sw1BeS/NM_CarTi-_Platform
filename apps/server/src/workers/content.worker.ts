@@ -175,7 +175,7 @@ async function processPublicationJobs(): Promise<boolean> {
                     entityId: job.id,
                     action: 'publish_success',
                     status: 'OK',
-                    payloadMeta: {
+                    meta: {
                         destination: job.destination,
                         messageId: messageId ? Number(messageId) : undefined
                     }
@@ -221,7 +221,7 @@ async function processPublicationJobs(): Promise<boolean> {
                     action: 'publish_failed',
                     status: 'ERROR',
                     message: e.message || 'Publish failed',
-                    payloadMeta: {
+                    meta: {
                         destination: job.destination
                     }
                 });

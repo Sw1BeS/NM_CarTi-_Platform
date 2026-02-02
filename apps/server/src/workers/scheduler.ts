@@ -49,7 +49,7 @@ async function syncAllChannels() {
                 entityId: source.id,
                 action: 'channel_sync_started',
                 status: 'OK',
-                payloadMeta: {
+                meta: {
                     channelId: source.channelId,
                     title: source.title
                 }
@@ -63,7 +63,7 @@ async function syncAllChannels() {
                 entityId: source.id,
                 action: 'channel_sync_finished',
                 status: 'OK',
-                payloadMeta: {
+                meta: {
                     channelId: source.channelId,
                     title: source.title
                 }
@@ -79,7 +79,7 @@ async function syncAllChannels() {
                 action: 'channel_sync_failed',
                 status: 'ERROR',
                 message: e.message || 'Sync failed',
-                payloadMeta: {
+                meta: {
                     channelId: source.channelId,
                     title: source.title
                 }

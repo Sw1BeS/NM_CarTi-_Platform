@@ -225,7 +225,7 @@ export const createOrMergeLead = async (input: LeadCreateInput, botConfig?: any)
     entityId: lead.id,
     action: 'lead_created',
     status: 'OK',
-    payloadMeta: {
+    meta: {
       botId: input.botId,
       chatId: input.chatId || undefined,
       userId: telegramUserId || undefined

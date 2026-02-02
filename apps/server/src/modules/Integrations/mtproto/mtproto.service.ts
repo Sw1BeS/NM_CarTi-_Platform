@@ -252,7 +252,7 @@ export class MTProtoService {
                     action: 'media_skipped',
                     status: 'WARN',
                     message: 'MEDIA_UNSUPPORTED',
-                    payloadMeta: {
+                    meta: {
                         sourceChatId: context.sourceChatId,
                         sourceMessageId: context.sourceMessageId
                     }
@@ -301,7 +301,7 @@ export class MTProtoService {
                     action: 'media_skipped',
                     status: 'WARN',
                     message: 'MEDIA_TOO_LARGE',
-                    payloadMeta: {
+                    meta: {
                         sourceChatId: context.sourceChatId,
                         sourceMessageId: context.sourceMessageId,
                         sizeBytes: e.sizeBytes,

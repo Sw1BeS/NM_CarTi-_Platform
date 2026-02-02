@@ -40,7 +40,7 @@ export class MTProtoImportWorker {
                 entityId: job.id,
                 action: 'import_started',
                 status: 'OK',
-                payloadMeta: {
+                meta: {
                     channelSourceId: job.channelSourceId,
                     fromDate: job.fromDate,
                     toDate: job.toDate,
@@ -179,7 +179,7 @@ export class MTProtoImportWorker {
                     entityId: job.id,
                     action: 'import_chunk',
                     status: 'OK',
-                    payloadMeta: {
+                    meta: {
                         processedThisRun,
                         totalProcessed,
                         totalImported,
@@ -210,7 +210,7 @@ export class MTProtoImportWorker {
                     entityId: job.id,
                     action: 'import_finished',
                     status: 'OK',
-                    payloadMeta: {
+                    meta: {
                         totalProcessed,
                         totalImported,
                         totalSkipped,

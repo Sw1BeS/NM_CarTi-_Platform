@@ -38,7 +38,7 @@ router.post('/webhook/:botId', async (req, res) => {
     action: 'webhook_received',
     status: 'OK',
     message: updateType ? `update:${updateType}` : 'update',
-    payloadMeta: { updateId: update?.update_id, updateType }
+    meta: { updateId: update?.update_id, updateType }
   });
 
   setImmediate(async () => {
