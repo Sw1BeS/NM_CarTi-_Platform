@@ -109,6 +109,9 @@ const main = async () => {
         return;
     }
 
+    log('Upserting scenario templates...');
+    await upsertTemplates();
+
     log('Deleting stale company templates...');
     await prisma.companyTemplate.deleteMany({
         where: { templateId: { notIn: templateIds } }
@@ -127,8 +130,6 @@ const main = async () => {
         await attachTemplates(company.id);
         await upsertScenarios(company.id);
     }
-
-    await upsertTemplates();
 
     log('Cleanup complete.');
 };
