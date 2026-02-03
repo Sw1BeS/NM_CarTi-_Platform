@@ -79,15 +79,22 @@ export function createCarCardKeyboard(car: CarListing, lang: Language = 'UK') {
 
     const loc = t[lang];
 
+    const sourceUrl = typeof car.sourceUrl === 'string' && car.sourceUrl.trim() ? car.sourceUrl.trim() : '';
+
+    const secondRow: any[] = [
+        { text: loc.viewCatalog, callback_data: `CAR:ADD_CATALOG:${car.canonicalId}` }
+    ];
+
+    if (sourceUrl) {
+        secondRow.push({ text: loc.openSource, url: sourceUrl });
+    }
+
     return {
         inline_keyboard: [
             [
                 { text: loc.addToRequest, callback_data: `CAR:ADD_REQUEST:${car.canonicalId}` }
             ],
-            [
-                { text: loc.viewCatalog, callback_data: `CAR:ADD_CATALOG:${car.canonicalId}` },
-                { text: loc.openSource, url: car.sourceUrl }
-            ]
+            secondRow
         ]
     };
 }

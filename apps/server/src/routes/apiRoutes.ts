@@ -24,6 +24,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 import { setWebhookForBot, deleteWebhookForBot } from '../modules/Communication/telegram/core/telegramAdmin.service.js';
 import { telegramOutbox } from '../modules/Communication/telegram/messaging/outbox/telegramOutbox.js';
+import { MediaLimitError, saveTelegramBotFile } from '../services/mediaStorage.service.js';
 import { whatsAppRouter } from '../modules/Integrations/whatsapp/whatsapp.service.js';
 import { viberRouter } from '../modules/Integrations/viber/viber.service.js';
 import showcaseRouter from '../modules/Marketing/showcase/showcase.controller.js';
@@ -377,6 +378,120 @@ const callTelegram = async (token: string, method: string, params: Record<string
     return response.data.result;
 };
 
+const pickLargestPhoto = (photos: any[]): any | null => {
+    if (!Array.isArray(photos) || photos.length === 0) return null;
+    return photos.reduce((best, current) => {
+        const bestSize = best?.file_size || 0;
+        const currentSize = current?.file_size || 0;
+        return currentSize > bestSize ? current : best;
+    }, photos[0]);
+};
+
+const extractMediaFromMessage = (message?: any) => {
+    if (!message || typeof message !== 'object') return null;
+
+    if (Array.isArray(message.photo) && message.photo.length) {
+        const best = pickLargestPhoto(message.photo);
+        return {
+            type: 'photo',
+            fileId: best?.file_id,
+            size: best?.file_size
+        };
+    }
+    if (message.document) {
+        return {
+            type: 'document',
+            fileId: message.document.file_id,
+            fileName: message.document.file_name,
+            mimeType: message.document.mime_type,
+            size: message.document.file_size
+        };
+    }
+    if (message.video) {
+        return {
+            type: 'video',
+            fileId: message.video.file_id,
+            fileName: message.video.file_name,
+            mimeType: message.video.mime_type,
+            size: message.video.file_size
+        };
+    }
+    if (message.audio) {
+        return {
+            type: 'audio',
+            fileId: message.audio.file_id,
+            fileName: message.audio.file_name || message.audio.title,
+            mimeType: message.audio.mime_type,
+            size: message.audio.file_size
+        };
+    }
+    if (message.voice) {
+        return {
+            type: 'voice',
+            fileId: message.voice.file_id,
+            mimeType: message.voice.mime_type,
+            size: message.voice.file_size
+        };
+    }
+    if (message.animation) {
+        return {
+            type: 'animation',
+            fileId: message.animation.file_id,
+            fileName: message.animation.file_name,
+            mimeType: message.animation.mime_type,
+            size: message.animation.file_size
+        };
+    }
+    if (message.sticker) {
+        return {
+            type: 'sticker',
+            fileId: message.sticker.file_id,
+            mimeType: message.sticker.mime_type,
+            size: message.sticker.file_size
+        };
+    }
+
+    return null;
+};
+
+const extractMediaFromPayload = (payload?: any) => {
+    if (!payload || typeof payload !== 'object') return null;
+    const raw = payload.raw || {};
+    const message = raw.message || raw.edited_message || raw.channel_post || raw?.callback_query?.message;
+    const mediaFromMessage = extractMediaFromMessage(message);
+    if (mediaFromMessage) return mediaFromMessage;
+
+    const normalizeValue = (kind: string, value: any) => {
+        if (!value) return null;
+        if (typeof value === 'string') {
+            const trimmed = value.trim();
+            if (!trimmed) return null;
+            if (trimmed.startsWith('http')) {
+                return { type: kind, url: trimmed };
+            }
+            return { type: kind, fileId: trimmed };
+        }
+        if (typeof value === 'object') {
+            if (value.file_id) return { type: kind, fileId: value.file_id };
+            if (value.url) return { type: kind, url: value.url };
+        }
+        return null;
+    };
+
+    return (
+        normalizeValue('photo', payload.photo)
+        || normalizeValue('document', payload.document)
+        || normalizeValue('video', payload.video)
+        || normalizeValue('audio', payload.audio)
+        || normalizeValue('voice', payload.voice)
+        || normalizeValue('animation', payload.animation)
+        || normalizeValue('sticker', payload.sticker)
+        || (Array.isArray(payload.media) && payload.media.length
+            ? normalizeValue(payload.media[0]?.type || 'media', payload.media[0]?.media)
+            : null)
+    );
+};
+
 // --- Telegram Proxy (server-side) ---
 router.post('/telegram/call', requireRole(['OWNER', 'ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
     try {
@@ -545,6 +660,82 @@ router.post('/telegram/call', requireRole(['OWNER', 'ADMIN', 'MANAGER', 'OPERATO
     }
 });
 
+// --- Telegram File Proxy (server-side) ---
+router.get('/telegram/file', requireRole(['OWNER', 'ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
+    try {
+        const fileId = typeof req.query.fileId === 'string' ? req.query.fileId : '';
+        const botId = typeof req.query.botId === 'string' ? req.query.botId : undefined;
+        if (!fileId) return errorResponse(res, 400, 'fileId is required');
+
+        const user = (req as any).user || {};
+        const isSuperadmin = user.role === 'SUPER_ADMIN';
+        const userCompanyId = user.companyId || user.workspaceId;
+        const requestedCompanyId = isSuperadmin ? (typeof req.query.companyId === 'string' ? req.query.companyId : undefined) : undefined;
+        const companyId = isSuperadmin ? requestedCompanyId : userCompanyId;
+        if (!companyId && !isSuperadmin) return errorResponse(res, 400, 'Company context required');
+
+        const resolved = await resolveBot(undefined, botId, companyId);
+        if (!resolved?.token) {
+            return errorResponse(res, 400, 'Bot token not found');
+        }
+        if (resolved.bot?.companyId && companyId && resolved.bot.companyId !== companyId && !isSuperadmin) {
+            return errorResponse(res, 403, 'Forbidden');
+        }
+
+        const fileInfo = await callTelegram(resolved.token, 'getFile', { file_id: fileId });
+        const filePath = fileInfo?.file_path;
+        if (!filePath) return errorResponse(res, 404, 'File not found');
+
+        const fileUrl = `https://api.telegram.org/file/bot${resolved.token}/${filePath}`;
+        const response = await axios.get(fileUrl, { responseType: 'stream', timeout: 20000 });
+        res.setHeader('Content-Type', response.headers['content-type'] || 'application/octet-stream');
+        res.setHeader('Cache-Control', 'private, max-age=3600');
+        response.data.pipe(res);
+    } catch (e: any) {
+        logger.error('[Telegram File] Error:', e.message || e);
+        errorResponse(res, 500, e.message || 'Failed to fetch Telegram file');
+    }
+});
+
+router.post('/telegram/file/cache', requireRole(['OWNER', 'ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
+    try {
+        const { fileId, botId, chatId, messageId, size } = req.body || {};
+        if (!fileId || typeof fileId !== 'string') return errorResponse(res, 400, 'fileId is required');
+
+        const user = (req as any).user || {};
+        const isSuperadmin = user.role === 'SUPER_ADMIN';
+        const userCompanyId = user.companyId || user.workspaceId;
+        const requestedCompanyId = isSuperadmin
+            ? (typeof (req.body || {}).companyId === 'string' ? (req.body || {}).companyId : undefined)
+            : undefined;
+        const companyId = isSuperadmin ? requestedCompanyId : userCompanyId;
+        if (!companyId && !isSuperadmin) return errorResponse(res, 400, 'Company context required');
+
+        const resolved = await resolveBot(undefined, botId, companyId);
+        if (!resolved?.token) {
+            return errorResponse(res, 400, 'Bot token not found');
+        }
+        if (resolved.bot?.companyId && companyId && resolved.bot.companyId !== companyId && !isSuperadmin) {
+            return errorResponse(res, 403, 'Forbidden');
+        }
+
+        const saved = await saveTelegramBotFile(resolved.token, fileId, {
+            companyId: resolved.bot?.companyId || companyId || null,
+            sourceChatId: chatId ? String(chatId) : undefined,
+            sourceMessageId: messageId ? Number(messageId) : undefined,
+            fileSize: typeof size === 'number' ? size : undefined
+        });
+
+        res.json({ ok: true, url: saved.url, fileId });
+    } catch (e: any) {
+        if (e instanceof MediaLimitError || e?.code === 'MEDIA_TOO_LARGE') {
+            return errorResponse(res, 413, e.message || 'Media too large');
+        }
+        logger.error('[Telegram File Cache] Error:', e.message || e);
+        errorResponse(res, 500, e.message || 'Failed to cache Telegram file');
+    }
+});
+
 // --- Telegram Messages (Inbox) ---
 router.get('/messages', requireRole(['OWNER', 'ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
     try {
@@ -589,6 +780,8 @@ router.get('/messages', requireRole(['OWNER', 'ADMIN', 'MANAGER', 'OPERATOR']), 
                 ? (inlineKeyboard.flat ? inlineKeyboard.flat() : inlineKeyboard.reduce((acc: any[], row: any) => acc.concat(row || []), []))
                 : [];
 
+            const media = extractMediaFromPayload(payload);
+
             return {
                 id: row.id,
                 botId: row.botId,
@@ -603,6 +796,7 @@ router.get('/messages', requireRole(['OWNER', 'ADMIN', 'MANAGER', 'OPERATOR']), 
                 text: row.text,
                 date: new Date(row.createdAt).toISOString(),
                 status: 'NEW',
+                media,
                 buttons: flatButtons.map((b: any) => ({
                     text: b.text,
                     value: b.callback_data || b.url

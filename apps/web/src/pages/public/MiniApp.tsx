@@ -220,7 +220,12 @@ export const MiniApp = () => {
             });
 
             // 3. Load Bot Configuration matched by showcase slug
-            const bots = await getPublicBots();
+            let bots: Bot[] = [];
+            try {
+                bots = await getPublicBots();
+            } catch (e) {
+                console.error('Failed to load public bots for MiniApp', e);
+            }
             const matchedBot = bots.find(b => (b.defaultShowcaseSlug || '').toLowerCase() === resolvedSlug.toLowerCase());
             const fallbackBot = bots.find(b => b.active) || bots[0];
             const bot = matchedBot || fallbackBot || null;

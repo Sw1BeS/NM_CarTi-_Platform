@@ -13,6 +13,7 @@ import { CarPicker } from '../../components/CarPicker';
 import Picker from '@emoji-mart/react';
 import data from '@emoji-mart/data';
 import { ApiClient } from '../../services/apiClient';
+import { getApiBase } from '../../services/apiConfig';
 
 interface ChatInfo {
     chatId: string;
@@ -440,6 +441,163 @@ export const InboxPage = () => {
         });
     };
 
+    const formatBytes = (value?: number) => {
+        if (!value || Number.isNaN(value)) return '';
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        let size = value;
+        let idx = 0;
+        while (size >= 1024 && idx < sizes.length - 1) {
+            size /= 1024;
+            idx += 1;
+        }
+        return `${size.toFixed(size >= 10 || idx === 0 ? 0 : 1)} ${sizes[idx]}`;
+    };
+
+    const fetchTelegramFile = async (fileId: string, botId?: string) => {
+        const base = getApiBase();
+        const token = localStorage.getItem('cartie_token');
+        const params = new URLSearchParams();
+        params.append('fileId', fileId);
+        if (botId) params.append('botId', botId);
+        const res = await fetch(`${base}/telegram/file?${params.toString()}`, {
+            headers: token ? { Authorization: `Bearer ${token}` } : undefined
+        });
+        if (!res.ok) throw new Error('Failed to fetch media');
+        return await res.blob();
+    };
+
+    const cacheTelegramFile = async (payload: { fileId: string; botId?: string; chatId?: string; messageId?: number; size?: number }) => {
+        const res = await ApiClient.post<{ ok: boolean; url?: string }>('telegram/file/cache', payload);
+        if (!res.ok || !res.data?.url) {
+            const err = new Error(res.message || 'Failed to cache media');
+            (err as any).status = res.status;
+            throw err;
+        }
+        return res.data.url;
+    };
+
+    const MessageMedia = ({ media, botId, chatId, messageId }: { media?: TelegramMessage['media'] | null; botId?: string; chatId?: string; messageId?: number }) => {
+        const [blobUrl, setBlobUrl] = useState<string | null>(null);
+        const [loading, setLoading] = useState(false);
+        const type = String(media?.type || 'file');
+        const resolvedUrl = media?.url || blobUrl || '';
+        const fileLabel = media?.fileName || media?.mimeType || 'File';
+        const sizeLabel = formatBytes(media?.size);
+        const isImage = ['photo', 'sticker', 'animation'].includes(type);
+        const isVideo = type === 'video';
+        const isAudio = type === 'audio' || type === 'voice';
+        const AUTO_FETCH_LIMIT = 12 * 1024 * 1024;
+        const tooLarge = media?.size ? media.size > AUTO_FETCH_LIMIT : false;
+        const shouldAutoFetch = !media?.url && media?.fileId && (isImage || isVideo || isAudio) && !tooLarge && (media?.size || isImage);
+
+        useEffect(() => {
+            if (!shouldAutoFetch) return;
+            let cancelled = false;
+            let localUrl: string | null = null;
+            setLoading(true);
+            cacheTelegramFile({ fileId: media.fileId, botId, chatId, messageId, size: media.size })
+                .then(url => {
+                    if (!cancelled) setBlobUrl(url);
+                })
+                .catch(async (err: any) => {
+                    if (err?.status === 413) {
+                        return;
+                    }
+                    try {
+                        const blob = await fetchTelegramFile(media.fileId!, botId);
+                        localUrl = URL.createObjectURL(blob);
+                        if (!cancelled) setBlobUrl(localUrl);
+                    } catch {
+                        // ignore
+                    }
+                })
+                .finally(() => {
+                    if (!cancelled) setLoading(false);
+                });
+            return () => {
+                cancelled = true;
+                if (localUrl) URL.revokeObjectURL(localUrl);
+            };
+        }, [media?.fileId, media?.url, botId, isImage, isVideo, isAudio, shouldAutoFetch, media?.size, chatId, messageId]);
+
+        const handleDownload = async () => {
+            if (resolvedUrl) {
+                const link = document.createElement('a');
+                link.href = resolvedUrl;
+                link.download = fileLabel;
+                link.rel = 'noreferrer';
+                link.target = '_blank';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                return;
+            }
+            if (!media?.fileId) return;
+            try {
+                setLoading(true);
+                const blob = await fetchTelegramFile(media.fileId, botId);
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = fileLabel;
+                link.rel = 'noreferrer';
+                link.target = '_blank';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        if (isImage) {
+            return (
+                <div className="mb-2">
+                    {resolvedUrl ? (
+                        <img src={resolvedUrl} className="max-h-56 rounded-lg object-cover border border-[var(--border-color)]" alt={fileLabel} />
+                    ) : (
+                        <div className="text-xs text-[var(--text-secondary)]">{loading ? 'Loading image...' : 'Image unavailable'}</div>
+                    )}
+                </div>
+            );
+        }
+
+        if (isVideo && resolvedUrl) {
+            return (
+                <div className="mb-2">
+                    <video controls className="w-full max-h-56 rounded-lg border border-[var(--border-color)]">
+                        <source src={resolvedUrl} />
+                    </video>
+                </div>
+            );
+        }
+
+        if (isAudio && resolvedUrl) {
+            return (
+                <div className="mb-2">
+                    <audio controls className="w-full">
+                        <source src={resolvedUrl} />
+                    </audio>
+                </div>
+            );
+        }
+
+        return (
+            <div className="mb-2 p-2 rounded-lg border border-[var(--border-color)] bg-[var(--bg-input)] text-xs flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                    <div className="font-semibold text-[var(--text-primary)] truncate">{fileLabel}</div>
+                    <div className="text-[10px] text-[var(--text-secondary)]">
+                        {type.toUpperCase()}{sizeLabel ? ` • ${sizeLabel}` : ''}{tooLarge ? ' • large' : ''}
+                    </div>
+                </div>
+                <button onClick={handleDownload} className="btn-secondary text-[10px]" disabled={loading}>
+                    {loading ? 'Loading...' : 'Download'}
+                </button>
+            </div>
+        );
+    };
+
     const messageItems: Array<{ type: 'date'; date: Date } | { type: 'message'; msg: TelegramMessage }> = [];
     let lastDateKey = '';
     activeMessages.forEach(m => {
@@ -483,7 +641,11 @@ export const InboxPage = () => {
                                 <span className="font-bold text-sm text-[var(--text-primary)] truncate max-w-[150px]">{c.lastMsg.from}</span>
                                 <span className="text-[10px] text-[var(--text-secondary)] tabular-nums">{new Date(c.lastMsg.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                             </div>
-                            <div className="text-xs text-[var(--text-muted)] truncate mb-2">{c.lastMsg.text}</div>
+                            <div className="text-xs text-[var(--text-muted)] truncate mb-2">
+                                {c.lastMsg.text === '[Media/Unknown]' && c.lastMsg.media?.type
+                                    ? `[${c.lastMsg.media.type}]`
+                                    : c.lastMsg.text}
+                            </div>
                             {c.assignedTo && <div className="flex items-center gap-1 text-[9px] text-blue-500"><UserCheck size={10} /> {managers.find(m => m.id === c.assignedTo)?.name || 'Assigned'}</div>}
                         </div>
                     ))}
@@ -546,10 +708,12 @@ export const InboxPage = () => {
                                 }
                                 const m = item.msg;
                                 const isOut = m.direction === 'OUTGOING';
+                                const hideText = m.media && (!m.text || m.text === '[Media/Unknown]');
                                 return (
                                     <div key={m.id} className={`flex ${isOut ? 'justify-end' : 'justify-start'}`}>
                                         <div className={`max-w-[70%] p-3 rounded-2xl shadow-sm text-sm relative group ${isOut ? 'bg-gold-500 text-charcoal-950 rounded-tr-none' : 'bg-[var(--bg-panel)] text-[var(--text-primary)] rounded-tl-none border border-[var(--border-color)]'}`}>
-                                            {renderMessageText(m.text)}
+                                            {m.media && <MessageMedia media={m.media} botId={m.botId} chatId={m.chatId} messageId={m.messageId} />}
+                                            {!hideText && renderMessageText(m.text)}
                                             <div className={`text-[9px] mt-1 text-right opacity-60 ${isOut ? 'text-charcoal-800' : 'text-[var(--text-secondary)]'}`}>{new Date(m.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
                                         </div>
                                     </div>

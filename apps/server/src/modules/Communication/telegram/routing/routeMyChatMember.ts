@@ -21,6 +21,7 @@ export const routeMyChatMember: PipelineMiddleware = async (ctx, next) => {
       const identifier = String(chat.id);
       const name = chat.title || identifier;
       const type = typeRaw.toUpperCase().includes('CHANNEL') ? 'CHANNEL' : 'GROUP';
+      const companyId = ctx.companyId || ctx.bot?.companyId || null;
 
       try {
         // 1. Find Definition (Variant B)
@@ -60,7 +61,8 @@ export const routeMyChatMember: PipelineMiddleware = async (ctx, next) => {
             type,
             verified: true,
             tags: ['imported'],
-            updatedAt: new Date().toISOString()
+            updatedAt: new Date().toISOString(),
+            ...(companyId ? { companyId, workspaceId: companyId } : {})
           };
 
           if (existing) {

@@ -172,6 +172,14 @@ export interface TelegramMessage {
     from: string;
     fromId?: string;
     text: string;
+    media?: {
+        type?: string;
+        url?: string;
+        fileId?: string;
+        fileName?: string;
+        mimeType?: string;
+        size?: number;
+    } | null;
     mediaUrl?: string;
     date: string;
     status: 'NEW' | 'READ' | 'REPLIED';
