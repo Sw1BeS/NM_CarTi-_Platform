@@ -982,6 +982,8 @@ model Workspace {
   telegramDestinations TelegramDestination[]
   telegramImportJobs   TelegramImportJob[]
   integrationEventLogs IntegrationEventLog[]
+  chatMacros           ChatMacro[]
+  chatNotes            ChatNote[]
 
   @@index([deleted_at])
   @@map("workspaces")
