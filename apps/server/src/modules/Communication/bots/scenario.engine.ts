@@ -452,7 +452,10 @@ export class ScenarioEngine {
       await saveSession();
     };
 
+    const allowKeywordTriggersRaw = (bot.config as any)?.allowKeywordTriggers;
+    const allowKeywordTriggers = allowKeywordTriggersRaw === true || String(allowKeywordTriggersRaw || '').toLowerCase() === 'true';
     const checkKeywords = async () => {
+      if (!allowKeywordTriggers) return false;
       const triggered = scenarios.find(s =>
         s.isActive && Array.isArray(s.keywords) && s.keywords.some((k: any) => input.includes(String(k).toLowerCase()))
       );
@@ -845,6 +848,15 @@ export class ScenarioEngine {
       }
     }
 
+    const resolveDefaultScenario = () => {
+      const configuredId = String(bot.config?.defaultScenarioId || '').trim();
+      if (configuredId) {
+        const configured = scenarios.find(s => s.id === configuredId && s.isActive);
+        if (configured) return configured;
+      }
+      return scenarios.find(s => s.isActive && s.triggerCommand === 'lead');
+    };
+
     // /start handling
     if (input === '/start' || input.startsWith('/start ')) {
       resetFlow();
@@ -852,10 +864,12 @@ export class ScenarioEngine {
         ? messageTextRaw.split(' ')[1]
         : inputRaw.split(' ')[1];
       let deepLinkMsg = '';
+      let hasDeepLink = false;
 
       if (payloadText) {
         const payload = parseStartPayload(payloadText);
         if (payload) {
+          hasDeepLink = true;
           vars.start_payload = payloadText;
           if (payload.type === 'dealer_invite') {
             let requestOk = true;
@@ -922,6 +936,14 @@ export class ScenarioEngine {
 
       await saveSession();
 
+      if (!hasDeepLink) {
+        const defaultScenario = resolveDefaultScenario();
+        if (defaultScenario) {
+          await startScenario(defaultScenario.id);
+          return true;
+        }
+      }
+
       const hasLang = !!vars.language || !!vars.lang;
       const langScenario = scenarios.find(s => s.triggerCommand === 'lang');
       if (hasLang) {
@@ -934,14 +956,14 @@ export class ScenarioEngine {
       return true;
     }
 
-    if (['/menu', 'menu', '🏠 menu', 'cmd:menu', 'main menu'].includes(input)) {
+    if (['/menu', 'menu', '🏠 menu', 'cmd:menu', 'main menu', 'меню', 'в меню', 'у меню', 'до меню'].includes(input)) {
       resetFlow();
       await saveSession();
       await sendMainMenu();
       return true;
     }
 
-    if (['/back', 'back', '⬅️ back', 'cmd:back'].includes(input)) {
+    if (['/back', 'back', '⬅️ back', 'cmd:back', 'назад', 'повернутися', 'повернутись', 'вернуться'].includes(input)) {
       await this.goBack(bot, session, vars, history);
       await saveSession();
       return true;

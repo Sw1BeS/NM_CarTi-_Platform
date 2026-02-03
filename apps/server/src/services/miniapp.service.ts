@@ -1,9 +1,8 @@
 import { prisma } from './prisma.js';
 import { Prisma } from '@prisma/client';
-import { ShowcaseService } from '../modules/Marketing/showcase/showcase.service.js';
-import { getWorkspaceBySlug } from './v41/readService.js';
 import { generatePublicId, mapInventoryOutput, mapRequestInput, mapRequestOutput } from './dto.js';
 import { createOrMergeLead } from '../modules/Communication/telegram/core/leadService.js';
+import { resolvePublicSlug } from './publicSlug.service.js';
 
 export type MiniAppIdentity = {
   tgUserId?: string;
@@ -37,8 +36,6 @@ export type MiniAppRequestStatusQuery = {
   phone?: string;
   telegramUserId?: string;
 };
-
-const showcaseService = new ShowcaseService();
 
 const isRecord = (value: unknown): value is Record<string, unknown> => {
   return !!value && typeof value === 'object' && !Array.isArray(value);
@@ -74,42 +71,28 @@ const normalizeIdentity = (identity: MiniAppIdentity): MiniAppIdentity => {
 const resolveCompanyIdBySlug = async (slug: string): Promise<string | null> => {
   const trimmed = slug.trim();
   if (!trimmed) return null;
-
-  try {
-    const showcase = await showcaseService.getShowcaseBySlug(trimmed);
-    if (showcase?.workspaceId) return showcase.workspaceId;
-  } catch {
-    // ignore showcase errors and fall back to workspace lookup
-  }
-
-  const workspace = await getWorkspaceBySlug(trimmed);
-  return workspace?.id || null;
+  const resolved = await resolvePublicSlug(trimmed);
+  return resolved.companyId || null;
 };
 
 const resolveBotForSlug = async (slug: string, companyId?: string | null) => {
   const trimmed = slug.trim();
   if (!trimmed) return { botId: undefined, companyId };
 
-  try {
-    const showcase = await showcaseService.getShowcaseBySlug(trimmed);
-    if (showcase?.botId) return { botId: showcase.botId, companyId: showcase.workspaceId };
-  } catch {
-    // ignore showcase errors
+  const resolved = await resolvePublicSlug(trimmed);
+  let resolvedCompanyId = resolved.companyId || companyId || null;
+  let botId = resolved.botId || undefined;
+
+  if (!botId && resolvedCompanyId) {
+    const fallback = await prisma.botConfig.findFirst({
+      where: { companyId: resolvedCompanyId, isEnabled: true },
+      orderBy: { createdAt: 'asc' }
+    });
+    botId = fallback?.id;
+    resolvedCompanyId = fallback?.companyId || resolvedCompanyId;
   }
 
-  const botFromConfig = await prisma.botConfig.findFirst({
-    where: {
-      ...(companyId ? { companyId } : {}),
-      config: { path: ['defaultShowcaseSlug'], equals: trimmed }
-    }
-  });
-  if (botFromConfig) return { botId: botFromConfig.id, companyId: botFromConfig.companyId };
-
-  const fallback = await prisma.botConfig.findFirst({
-    where: { ...(companyId ? { companyId } : {}), isEnabled: true },
-    orderBy: { createdAt: 'asc' }
-  });
-  return { botId: fallback?.id, companyId: fallback?.companyId || companyId };
+  return { botId, companyId: resolvedCompanyId };
 };
 
 export class MiniAppService {

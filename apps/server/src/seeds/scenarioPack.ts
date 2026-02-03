@@ -7,7 +7,7 @@ export const SCENARIO_TEMPLATE_PACK = [
     isPremium: false,
     structure: {
       triggerCommand: 'buy',
-      keywords: ['buy', 'купити', 'купить'],
+      keywords: [],
       entryNodeId: 'start',
       nodes: [
         { id: 'start', type: 'START', content: { text: '' }, nextNodeId: 'greet' },
@@ -32,7 +32,7 @@ export const SCENARIO_TEMPLATE_PACK = [
     isPremium: false,
     structure: {
       triggerCommand: 'sell',
-      keywords: ['sell', 'продати', 'продать', 'trade-in'],
+      keywords: [],
       entryNodeId: 'start',
       nodes: [
         { id: 'start', type: 'START', content: { text: '' }, nextNodeId: 'greet' },
@@ -59,7 +59,7 @@ export const SCENARIO_TEMPLATE_PACK = [
     isPremium: false,
     structure: {
       triggerCommand: 'lead',
-      keywords: ['lead', 'contact', 'звʼязок', 'связь', 'catalog', 'каталог'],
+      keywords: [],
       entryNodeId: 'start',
       nodes: [
         { id: 'start', type: 'START', content: { text: '' }, nextNodeId: 'choose_lang' },

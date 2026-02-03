@@ -13,22 +13,21 @@ export const DEFAULT_MENU_CONFIG: { buttons: BotMenuButtonConfig[]; welcomeMessa
 
 export const DEFAULT_MINI_APP_CONFIG: MiniAppConfig = {
     isEnabled: true,
-    title: 'CarTié Premium',
-    welcomeText: 'Your personal automotive concierge.',
+    title: 'CarTié Inventory',
+    welcomeText: 'Browse the latest arrivals.',
+    tagline: 'Curated stock. Updated daily.',
     primaryColor: '#D4AF37',
     accentColor: '#111111',
+    ctaLabel: 'Request details',
+    styleVariant: 'NOIR',
     layout: 'GRID',
     actions: [
-        { id: 'act_stock', label: 'Stock', icon: 'Grid', actionType: 'VIEW', value: 'INVENTORY' },
-        { id: 'act_req', label: 'Request', icon: 'Search', actionType: 'VIEW', value: 'REQUEST' },
-        { id: 'act_chat', label: 'Chat', icon: 'MessageCircle', actionType: 'LINK', value: 'https://t.me/cartie_manager' },
-        { id: 'act_sell', label: 'Trade-In', icon: 'DollarSign', actionType: 'SCENARIO', value: 'scn_sell' }
+        { id: 'act_stock', label: 'Inventory', icon: 'Grid', actionType: 'VIEW', value: 'INVENTORY' },
+        { id: 'act_saved', label: 'Favorites', icon: 'Heart', actionType: 'VIEW', value: 'FAVORITES' }
     ],
     navItems: [
         { id: 'nav_home', label: 'Home', icon: 'Home', actionType: 'VIEW', value: 'HOME' },
         { id: 'nav_stock', label: 'Stock', icon: 'LayoutGrid', actionType: 'VIEW', value: 'INVENTORY' },
-        { id: 'nav_saved', label: 'Saved', icon: 'Heart', actionType: 'VIEW', value: 'FAVORITES' },
-        { id: 'nav_request', label: 'Request', icon: 'Search', actionType: 'VIEW', value: 'REQUEST' },
-        { id: 'nav_status', label: 'Status', icon: 'ClipboardList', actionType: 'VIEW', value: 'STATUS' }
+        { id: 'nav_saved', label: 'Saved', icon: 'Heart', actionType: 'VIEW', value: 'FAVORITES' }
     ]
 };

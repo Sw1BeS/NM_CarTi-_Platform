@@ -2,13 +2,14 @@ import { Router, Request, Response } from 'express';
 // @ts-ignore
 import { prisma } from '../services/prisma.js';
 import { RequestStatus } from '@prisma/client';
-import { getUserByTelegramId, getWorkspaceBySlug } from '../services/v41/readService.js';
+import { getUserByTelegramId } from '../services/v41/readService.js';
 import { generatePublicId, mapLeadCreateInput, mapLeadOutput, mapRequestInput, mapRequestOutput, mapVariantInput, mapVariantOutput, mapInventoryOutput } from '../services/dto.js';
 import { parseTelegramUser, verifyTelegramInitData } from '../modules/Communication/telegram/core/telegramAuth.js';
 import { mapBotOutput } from '../modules/Communication/bots/botDto.js';
 import { ShowcaseService } from '../modules/Marketing/showcase/showcase.service.js';
 import { logger } from '../utils/logger.js';
 import { errorResponse } from '../utils/errorResponse.js';
+import { resolvePublicSlug } from '../services/publicSlug.service.js';
 
 const router = Router();
 const showcaseService = new ShowcaseService();
@@ -32,9 +33,13 @@ const requireInitData = async (initData: string | undefined, companyId?: string 
 router.get('/:slug/inventory', async (req, res) => {
   try {
     const { slug } = req.params;
+    const resolved = await resolvePublicSlug(slug);
 
     // Attempt to use ShowcaseService first
     try {
+        if (!resolved.showcase) {
+            throw new Error('Showcase not found');
+        }
         const page = Number(req.query.page) || 1;
         const limit = Number(req.query.limit) || 20;
         const search = req.query.search as string | undefined;
@@ -43,7 +48,7 @@ router.get('/:slug/inventory', async (req, res) => {
         const minYear = req.query.minYear ? Number(req.query.minYear) : undefined;
         const maxYear = req.query.maxYear ? Number(req.query.maxYear) : undefined;
 
-        const { showcase, items, total } = await showcaseService.getInventoryForShowcase(slug, {
+        const { showcase, items, total } = await showcaseService.getInventoryForShowcase(resolved.slug || slug, {
             page,
             limit,
             search,
@@ -71,8 +76,7 @@ router.get('/:slug/inventory', async (req, res) => {
     }
 
     // LEGACY FALLBACK
-    const workspace = await getWorkspaceBySlug(slug);
-    if (!workspace) return errorResponse(res, 404, 'Company not found');
+    if (!resolved.companyId) return errorResponse(res, 404, 'Company not found');
 
     const limit = Math.min(100, Number(req.query.limit) || 50);
     const search = typeof req.query.search === 'string' ? req.query.search : undefined;
@@ -82,7 +86,7 @@ router.get('/:slug/inventory', async (req, res) => {
     const maxPrice = Number(req.query.maxPrice);
 
     const where: any = {
-      companyId: workspace.id,
+      companyId: resolved.companyId,
       status: 'AVAILABLE'
     };
 
@@ -132,11 +136,11 @@ router.get('/:slug/inventory', async (req, res) => {
 router.post('/:slug/requests', async (req, res) => {
   try {
     const { slug } = req.params;
-    const workspace = await getWorkspaceBySlug(slug);
-    if (!workspace) return errorResponse(res, 404, 'Company not found');
+    const resolved = await resolvePublicSlug(slug);
+    if (!resolved.companyId) return errorResponse(res, 404, 'Company not found');
 
     const { initData, ...payload } = req.body || {};
-    const initCheck = await requireInitData(initData, workspace.id);
+    const initCheck = await requireInitData(initData, resolved.companyId);
     if (!initCheck.ok) return errorResponse(res, 401, initCheck.message || 'Unauthorized');
 
     const { variants, ...raw } = payload;
@@ -146,7 +150,7 @@ router.post('/:slug/requests', async (req, res) => {
     if (!createData.publicId) createData.publicId = generatePublicId();
 
     // Force company context
-    createData.companyId = workspace.id;
+    createData.companyId = resolved.companyId;
 
     const request = await prisma.b2bRequest.create({
       data: createData
@@ -163,8 +167,8 @@ router.post('/:slug/requests', async (req, res) => {
 router.get('/:slug/request-status', async (req, res) => {
   try {
     const { slug } = req.params;
-    const workspace = await getWorkspaceBySlug(slug);
-    if (!workspace) return errorResponse(res, 404, 'Company not found');
+    const resolved = await resolvePublicSlug(slug);
+    if (!resolved.companyId) return errorResponse(res, 404, 'Company not found');
 
     const publicId = typeof req.query.publicId === 'string' ? req.query.publicId : undefined;
     const phone = typeof req.query.phone === 'string' ? req.query.phone : undefined;
@@ -174,7 +178,7 @@ router.get('/:slug/request-status', async (req, res) => {
       return errorResponse(res, 400, 'publicId, phone or telegramUserId is required');
     }
 
-    const where: any = { companyId: workspace.id };
+    const where: any = { companyId: resolved.companyId };
     const or: any[] = [];
 
     if (publicId) or.push({ publicId });
