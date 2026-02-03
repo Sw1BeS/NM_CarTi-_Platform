@@ -35,7 +35,7 @@ export interface DataAdapter {
     saveSession(session: BotSession): Promise<BotSession>;
     clearSession(chatId: string): Promise<void>;
 
-    getScenarios(): Promise<Scenario[]>;
+    getScenarios(filter?: { botId?: string }): Promise<Scenario[]>;
     saveScenario(scn: Scenario): Promise<Scenario>;
     deleteScenario(id: string): Promise<void>;
 

@@ -356,7 +356,12 @@ export class ScenarioEngine {
 
     const scenarios: ScenarioRecord[] = bot.companyId
       ? await prisma.scenario.findMany({
-        where: { companyId: bot.companyId, status: 'PUBLISHED', isActive: true },
+        where: {
+          companyId: bot.companyId,
+          status: 'PUBLISHED',
+          isActive: true,
+          OR: [{ botId: bot.id }, { botId: null }]
+        },
         orderBy: { createdAt: 'desc' }
       })
       : [];

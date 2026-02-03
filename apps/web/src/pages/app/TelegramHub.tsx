@@ -40,7 +40,7 @@ export const TelegramHub = () => {
             try {
                 const list = await Data.getBots();
                 setBots(list || []);
-                const scn = await Data.getScenarios();
+                const scn = await Data.getScenarios(selectedBotId ? { botId: selectedBotId } : undefined);
                 setScenarios(scn || []);
 
                 if (list && list.length > 0 && !selectedBotId) {

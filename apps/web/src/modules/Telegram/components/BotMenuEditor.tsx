@@ -49,35 +49,46 @@ export const BotMenuEditor = ({ scenarios, botId, standalone = false }: { scenar
     if (!bot) return <div className="p-10 text-center text-gray-400">No active bots found.</div>;
     const menuConfig = normalizeMenuConfig(bot.menuConfig);
 
-    const resolveScenarioId = (query: string) => {
-        const norm = query.toLowerCase();
-        const exact = scenarios.find(s => (s.triggerCommand || '').toLowerCase() === norm);
+    const normalizeTrigger = (value?: string) => (value || '').trim().toLowerCase().replace(/^\//, '');
+
+    const resolveScenarioId = (query: string, list: Scenario[] = scenarios) => {
+        const norm = normalizeTrigger(query);
+        const exact = list.find(s => normalizeTrigger(s.triggerCommand || '') === norm);
         if (exact) return exact.id;
-        const fuzzy = scenarios.find(s => (s.name || '').toLowerCase().includes(norm));
+        const fuzzy = list.find(s => (s.name || '').toLowerCase().includes(norm));
         return fuzzy?.id;
     };
 
-    const scenarioIds = {
-        buy: resolveScenarioId('buy') || 'scn_buy',
-        sell: resolveScenarioId('sell') || 'scn_sell',
-        support: resolveScenarioId('status') || resolveScenarioId('support') || 'scn_support',
-        lang: resolveScenarioId('lang') || 'scn_lang'
+    const scenarioIdMap: Record<string, string> = {
+        tpl_buy_request: 'scn_buy',
+        tpl_sell_tradein: 'scn_sell',
+        tpl_status_support: 'scn_support',
+        tpl_lang_select: 'scn_lang'
     };
+
+    const getScenarioIds = (list: Scenario[]) => ({
+        buy: resolveScenarioId('buy', list) || scenarioIdMap.tpl_buy_request,
+        sell: resolveScenarioId('sell', list) || scenarioIdMap.tpl_sell_tradein,
+        support: resolveScenarioId('status', list) || resolveScenarioId('support', list) || scenarioIdMap.tpl_status_support,
+        lang: resolveScenarioId('lang', list) || scenarioIdMap.tpl_lang_select
+    });
+
+    const scenarioIds = getScenarioIds(scenarios);
 
     const miniAppUrl = bot.miniAppConfig?.url || '{{MINI_APP_URL}}';
 
-    const menuTemplates = [
+    const buildMenuTemplates = (ids: ReturnType<typeof getScenarioIds>) => ([
         {
             id: 'standard',
             name: 'CarTié Standard',
             description: 'Buy/Sell/Support + Mini App + Language',
             welcomeMessage: '👋 Welcome to CarTié! Choose an option below:',
             buttons: [
-                { id: 'btn_buy', label: '🚗 Buy a Car', label_uk: '🚗 Купити авто', label_ru: '🚗 Купить авто', type: 'SCENARIO', value: scenarioIds.buy, row: 0, col: 0 },
-                { id: 'btn_sell', label: '💰 Sell My Car', label_uk: '💰 Продати авто', label_ru: '💰 Продать авто', type: 'SCENARIO', value: scenarioIds.sell, row: 0, col: 1 },
+                { id: 'btn_buy', label: '🚗 Buy a Car', label_uk: '🚗 Купити авто', label_ru: '🚗 Купить авто', type: 'SCENARIO', value: ids.buy, row: 0, col: 0 },
+                { id: 'btn_sell', label: '💰 Sell My Car', label_uk: '💰 Продати авто', label_ru: '💰 Продать авто', type: 'SCENARIO', value: ids.sell, row: 0, col: 1 },
                 { id: 'btn_app', label: '📱 Open App', label_uk: '📱 Додаток', label_ru: '📱 Приложение', type: 'LINK', value: miniAppUrl, row: 1, col: 0 },
-                { id: 'btn_support', label: '📞 Support', label_uk: '📞 Підтримка', label_ru: '📞 Поддержка', type: 'SCENARIO', value: scenarioIds.support, row: 1, col: 1 },
-                { id: 'btn_lang', label: '🌐 Language', label_uk: '🌐 Мова', label_ru: '🌐 Язык', type: 'SCENARIO', value: scenarioIds.lang, row: 2, col: 0 }
+                { id: 'btn_support', label: '📞 Support', label_uk: '📞 Підтримка', label_ru: '📞 Поддержка', type: 'SCENARIO', value: ids.support, row: 1, col: 1 },
+                { id: 'btn_lang', label: '🌐 Language', label_uk: '🌐 Мова', label_ru: '🌐 Язык', type: 'SCENARIO', value: ids.lang, row: 2, col: 0 }
             ]
         },
         {
@@ -86,10 +97,10 @@ export const BotMenuEditor = ({ scenarios, botId, standalone = false }: { scenar
             description: 'Buy/Sell + App + Support',
             welcomeMessage: '🚗 CarTié Sales Desk — pick an action:',
             buttons: [
-                { id: 'btn_buy', label: '🚗 Buy', label_uk: '🚗 Купити', label_ru: '🚗 Купить', type: 'SCENARIO', value: scenarioIds.buy, row: 0, col: 0 },
-                { id: 'btn_sell', label: '💰 Sell', label_uk: '💰 Продати', label_ru: '💰 Продать', type: 'SCENARIO', value: scenarioIds.sell, row: 0, col: 1 },
+                { id: 'btn_buy', label: '🚗 Buy', label_uk: '🚗 Купити', label_ru: '🚗 Купить', type: 'SCENARIO', value: ids.buy, row: 0, col: 0 },
+                { id: 'btn_sell', label: '💰 Sell', label_uk: '💰 Продати', label_ru: '💰 Продать', type: 'SCENARIO', value: ids.sell, row: 0, col: 1 },
                 { id: 'btn_app', label: '📱 Mini App', label_uk: '📱 Додаток', label_ru: '📱 Приложение', type: 'LINK', value: miniAppUrl, row: 1, col: 0 },
-                { id: 'btn_support', label: '☎️ Support', label_uk: '☎️ Підтримка', label_ru: '☎️ Поддержка', type: 'SCENARIO', value: scenarioIds.support, row: 1, col: 1 }
+                { id: 'btn_support', label: '☎️ Support', label_uk: '☎️ Підтримка', label_ru: '☎️ Поддержка', type: 'SCENARIO', value: ids.support, row: 1, col: 1 }
             ]
         },
         {
@@ -99,15 +110,59 @@ export const BotMenuEditor = ({ scenarios, botId, standalone = false }: { scenar
             welcomeMessage: 'Welcome! Use the menu below:',
             buttons: [
                 { id: 'btn_app', label: '📱 Open App', label_uk: '📱 Додаток', label_ru: '📱 Приложение', type: 'LINK', value: miniAppUrl, row: 0, col: 0 },
-                { id: 'btn_support', label: '📞 Support', label_uk: '📞 Підтримка', label_ru: '📞 Поддержка', type: 'SCENARIO', value: scenarioIds.support, row: 0, col: 1 }
+                { id: 'btn_support', label: '📞 Support', label_uk: '📞 Підтримка', label_ru: '📞 Поддержка', type: 'SCENARIO', value: ids.support, row: 0, col: 1 }
             ]
         }
-    ];
+    ]);
 
+    const menuTemplates = buildMenuTemplates(scenarioIds);
     const selectedTemplate = menuTemplates.find(t => t.id === templateId) || menuTemplates[0];
 
+    const ensureRequiredScenarios = async () => {
+        const required = [
+            { templateId: 'tpl_buy_request', scenarioId: scenarioIdMap.tpl_buy_request, trigger: 'buy' },
+            { templateId: 'tpl_sell_tradein', scenarioId: scenarioIdMap.tpl_sell_tradein, trigger: 'sell' },
+            { templateId: 'tpl_status_support', scenarioId: scenarioIdMap.tpl_status_support, trigger: 'status' },
+            { templateId: 'tpl_lang_select', scenarioId: scenarioIdMap.tpl_lang_select, trigger: 'lang' }
+        ];
+
+        const current = await Data.getScenarios(botId ? { botId } : undefined);
+        const hasScenario = (scenarioId: string, trigger: string) => current.some(s =>
+            s.id === scenarioId || normalizeTrigger(s.triggerCommand || '') === normalizeTrigger(trigger)
+        );
+        const missing = required.filter(r => !hasScenario(r.scenarioId, r.trigger));
+        if (!missing.length) return current;
+
+        const templates = await Data.getTemplates().catch(() => []);
+        for (const req of missing) {
+            const tpl = templates.find(t => t.id === req.templateId);
+            if (!tpl) {
+                showToast(`Template ${req.templateId} not found. Run seed to install defaults.`, 'error');
+                continue;
+            }
+            const now = new Date().toISOString();
+            const scenario: Scenario = {
+                id: req.scenarioId,
+                name: tpl.name || 'New Flow',
+                triggerCommand: tpl.triggerCommand || req.trigger,
+                keywords: Array.isArray(tpl.keywords) ? tpl.keywords : [],
+                isActive: true,
+                botId: botId || undefined,
+                entryNodeId: tpl.entryNodeId || tpl.nodes?.[0]?.id || 'node_start',
+                createdAt: now,
+                updatedAt: now,
+                nodes: Array.isArray(tpl.nodes) ? tpl.nodes : []
+            };
+            await Data.saveScenario(scenario);
+        }
+
+        return await Data.getScenarios(botId ? { botId } : undefined);
+    };
+
     const applyTemplate = async () => {
-        const tpl = menuTemplates.find(t => t.id === templateId);
+        const updatedScenarios = await ensureRequiredScenarios();
+        const refreshedIds = getScenarioIds(updatedScenarios);
+        const tpl = buildMenuTemplates(refreshedIds).find(t => t.id === templateId);
         if (!tpl) return;
         if (!confirm(`Apply "${tpl.name}" template? This will replace current menu buttons.`)) return;
         await saveConfig(tpl.buttons as BotMenuButtonConfig[], tpl.welcomeMessage);

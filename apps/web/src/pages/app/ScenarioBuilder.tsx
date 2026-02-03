@@ -50,7 +50,7 @@ export const ScenarioBuilder = ({ studioMode = false, botId }: ScenarioBuilderPr
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const loadScenarios = async () => {
-        const list = await Data.getScenarios();
+        const list = await Data.getScenarios(studioMode && botId ? { botId } : undefined);
         setScenarios(list.map(normalizeScenario));
     };
 
@@ -58,7 +58,7 @@ export const ScenarioBuilder = ({ studioMode = false, botId }: ScenarioBuilderPr
         loadScenarios();
         const unsub = Data.subscribe('UPDATE_SCENARIOS', loadScenarios);
         return unsub;
-    }, []);
+    }, [studioMode, botId]);
 
     const createScenario = async () => {
         const newScen: Scenario = {
@@ -67,6 +67,7 @@ export const ScenarioBuilder = ({ studioMode = false, botId }: ScenarioBuilderPr
             triggerCommand: `flow_${Math.floor(Math.random() * 1000)}`,
             keywords: [],
             isActive: false,
+            botId: studioMode && botId ? botId : undefined,
             entryNodeId: 'node_start',
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
@@ -82,7 +83,8 @@ export const ScenarioBuilder = ({ studioMode = false, botId }: ScenarioBuilderPr
     const handleImportClick = () => fileInputRef.current?.click();
     const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => { /* ... */ };
     const handleSave = async (scn: Scenario) => {
-        await Data.saveScenario(scn); showToast("Flow Saved");
+        const payload = studioMode && botId && scn.botId === undefined ? { ...scn, botId } : scn;
+        await Data.saveScenario(payload); showToast("Flow Saved");
     };
     const handleDeleteScenario = async (id: string) => {
         if(confirm("Delete?")) { await Data.deleteScenario(id); if(selectedId === id) setSelectedId(null); }
@@ -118,6 +120,7 @@ export const ScenarioBuilder = ({ studioMode = false, botId }: ScenarioBuilderPr
             triggerCommand: tpl.triggerCommand || `flow_${Math.floor(Math.random() * 1000)}`,
             keywords: Array.isArray(tpl.keywords) ? tpl.keywords : [],
             isActive: true,
+            botId: studioMode && botId ? botId : undefined,
             entryNodeId: tpl.entryNodeId || tpl.nodes?.[0]?.id || 'node_start',
             createdAt: existing?.createdAt || now,
             updatedAt: now,

@@ -939,9 +939,13 @@ router.get('/scenarios', requireRole(['OWNER', 'ADMIN', 'MANAGER']), async (req,
         const userCompanyId = user.companyId || user.workspaceId;
         const requestedCompanyId = typeof req.query.companyId === 'string' ? req.query.companyId : undefined;
         const companyId = isSuperadmin ? requestedCompanyId : userCompanyId;
+        const botId = typeof req.query.botId === 'string' ? req.query.botId : undefined;
 
         const where: any = {};
         if (companyId) where.companyId = companyId;
+        if (botId) {
+            where.OR = [{ botId }, { botId: null }];
+        }
 
         const scenarios = await prisma.scenario.findMany({
             where,
@@ -966,6 +970,19 @@ router.post('/scenarios', requireRole(['OWNER', 'ADMIN', 'MANAGER']), async (req
         }
         if (!data.entryNodeId) {
             return errorResponse(res, 400, 'Entry node is required');
+        }
+        let resolvedBotId: string | null | undefined = undefined;
+        if ('botId' in data) {
+            const requestedBotId = data.botId ? String(data.botId) : null;
+            if (requestedBotId) {
+                const bot = await prisma.botConfig.findUnique({ where: { id: requestedBotId } });
+                if (!bot || bot.companyId !== companyId) {
+                    return errorResponse(res, 400, 'Invalid botId');
+                }
+                resolvedBotId = bot.id;
+            } else {
+                resolvedBotId = null;
+            }
         }
 
         // Basic graph validation
@@ -1004,7 +1021,8 @@ router.post('/scenarios', requireRole(['OWNER', 'ADMIN', 'MANAGER']), async (req
                     companyId,
                     status: 'PUBLISHED',
                     triggerCommand: { equals: trigger, mode: 'insensitive' },
-                    ...(existing ? { id: { not: existing.id } } : {})
+                    ...(existing ? { id: { not: existing.id } } : {}),
+                    ...(resolvedBotId !== undefined ? { botId: resolvedBotId } : {})
                 }
             });
             if (conflict) {
@@ -1026,7 +1044,8 @@ router.post('/scenarios', requireRole(['OWNER', 'ADMIN', 'MANAGER']), async (req
                     status: status as any,
                     entryNodeId: data.entryNodeId,
                     nodes: data.nodes || [],
-                    companyId // Ensure ownership
+                    companyId, // Ensure ownership
+                    ...(resolvedBotId !== undefined ? { botId: resolvedBotId } : {})
                 }
             });
             res.json(updated);
@@ -1041,7 +1060,8 @@ router.post('/scenarios', requireRole(['OWNER', 'ADMIN', 'MANAGER']), async (req
                     status: status as any,
                     entryNodeId: data.entryNodeId,
                     nodes: data.nodes || [],
-                    companyId
+                    companyId,
+                    botId: resolvedBotId ?? null
                 }
             });
             res.json(created);

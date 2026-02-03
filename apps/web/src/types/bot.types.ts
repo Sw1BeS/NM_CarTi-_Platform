@@ -136,6 +136,7 @@ export interface Scenario {
     triggerCommand: string;
     keywords?: string[];
     isActive: boolean;
+    botId?: string | null;
     entryNodeId: string;
     createdAt: string;
     updatedAt: string;

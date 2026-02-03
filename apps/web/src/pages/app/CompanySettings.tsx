@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useCompany } from '../../contexts/CompanyContext';
 import { useToast } from '../../contexts/ToastContext';
 import { apiFetch } from '../../services/apiClient';
+import { useTheme } from '../../providers/ThemeProvider';
 import {
     Building2, Palette, Globe, Users, Crown, Upload, X,
     Mail, Shield, Trash2, UserPlus
@@ -19,6 +20,7 @@ interface User {
 export const CompanySettingsPage = () => {
     const { company, refreshCompany } = useCompany();
     const { showToast } = useToast();
+    const { refreshTheme } = useTheme();
 
     const [branding, setBranding] = useState({
         name: '',
@@ -67,6 +69,7 @@ export const CompanySettingsPage = () => {
             });
             showToast('Branding updated!', 'success');
             refreshCompany();
+            refreshTheme();
         } catch (e: any) {
             showToast(e.message, 'error');
         }

@@ -221,6 +221,7 @@ model BotConfig {
   telegramUpdates TelegramUpdate[]
   messages        BotMessage[]
   showcases       Showcase[]       @relation("BotShowcases")
+  scenarios       Scenario[]
 
   @@index([companyId])
 }
@@ -831,11 +832,14 @@ model Scenario {
 
   companyId String
   workspace Workspace @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  botId     String?
+  bot       BotConfig? @relation(fields: [botId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([companyId])
+  @@index([botId])
 }
 
 model Campaign {

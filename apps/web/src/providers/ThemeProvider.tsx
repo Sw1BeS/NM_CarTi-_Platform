@@ -1,6 +1,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { SystemApi } from '../services/systemApi';
+import { ApiClient } from '../services/apiClient';
 import { SystemBranding } from '../types/system.types';
 
 interface ThemeContextType {
@@ -21,10 +22,23 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const refreshTheme = async () => {
         try {
             const settings = await SystemApi.getPublicSettings();
-            if (settings?.branding) {
-                setBranding(settings.branding);
-                applyTheme(settings.branding);
+            let nextBranding: SystemBranding = settings?.branding || {};
+
+            const token = typeof window !== 'undefined' ? localStorage.getItem('cartie_token') : null;
+            if (token) {
+                const res = await ApiClient.get<any>('companies/current');
+                if (res.ok && res.data) {
+                    nextBranding = {
+                        ...nextBranding,
+                        primaryColor: res.data.primaryColor || nextBranding.primaryColor,
+                        logoUrl: res.data.logo || nextBranding.logoUrl,
+                        faviconUrl: res.data.logo || nextBranding.faviconUrl
+                    };
+                }
             }
+
+            setBranding(nextBranding);
+            applyTheme(nextBranding);
         } catch (error) {
             console.error('Failed to load theme:', error);
         }

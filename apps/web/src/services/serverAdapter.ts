@@ -196,8 +196,11 @@ export class ServerAdapter implements DataAdapter {
         return this.deleteEntity(SLUGS.SESSION, `sess_${chatId}`);
     }
 
-    async getScenarios() {
-        const res = await ApiClient.get<Scenario[]>('scenarios');
+    async getScenarios(filter?: { botId?: string }) {
+        const params = new URLSearchParams();
+        if (filter?.botId) params.append('botId', filter.botId);
+        const query = params.toString();
+        const res = await ApiClient.get<Scenario[]>(`scenarios${query ? `?${query}` : ''}`);
         return res.ok ? res.data : [];
     }
     async saveScenario(s: Scenario) {

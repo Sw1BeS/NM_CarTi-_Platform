@@ -59,6 +59,43 @@ export const SearchPage = () => {
         }
     }, [searchParams]);
 
+    const parseSearchQuery = (raw: string) => {
+        const tokens = raw.split(/\s+/).filter(Boolean);
+        let year: number | undefined;
+        let priceMax: number | undefined;
+        const remaining: string[] = [];
+
+        const parsePrice = (token: string) => {
+            const normalized = token.toLowerCase().replace(/,/g, '');
+            const hasCurrency = /\$|usd|eur|uah|€|₴/.test(normalized);
+            const match = normalized.match(/(\d+(?:\.\d+)?)(k)?/);
+            if (!match) return undefined;
+            let value = Number(match[1]);
+            if (Number.isNaN(value)) return undefined;
+            if (match[2]) value = value * 1000;
+            if (!hasCurrency && value < 5000) return undefined;
+            return Math.round(value);
+        };
+
+        for (const token of tokens) {
+            const clean = token.replace(/[^\d]/g, '');
+            if (!year && /\b(19|20)\d{2}\b/.test(clean)) {
+                year = Number(clean);
+                continue;
+            }
+            const price = parsePrice(token);
+            if (!priceMax && price) {
+                priceMax = price;
+                continue;
+            }
+            remaining.push(token);
+        }
+
+        const brand = remaining[0] || '';
+        const model = remaining.slice(1).join(' ');
+        return { brand, model, year, priceMax };
+    };
+
     const handleSearch = async (e: React.FormEvent | null, overrideQuery?: string) => {
         if (e) e.preventDefault();
         const q = overrideQuery || query;
@@ -69,17 +106,13 @@ export const SearchPage = () => {
         setResults([]);
 
         try {
-            // Simplified parsing of query string for demo purposes
-            // In a real app, you might parse "BMW X5 2020" into brand/model/year
-            const parts = q.split(' ');
-            const brand = parts[0];
-            const model = parts.slice(1).join(' ');
-
-            // Use Real CarSearchEngine
+            const parsed = parseSearchQuery(q);
             const data = await CarSearchEngine.searchAll({
-                brand: brand || '',
-                model: model || '',
-                priceMax: 0
+                brand: parsed.brand || '',
+                model: parsed.model || '',
+                yearMin: parsed.year,
+                yearMax: parsed.year,
+                priceMax: parsed.priceMax || 0
             });
             setResults(data);
         } catch (e: any) {

@@ -12,6 +12,7 @@ import { useLang } from '../../contexts/LanguageContext';
 import { CarPicker } from '../../components/CarPicker';
 import Picker from '@emoji-mart/react';
 import data from '@emoji-mart/data';
+import { ApiClient } from '../../services/apiClient';
 
 interface ChatInfo {
     chatId: string;
@@ -240,28 +241,24 @@ export const InboxPage = () => {
         reader.onload = async () => {
             const content = reader.result as string;
             try {
-                // Use new Base64 upload endpoint
-                const res = await fetch('/api/storage/upload', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${localStorage.getItem('cartie_token')}`
-                    },
-                    body: JSON.stringify({ name: file.name, content, type: file.type })
-                }).then(r => r.json());
+                const res = await ApiClient.post<{ ok: boolean; url?: string }>('storage/upload', {
+                    name: file.name,
+                    content,
+                    type: file.type
+                });
 
-                if (res.ok && res.url) {
+                if (res.ok && res.data?.url) {
                     let type: 'photo' | 'document' | 'video' | 'audio' | 'voice' | 'animation' | 'sticker' = 'document';
                     if (file.type.startsWith('image/')) type = 'photo';
                     else if (file.type.startsWith('video/')) type = 'video';
                     else if (file.type.startsWith('audio/')) type = 'audio';
 
-                    setAttachmentUrl(res.url);
+                    setAttachmentUrl(res.data.url);
                     setAttachmentType(type);
                     setShowAttachment(true);
                     showToast('File attached', 'success');
                 } else {
-                    showToast('Upload failed', 'error');
+                    showToast(res.message || 'Upload failed', 'error');
                 }
             } catch (err) {
                 console.error(err);

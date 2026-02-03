@@ -92,8 +92,8 @@ class DataService {
     async saveSession(s: any) { return this.adapter.saveSession(s); }
     async clearSession(chatId: string) { await this.adapter.clearSession(chatId); }
 
-    async getScenarios() {
-        const scenarios = await this.adapter.getScenarios();
+    async getScenarios(filter?: { botId?: string }) {
+        const scenarios = await this.adapter.getScenarios(filter);
         return Array.isArray(scenarios) ? scenarios.map(normalizeScenario) : [];
     }
     async saveScenario(s: any) {
