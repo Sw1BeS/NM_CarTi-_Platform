@@ -401,6 +401,7 @@ export class ScenarioEngine {
       : [];
     const menuConfig = getMenuConfig(bot);
     const hasMenuButtons = Array.isArray(menuConfig.buttons) && menuConfig.buttons.length > 0;
+    const allowKeywordTriggers = bot?.config?.allowKeywordTriggers === true;
     const actionKeyboard = (variantId: string) => managerActionsKeyboard(variantId);
     const emitScenarioEvent = async (eventType: string, payload: Record<string, any>) => {
       await emitPlatformEvent({
@@ -452,7 +453,20 @@ export class ScenarioEngine {
       await saveSession();
     };
 
+    const startScenarioByCommand = async (rawCommand: string) => {
+      const normalized = normalizeTextCommand(rawCommand);
+      const command = normalized.startsWith('/') ? normalized.slice(1) : normalized;
+      if (!command) return false;
+      const triggered = scenarios.find(s => s.triggerCommand === command);
+      if (triggered) {
+        await startScenario(triggered.id);
+        return true;
+      }
+      return false;
+    };
+
     const checkKeywords = async () => {
+      if (!allowKeywordTriggers) return false;
       const triggered = scenarios.find(s =>
         s.isActive && Array.isArray(s.keywords) && s.keywords.some((k: any) => input.includes(String(k).toLowerCase()))
       );
@@ -922,29 +936,26 @@ export class ScenarioEngine {
 
       await saveSession();
 
-      const hasLang = !!vars.language || !!vars.lang;
-      const langScenario = scenarios.find(s => s.triggerCommand === 'lang');
-      if (hasLang) {
-        await sendMainMenu(deepLinkMsg || undefined);
-      } else if (langScenario) {
-        await startScenario(langScenario.id);
-      } else {
-        await sendMainMenu(deepLinkMsg || '👋 Welcome!');
-      }
+      await sendMainMenu(deepLinkMsg || '👋 Welcome!');
       return true;
     }
 
-    if (['/menu', 'menu', '🏠 menu', 'cmd:menu', 'main menu'].includes(input)) {
+    if (['/menu', 'menu', 'меню', 'в меню', '🏠 menu', 'cmd:menu', 'main menu'].includes(input)) {
       resetFlow();
       await saveSession();
       await sendMainMenu();
       return true;
     }
 
-    if (['/back', 'back', '⬅️ back', 'cmd:back'].includes(input)) {
+    if (['/back', 'back', 'назад', '⬅️ back', 'cmd:back'].includes(input)) {
       await this.goBack(bot, session, vars, history);
       await saveSession();
       return true;
+    }
+
+    if (input.startsWith('/') && input !== '/start') {
+      const handledCommand = await startScenarioByCommand(input);
+      if (handledCommand) return true;
     }
 
     // Menu button match
@@ -961,6 +972,11 @@ export class ScenarioEngine {
       await saveSession();
       if (menuBtn.type === 'SCENARIO') {
         await startScenario(menuBtn.value);
+      } else if (menuBtn.type === 'COMMAND') {
+        const handled = await startScenarioByCommand(menuBtn.value || '');
+        if (!handled && menuBtn.value) {
+          await sendMessage(bot, chatId, menuBtn.value);
+        }
       } else if (menuBtn.type === 'TEXT') {
         await sendMessage(bot, chatId, menuBtn.value || 'Info');
       } else if (menuBtn.type === 'LINK') {

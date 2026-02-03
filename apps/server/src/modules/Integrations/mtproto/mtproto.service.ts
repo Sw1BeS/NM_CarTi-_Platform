@@ -259,7 +259,22 @@ export class MTProtoService {
 
         try {
             let entity: any | null = null;
-            const username = options?.username?.trim();
+            const sanitizeUsername = (value?: string | null) => {
+                if (!value) return undefined;
+                let cleaned = String(value).trim();
+                cleaned = cleaned.replace(/^@/, '');
+                cleaned = cleaned.replace(/^https?:\/\/t\.me\//, '');
+                cleaned = cleaned.replace(/\/+$/, '');
+                return cleaned.trim() || undefined;
+            };
+            let username = sanitizeUsername(options?.username);
+            if (!username && options?.sourceId) {
+                const source = await prisma.channelSource.findUnique({
+                    where: { id: options.sourceId },
+                    select: { username: true }
+                });
+                username = sanitizeUsername(source?.username);
+            }
 
             if (username) {
                 entity = await client.getEntity(username);

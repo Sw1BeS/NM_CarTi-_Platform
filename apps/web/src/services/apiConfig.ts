@@ -14,7 +14,17 @@ function isPublicRoute(): boolean {
     return path.startsWith('/p/') || path.startsWith('/public');
 }
 
+function isTelegramWebApp(): boolean {
+    if (typeof window === 'undefined') return false;
+    return !!(window as any).Telegram?.WebApp;
+}
+
 export function getApiBase(): string {
+    // 0. Inside Telegram WebApp, always use same-origin API to avoid stale localStorage overrides.
+    if (isTelegramWebApp()) {
+        return `${window.location.origin.replace(/\/$/, '')}/api`;
+    }
+
     // 0. For public routes (Mini App / public pages), always use same-origin API
     // to avoid broken localStorage overrides inside Telegram WebView.
     if (isPublicRoute()) {

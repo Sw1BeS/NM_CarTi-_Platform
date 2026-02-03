@@ -78,6 +78,17 @@ export const MiniApp = () => {
     const [trackingMeta, setTrackingMeta] = useState<MiniAppTrackingMeta>({});
     const [reqComment, setReqComment] = useState('');
 
+    const normalizeSlug = (value?: string | null) => {
+        if (!value) return '';
+        let s = String(value).trim();
+        s = s.replace(/^@/, '');
+        s = s.replace(/^https?:\/\/t\.me\//, '');
+        s = s.replace(/\/app\/?$/, '');
+        s = s.replace(/\/+$/, '');
+        s = s.replace(/[.,;:]+$/, '');
+        return s.trim();
+    };
+
     const getCarImages = (car: CarListing) => {
         const itemUrls = (car.mediaItems || [])
             .map(item => item.url || item.previewUrl)
@@ -151,16 +162,12 @@ export const MiniApp = () => {
         accentColor: '#111',
         actions: [
             { id: 'a_inv', label: 'Inventory', actionType: 'VIEW', value: 'INVENTORY', icon: 'LayoutGrid' },
-            { id: 'a_fav', label: 'Favorites', actionType: 'VIEW', value: 'FAVORITES', icon: 'Heart' },
-            { id: 'a_req', label: 'Request', actionType: 'VIEW', value: 'REQUEST', icon: 'MessageSquare' },
-            { id: 'a_status', label: 'Status', actionType: 'VIEW', value: 'STATUS', icon: 'ClipboardList' }
+            { id: 'a_fav', label: 'Favorites', actionType: 'VIEW', value: 'FAVORITES', icon: 'Heart' }
         ],
         navItems: [
             { id: 'nav_home', label: 'Home', icon: 'Home', actionType: 'VIEW', value: 'HOME' },
             { id: 'nav_stock', label: 'Stock', icon: 'LayoutGrid', actionType: 'VIEW', value: 'INVENTORY' },
-            { id: 'nav_saved', label: 'Saved', icon: 'Heart', actionType: 'VIEW', value: 'FAVORITES' },
-            { id: 'nav_request', label: 'Request', icon: 'Search', actionType: 'VIEW', value: 'REQUEST' },
-            { id: 'nav_status', label: 'Status', icon: 'ClipboardList', actionType: 'VIEW', value: 'STATUS' }
+            { id: 'nav_saved', label: 'Saved', icon: 'Heart', actionType: 'VIEW', value: 'FAVORITES' }
         ],
         homeBlocks: [],
         showcaseSlug: target
@@ -215,12 +222,8 @@ export const MiniApp = () => {
             });
 
             // 2. Determine Target Slug (priority: URL slug > start_param > system)
-            const resolvedSlug = slug || startParam || 'system';
-            setTargetSlug(resolvedSlug);
-            await loadFavorites(resolvedSlug, {
-                tgUserId: resolvedUser?.id ? String(resolvedUser.id) : undefined,
-                visitorId
-            });
+            const rawSlug = slug || startParam || 'system';
+            const resolvedSlug = normalizeSlug(rawSlug) || 'system';
 
             // 3. Load Bot Configuration matched by showcase slug
             let bots: Bot[] = [];
@@ -235,27 +238,40 @@ export const MiniApp = () => {
                 setCars([]);
                 return;
             }
-            const matchedBot = bots.find(b => (b.defaultShowcaseSlug || '').toLowerCase() === resolvedSlug.toLowerCase());
+            const matchedBot = bots.find(b => {
+                const byShowcase = (b.defaultShowcaseSlug || '').toLowerCase();
+                const byUsername = (b.username || '').toLowerCase().replace(/^@/, '');
+                const target = resolvedSlug.toLowerCase();
+                return byShowcase === target || byUsername === target;
+            });
             const fallbackBot = bots.find(b => b.active) || bots[0];
             const bot = matchedBot || fallbackBot || null;
+            const effectiveSlug = (resolvedSlug === 'system' || !resolvedSlug)
+                ? (bot?.defaultShowcaseSlug || 'catalog')
+                : resolvedSlug;
+            setTargetSlug(effectiveSlug);
+            await loadFavorites(effectiveSlug, {
+                tgUserId: resolvedUser?.id ? String(resolvedUser.id) : undefined,
+                visitorId
+            });
             if (bot) {
                 setActiveBot(bot);
-                setConfig(bot.miniAppConfig || buildFallbackConfig(resolvedSlug));
+                setConfig(bot.miniAppConfig || buildFallbackConfig(effectiveSlug));
             } else {
                 // No bot configured; still render with fallback to avoid blank screen
-                setConfig(buildFallbackConfig(resolvedSlug));
+                setConfig(buildFallbackConfig(effectiveSlug));
             }
 
             // 4. Load Data
             try {
                 // Try Showcase API first
                 try {
-                    const res = await getShowcaseInventory(resolvedSlug);
+                    const res = await getShowcaseInventory(effectiveSlug);
                     setCars(res.items);
                 } catch (e) {
                     // Fallback to legacy public inventory if showcase not found
-                    console.warn(`Showcase '${resolvedSlug}' not found, falling back to legacy`, e);
-                    const res = await import('../../services/publicApi').then(m => m.getPublicInventory(resolvedSlug));
+                    console.warn(`Showcase '${effectiveSlug}' not found, falling back to legacy`, e);
+                    const res = await import('../../services/publicApi').then(m => m.getPublicInventory(effectiveSlug));
                     setCars(res.items);
                 }
             } catch (e) {
@@ -291,9 +307,7 @@ export const MiniApp = () => {
         : [
             { id: 'nav_home', label: 'Home', icon: 'Home', actionType: 'VIEW', value: 'HOME' },
             { id: 'nav_stock', label: 'Stock', icon: 'LayoutGrid', actionType: 'VIEW', value: 'INVENTORY' },
-            { id: 'nav_saved', label: 'Saved', icon: 'Heart', actionType: 'VIEW', value: 'FAVORITES' },
-            { id: 'nav_request', label: 'Request', icon: 'Search', actionType: 'VIEW', value: 'REQUEST' },
-            { id: 'nav_status', label: 'Status', icon: 'ClipboardList', actionType: 'VIEW', value: 'STATUS' }
+            { id: 'nav_saved', label: 'Saved', icon: 'Heart', actionType: 'VIEW', value: 'FAVORITES' }
         ];
 
     const handleAction = (act: MiniAppConfig['actions'][number]) => {

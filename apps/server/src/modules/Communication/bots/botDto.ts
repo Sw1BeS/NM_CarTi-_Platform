@@ -21,12 +21,10 @@ const ensureMiniAppUrl = (config: any) => {
   const mini = config?.miniAppConfig;
   if (!mini || typeof mini !== 'object') return;
   if (mini.url) return;
-  const baseUrl = String(config.publicBaseUrl || '').trim();
+  const baseUrl = String(config.publicBaseUrl || mini.baseUrl || '').trim();
   const slug = String(config.defaultShowcaseSlug || mini.showcaseSlug || config.username || '').trim();
   if (baseUrl && slug) {
     mini.url = `${baseUrl.replace(/\/$/, '')}/p/app/${slug}`;
-  } else if (slug) {
-    mini.url = `https://t.me/${slug}/app`;
   }
   config.miniAppConfig = mini;
 };

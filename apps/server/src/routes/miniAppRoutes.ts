@@ -2,12 +2,10 @@ import { Router } from 'express';
 import { miniAppService } from '../services/miniapp.service.js';
 import { errorResponse } from '../utils/errorResponse.js';
 import { verifyTelegramInitData } from '../modules/Communication/telegram/core/telegramAuth.js';
-import { ShowcaseService } from '../modules/Marketing/showcase/showcase.service.js';
-import { getWorkspaceBySlug } from '../services/v41/readService.js';
+import { resolvePublicSlug } from '../services/publicSlug.service.js';
 import { prisma } from '../services/prisma.js';
 
 const router = Router();
-const showcaseService = new ShowcaseService();
 
 const readString = (value: unknown): string | undefined => {
   if (typeof value === 'string') {
@@ -28,14 +26,8 @@ const readNumber = (value: unknown): number | undefined => {
 const resolveCompanyIdBySlug = async (slug?: string | null) => {
   const trimmed = String(slug || '').trim();
   if (!trimmed) return null;
-  try {
-    const showcase = await showcaseService.getShowcaseBySlug(trimmed);
-    if (showcase?.workspaceId) return showcase.workspaceId;
-  } catch {
-    // ignore
-  }
-  const workspace = await getWorkspaceBySlug(trimmed);
-  return workspace?.id || null;
+  const resolved = await resolvePublicSlug(trimmed);
+  return resolved.companyId || null;
 };
 
 const requireInitData = async (initData: string | undefined, companyId?: string | null) => {

@@ -67,10 +67,15 @@ const normalizeNumberString = (raw: string) => {
 };
 
 const detectCurrency = (text: string) => {
-    const upper = text.toUpperCase();
-    if (upper.includes('UAH') || text.includes('₴')) return 'UAH';
-    if (upper.includes('EUR') || text.includes('€')) return 'EUR';
-    if (upper.includes('USD') || text.includes('$')) return 'USD';
+    if (!text) return undefined;
+    const lower = text.toLowerCase();
+    const hits = new Set<string>();
+
+    if (/(uah|грн|₴)/i.test(lower)) hits.add('UAH');
+    if (/(eur|€)/i.test(lower)) hits.add('EUR');
+    if (/(usd|\\$|дол|бакс)/i.test(lower)) hits.add('USD');
+
+    if (hits.size === 1) return Array.from(hits)[0];
     return undefined;
 };
 
