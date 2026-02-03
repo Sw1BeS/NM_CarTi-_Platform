@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client';
-import { SCENARIO_TEMPLATE_PACK } from './seeds/scenarioPack.js';
+import { SCENARIO_TEMPLATE_PACK } from '../src/seeds/scenarioPack.js';
 import { writeService } from '../src/services/v41/writeService.js';
 import { FEATURE_FLAGS } from '../src/utils/constants.js';
 

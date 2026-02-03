@@ -1,5 +1,5 @@
 import { prisma } from '../services/prisma.js';
-import { SCENARIO_TEMPLATE_PACK } from '../../prisma/seeds/scenarioPack.js';
+import { SCENARIO_TEMPLATE_PACK } from '../seeds/scenarioPack.js';
 
 const args = process.argv.slice(2);
 const companyArg = args.find(a => a.startsWith('--companyId='));

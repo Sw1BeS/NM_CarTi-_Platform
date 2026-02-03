@@ -3,7 +3,7 @@
  */
 
 import { PrismaClient } from '@prisma/client';
-import { SCENARIO_TEMPLATE_PACK } from './scenarioPack.js';
+import { SCENARIO_TEMPLATE_PACK } from '../../src/seeds/scenarioPack.js';
 
 const prisma = new PrismaClient();
 
