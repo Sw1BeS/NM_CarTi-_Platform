@@ -2,6 +2,7 @@ import { Router } from 'express';
 import axios from 'axios';
 import { load } from 'cheerio';
 import { prisma } from '../../services/prisma.js';
+import { parseListingFromUrl } from '../../services/parser.js';
 import { authenticateToken, requireRole } from '../../middleware/auth.js';
 import { logger } from '../../utils/logger.js';
 import { errorResponse } from '../../utils/errorResponse.js';
@@ -218,6 +219,30 @@ const applyMapping = (html: string, mapping: Record<string, any> | null, base: R
     return applySelectorMap(html, mapping, base);
 };
 
+const buildBaseFromParsed = (parsed: any, url: string) => {
+    const meta = parsed?.raw?.meta || {};
+    const images = Array.from(new Set([...(parsed?.raw?.images || []), parsed?.thumbnail].filter(Boolean)));
+    return {
+        meta: {
+            title: meta.title || parsed?.title || '',
+            description: meta.description || ''
+        },
+        images,
+        variables: {
+            title: parsed?.title,
+            description: meta.description || undefined,
+            price: parsed?.price,
+            currency: parsed?.currency,
+            mileage: parsed?.mileage,
+            year: parsed?.year,
+            vin: parsed?.raw?.jsonLd?.vehicleIdentificationNumber || parsed?.raw?.jsonLd?.vin || undefined,
+            location: parsed?.location,
+            url,
+            ogImage: meta.image || parsed?.thumbnail || undefined
+        }
+    };
+};
+
 const getSettingsModules = async () => {
     const settings = await prisma.systemSettings.findFirst();
     const modules = (settings?.modules as any) || {};
@@ -248,7 +273,8 @@ router.post('/preview', requireRole(['ADMIN', 'MANAGER', 'SUPER_ADMIN']), async 
             }
         });
         const html = response.data || '';
-        const parsed = extractVariables(html, url);
+        const parsedListing = await parseListingFromUrl(url, html);
+        const parsed = buildBaseFromParsed(parsedListing, url);
         const { modules } = await getSettingsModules();
         const cached = modules?.parserMappings?.[domain] || null;
         const mapped = applyMapping(html, cached, parsed);
@@ -261,7 +287,9 @@ router.post('/preview', requireRole(['ADMIN', 'MANAGER', 'SUPER_ADMIN']), async 
                 variables: mapped.variables,
                 meta: mapped.meta,
                 images: mapped.images,
-                cachedMapping: cached || undefined
+                cachedMapping: cached || undefined,
+                confidence: parsedListing?.confidence,
+                raw: parsedListing?.raw || undefined
             }
         });
     } catch (e: any) {

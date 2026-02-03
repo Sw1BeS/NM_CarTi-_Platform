@@ -32,7 +32,12 @@ export const MenuDesigner = ({ bot }: MenuDesignerProps) => {
     const handleSync = async () => {
         setIsSyncing(true);
         try {
-            await TelegramAPI.setChatMenuButton(bot.token, "Open App", undefined); // Reset
+            const base = (bot.publicBaseUrl || window.location.origin).replace(/\/$/, '');
+            const slug = (bot.defaultShowcaseSlug || bot.username || 'system').trim();
+            const appUrl = base && slug ? `${base}/p/app/${slug}` : undefined;
+            if (appUrl) {
+                await TelegramAPI.setChatMenuButton(bot.token, "Open App", appUrl);
+            }
 
             const commands = scenarios
                 .filter(s => s.isActive && s.triggerCommand)
@@ -140,6 +145,7 @@ export const MenuDesigner = ({ bot }: MenuDesignerProps) => {
                                                 <option value="SCENARIO">Run Scenario</option>
                                                 <option value="LINK">Open Link</option>
                                                 <option value="TEXT">Send Text</option>
+                                                <option value="WEB_APP">Open Mini App</option>
                                             </select>
                                         </div>
                                         <div>
@@ -150,7 +156,12 @@ export const MenuDesigner = ({ bot }: MenuDesignerProps) => {
                                                     {scenarios.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                                                 </select>
                                             ) : (
-                                                <input className="input text-xs py-1.5" value={btn.value} onChange={e => updateButton(btn.id, { value: e.target.value })} placeholder={btn.type === 'LINK' ? 'https://' : 'Message'} />
+                                                <input
+                                                    className="input text-xs py-1.5"
+                                                    value={btn.value}
+                                                    onChange={e => updateButton(btn.id, { value: e.target.value })}
+                                                    placeholder={btn.type === 'LINK' ? 'https://' : btn.type === 'WEB_APP' ? 'Mini App URL' : 'Message'}
+                                                />
                                             )}
                                         </div>
                                     </div>

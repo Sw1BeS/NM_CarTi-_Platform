@@ -562,7 +562,7 @@ export class BotEngine {
                     await this.startScenario(bot, session, menuBtn.value, adapter);
                 } else if (menuBtn.type === 'TEXT') {
                     await adapter.sendMessage(chatId, menuBtn.value || 'Info');
-                } else if (menuBtn.type === 'LINK') {
+                } else if (menuBtn.type === 'LINK' || menuBtn.type === 'WEB_APP') {
                     await adapter.sendMessage(chatId, `🔗 ${menuBtn.value}`);
                 }
                 return;

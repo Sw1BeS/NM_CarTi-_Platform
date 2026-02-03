@@ -17,6 +17,20 @@ const setConfigValue = (config: any, key: string, value: any) => {
   config[key] = value === '' ? null : value;
 };
 
+const ensureMiniAppUrl = (config: any) => {
+  const mini = config?.miniAppConfig;
+  if (!mini || typeof mini !== 'object') return;
+  if (mini.url) return;
+  const baseUrl = String(config.publicBaseUrl || '').trim();
+  const slug = String(config.defaultShowcaseSlug || mini.showcaseSlug || config.username || '').trim();
+  if (baseUrl && slug) {
+    mini.url = `${baseUrl.replace(/\/$/, '')}/p/app/${slug}`;
+  } else if (slug) {
+    mini.url = `https://t.me/${slug}/app`;
+  }
+  config.miniAppConfig = mini;
+};
+
 export const mapBotInput = (input: any, existingConfig: any = {}) => {
   const config = { ...(existingConfig || {}) };
 
@@ -31,6 +45,8 @@ export const mapBotInput = (input: any, existingConfig: any = {}) => {
   if ('lastUpdateId' in input) setConfigValue(config, 'lastUpdateId', input.lastUpdateId);
   if ('deliveryMode' in input) setConfigValue(config, 'deliveryMode', input.deliveryMode);
   if ('webhookSecret' in input) setConfigValue(config, 'webhookSecret', input.webhookSecret);
+
+  ensureMiniAppUrl(config);
 
   const role = input.role || config.role || 'CLIENT';
   const template = normalizeTemplate(input.template || TEMPLATE_BY_ROLE[role] || config.template);

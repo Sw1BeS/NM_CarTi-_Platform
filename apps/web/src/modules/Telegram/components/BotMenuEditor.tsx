@@ -75,7 +75,14 @@ export const BotMenuEditor = ({ scenarios, botId, standalone = false }: { scenar
 
     const scenarioIds = getScenarioIds(scenarios);
 
-    const miniAppUrl = bot.miniAppConfig?.url || '{{MINI_APP_URL}}';
+    const resolveMiniAppUrl = () => {
+        if (bot.miniAppConfig?.url) return bot.miniAppConfig.url;
+        const base = (bot.publicBaseUrl || window.location.origin).replace(/\/$/, '');
+        const slug = (bot.defaultShowcaseSlug || bot.username || 'system').trim();
+        if (!base || !slug) return '{{MINI_APP_URL}}';
+        return `${base}/p/app/${slug}`;
+    };
+    const miniAppUrl = resolveMiniAppUrl();
 
     const buildMenuTemplates = (ids: ReturnType<typeof getScenarioIds>) => ([
         {
@@ -86,7 +93,7 @@ export const BotMenuEditor = ({ scenarios, botId, standalone = false }: { scenar
             buttons: [
                 { id: 'btn_buy', label: '🚗 Buy a Car', label_uk: '🚗 Купити авто', label_ru: '🚗 Купить авто', type: 'SCENARIO', value: ids.buy, row: 0, col: 0 },
                 { id: 'btn_sell', label: '💰 Sell My Car', label_uk: '💰 Продати авто', label_ru: '💰 Продать авто', type: 'SCENARIO', value: ids.sell, row: 0, col: 1 },
-                { id: 'btn_app', label: '📱 Open App', label_uk: '📱 Додаток', label_ru: '📱 Приложение', type: 'LINK', value: miniAppUrl, row: 1, col: 0 },
+                { id: 'btn_app', label: '📱 Open App', label_uk: '📱 Додаток', label_ru: '📱 Приложение', type: 'WEB_APP', value: miniAppUrl, row: 1, col: 0 },
                 { id: 'btn_support', label: '📞 Status / Support', label_uk: '📞 Статус / Підтримка', label_ru: '📞 Статус / Поддержка', type: 'SCENARIO', value: ids.support, row: 1, col: 1 },
                 { id: 'btn_lang', label: '🌐 Language', label_uk: '🌐 Мова', label_ru: '🌐 Язык', type: 'SCENARIO', value: ids.lang, row: 2, col: 0 }
             ]
@@ -99,7 +106,7 @@ export const BotMenuEditor = ({ scenarios, botId, standalone = false }: { scenar
             buttons: [
                 { id: 'btn_buy', label: '🚗 Buy', label_uk: '🚗 Купити', label_ru: '🚗 Купить', type: 'SCENARIO', value: ids.buy, row: 0, col: 0 },
                 { id: 'btn_sell', label: '💰 Sell', label_uk: '💰 Продати', label_ru: '💰 Продать', type: 'SCENARIO', value: ids.sell, row: 0, col: 1 },
-                { id: 'btn_app', label: '📱 Mini App', label_uk: '📱 Додаток', label_ru: '📱 Приложение', type: 'LINK', value: miniAppUrl, row: 1, col: 0 },
+                { id: 'btn_app', label: '📱 Mini App', label_uk: '📱 Додаток', label_ru: '📱 Приложение', type: 'WEB_APP', value: miniAppUrl, row: 1, col: 0 },
                 { id: 'btn_support', label: '☎️ Status / Support', label_uk: '☎️ Статус / Підтримка', label_ru: '☎️ Статус / Поддержка', type: 'SCENARIO', value: ids.support, row: 1, col: 1 }
             ]
         },
@@ -109,7 +116,7 @@ export const BotMenuEditor = ({ scenarios, botId, standalone = false }: { scenar
             description: 'App + Support only',
             welcomeMessage: 'Welcome! Use the menu below:',
             buttons: [
-                { id: 'btn_app', label: '📱 Open App', label_uk: '📱 Додаток', label_ru: '📱 Приложение', type: 'LINK', value: miniAppUrl, row: 0, col: 0 },
+                { id: 'btn_app', label: '📱 Open App', label_uk: '📱 Додаток', label_ru: '📱 Приложение', type: 'WEB_APP', value: miniAppUrl, row: 0, col: 0 },
                 { id: 'btn_support', label: '📞 Status / Support', label_uk: '📞 Статус / Підтримка', label_ru: '📞 Статус / Поддержка', type: 'SCENARIO', value: ids.support, row: 0, col: 1 }
             ]
         }
@@ -173,7 +180,11 @@ export const BotMenuEditor = ({ scenarios, botId, standalone = false }: { scenar
         try {
             const commands = scenarios.filter(s => s.isActive).map(s => ({ command: s.triggerCommand, description: s.name }));
             if (commands.length) await TelegramAPI.setMyCommands(bot.token, commands);
-            showToast("Commands Published! Go to Telegram Hub to sync Menu URL.");
+            const appUrl = resolveMiniAppUrl();
+            if (appUrl && appUrl !== '{{MINI_APP_URL}}') {
+                await TelegramAPI.setChatMenuButton(bot.token, "Open App", appUrl);
+            }
+            showToast("Commands & Menu Published");
         } catch (e: any) { showToast(e.message, 'error'); }
     };
 
@@ -226,7 +237,14 @@ export const BotMenuEditor = ({ scenarios, botId, standalone = false }: { scenar
     };
 
     const updateButton = (id: string, updates: Partial<BotMenuButtonConfig>) => {
-        const updatedButtons = menuConfig.buttons.map(b => b.id === id ? { ...b, ...updates } : b);
+        const updatedButtons = menuConfig.buttons.map(b => {
+            if (b.id !== id) return b;
+            const next = { ...b, ...updates };
+            if (updates.type === 'WEB_APP' && (!next.value || next.value === '{{MINI_APP_URL}}')) {
+                next.value = resolveMiniAppUrl();
+            }
+            return next;
+        });
         saveConfig(updatedButtons);
     };
 
@@ -361,6 +379,7 @@ export const BotMenuEditor = ({ scenarios, botId, standalone = false }: { scenar
                                         <option value="SCENARIO">Start Scenario</option>
                                         <option value="TEXT">Send Text Reply</option>
                                         <option value="LINK">Open URL</option>
+                                        <option value="WEB_APP">Open Mini App</option>
                                     </select>
                                 </div>
                                 <div>
@@ -371,7 +390,12 @@ export const BotMenuEditor = ({ scenarios, botId, standalone = false }: { scenar
                                             {scenarios.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                                         </select>
                                     ) : (
-                                        <input className="input text-sm" placeholder={btn.type === 'LINK' ? 'https://...' : 'Reply text'} value={btn.value} onChange={e => updateButton(btn.id, { value: e.target.value })} />
+                                        <input
+                                            className="input text-sm"
+                                            placeholder={btn.type === 'LINK' ? 'https://...' : btn.type === 'WEB_APP' ? 'Mini App URL' : 'Reply text'}
+                                            value={btn.value}
+                                            onChange={e => updateButton(btn.id, { value: e.target.value })}
+                                        />
                                     )}
                                 </div>
                             </div>

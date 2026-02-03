@@ -368,10 +368,18 @@ export class ServerAdapter implements DataAdapter {
             // Merge in any missing required nav items to avoid hiding key modules
             const mergedNav = [...navigationArray];
             defaultNavigation.forEach(item => {
-                if (!mergedNav.find((n: any) => n.id === item.id)) {
+                if (!mergedNav.find((n: any) => n.id === item.id || n.path === item.path)) {
                     mergedNav.push(item);
                 }
             });
+            // Ensure Leads is always visible
+            const leadsItem = mergedNav.find((n: any) => n.id === 'nav_leads' || n.path === '/leads');
+            if (leadsItem) {
+                leadsItem.visible = true;
+            } else {
+                const fallback = defaultNavigation.find(n => n.id === 'nav_leads' || n.path === '/leads');
+                if (fallback) mergedNav.push({ ...fallback, visible: true });
+            }
             settings.navigation = { primary: mergedNav.sort((a: any, b: any) => (a.order ?? 999) - (b.order ?? 999)) };
         }
 

@@ -64,7 +64,7 @@ export const AddBotModal = ({ onClose }: { onClose: () => void }) => {
             const menuConfig = {
                 ...DEFAULT_MENU_CONFIG,
                 buttons: DEFAULT_MENU_CONFIG.buttons.map(btn =>
-                    btn.type === 'LINK' && btn.value === '{{MINI_APP_URL}}'
+                    (btn.type === 'LINK' || btn.type === 'WEB_APP') && btn.value === '{{MINI_APP_URL}}'
                         ? { ...btn, value: miniAppUrl }
                         : btn
                 )
@@ -177,7 +177,7 @@ export const BotSettings = ({ bot }: { bot: Bot }) => {
         const menuConfig = {
             ...(draft.menuConfig || DEFAULT_MENU_CONFIG),
             buttons: (draft.menuConfig?.buttons || DEFAULT_MENU_CONFIG.buttons).map(btn =>
-                btn.type === 'LINK' && btn.value === '{{MINI_APP_URL}}'
+                (btn.type === 'LINK' || btn.type === 'WEB_APP') && btn.value === '{{MINI_APP_URL}}'
                     ? { ...btn, value: miniAppUrl }
                     : btn
             )

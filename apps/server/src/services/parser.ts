@@ -16,21 +16,24 @@ type ParsedListing = {
   mileage?: number;
   location?: string;
   thumbnail?: string;
+  domain?: string;
   url: string;
   raw?: Record<string, any>;
   confidence: Confidence;
   reason?: string;
 };
 
-export const parseListingFromUrl = async (url: string): Promise<ParsedListing> => {
+export const parseListingFromUrl = async (url: string, htmlOverride?: string): Promise<ParsedListing> => {
   try {
-    const userAgent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
-    const resp = await axios.get<string>(url, {
-      timeout: 15000,
-      headers: { 'User-Agent': userAgent }
-    });
-
-    const html = resp.data || '';
+    let html = htmlOverride || '';
+    if (!html) {
+      const userAgent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+      const resp = await axios.get<string>(url, {
+        timeout: 15000,
+        headers: { 'User-Agent': userAgent }
+      });
+      html = resp.data || '';
+    }
     const $ = cheerio.load(html);
     const domain = new URL(url).hostname.replace(/^www\./, '');
 
@@ -160,6 +163,7 @@ export const parseListingFromUrl = async (url: string): Promise<ParsedListing> =
       mileage: baseVariables.mileage,
       location: baseVariables.location,
       thumbnail: baseVariables.thumbnail || ldImage || image,
+      domain,
       url,
       raw: {
         jsonLd: vehicleLd || null,

@@ -53,6 +53,8 @@ export interface ScenarioNode {
   next?: string | Record<string, string>;
 }
 
+type ReplyKeyboardButton = string | { text: string; web_app?: { url: string } };
+
 // Helpers
 const normalizeTextCommand = (cmd: string) => cmd?.trim().toLowerCase() || '';
 const generatePublicId = () => ulid();
@@ -66,6 +68,13 @@ const resolveMenuLink = (bot: BotRuntime, rawValue?: string) => {
     return url || raw;
   }
   return raw;
+};
+
+const isMiniAppLink = (rawValue?: string) => {
+  const raw = String(rawValue || '').trim();
+  if (!raw) return false;
+  if (raw === '{{MINI_APP_URL}}' || raw === '{MINI_APP_URL}') return true;
+  return /\/p\/app\/|startapp=|\/app(\?|$)/i.test(raw);
 };
 
 const extractNumber = (value: any) => {
@@ -161,16 +170,25 @@ const getMenuConfig = (bot: BotRuntime) => normalizeMenuConfig(bot.config?.menuC
 
 const buildMainMenuButtons = (bot: BotRuntime, lang: string) => {
   const config = getMenuConfig(bot);
-  const buttons: string[][] = [];
+  const buttons: ReplyKeyboardButton[][] = [];
   const sorted = [...config.buttons].sort((a, b) => (a.row - b.row) || (a.col - b.col));
-  const rows: Record<number, string[]> = {};
+  const rows: Record<number, ReplyKeyboardButton[]> = {};
 
   sorted.forEach((btn: any) => {
     if (!rows[btn.row]) rows[btn.row] = [];
     const fallbackLabel = btn.label || btn.label_uk || btn.label_ru || '';
     const label = (lang === 'UK' && btn.label_uk) ? btn.label_uk :
       (lang === 'RU' && btn.label_ru) ? btn.label_ru : fallbackLabel;
-    if (label) rows[btn.row].push(label);
+    if (!label) return;
+    const shouldWebApp = btn.type === 'WEB_APP' || (btn.type === 'LINK' && isMiniAppLink(btn.value));
+    if (shouldWebApp) {
+      const url = resolveMenuLink(bot, btn.value);
+      if (url) {
+        rows[btn.row].push({ text: label, web_app: { url } });
+        return;
+      }
+    }
+    rows[btn.row].push(label);
   });
 
   Object.keys(rows)
@@ -228,7 +246,7 @@ const sendChatAction = async (bot: BotRuntime, chatId: string, action = 'typing'
   });
 };
 
-const sendReplyKeyboard = async (bot: BotRuntime, chatId: string, text: string, keyboard: string[][]) => {
+const sendReplyKeyboard = async (bot: BotRuntime, chatId: string, text: string, keyboard: ReplyKeyboardButton[][]) => {
   if (!keyboard.length) {
     return sendMessage(bot, chatId, text);
   }
@@ -330,6 +348,18 @@ const mapRequestForMessage = (req: any) => {
 };
 
 export class ScenarioEngine {
+  static async persistSession(session: any, vars: Record<string, any>, history: string[]) {
+    if (!session?.id) return;
+    await prisma.botSession.update({
+      where: { id: session.id },
+      data: {
+        variables: vars,
+        history,
+        lastActive: new Date()
+      }
+    });
+  }
+
   static async handleUpdate(bot: BotRuntime, session: any, update: any): Promise<boolean> {
     const vars: Record<string, any> = (session.variables && typeof session.variables === 'object' && !Array.isArray(session.variables))
       ? { ...session.variables }
@@ -379,16 +409,7 @@ export class ScenarioEngine {
       });
     };
 
-    const saveSession = async () => {
-      await prisma.botSession.update({
-        where: { id: session.id },
-        data: {
-          variables: vars,
-          history,
-          lastActive: new Date()
-        }
-      });
-    };
+    const saveSession = async () => ScenarioEngine.persistSession(session, vars, history);
 
     const sendMainMenu = async (textOverride?: string) => {
       const buttons = buildMainMenuButtons(bot, lang);
@@ -419,12 +440,12 @@ export class ScenarioEngine {
       vars.__currentNodeId = null;
       vars.__tempResults = [];
       history.length = 0;
-      await saveSession();
       await emitScenarioEvent('scenario.started', { scenarioId: scenario.id });
       const entryId = scenario.entryNodeId || (Array.isArray(scenario.nodes) ? (scenario.nodes.find((n: any) => n.type === 'START')?.id || scenario.nodes[0]?.id) : undefined);
       if (entryId) {
         await this.executeNode(bot, session, vars, history, scenario, entryId);
       }
+      await saveSession();
     };
 
     const checkKeywords = async () => {
@@ -941,6 +962,9 @@ export class ScenarioEngine {
       } else if (menuBtn.type === 'LINK') {
         const linkValue = resolveMenuLink(bot, menuBtn.value);
         await sendMessage(bot, chatId, `🔗 ${linkValue || menuBtn.value}`);
+      } else if (menuBtn.type === 'WEB_APP') {
+        const linkValue = resolveMenuLink(bot, menuBtn.value);
+        await sendMessage(bot, chatId, `🔗 ${linkValue || menuBtn.value}`);
       }
       return true;
     }
@@ -1017,7 +1041,12 @@ export class ScenarioEngine {
   }
 
   static async handleInput(bot: BotRuntime, session: any, vars: Record<string, any>, history: string[], input: string, isCallback: boolean): Promise<boolean> {
-    if (!vars.__activeScenarioId || !vars.__currentNodeId) return false;
+    if (!vars.__activeScenarioId || !vars.__currentNodeId) {
+      if (vars.__activeScenarioId && !vars.__currentNodeId) {
+        logger.warn(`[ScenarioEngine] Missing current node for scenario ${vars.__activeScenarioId} (session ${session?.id || 'unknown'})`);
+      }
+      return false;
+    }
     const scenario = await prisma.scenario.findUnique({ where: { id: vars.__activeScenarioId } });
     if (!scenario) return false;
     const nodes = Array.isArray((scenario as any).nodes) ? ((scenario as any).nodes as ScenarioNode[]) : [];
@@ -1069,6 +1098,7 @@ export class ScenarioEngine {
     delete vars.__currentNodeId;
     history.length = 0;
     await sendReplyKeyboard(bot, session.chatId, buildWelcomeMessage(bot, getLanguage(vars)), buildMainMenuButtons(bot, getLanguage(vars)));
+    await ScenarioEngine.persistSession(session, vars, history);
     return true;
   }
 
@@ -1087,6 +1117,7 @@ export class ScenarioEngine {
       delete vars.__currentNodeId;
       history.length = 0;
       await sendReplyKeyboard(bot, session.chatId, buildWelcomeMessage(bot, lang), buildMainMenuButtons(bot, lang));
+      await ScenarioEngine.persistSession(session, vars, history);
       return;
     }
 
@@ -1137,15 +1168,18 @@ export class ScenarioEngine {
           delete vars.__currentNodeId;
           history.length = 0;
           await sendReplyKeyboard(bot, session.chatId, buildWelcomeMessage(bot, lang), buildMainMenuButtons(bot, lang));
+          await ScenarioEngine.persistSession(session, vars, history);
         }
         break;
 
       case 'QUESTION_TEXT':
         await sendMessage(bot, session.chatId, text);
+        await ScenarioEngine.persistSession(session, vars, history);
         break;
 
       case 'QUESTION_CHOICE':
         await sendChoices(bot, session.chatId, text, node.content?.choices || [], lang);
+        await ScenarioEngine.persistSession(session, vars, history);
         break;
 
       case 'MENU_REPLY': {
@@ -1166,11 +1200,13 @@ export class ScenarioEngine {
         const menuTxt = lang === 'UK' ? '🏠 Меню' : lang === 'RU' ? '🏠 Меню' : '🏠 Menu';
         buttons.push([backTxt, menuTxt]);
         await sendReplyKeyboard(bot, session.chatId, text, buttons);
+        await ScenarioEngine.persistSession(session, vars, history);
         break;
       }
 
       case 'REQUEST_CONTACT':
         await sendContactRequest(bot, session.chatId, text);
+        await ScenarioEngine.persistSession(session, vars, history);
         break;
 
       case 'CONDITION': {
@@ -1191,6 +1227,7 @@ export class ScenarioEngine {
           delete vars.__currentNodeId;
           history.length = 0;
           await sendReplyKeyboard(bot, session.chatId, buildWelcomeMessage(bot, lang), buildMainMenuButtons(bot, lang));
+          await ScenarioEngine.persistSession(session, vars, history);
         }
         break;
       }
@@ -1223,6 +1260,7 @@ export class ScenarioEngine {
           delete vars.__currentNodeId;
           history.length = 0;
           await sendReplyKeyboard(bot, session.chatId, buildWelcomeMessage(bot, lang), buildMainMenuButtons(bot, lang));
+          await ScenarioEngine.persistSession(session, vars, history);
         }
         break;
       }
@@ -1339,6 +1377,7 @@ export class ScenarioEngine {
           delete vars.__currentNodeId;
           history.length = 0;
           await sendReplyKeyboard(bot, session.chatId, buildWelcomeMessage(bot, lang), buildMainMenuButtons(bot, lang));
+          await ScenarioEngine.persistSession(session, vars, history);
         }
         break;
       }
@@ -1387,6 +1426,7 @@ export class ScenarioEngine {
           delete vars.__currentNodeId;
           history.length = 0;
           await sendReplyKeyboard(bot, session.chatId, buildWelcomeMessage(bot, lang), buildMainMenuButtons(bot, lang));
+          await ScenarioEngine.persistSession(session, vars, history);
         }
         break;
       }
@@ -1409,6 +1449,7 @@ export class ScenarioEngine {
           delete vars.__currentNodeId;
           history.length = 0;
           await sendReplyKeyboard(bot, session.chatId, buildWelcomeMessage(bot, lang), buildMainMenuButtons(bot, lang));
+          await ScenarioEngine.persistSession(session, vars, history);
         }
         break;
       }
@@ -1471,6 +1512,7 @@ export class ScenarioEngine {
           delete vars.__currentNodeId;
           history.length = 0;
           await sendReplyKeyboard(bot, session.chatId, buildWelcomeMessage(bot, lang), buildMainMenuButtons(bot, lang));
+          await ScenarioEngine.persistSession(session, vars, history);
         }
         break;
       }
@@ -1509,6 +1551,7 @@ export class ScenarioEngine {
           delete vars.__currentNodeId;
           history.length = 0;
           await sendReplyKeyboard(bot, session.chatId, buildWelcomeMessage(bot, lang), buildMainMenuButtons(bot, lang));
+          await ScenarioEngine.persistSession(session, vars, history);
         }
         break;
       }
@@ -1547,6 +1590,7 @@ export class ScenarioEngine {
           delete vars.__currentNodeId;
           history.length = 0;
           await sendReplyKeyboard(bot, session.chatId, buildWelcomeMessage(bot, lang), buildMainMenuButtons(bot, lang));
+          await ScenarioEngine.persistSession(session, vars, history);
         }
         break;
       }

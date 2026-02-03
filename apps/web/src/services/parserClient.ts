@@ -16,6 +16,8 @@ export const parseListingFromUrl = async (url: string) => {
   const payload = res.data || {};
   const variables = payload.variables || {};
   const images = Array.isArray(payload.images) ? payload.images : [];
+  const confidence = payload.confidence || computeConfidence(variables);
+  const rawImages = Array.isArray(payload.raw?.images) ? payload.raw.images : images;
 
   return {
     url: payload.url || url,
@@ -27,12 +29,13 @@ export const parseListingFromUrl = async (url: string) => {
     mileage: variables.mileage,
     location: variables.location,
     variables,
-    confidence: computeConfidence(variables),
+    confidence,
     raw: {
       meta: payload.meta,
-      images,
+      images: rawImages,
       mapping: payload.cachedMapping,
-      variables
+      variables,
+      profile: payload.raw?.profile
     }
   };
 };

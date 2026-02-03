@@ -19,6 +19,38 @@ const DEFAULT_PUBLIC_SETTINGS = {
     features: DEFAULT_FEATURES
 };
 
+const normalizeNavigation = (nav: any) => {
+    const primary = Array.isArray(nav?.primary)
+        ? nav.primary
+        : Array.isArray(nav?.items)
+            ? nav.items
+            : Array.isArray(nav)
+                ? nav
+                : [];
+
+    const keyOf = (item: any) => item?.id || item?.path || item?.label || '';
+    const map = new Map<string, any>();
+
+    (primary || []).forEach((item: any, idx: number) => {
+        const key = keyOf(item) || `custom_${idx}`;
+        map.set(key, item);
+    });
+
+    (DEFAULT_NAVIGATION.primary || []).forEach((item: any, idx: number) => {
+        const key = keyOf(item) || `default_${idx}`;
+        const existing = map.get(key);
+        map.set(key, { ...item, ...(existing || {}) });
+    });
+
+    const merged = Array.from(map.values()).map((item: any) => {
+        const isLeads = item?.id === 'nav_leads' || item?.path === '/leads' || item?.label === 'Leads';
+        if (isLeads) return { ...item, visible: true };
+        return item;
+    });
+
+    return { primary: merged };
+};
+
 export class SettingsService {
     static async getSettings(isPublic = true) {
         const settings = await prisma.systemSettings.findFirst({
@@ -29,19 +61,13 @@ export class SettingsService {
 
         if (isPublic) {
             const nav = settings.navigation as any;
-            const primary = Array.isArray(nav?.primary)
-                ? nav.primary
-                : Array.isArray(nav?.items)
-                    ? nav.items
-                    : Array.isArray(nav)
-                        ? nav
-                        : null;
-            const hasNav = Array.isArray(primary) && primary.length > 0;
+            const normalized = normalizeNavigation(nav);
+            const hasNav = Array.isArray(normalized.primary) && normalized.primary.length > 0;
 
             return {
                 branding: settings.branding || {},
                 modules: settings.modules || {},
-                navigation: hasNav ? { primary } : DEFAULT_NAVIGATION,
+                navigation: hasNav ? normalized : DEFAULT_NAVIGATION,
                 features: settings.features || DEFAULT_FEATURES
             };
         }

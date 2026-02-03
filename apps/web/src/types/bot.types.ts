@@ -36,7 +36,7 @@ export interface BotMenuButtonConfig {
     label: string;
     label_uk?: string;
     label_ru?: string;
-    type: 'SCENARIO' | 'LINK' | 'TEXT';
+    type: 'SCENARIO' | 'LINK' | 'TEXT' | 'WEB_APP';
     value: string;
     row: number;
     col: number;
