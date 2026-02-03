@@ -14,7 +14,7 @@ CREATE TABLE "ChatMacro" (
 CREATE UNIQUE INDEX "ChatMacro_companyId_shortcut_key" ON "ChatMacro"("companyId", "shortcut");
 CREATE INDEX "ChatMacro_companyId_idx" ON "ChatMacro"("companyId");
 
-ALTER TABLE "ChatMacro" ADD CONSTRAINT "ChatMacro_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Workspace"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "ChatMacro" ADD CONSTRAINT "ChatMacro_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "workspaces"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 CREATE TABLE "ChatNote" (
     "id" TEXT NOT NULL,
@@ -29,4 +29,4 @@ CREATE TABLE "ChatNote" (
 CREATE UNIQUE INDEX "ChatNote_companyId_chatId_key" ON "ChatNote"("companyId", "chatId");
 CREATE INDEX "ChatNote_companyId_chatId_idx" ON "ChatNote"("companyId", "chatId");
 
-ALTER TABLE "ChatNote" ADD CONSTRAINT "ChatNote_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Workspace"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "ChatNote" ADD CONSTRAINT "ChatNote_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "workspaces"("id") ON DELETE CASCADE ON UPDATE CASCADE;
