@@ -198,6 +198,26 @@ export class TelegramRegistryService {
         }
     }
 
+    async remove(companyId: string, id: string) {
+        const existing = await prisma.telegramDestination.findUnique({ where: { id } });
+        if (!existing) {
+            throw new Error('Registry item not found');
+        }
+        if (existing.companyId !== companyId) {
+            throw new Error('Forbidden');
+        }
+
+        if (existing.channelSourceId) {
+            try {
+                await channelSourceRepo.delete(existing.channelSourceId);
+            } catch (e) {
+                // If channel source already removed, continue
+            }
+        }
+
+        await telegramDestinationRepo.delete(existing.id);
+    }
+
     async list(companyId: string) {
         await this.syncFromMtproto(companyId);
         await this.syncFromBots(companyId);

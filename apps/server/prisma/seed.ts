@@ -1,5 +1,4 @@
-import { PrismaClient, Prisma } from '@prisma/client';
-import bcrypt from 'bcryptjs';
+import { PrismaClient } from '@prisma/client';
 import { writeService } from '../src/services/v41/writeService.js';
 import { FEATURE_FLAGS } from '../src/utils/constants.js';
 
@@ -67,37 +66,6 @@ async function ensureCartieCompany() {
   return await (prisma as any).workspace.findUnique({ where: { id: result.id } })!;
 }
 
-async function ensureDemoCompany() {
-  const existing = await (prisma as any).workspace.findUnique({ where: { slug: 'demo' } });
-  if (existing) {
-    console.log('ℹ️ Demo company already exists');
-    return existing;
-  }
-
-  const result = await writeService.createCompanyDual({
-    name: 'Demo Motors',
-    slug: 'demo',
-    plan: 'PRO'
-  });
-
-  await (prisma as any).workspace.update({
-    where: { id: result.id },
-    data: {
-      settings: {
-        primaryColor: '#0F62FE',
-        domain: 'demo.cartie.local'
-      }
-    }
-  });
-
-  console.log(FEATURE_FLAGS.USE_V4_DUAL_WRITE
-    ? `✅ Demo company + workspace created (Company: ${result.id})`
-    : `✅ Demo company created (Company: ${result.id})`
-  );
-
-  // Return the legacy company for backward compatibility
-  return await (prisma as any).workspace.findUnique({ where: { id: result.id } })!;
-}
 
 async function createUserIfMissing(
   email: string,
@@ -155,13 +123,11 @@ async function main() {
 
   const systemCompany = await ensureSystemCompany();
   const cartieCompany = await ensureCartieCompany();
-  const demoCompany = await ensureDemoCompany();
 
   // Get v4.1 workspace and account IDs if dual-write enabled
   let systemWorkspace: any = null;
   let systemAccount: any = null;
-  let demoWorkspace: any = null;
-  let demoAccount: any = null;
+  // demo workspace removed
 
   if (FEATURE_FLAGS.USE_V4_DUAL_WRITE) {
     // Find workspaces by slug (matches company slug)
@@ -169,17 +135,9 @@ async function main() {
       where: { slug: 'system' },
       include: { accounts: { where: { deleted_at: null }, take: 1 } }
     });
-    demoWorkspace = await (prisma as any).workspace.findUnique({
-      where: { slug: 'demo' },
-      include: { accounts: { where: { deleted_at: null }, take: 1 } }
-    });
-
     systemAccount = systemWorkspace?.accounts[0];
-    demoAccount = demoWorkspace?.accounts[0];
-
     console.log('ℹ️ v4.1 workspaces found:', {
-      system: systemWorkspace?.id,
-      demo: demoWorkspace?.id
+      system: systemWorkspace?.id
     });
   }
 
@@ -321,18 +279,13 @@ async function main() {
     console.log('✅ System Settings updated with ALL features enabled');
   }
 
-  // 3. Demo company users
-  if (process.env.SEED_DEMO === 'true') {
-    console.log('🚧 Seeding Demo Company Users...');
-    await createUserIfMissing('max@demo.com', 'OWNER', demoCompany.id, process.env.DEMO_USER_PASSWORD || 'demo123', 'Demo Owner');
-    await createUserIfMissing('admin@demo.com', 'ADMIN', demoCompany.id, process.env.DEMO_USER_PASSWORD || 'demo123', 'Demo Admin');
-    await createUserIfMissing('manager@demo.com', 'MANAGER', demoCompany.id, process.env.DEMO_USER_PASSWORD || 'demo123', 'Demo Manager');
-    await createUserIfMissing('dealer@demo.com', 'DEALER', demoCompany.id, process.env.DEMO_USER_PASSWORD || 'demo123', 'Demo Dealer');
-  }
+  // 3. Demo company users removed (no demo data in any environment)
 
   // 3. Init Generic Entities (Stage D/E) - Structural
   await seedEntities();
+  await seedDictionaries();
   await seedTemplates(cartieCompany.id);
+  await seedBotScenarios(cartieCompany.id);
   await seedNormalization(cartieCompany.id);
 
   // 3.1 Seed Showcase (Release Block A)
@@ -354,50 +307,9 @@ async function main() {
     console.log('⚠️ Production normalization seed skipped:', e.message);
   }
 
-  // 4. Demo Data (Optional)
-  if (process.env.SEED_DEMO === 'true') {
-    console.log('🚧 Seeding Demo Content...');
-    await seedBots(cartieCompany.id); // Contains demo bot tokens
-    await seedInventory(cartieCompany.id);
-    await seedRequestsAndLeads(cartieCompany.id);
-    await seedIntegrationsAndDrafts(cartieCompany.id);
-    await seedMTProto(cartieCompany.id);
-  } else {
-    console.log('ℹ️ Skipping Demo Content (SEED_DEMO != true)');
-  }
+  // 4. Demo Content removed (no demo data in any environment)
 
   console.log('🏁 Seed finished.');
-}
-
-async function seedMTProto(companyId: string) {
-  console.log('📱 Seeding MTProto...');
-
-  const connector = await prisma.mTProtoConnector.create({
-    data: {
-      companyId,
-      name: 'Demo Personal Account',
-      status: 'CONNECTED',
-      phone: '+380991234567',
-      sessionString: 'fake_session_string_for_demo',
-      connectedAt: new Date(),
-    }
-  });
-
-  await prisma.channelSource.create({
-    data: {
-      connectorId: connector.id,
-      channelId: '-1001234567890',
-      title: 'Competitors Auto Sales',
-      username: 'competitors_auto',
-      status: 'ACTIVE',
-      importRules: {
-        autoPublish: false,
-        keywords: ['bmw', 'audi'],
-        minYear: 2015
-      }
-    }
-  });
-  console.log('✅ MTProto seeded');
 }
 
 async function seedEntities() {
@@ -481,6 +393,47 @@ async function seedEntities() {
         { key: 'comment', label: 'Comment', type: 'text' },
         { key: 'validUntil', label: 'Valid Until', type: 'datetime' }
       ]
+    },
+    {
+      slug: 'partner_company',
+      name: 'Partner Company',
+      fields: [
+        { key: 'name', label: 'Company Name', type: 'text', required: true },
+        { key: 'status', label: 'Status', type: 'text' },
+        { key: 'tags', label: 'Tags', type: 'multiselect' },
+        { key: 'city', label: 'City', type: 'text' },
+        { key: 'email', label: 'Email', type: 'text' },
+        { key: 'phone', label: 'Phone', type: 'text' },
+        { key: 'website', label: 'Website', type: 'text' },
+        { key: 'terms', label: 'Terms', type: 'text' },
+        { key: 'notes', label: 'Notes', type: 'text' }
+      ]
+    },
+    {
+      slug: 'partner_contact',
+      name: 'Partner Contact',
+      fields: [
+        { key: 'companyId', label: 'Company ID', type: 'text', required: true },
+        { key: 'name', label: 'Name', type: 'text', required: true },
+        { key: 'role', label: 'Role', type: 'text' },
+        { key: 'phone', label: 'Phone', type: 'text' },
+        { key: 'email', label: 'Email', type: 'text' },
+        { key: 'telegram', label: 'Telegram', type: 'text' },
+        { key: 'notes', label: 'Notes', type: 'text' }
+      ]
+    },
+    {
+      slug: 'partner_deal',
+      name: 'Partner Deal',
+      fields: [
+        { key: 'companyId', label: 'Company ID', type: 'text', required: true },
+        { key: 'requestId', label: 'Request ID', type: 'text' },
+        { key: 'status', label: 'Status', type: 'text' },
+        { key: 'value', label: 'Value', type: 'number' },
+        { key: 'currency', label: 'Currency', type: 'text' },
+        { key: 'notes', label: 'Notes', type: 'text' },
+        { key: 'closedAt', label: 'Closed At', type: 'datetime' }
+      ]
     }
   ];
 
@@ -510,53 +463,128 @@ async function seedEntities() {
   }
 }
 
-async function seedTemplates(companyId: string) {
-  console.log('🎭 Seeding templates...');
-  const templates = [
-    {
-      id: 'template_lead_capture',
-      name: 'Lead Capture Bot',
-      category: 'LEAD_GEN',
-      description: 'Collects contact info and request details',
-      isPremium: false,
-      structure: {
-        nodes: [
-          { id: 'greet', type: 'MESSAGE', text: 'Hi! I will collect your request.', nextNode: 'ask_name' },
-          { id: 'ask_name', type: 'ASK_INPUT', text: 'Your name?', variable: 'name', nextNode: 'ask_phone' },
-          { id: 'ask_phone', type: 'ASK_INPUT', text: 'Phone?', variable: 'phone', nextNode: 'ask_need' },
-          { id: 'ask_need', type: 'ASK_INPUT', text: 'Describe what you need', variable: 'need', nextNode: 'confirm' },
-          { id: 'confirm', type: 'MESSAGE', text: 'Thanks, we will contact you soon.', actions: ['SAVE_LEAD'] }
-        ]
-      }
-    },
-    {
-      id: 'template_catalog',
-      name: 'Car Catalog',
-      category: 'E_COMMERCE',
-      description: 'Browse inventory and request contact',
-      isPremium: false,
-      structure: {
-        nodes: [
-          { id: 'menu', type: 'MENU', text: 'Choose action', buttons: [{ text: 'Browse', action: 'show_cars' }, { text: 'Search', action: 'search_cars' }] },
-          { id: 'search_cars', type: 'SEARCH_CARS', text: 'Enter brand or model', nextNode: 'show_results' },
-          { id: 'show_results', type: 'SHOW_CARS', text: 'Results', actions: ['SHOW_DETAILS', 'IM_INTERESTED'] }
-        ]
-      }
-    },
-    {
-      id: 'template_b2b',
-      name: 'B2B Request Handler',
-      category: 'B2B',
-      description: 'Collects dealer intent and saves request',
-      isPremium: true,
-      structure: {
-        nodes: [
-          { id: 'ask_need', type: 'ASK_INPUT', text: 'Send your request (budget, specs)', variable: 'raw', nextNode: 'confirm' },
-          { id: 'confirm', type: 'MESSAGE', text: 'We are processing your request', actions: ['SAVE_REQUEST'] }
-        ]
+async function seedDictionaries() {
+  console.log('📚 Seeding dictionaries...');
+  const def = await prisma.entityDefinition.findUnique({ where: { slug: 'sys_dictionary' } });
+  if (!def) return;
+  const existing = await prisma.entityRecord.findFirst({ where: { entityId: def.id } });
+  if (existing) return;
+
+  await prisma.entityRecord.create({
+    data: {
+      entityId: def.id,
+      data: {
+        id: 'main_dict',
+        brands: ['BMW', 'Mercedes-Benz', 'Audi', 'Toyota', 'Lexus', 'Volkswagen', 'Hyundai', 'Kia', 'Ford', 'Tesla'],
+        cities: ['Kyiv', 'Lviv', 'Odesa', 'Dnipro', 'Kharkiv', 'Warsaw', 'Berlin', 'New York', 'Los Angeles', 'Chicago']
       }
     }
-  ];
+  });
+  console.log('✅ Dictionaries seeded');
+}
+
+const SCENARIO_TEMPLATE_PACK = [
+  {
+    id: 'tpl_buy_request',
+    name: 'Buy Request (UA/RU/EN)',
+    category: 'B2B',
+    description: 'Collects buy request details and creates a B2B request.',
+    isPremium: false,
+    structure: {
+      triggerCommand: 'buy',
+      keywords: ['buy', 'купити', 'купить'],
+      entryNodeId: 'start',
+      nodes: [
+        { id: 'start', type: 'START', content: { text: '' }, nextNodeId: 'greet' },
+        { id: 'greet', type: 'MESSAGE', content: { text: '👋 Hi! Let’s find a car for you.', text_uk: '👋 Вітаємо! Допоможемо підібрати авто.', text_ru: '👋 Здравствуйте! Поможем подобрать авто.' }, nextNodeId: 'ask_brand' },
+        { id: 'ask_brand', type: 'QUESTION_TEXT', content: { text: 'Which brand?', text_uk: 'Яка марка вас цікавить?', text_ru: 'Какая марка интересует?', variableName: 'brand' }, nextNodeId: 'ask_model' },
+        { id: 'ask_model', type: 'QUESTION_TEXT', content: { text: 'Model?', text_uk: 'Яка модель?', text_ru: 'Какая модель?', variableName: 'model' }, nextNodeId: 'ask_budget' },
+        { id: 'ask_budget', type: 'QUESTION_TEXT', content: { text: 'Budget (USD)?', text_uk: 'Бюджет (USD)?', text_ru: 'Бюджет (USD)?', variableName: 'budget' }, nextNodeId: 'ask_year' },
+        { id: 'ask_year', type: 'QUESTION_TEXT', content: { text: 'Year (e.g., 2019+)?', text_uk: 'Рік (наприклад 2019+)?', text_ru: 'Год (например 2019+)?', variableName: 'year' }, nextNodeId: 'ask_city' },
+        { id: 'ask_city', type: 'QUESTION_TEXT', content: { text: 'City?', text_uk: 'Місто?', text_ru: 'Город?', variableName: 'city' }, nextNodeId: 'ask_contact' },
+        { id: 'ask_contact', type: 'REQUEST_CONTACT', content: { text: 'Please share your contact so we can reach you.', text_uk: 'Поділіться контактом для звʼязку.', text_ru: 'Поделитесь контактом для связи.' }, nextNodeId: 'create_lead' },
+        { id: 'create_lead', type: 'ACTION', content: { actionType: 'CREATE_LEAD', leadType: 'BUY' }, nextNodeId: 'create_request' },
+        { id: 'create_request', type: 'ACTION', content: { actionType: 'CREATE_REQUEST', requestType: 'BUY' }, nextNodeId: 'confirm' },
+        { id: 'confirm', type: 'MESSAGE', content: { text: '✅ Request created. We will contact you shortly.', text_uk: '✅ Запит створено. Звʼяжемося найближчим часом.', text_ru: '✅ Запрос создан. Свяжемся в ближайшее время.' } }
+      ]
+    }
+  },
+  {
+    id: 'tpl_sell_tradein',
+    name: 'Sell / Trade-in (UA/RU/EN)',
+    category: 'B2B',
+    description: 'Collects sell/trade-in details and creates a B2B request.',
+    isPremium: false,
+    structure: {
+      triggerCommand: 'sell',
+      keywords: ['sell', 'продати', 'продать', 'trade-in'],
+      entryNodeId: 'start',
+      nodes: [
+        { id: 'start', type: 'START', content: { text: '' }, nextNodeId: 'greet' },
+        { id: 'greet', type: 'MESSAGE', content: { text: '👋 Let’s evaluate your car.', text_uk: '👋 Оцінимо ваше авто.', text_ru: '👋 Оценим ваш автомобиль.' }, nextNodeId: 'ask_brand' },
+        { id: 'ask_brand', type: 'QUESTION_TEXT', content: { text: 'Brand?', text_uk: 'Марка?', text_ru: 'Марка?', variableName: 'brand' }, nextNodeId: 'ask_model' },
+        { id: 'ask_model', type: 'QUESTION_TEXT', content: { text: 'Model?', text_uk: 'Модель?', text_ru: 'Модель?', variableName: 'model' }, nextNodeId: 'ask_year' },
+        { id: 'ask_year', type: 'QUESTION_TEXT', content: { text: 'Year?', text_uk: 'Рік?', text_ru: 'Год?', variableName: 'year' }, nextNodeId: 'ask_mileage' },
+        { id: 'ask_mileage', type: 'QUESTION_TEXT', content: { text: 'Mileage (km)?', text_uk: 'Пробіг (км)?', text_ru: 'Пробег (км)?', variableName: 'mileage' }, nextNodeId: 'ask_vin' },
+        { id: 'ask_vin', type: 'QUESTION_TEXT', content: { text: 'VIN (optional)?', text_uk: 'VIN (необовʼязково)?', text_ru: 'VIN (необязательно)?', variableName: 'vin' }, nextNodeId: 'ask_price' },
+        { id: 'ask_price', type: 'QUESTION_TEXT', content: { text: 'Expected price (USD)?', text_uk: 'Очікувана ціна (USD)?', text_ru: 'Ожидаемая цена (USD)?', variableName: 'budget' }, nextNodeId: 'ask_city' },
+        { id: 'ask_city', type: 'QUESTION_TEXT', content: { text: 'City?', text_uk: 'Місто?', text_ru: 'Город?', variableName: 'city' }, nextNodeId: 'ask_contact' },
+        { id: 'ask_contact', type: 'REQUEST_CONTACT', content: { text: 'Please share your contact.', text_uk: 'Поділіться контактом.', text_ru: 'Поделитесь контактом.' }, nextNodeId: 'create_lead' },
+        { id: 'create_lead', type: 'ACTION', content: { actionType: 'CREATE_LEAD', leadType: 'SELL' }, nextNodeId: 'create_request' },
+        { id: 'create_request', type: 'ACTION', content: { actionType: 'CREATE_REQUEST', requestType: 'SELL' }, nextNodeId: 'confirm' },
+        { id: 'confirm', type: 'MESSAGE', content: { text: '✅ Thanks! We will contact you with an offer.', text_uk: '✅ Дякуємо! Звʼяжемося з пропозицією.', text_ru: '✅ Спасибо! Свяжемся с предложением.' } }
+      ]
+    }
+  },
+  {
+    id: 'tpl_status_support',
+    name: 'Support / Status (UA/RU/EN)',
+    category: 'SUPPORT',
+    description: 'Checks request status or creates a support lead.',
+    isPremium: false,
+    structure: {
+      triggerCommand: 'status',
+      keywords: ['status', 'support', 'статус', 'підтримка', 'поддержка'],
+      entryNodeId: 'start',
+      nodes: [
+        { id: 'start', type: 'START', content: { text: '' }, nextNodeId: 'ask_lookup' },
+        { id: 'ask_lookup', type: 'QUESTION_TEXT', content: { text: 'Enter request ID or phone number.', text_uk: 'Введіть ID заявки або телефон.', text_ru: 'Введите ID заявки или телефон.', variableName: 'lookup' }, nextNodeId: 'lookup_action' },
+        { id: 'lookup_action', type: 'ACTION', content: { actionType: 'LOOKUP_REQUEST', lookupVar: 'lookup' }, nextNodeId: 'check_found' },
+        { id: 'check_found', type: 'CONDITION', content: { conditionVariable: 'lookup_found', conditionOperator: 'HAS_VALUE', trueNodeId: 'show_status', falseNodeId: 'not_found' } },
+        { id: 'show_status', type: 'MESSAGE', content: { text: '✅ Status for #{requestPublicId}: {request_status}. Manager: {request_manager}', text_uk: '✅ Статус заявки #{requestPublicId}: {request_status}. Менеджер: {request_manager}', text_ru: '✅ Статус заявки #{requestPublicId}: {request_status}. Менеджер: {request_manager}' } },
+        { id: 'not_found', type: 'MESSAGE', content: { text: 'We could not find a request. Creating support request...', text_uk: 'Не знайшли заявку. Створюємо запит у підтримку...', text_ru: 'Не нашли заявку. Создаем запрос в поддержку...' }, nextNodeId: 'support_lead' },
+        { id: 'support_lead', type: 'ACTION', content: { actionType: 'CREATE_LEAD', leadType: 'SUPPORT' }, nextNodeId: 'notify_admin' },
+        { id: 'notify_admin', type: 'ACTION', content: { actionType: 'NOTIFY_ADMIN', text: '🔔 Support request from {lookup}' } }
+      ]
+    }
+  },
+  {
+    id: 'tpl_lang_select',
+    name: 'Language Selector',
+    category: 'SUPPORT',
+    description: 'Sets the preferred language for the session.',
+    isPremium: false,
+    structure: {
+      triggerCommand: 'lang',
+      keywords: ['lang', 'language', 'мова', 'язык'],
+      entryNodeId: 'start',
+      nodes: [
+        { id: 'start', type: 'START', content: { text: '' }, nextNodeId: 'choose_lang' },
+        { id: 'choose_lang', type: 'QUESTION_CHOICE', content: { text: 'Choose language', text_uk: 'Оберіть мову', text_ru: 'Выберите язык', variableName: 'language', choices: [
+          { label: 'English', label_uk: 'English', label_ru: 'English', value: 'EN', nextNodeId: 'set_lang' },
+          { label: 'Ukrainian', label_uk: 'Українська', label_ru: 'Украинский', value: 'UK', nextNodeId: 'set_lang' },
+          { label: 'Russian', label_uk: 'Російська', label_ru: 'Русский', value: 'RU', nextNodeId: 'set_lang' }
+        ] } },
+        { id: 'set_lang', type: 'ACTION', content: { actionType: 'SET_LANG' }, nextNodeId: 'confirm' },
+        { id: 'confirm', type: 'MESSAGE', content: { text: 'Language updated ✅', text_uk: 'Мову змінено ✅', text_ru: 'Язык обновлен ✅' } }
+      ]
+    }
+  }
+];
+
+async function seedTemplates(companyId: string) {
+  console.log('🎭 Seeding templates...');
+  const templates = SCENARIO_TEMPLATE_PACK;
 
   for (const tpl of templates) {
     await prisma.scenarioTemplate.upsert({
@@ -589,55 +617,48 @@ async function seedTemplates(companyId: string) {
   console.log('✅ Templates seeded');
 }
 
-async function seedBots(companyId: string) {
-  console.log('🤖 Seeding bots...');
-  const bots = [
-    {
-      id: 'bot_demo_polling',
-      name: 'Demo Polling Bot',
-      template: 'CLIENT_LEAD',
-      token: process.env.DEMO_BOT_TOKEN_1 || 'demo-bot-token-1',
-      deliveryMode: 'POLLING',
-      isEnabled: true,
-      config: {
-        username: 'demo_polling_bot',
-        role: 'CLIENT',
-        menuConfig: { enabled: true },
-        deliveryMode: 'polling'
-      }
-    },
-    {
-      id: 'bot_demo_webhook',
-      name: 'Demo Webhook Bot',
-      template: 'CATALOG',
-      token: process.env.DEMO_BOT_TOKEN_2 || 'demo-bot-token-2',
-      deliveryMode: 'WEBHOOK',
-      isEnabled: true,
-      config: {
-        username: 'demo_webhook_bot',
-        role: 'CHANNEL',
-        publicBaseUrl: process.env.DEMO_BOT_URL || 'https://demo.cartie.local/bot',
-        webhookSecret: process.env.DEMO_WEBHOOK_SECRET || 'demo-secret',
-        deliveryMode: 'webhook'
-      }
-    }
-  ];
+async function seedBotScenarios(companyId: string) {
+  console.log('🤖 Seeding bot scenarios...');
+  const scenarioIdMap: Record<string, string> = {
+    tpl_buy_request: 'scn_buy',
+    tpl_sell_tradein: 'scn_sell',
+    tpl_status_support: 'scn_support',
+    tpl_lang_select: 'scn_lang'
+  };
+  for (const tpl of SCENARIO_TEMPLATE_PACK) {
+    const structure: any = tpl.structure || {};
+    const nodes = Array.isArray(structure.nodes) ? structure.nodes : [];
+    const entryNodeId = structure.entryNodeId || nodes[0]?.id || 'start';
+    const triggerCommand = structure.triggerCommand || tpl.name?.toLowerCase()?.replace(/\s+/g, '_');
+    const keywords = Array.isArray(structure.keywords) ? structure.keywords : [];
+    const scenarioId = scenarioIdMap[tpl.id] || tpl.id.replace('tpl_', 'scn_');
 
-  for (const bot of bots) {
-    await prisma.botConfig.upsert({
-      where: { id: bot.id },
-      create: { ...bot, companyId },
+    await prisma.scenario.upsert({
+      where: { id: scenarioId },
+      create: {
+        id: scenarioId,
+        name: tpl.name,
+        triggerCommand,
+        keywords,
+        isActive: true,
+        status: 'PUBLISHED',
+        entryNodeId,
+        nodes,
+        companyId
+      },
       update: {
-        name: bot.name,
-        template: bot.template as any,
-        token: bot.token,
-        deliveryMode: bot.deliveryMode as any,
-        isEnabled: bot.isEnabled,
-        config: bot.config as any
+        name: tpl.name,
+        triggerCommand,
+        keywords,
+        isActive: true,
+        status: 'PUBLISHED',
+        entryNodeId,
+        nodes,
+        companyId
       }
     });
   }
-  console.log('✅ Bots seeded');
+  console.log('✅ Scenarios seeded');
 }
 
 async function seedNormalization(companyId: string) {
@@ -688,233 +709,6 @@ async function seedNormalization(companyId: string) {
     });
   }
   console.log('✅ Normalization - Business Data seeded');
-}
-
-async function seedInventory(companyId: string) {
-  console.log('🚗 Seeding inventory...');
-  const cars = [
-    {
-      id: 'car_demo_1',
-      title: 'BMW 320d xDrive',
-      price: 18000,
-      currency: 'USD',
-      year: 2018,
-      mileage: 85000,
-      location: 'Kyiv',
-      status: 'AVAILABLE',
-      mediaUrls: ['https://picsum.photos/seed/bmw1/600/400'],
-      specs: { fuel: 'diesel', transmission: 'automatic' }
-    },
-    {
-      id: 'car_demo_2',
-      title: 'Mercedes C200',
-      price: 21000,
-      currency: 'USD',
-      year: 2019,
-      mileage: 65000,
-      location: 'Lviv',
-      status: 'AVAILABLE',
-      mediaUrls: ['https://picsum.photos/seed/merc1/600/400'],
-      specs: { fuel: 'petrol', transmission: 'automatic' }
-    },
-    {
-      id: 'car_demo_3',
-      title: 'VW Golf 7',
-      price: 12000,
-      currency: 'USD',
-      year: 2016,
-      mileage: 110000,
-      location: 'Kyiv',
-      status: 'AVAILABLE',
-      mediaUrls: ['https://picsum.photos/seed/vwgolf/600/400'],
-      specs: { fuel: 'petrol', transmission: 'manual' }
-    }
-  ];
-
-  for (const car of cars) {
-    await prisma.carListing.upsert({
-      where: { id: car.id },
-      create: { ...car, companyId, source: 'MANUAL' },
-      update: {
-        title: car.title,
-        price: car.price,
-        mileage: car.mileage,
-        status: car.status,
-        location: car.location
-      }
-    });
-  }
-  console.log('✅ Inventory seeded');
-}
-
-async function seedRequestsAndLeads(companyId: string) {
-  console.log('📨 Seeding requests, variants, leads...');
-  const requests = [
-    {
-      id: 'req_demo_1',
-      title: 'Нужен BMW 3-series 2018+',
-      description: 'Бюджет до 20k, автомат, дизель',
-      status: 'COLLECTING_VARIANTS',
-      priority: 'HIGH',
-      companyId,
-      variants: [
-        {
-          id: 'var_demo_1',
-          title: 'BMW 320d xDrive',
-          price: 18000,
-          currency: 'USD',
-          status: 'REVIEWED',
-          year: 2018,
-          mileage: 85000,
-          source: 'INVENTORY'
-        },
-        {
-          id: 'var_demo_2',
-          title: 'BMW 318d',
-          price: 16500,
-          currency: 'USD',
-          status: 'SUBMITTED',
-          year: 2017,
-          mileage: 120000,
-          source: 'DEALER'
-        }
-      ]
-    },
-    {
-      id: 'req_demo_2',
-      title: 'Ищу Mercedes C-class 2019+',
-      description: 'Бензин, автомат, до 23k',
-      status: 'SHORTLIST',
-      priority: 'NORMAL',
-      companyId,
-      variants: [
-        {
-          id: 'var_demo_3',
-          title: 'Mercedes C200',
-          price: 21000,
-          currency: 'USD',
-          status: 'APPROVED',
-          year: 2019,
-          mileage: 65000,
-          source: 'INVENTORY'
-        }
-      ]
-    }
-  ];
-
-  for (const req of requests) {
-    await prisma.b2bRequest.upsert({
-      where: { id: req.id },
-      create: {
-        ...req,
-        variants: {
-          create: req.variants as any
-        }
-      } as any,
-      update: {
-        title: req.title,
-        description: req.description,
-        status: req.status as any
-      }
-    });
-  }
-
-  const leads = [
-    {
-      id: 'lead_demo_1',
-      clientName: 'Ivan Client',
-      phone: '+380501112233',
-      botId: 'bot_demo_polling',
-      status: 'NEW',
-      source: 'demo_polling',
-      payload: { note: 'Interested in BMW' }
-    },
-    {
-      id: 'lead_demo_2',
-      clientName: 'Olena Dealer',
-      phone: '+380671234567',
-      botId: 'bot_demo_webhook',
-      status: 'CONTACTED',
-      source: 'demo_webhook',
-      payload: { note: 'Dealer request' }
-    }
-  ];
-
-  for (const lead of leads) {
-    await prisma.lead.upsert({
-      where: { id: lead.id },
-      create: { ...lead, companyId },
-      update: {
-        clientName: lead.clientName,
-        status: lead.status as any,
-        payload: lead.payload as any
-      }
-    });
-  }
-
-  console.log('✅ Requests and leads seeded');
-}
-
-async function seedIntegrationsAndDrafts(companyId: string) {
-  console.log('🔌 Seeding integrations and drafts...');
-
-  const integrations = [
-    {
-      id: 'int_demo_webhook',
-      type: 'WEBHOOK',
-      isActive: true,
-      config: { url: process.env.DEMO_HOOK_URL || 'https://demo.cartie.local/hooks/lead', secret: process.env.DEMO_HOOK_SECRET || 'demo-webhook' }
-    },
-    {
-      id: 'int_demo_telegram',
-      type: 'TELEGRAM_CHANNEL',
-      isActive: true,
-      config: { channelId: '@demo_channel', adminChatId: '@demo_admins' }
-    }
-  ];
-
-  for (const integ of integrations) {
-    await prisma.integration.upsert({
-      where: { id: integ.id },
-      create: { ...integ, companyId } as any,
-      update: { isActive: integ.isActive, config: integ.config as any }
-    });
-  }
-
-  const drafts = [
-    {
-      id: 10001,
-      title: 'BMW 320d пост',
-      source: 'MANUAL',
-      status: 'SCHEDULED',
-      botId: 'bot_demo_polling',
-      scheduledAt: new Date(Date.now() + 3600 * 1000),
-      metadata: { images: ['https://picsum.photos/seed/bmwpost/400/300'] }
-    },
-    {
-      id: 10002,
-      title: 'Mercedes C200 пост',
-      source: 'MANUAL',
-      status: 'POSTED',
-      botId: 'bot_demo_webhook',
-      postedAt: new Date(),
-      metadata: { channel: '@demo_channel' }
-    }
-  ];
-
-  for (const draft of drafts) {
-    await prisma.draft.upsert({
-      where: { id: draft.id },
-      create: draft as any,
-      update: {
-        title: draft.title,
-        status: draft.status,
-        botId: draft.botId
-      }
-    });
-  }
-
-  console.log('✅ Integrations and drafts seeded');
 }
 
 main()

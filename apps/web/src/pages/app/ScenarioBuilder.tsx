@@ -93,10 +93,41 @@ export const ScenarioBuilder = ({ studioMode = false, botId }: ScenarioBuilderPr
     const [simulatorOpen, setSimulatorOpen] = useState(false);
     const [templateModalOpen, setTemplateModalOpen] = useState(false);
     const [templates, setTemplates] = useState<Scenario[]>([]);
+    const templateScenarioId = useCallback((tpl: Scenario) => {
+        const rawId = tpl.id || '';
+        if (rawId.startsWith('scn_')) return rawId;
+        if (rawId.startsWith('tpl_')) return rawId.replace('tpl_', 'scn_');
+        const safe = rawId || tpl.name?.toLowerCase().replace(/[^a-z0-9]+/g, '_') || `scn_${Date.now()}`;
+        return safe.startsWith('scn_') ? safe : `scn_${safe}`;
+    }, []);
 
     useEffect(() => {
         Data.getTemplates().then(list => setTemplates((list || []).map(normalizeScenario)));
     }, []);
+
+    const installTemplate = async (tpl: Scenario) => {
+        const scenarioId = templateScenarioId(tpl);
+        const existing = scenarios.find(s => s.id === scenarioId);
+        if (existing && !confirm(`A flow with ID "${scenarioId}" already exists. Overwrite?`)) {
+            return;
+        }
+        const now = new Date().toISOString();
+        const scenario: Scenario = {
+            id: scenarioId,
+            name: tpl.name || 'New Flow',
+            triggerCommand: tpl.triggerCommand || `flow_${Math.floor(Math.random() * 1000)}`,
+            keywords: Array.isArray(tpl.keywords) ? tpl.keywords : [],
+            isActive: true,
+            entryNodeId: tpl.entryNodeId || tpl.nodes?.[0]?.id || 'node_start',
+            createdAt: existing?.createdAt || now,
+            updatedAt: now,
+            nodes: Array.isArray(tpl.nodes) ? tpl.nodes : []
+        };
+        await Data.saveScenario(scenario);
+        setSelectedId(scenarioId);
+        setTemplateModalOpen(false);
+        showToast('Template installed');
+    };
 
     return (
         <div className={`h-full flex gap-0 bg-[var(--bg-app)] overflow-hidden ${studioMode ? '' : 'border border-[var(--border-color)] rounded-xl shadow-2xl'}`}>
@@ -183,7 +214,83 @@ export const ScenarioBuilder = ({ studioMode = false, botId }: ScenarioBuilderPr
                 )}
             </div>
 
-            {/* Modals (Simulator, Library) omitted for brevity - assume existing */}
+            {templateModalOpen && (
+                <TemplateLibraryModal
+                    templates={templates}
+                    scenarios={scenarios}
+                    resolveScenarioId={templateScenarioId}
+                    onClose={() => setTemplateModalOpen(false)}
+                    onInstall={installTemplate}
+                />
+            )}
+        </div>
+    );
+};
+
+const TemplateLibraryModal = ({ templates, scenarios, resolveScenarioId, onClose, onInstall }: any) => {
+    const [query, setQuery] = useState('');
+    const filtered = templates.filter((tpl: Scenario) => {
+        const name = (tpl.name || '').toLowerCase();
+        const trigger = (tpl.triggerCommand || '').toLowerCase();
+        const desc = String((tpl as any).description || '').toLowerCase();
+        const q = query.toLowerCase();
+        return !q || name.includes(q) || trigger.includes(q) || desc.includes(q);
+    });
+
+    return (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="panel w-full max-w-4xl p-8 animate-slide-up shadow-2xl">
+                <div className="flex justify-between items-center mb-6">
+                    <div>
+                        <h3 className="font-bold text-2xl text-[var(--text-primary)]">Template Library</h3>
+                        <p className="text-xs text-[var(--text-secondary)] mt-1">Install ready-made bot flows.</p>
+                    </div>
+                    <button onClick={onClose} className="btn-ghost">Close</button>
+                </div>
+
+                <div className="mb-4">
+                    <input
+                        className="input w-full"
+                        placeholder="Search templates..."
+                        value={query}
+                        onChange={e => setQuery(e.target.value)}
+                    />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[60vh] overflow-y-auto pr-2">
+                    {filtered.map((tpl: Scenario) => {
+                        const scenarioId = resolveScenarioId(tpl);
+                        const installed = scenarios.some((s: Scenario) => s.id === scenarioId);
+                        const desc = (tpl as any).description || 'Ready-to-use flow';
+                        return (
+                            <div key={tpl.id} className="panel p-4 border border-[var(--border-color)] flex flex-col gap-3">
+                                <div className="flex justify-between items-start">
+                                    <div>
+                                        <div className="font-bold text-[var(--text-primary)]">{tpl.name}</div>
+                                        <div className="text-xs text-[var(--text-secondary)]">{desc}</div>
+                                    </div>
+                                    {installed && <span className="text-[10px] uppercase text-green-500 bg-green-500/10 px-2 py-1 rounded">Installed</span>}
+                                </div>
+                                <div className="flex items-center gap-2 text-[10px] text-[var(--text-secondary)]">
+                                    <span className="px-2 py-1 rounded bg-[var(--bg-input)] border border-[var(--border-color)]">/{tpl.triggerCommand || 'command'}</span>
+                                    {Array.isArray(tpl.keywords) && tpl.keywords.slice(0, 3).map((k, i) => (
+                                        <span key={`${tpl.id}-kw-${i}`} className="px-2 py-1 rounded bg-[var(--bg-input)] border border-[var(--border-color)]">{k}</span>
+                                    ))}
+                                </div>
+                                <button
+                                    onClick={() => onInstall(tpl)}
+                                    className="btn-primary text-xs w-full"
+                                >
+                                    {installed ? 'Reinstall' : 'Install'}
+                                </button>
+                            </div>
+                        );
+                    })}
+                    {filtered.length === 0 && (
+                        <div className="text-sm text-[var(--text-secondary)] p-6">No templates found.</div>
+                    )}
+                </div>
+            </div>
         </div>
     );
 };

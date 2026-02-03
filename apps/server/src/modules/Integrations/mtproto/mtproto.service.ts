@@ -488,26 +488,14 @@ export class MTProtoService {
         // Mark sync start
         await channelSourceRepo.update(sourceId, { lastSyncedAt: new Date() });
 
-        // Fallback: allow demo/manual import even without authenticated session
+        // No demo fallback: require authenticated session
         if (!isReady) {
-            const demoMessage = (source.importRules as any)?.demoMessage
-                || 'Demo import: BMW X5 2018, $35000, 85 000 km, black.';
-
-            await processParsedMessage({
-                chatId: source.channelId,
-                messageId: (source.lastMessageId || 1),
-                text: demoMessage,
-                date: new Date(),
-                mediaUrls: []
-            } as any, source as any);
-
             await channelSourceRepo.update(sourceId, {
-                status: 'ACTIVE',
-                lastError: null,
+                status: 'ERROR',
+                lastError: 'MTProto connector is not authenticated',
                 lastSyncedAt: new Date()
             });
-
-            return { success: true, imported: 1, mode: 'demo' };
+            throw new Error('MTProto connector is not authenticated');
         }
 
         const client = await this.getClient(connectorId);

@@ -92,8 +92,10 @@ enum UserRole {
   OWNER
   ADMIN
   MANAGER
+  OPERATOR
   DEALER
   VIEWER
+  USER
 }
 
 model Showcase {
@@ -281,6 +283,38 @@ model BotMessage {
 
   @@index([botId, chatId, createdAt])
   @@index([chatId, createdAt])
+}
+
+model ChatMacro {
+  id        String   @id @default(cuid())
+  companyId String
+  workspace Workspace @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  shortcut  String
+  text      String
+  category  String?
+  isActive  Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, shortcut])
+  @@index([companyId])
+}
+
+model ChatNote {
+  id        String   @id @default(cuid())
+  companyId String
+  workspace Workspace @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  chatId    String
+  text      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, chatId])
+  @@index([companyId, chatId])
 }
 
 model B2bRequest {

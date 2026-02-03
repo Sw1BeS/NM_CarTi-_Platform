@@ -39,6 +39,9 @@ infra.bak.*
 # Local/Auto-generated files
 _backup_root/
 _backups/
+_archive/
+_logs/
 apps/*.tgz
+apps/cartie2_repo/
 data/
 env/storage/

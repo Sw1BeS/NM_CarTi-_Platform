@@ -16,6 +16,8 @@
     "@lexical/react": "^0.39.0",
     "@lexical/rich-text": "^0.39.0",
     "@lexical/utils": "^0.39.0",
+    "@emoji-mart/data": "^1.1.2",
+    "@emoji-mart/react": "^1.1.1",
     "@tailwindcss/postcss": "^4.1.18",
     "@types/dompurify": "^3.0.5",
     "axios": "^1.13.2",

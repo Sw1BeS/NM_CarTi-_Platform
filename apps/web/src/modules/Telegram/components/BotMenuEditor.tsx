@@ -28,6 +28,7 @@ const normalizeMenuConfig = (menuConfig?: Bot['menuConfig']) => {
 export const BotMenuEditor = ({ scenarios, botId, standalone = false }: { scenarios: Scenario[], botId?: string, standalone?: boolean }) => {
     const [bots, setBots] = useState<Bot[]>([]);
     const [selectedBotId, setSelectedBotId] = useState<string>(botId || '');
+    const [templateId, setTemplateId] = useState('standard');
     const { showToast } = useToast();
     const configInputRef = useRef<HTMLInputElement>(null);
 
@@ -47,6 +48,71 @@ export const BotMenuEditor = ({ scenarios, botId, standalone = false }: { scenar
 
     if (!bot) return <div className="p-10 text-center text-gray-400">No active bots found.</div>;
     const menuConfig = normalizeMenuConfig(bot.menuConfig);
+
+    const resolveScenarioId = (query: string) => {
+        const norm = query.toLowerCase();
+        const exact = scenarios.find(s => (s.triggerCommand || '').toLowerCase() === norm);
+        if (exact) return exact.id;
+        const fuzzy = scenarios.find(s => (s.name || '').toLowerCase().includes(norm));
+        return fuzzy?.id;
+    };
+
+    const scenarioIds = {
+        buy: resolveScenarioId('buy') || 'scn_buy',
+        sell: resolveScenarioId('sell') || 'scn_sell',
+        support: resolveScenarioId('status') || resolveScenarioId('support') || 'scn_support',
+        lang: resolveScenarioId('lang') || 'scn_lang'
+    };
+
+    const miniAppUrl = bot.miniAppConfig?.url || '{{MINI_APP_URL}}';
+
+    const menuTemplates = [
+        {
+            id: 'standard',
+            name: 'CarTié Standard',
+            description: 'Buy/Sell/Support + Mini App + Language',
+            welcomeMessage: '👋 Welcome to CarTié! Choose an option below:',
+            buttons: [
+                { id: 'btn_buy', label: '🚗 Buy a Car', label_uk: '🚗 Купити авто', label_ru: '🚗 Купить авто', type: 'SCENARIO', value: scenarioIds.buy, row: 0, col: 0 },
+                { id: 'btn_sell', label: '💰 Sell My Car', label_uk: '💰 Продати авто', label_ru: '💰 Продать авто', type: 'SCENARIO', value: scenarioIds.sell, row: 0, col: 1 },
+                { id: 'btn_app', label: '📱 Open App', label_uk: '📱 Додаток', label_ru: '📱 Приложение', type: 'LINK', value: miniAppUrl, row: 1, col: 0 },
+                { id: 'btn_support', label: '📞 Support', label_uk: '📞 Підтримка', label_ru: '📞 Поддержка', type: 'SCENARIO', value: scenarioIds.support, row: 1, col: 1 },
+                { id: 'btn_lang', label: '🌐 Language', label_uk: '🌐 Мова', label_ru: '🌐 Язык', type: 'SCENARIO', value: scenarioIds.lang, row: 2, col: 0 }
+            ]
+        },
+        {
+            id: 'sales',
+            name: 'Sales Focus',
+            description: 'Buy/Sell + App + Support',
+            welcomeMessage: '🚗 CarTié Sales Desk — pick an action:',
+            buttons: [
+                { id: 'btn_buy', label: '🚗 Buy', label_uk: '🚗 Купити', label_ru: '🚗 Купить', type: 'SCENARIO', value: scenarioIds.buy, row: 0, col: 0 },
+                { id: 'btn_sell', label: '💰 Sell', label_uk: '💰 Продати', label_ru: '💰 Продать', type: 'SCENARIO', value: scenarioIds.sell, row: 0, col: 1 },
+                { id: 'btn_app', label: '📱 Mini App', label_uk: '📱 Додаток', label_ru: '📱 Приложение', type: 'LINK', value: miniAppUrl, row: 1, col: 0 },
+                { id: 'btn_support', label: '☎️ Support', label_uk: '☎️ Підтримка', label_ru: '☎️ Поддержка', type: 'SCENARIO', value: scenarioIds.support, row: 1, col: 1 }
+            ]
+        },
+        {
+            id: 'minimal',
+            name: 'Minimal',
+            description: 'App + Support only',
+            welcomeMessage: 'Welcome! Use the menu below:',
+            buttons: [
+                { id: 'btn_app', label: '📱 Open App', label_uk: '📱 Додаток', label_ru: '📱 Приложение', type: 'LINK', value: miniAppUrl, row: 0, col: 0 },
+                { id: 'btn_support', label: '📞 Support', label_uk: '📞 Підтримка', label_ru: '📞 Поддержка', type: 'SCENARIO', value: scenarioIds.support, row: 0, col: 1 }
+            ]
+        }
+    ];
+
+    const selectedTemplate = menuTemplates.find(t => t.id === templateId) || menuTemplates[0];
+
+    const applyTemplate = async () => {
+        const tpl = menuTemplates.find(t => t.id === templateId);
+        if (!tpl) return;
+        if (!confirm(`Apply "${tpl.name}" template? This will replace current menu buttons.`)) return;
+        await saveConfig(tpl.buttons as BotMenuButtonConfig[], tpl.welcomeMessage);
+        showToast(`Template applied: ${tpl.name}`);
+    };
 
     const handlePublish = async () => {
         try {
@@ -177,6 +243,30 @@ export const BotMenuEditor = ({ scenarios, botId, standalone = false }: { scenar
                         <button onClick={handlePublish} className="btn-primary flex items-center gap-2 px-4">
                             <UploadCloud size={16} /> Push Commands
                         </button>
+                    </div>
+                </div>
+
+                {/* Templates */}
+                <div className="mb-8">
+                    <div className="bg-[var(--bg-input)] border border-[var(--border-color)] rounded-xl p-4">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                            <div>
+                                <div className="text-xs uppercase font-bold text-[var(--text-secondary)]">Menu Templates</div>
+                                <div className="text-sm text-[var(--text-primary)] font-semibold mt-1">{selectedTemplate?.name}</div>
+                                <div className="text-xs text-[var(--text-secondary)] mt-1">{selectedTemplate?.description}</div>
+                            </div>
+                            <button onClick={applyTemplate} className="btn-primary text-xs px-4 py-2 whitespace-nowrap">Apply Template</button>
+                        </div>
+                        <div className="mt-4 flex flex-col sm:flex-row gap-3">
+                            <select className="input text-sm" value={templateId} onChange={e => setTemplateId(e.target.value)}>
+                                {menuTemplates.map(t => (
+                                    <option key={t.id} value={t.id}>{t.name}</option>
+                                ))}
+                            </select>
+                            <div className="text-[10px] text-[var(--text-secondary)] flex-1">
+                                Uses current scenarios if they exist (buy/sell/status/lang). You can edit button targets after applying.
+                            </div>
+                        </div>
                     </div>
                 </div>
 

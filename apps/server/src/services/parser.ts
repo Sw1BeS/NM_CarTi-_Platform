@@ -32,30 +32,32 @@ export const parseListingFromUrl = async (url: string): Promise<ParsedListing> =
 
     const html = resp.data || '';
     const $ = cheerio.load(html);
+    const domain = new URL(url).hostname.replace(/^www\./, '');
 
-    // 0. Profile Extraction
+    // 0. Mapping/Profile Extraction
     let profileData: any = {};
+    let mapping: any = null;
     try {
-        const domain = new URL(url).hostname;
-        const profile = await getProfile(domain);
-        if (profile) {
-            if (profile.title) profileData.title = $(profile.title).first().text().trim();
-            if (profile.price) {
-                 const txt = $(profile.price).first().text().trim();
+        mapping = await getProfile(domain);
+        const selectorMap = mapping && !mapping.fields && mapping.mode !== 'fieldMap' ? mapping : null;
+        if (selectorMap) {
+            if (selectorMap.title) profileData.title = $(selectorMap.title).first().text().trim();
+            if (selectorMap.price) {
+                 const txt = $(selectorMap.price).first().text().trim();
                  const pp = parsePrice(txt);
                  profileData.price = pp.amount;
                  profileData.currency = pp.currency;
             }
-            if (profile.year) {
-                 const txt = $(profile.year).first().text().trim();
+            if (selectorMap.year) {
+                 const txt = $(selectorMap.year).first().text().trim();
                  const m = txt.match(/(19|20)\d{2}/);
                  if (m) profileData.year = Number(m[0]);
             }
-            if (profile.mileage) {
-                 const txt = $(profile.mileage).first().text().trim();
+            if (selectorMap.mileage) {
+                 const txt = $(selectorMap.mileage).first().text().trim();
                  profileData.mileage = parseMileage(txt);
             }
-            if (profile.description) profileData.description = $(profile.description).first().text().trim();
+            if (selectorMap.description) profileData.description = $(selectorMap.description).first().text().trim();
         }
     } catch (e) {
         logger.warn('Profile extraction failed', e);
@@ -87,6 +89,7 @@ export const parseListingFromUrl = async (url: string): Promise<ParsedListing> =
     const ldYear = vehicleLd?.modelDate || vehicleLd?.productionDate || vehicleLd?.vehicleModelDate;
     const ldMileage = vehicleLd?.mileageFromOdometer?.value || vehicleLd?.mileageFromOdometer;
     const ldImage = vehicleLd?.image?.url || (Array.isArray(vehicleLd?.image) ? vehicleLd?.image[0] : vehicleLd?.image);
+    const ldImages = Array.isArray(vehicleLd?.image) ? vehicleLd?.image : (ldImage ? [ldImage] : []);
 
     // 4. Fallback Heuristics (if JSON-LD missing)
     let heuristicPrice = undefined;
@@ -116,19 +119,53 @@ export const parseListingFromUrl = async (url: string): Promise<ParsedListing> =
         if (milesMatch) finalMileage = parseMileage(milesMatch[1]);
     }
 
-    const payload: ParsedListing = {
+    const baseVariables = {
       title: (profileData.title || ldTitle || title || '').trim(),
       price: profileData.price || finalPrice,
       currency: profileData.currency || finalCurrency,
       year: profileData.year || finalYear,
       mileage: profileData.mileage || finalMileage,
       location: vehicleLd?.address?.addressLocality,
+      description: profileData.description || description,
+      vin: vehicleLd?.vehicleIdentificationNumber || undefined,
       thumbnail: ldImage || image,
+      url
+    } as Record<string, any>;
+
+    const baseImages = Array.from(new Set([...(ldImages || []), image].filter(Boolean) as string[]));
+
+    // Apply field-map mapping if provided
+    if (mapping && (mapping.mode === 'fieldMap' || mapping.fields)) {
+      const fields = mapping.fields || mapping;
+      const mapped: Record<string, any> = { ...baseVariables };
+      Object.entries(fields || {}).forEach(([targetKey, sourceKey]) => {
+        if (!sourceKey || typeof sourceKey !== 'string') return;
+        if (sourceKey === 'images' || targetKey === 'images') {
+          mapped.images = baseImages;
+          return;
+        }
+        const value = baseVariables[sourceKey];
+        if (value !== undefined && value !== null && value !== '') {
+          mapped[targetKey] = value;
+        }
+      });
+      Object.assign(baseVariables, mapped);
+    }
+
+    const payload: ParsedListing = {
+      title: baseVariables.title,
+      price: baseVariables.price,
+      currency: baseVariables.currency,
+      year: baseVariables.year,
+      mileage: baseVariables.mileage,
+      location: baseVariables.location,
+      thumbnail: baseVariables.thumbnail || ldImage || image,
       url,
       raw: {
         jsonLd: vehicleLd || null,
         meta: { title, image, description },
-        profile: profileData
+        profile: profileData,
+        images: baseImages
       },
       confidence: 'low'
     };

@@ -3,12 +3,12 @@ import { Data } from '../../services/data';
 import { ApiClient } from '../../services/apiClient';
 import { useToast } from '../../contexts/ToastContext';
 import { Bot, Scenario } from '../../types';
-import { Plus, Bot as BotIcon, Settings, Activity, Smartphone, Wifi, Megaphone, Users, X, LayoutTemplate, GitMerge, Menu, ArrowLeft, ListChecks } from 'lucide-react';
+import { Plus, Bot as BotIcon, Activity, Smartphone, Wifi, Megaphone, Users, X, LayoutTemplate, GitMerge, Menu, ListChecks, Settings } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 
 // Modules
 import { MiniAppManager } from '../../modules/Telegram/MiniAppManager/index';
-import { MTProtoSources } from '../../modules/Telegram/MTProtoSources/index';
+import { MTProtoManager } from '../../modules/Telegram/components/MTProtoManager';
 import { AddBotModal, BotSettings } from './TelegramHub.components';
 import { CampaignManager } from '../../modules/Telegram/components/CampaignManager';
 import { AudienceManager } from '../../modules/Telegram/components/AudienceManager';
@@ -25,7 +25,7 @@ export const TelegramHub = () => {
     const [bots, setBots] = useState<Bot[]>([]);
     const [scenarios, setScenarios] = useState<Scenario[]>([]);
     const [selectedBotId, setSelectedBotId] = useState<string | null>(null);
-    const [viewMode, setViewMode] = useState<'STUDIO' | 'CLASSIC'>('STUDIO');
+    // Studio-only mode
 
     // Studio Tabs
     const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'FLOWS' | 'MENU' | 'CAMPAIGNS' | 'AUDIENCE' | 'MINIAPP' | 'SHOWCASES' | 'MTPROTO' | 'REGISTRY' | 'SETTINGS'>('OVERVIEW');
@@ -65,10 +65,7 @@ export const TelegramHub = () => {
         const allowed = ['OVERVIEW', 'FLOWS', 'MENU', 'CAMPAIGNS', 'AUDIENCE', 'MINIAPP', 'SHOWCASES', 'MTPROTO', 'REGISTRY', 'SETTINGS'];
         if (!allowed.includes(normalized)) return;
         setActiveTab(normalized as any);
-        if ((normalized === 'FLOWS' || normalized === 'MENU') && viewMode !== 'STUDIO') {
-            setViewMode('STUDIO');
-        }
-    }, [searchParams, viewMode]);
+    }, [searchParams]);
 
     const selectedBot = bots.find(b => b.id === selectedBotId);
 
@@ -85,18 +82,9 @@ export const TelegramHub = () => {
                 </div>
 
                 <div className="flex bg-[var(--bg-input)] p-1 rounded-lg border border-[var(--border-color)]">
-                    <button
-                        onClick={() => setViewMode('STUDIO')}
-                        className={`px-3 py-1.5 rounded text-xs font-bold flex items-center gap-2 transition-all ${viewMode === 'STUDIO' ? 'bg-[var(--bg-panel)] text-gold-500 shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}
-                    >
+                    <div className="px-3 py-1.5 rounded text-xs font-bold flex items-center gap-2 bg-[var(--bg-panel)] text-gold-500 shadow-sm">
                         <LayoutTemplate size={14} /> Bot Studio
-                    </button>
-                    <button
-                        onClick={() => setViewMode('CLASSIC')}
-                        className={`px-3 py-1.5 rounded text-xs font-bold flex items-center gap-2 transition-all ${viewMode === 'CLASSIC' ? 'bg-[var(--bg-panel)] text-gold-500 shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}
-                    >
-                        <Settings size={14} /> Classic
-                    </button>
+                    </div>
                 </div>
             </div>
 
@@ -186,12 +174,10 @@ export const TelegramHub = () => {
                             <div className="flex border-b border-[var(--border-color)] px-2 bg-[var(--bg-panel)] overflow-x-auto scrollbar-hide shrink-0">
                                 <TabBtn active={activeTab === 'OVERVIEW'} onClick={() => setActiveTab('OVERVIEW')} icon={Activity} label="Overview" />
 
-                                {viewMode === 'STUDIO' && (
-                                    <>
-                                        <TabBtn active={activeTab === 'FLOWS'} onClick={() => setActiveTab('FLOWS')} icon={GitMerge} label="Flows" />
-                                        <TabBtn active={activeTab === 'MENU'} onClick={() => setActiveTab('MENU')} icon={Menu} label="Menu" />
-                                    </>
-                                )}
+                                <>
+                                    <TabBtn active={activeTab === 'FLOWS'} onClick={() => setActiveTab('FLOWS')} icon={GitMerge} label="Flows" />
+                                    <TabBtn active={activeTab === 'MENU'} onClick={() => setActiveTab('MENU')} icon={Menu} label="Menu" />
+                                </>
 
                                 <TabBtn active={activeTab === 'CAMPAIGNS'} onClick={() => setActiveTab('CAMPAIGNS')} icon={Megaphone} label="Broadcasts" />
                                 <TabBtn active={activeTab === 'AUDIENCE'} onClick={() => setActiveTab('AUDIENCE')} icon={Users} label="Audience" />
@@ -206,7 +192,7 @@ export const TelegramHub = () => {
                             <div className="flex-1 overflow-hidden relative">
                                 {activeTab === 'OVERVIEW' && <BotOverview bot={selectedBot} />}
 
-                                {viewMode === 'STUDIO' && activeTab === 'FLOWS' && (
+                                {activeTab === 'FLOWS' && (
                                     // In Studio Mode, we render ScenarioBuilder filtered by context (if implemented)
                                     // For now, ScenarioBuilder is global, but we can wrap it
                                     <div className="h-full w-full">
@@ -214,7 +200,7 @@ export const TelegramHub = () => {
                                     </div>
                                 )}
 
-                                {viewMode === 'STUDIO' && activeTab === 'MENU' && (
+                                {activeTab === 'MENU' && (
                                     <BotMenuEditor scenarios={scenarios} botId={selectedBot.id} />
                                 )}
 
@@ -222,7 +208,7 @@ export const TelegramHub = () => {
                                 {activeTab === 'AUDIENCE' && <AudienceManager bot={selectedBot} />}
                                 {activeTab === 'MINIAPP' && <MiniAppManager botId={selectedBot.id} />}
                                 {activeTab === 'SHOWCASES' && <ShowcaseManager botId={selectedBot.id} />}
-                                {activeTab === 'MTPROTO' && <MTProtoSources botId={selectedBot.id} />}
+                                {activeTab === 'MTPROTO' && <MTProtoManager bot={selectedBot} />}
                                 {activeTab === 'REGISTRY' && <SourcesDestinationsRegistry />}
                                 {activeTab === 'SETTINGS' && <BotSettings bot={selectedBot} />}
                             </div>

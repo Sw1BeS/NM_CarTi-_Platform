@@ -79,7 +79,7 @@ export const SettingsPage = () => {
 
                     {activeTab === 'DICT' && <DictionariesTab />}
                     {activeTab === 'BACKUP' && <BackupTab />}
-                    {activeTab === 'API' && <ApiTab />}
+                    {activeTab === 'API' && <ApiConnectionTab />}
                     {activeTab === 'VERSIONS' && <VersionsTab />}
                     {activeTab === 'PARSER' && <ParserTab />}
                 </div>
@@ -108,7 +108,7 @@ const ParserTab = () => {
     const [mapping, setMapping] = useState<Record<string, string>>({});
     const [loading, setLoading] = useState(false);
 
-    const fieldOptions = ['title', 'description', 'price', 'currency', 'mileage', 'year', 'vin', 'city', 'photos', 'url', 'custom'];
+    const fieldOptions = ['title', 'description', 'price', 'currency', 'mileage', 'year', 'vin', 'location', 'images', 'url', 'custom'];
 
     const handlePreview = async () => {
         if (!url.trim()) return;
@@ -116,7 +116,8 @@ const ParserTab = () => {
         try {
             const res = await Data.previewParser(url.trim());
             setPreview(res);
-            setMapping(res.cachedMapping || {});
+            const cached = res.cachedMapping;
+            setMapping(cached?.fields || cached || {});
             showToast('Preview ready', 'success');
         } catch (e: any) {
             showToast(e.message || 'Preview failed', 'error');

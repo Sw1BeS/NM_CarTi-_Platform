@@ -57,6 +57,16 @@ export const routeChannelPost: PipelineMiddleware = async (ctx, next) => {
         const fileId = largest.file_id;
         const botToken = ctx.bot?.token;
 
+        // GAP-4 FIX: Safety check for bot token
+        if (!ctx.bot) {
+            logger.error('[routeChannelPost] ctx.bot is undefined, cannot download media');
+        } else if (!botToken) {
+            logger.error('[routeChannelPost] Bot token is missing, cannot download media', {
+                botId: ctx.botId,
+                companyId: ctx.companyId
+            });
+        }
+
         if (botToken && shouldDownloadMedia) {
             try {
                 const saved = await saveTelegramBotFile(botToken, fileId, {

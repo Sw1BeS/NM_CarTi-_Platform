@@ -68,14 +68,26 @@ const resolveMenuLink = (bot: BotRuntime, rawValue?: string) => {
   return raw;
 };
 
-const mapRequestInput = (vars: any) => ({
-  title: vars.title || 'Car Request',
-  budgetMin: Number(vars.budgetMin) || 0,
-  budgetMax: Number(vars.budgetMax || vars.budget) || 0,
-  yearMin: Number(vars.yearMin || vars.year) || 0,
-  yearMax: Number(vars.yearMax) || 0,
-  city: vars.city
-});
+const extractNumber = (value: any) => {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : undefined;
+  const cleaned = String(value).replace(/[^\d.]/g, '');
+  if (!cleaned) return undefined;
+  const num = Number(cleaned);
+  return Number.isFinite(num) ? num : undefined;
+};
+
+const extractYear = (value: any) => {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : undefined;
+  const match = String(value).match(/(19|20)\d{2}/);
+  return match ? Number(match[0]) : undefined;
+};
+
+const normalizeRequestType = (value: any) => {
+  const raw = String(value || '').toUpperCase();
+  return raw === 'SELL' ? 'SELL' : 'BUY';
+};
 
 const mapVariantInput = (vars: any) => ({
   price: Number(vars.price) || 0,
@@ -1226,6 +1238,8 @@ export class ScenarioEngine {
           if (rawBrand) vars.brand = String(rawBrand).trim();
         }
         if (actionType === 'CREATE_LEAD') {
+          const leadTypeRaw = node.content?.leadType || vars.leadType || vars.requestType || vars.type;
+          const leadType = normalizeRequestType(leadTypeRaw);
           await createOrMergeLead({
             botId: bot.id,
             companyId: bot.companyId || null,
@@ -1235,24 +1249,47 @@ export class ScenarioEngine {
             phone: vars.phone,
             source: 'TELEGRAM',
             payload: { language: vars.language },
-            leadType: 'BUY',
+            leadType,
             createRequest: false
           }, bot.config);
         }
         if (actionType === 'CREATE_REQUEST') {
-          const payload = mapRequestInput({
-            title: `${vars.brand || ''} ${vars.model || ''}`.trim(),
-            yearMin: Number(vars.year || 0),
-            budgetMax: Number(vars.budget || 0),
-            description: `Via Bot. User: ${vars.name || vars.first_name || ''}`.trim(),
-            status: 'COLLECTING_VARIANTS',
-            source: 'TG',
-            clientChatId: session.chatId,
-            language: vars.language
-          });
+          const requestType = normalizeRequestType(node.content?.requestType || vars.requestType || vars.type);
+          const titleOverride = node.content?.requestTitle || vars.requestTitle;
+          const baseTitle = `${vars.brand || ''} ${vars.model || ''}`.trim();
+          const title = titleOverride || baseTitle || (requestType === 'SELL' ? 'Sell Request' : 'Buy Request');
+
+          const budgetMin = extractNumber(vars.requestBudgetMin ?? vars.budgetMin);
+          const budgetMax = extractNumber(vars.requestBudgetMax ?? vars.budgetMax ?? vars.budget ?? vars.price);
+          const yearMin = extractYear(vars.requestYearMin ?? vars.yearMin ?? vars.year);
+          const yearMax = extractYear(vars.requestYearMax ?? vars.yearMax);
+          const city = vars.requestCity || vars.city;
+
+          const details: string[] = [];
+          if (vars.mileage) details.push(`Mileage: ${vars.mileage}`);
+          if (vars.vin) details.push(`VIN: ${vars.vin}`);
+          if (vars.color) details.push(`Color: ${vars.color}`);
+
+          const descOverride = node.content?.requestDescription || vars.requestDescription;
+          const description = descOverride || [
+            `Via Bot. User: ${vars.name || vars.first_name || ''}`.trim(),
+            details.length ? details.join(' | ') : null
+          ].filter(Boolean).join('\n');
+
+          const status = node.content?.requestStatus || vars.requestStatus || 'COLLECTING_VARIANTS';
           const request = await prisma.b2bRequest.create({
             data: {
-              ...payload,
+              title,
+              description: description || null,
+              budgetMin: budgetMin ?? null,
+              budgetMax: budgetMax ?? null,
+              yearMin: yearMin ?? null,
+              yearMax: yearMax ?? null,
+              city: city ? String(city) : null,
+              type: requestType as any,
+              status: status as any,
+              chatId: session.chatId,
+              language: vars.language,
               publicId: generatePublicId(),
               companyId: bot.companyId || null
             }
@@ -1261,6 +1298,30 @@ export class ScenarioEngine {
           vars.requestPublicId = request.publicId;
 
           await notifyRequestAdmin(bot, request);
+        }
+        if (actionType === 'LOOKUP_REQUEST') {
+          const lookupVar = node.content?.lookupVar || 'lookup';
+          const lookupInput = String(vars[lookupVar] || vars.requestId || vars.phone || '').trim();
+          let found: any = null;
+          if (lookupInput) {
+            found = await prisma.b2bRequest.findFirst({
+              where: {
+                OR: [
+                  { publicId: lookupInput },
+                  { chatId: lookupInput },
+                  { title: { contains: lookupInput, mode: 'insensitive' } },
+                  { description: { contains: lookupInput, mode: 'insensitive' } }
+                ]
+              },
+              orderBy: { createdAt: 'desc' }
+            });
+          }
+          vars.lookup_found = !!found;
+          if (found) {
+            vars.requestPublicId = found.publicId || found.id;
+            vars.request_status = found.status;
+            vars.request_manager = found.assignedTo || '—';
+          }
         }
         if (actionType === 'NOTIFY_ADMIN' && bot.adminChatId) {
           await sendMessage(bot, bot.adminChatId, text || '🔔 Notification');

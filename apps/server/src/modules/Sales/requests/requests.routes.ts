@@ -70,7 +70,7 @@ router.get('/', authenticateToken, async (req, res) => {
 
 
 // Create Request
-router.post('/', authenticateToken, requireRole(['ADMIN', 'MANAGER']), validate(createRequestSchema), async (req, res) => {
+router.post('/', authenticateToken, requireRole(['OWNER', 'ADMIN', 'MANAGER', 'OPERATOR']), validate(createRequestSchema), async (req, res) => {
     try {
         const data = req.body;
         const user = (req as any).user || {};
@@ -100,7 +100,7 @@ router.post('/', authenticateToken, requireRole(['ADMIN', 'MANAGER']), validate(
     }
 });
 
-router.put('/:id', authenticateToken, requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
+router.put('/:id', authenticateToken, requireRole(['OWNER', 'ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
     try {
         const { id: _id, variants, ...raw } = req.body;
         const { id } = req.params;
@@ -135,7 +135,7 @@ router.put('/:id', authenticateToken, requireRole(['ADMIN', 'MANAGER', 'OPERATOR
     }
 });
 
-router.delete('/:id', authenticateToken, requireRole(['ADMIN']), async (req, res) => {
+router.delete('/:id', authenticateToken, requireRole(['OWNER', 'ADMIN']), async (req, res) => {
     try {
         const { id } = req.params;
         const user = (req as any).user || {};
@@ -155,7 +155,7 @@ router.delete('/:id', authenticateToken, requireRole(['ADMIN']), async (req, res
 });
 
 // --- Variant Management Sub-Routes ---
-router.post('/:id/variants', authenticateToken, requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
+router.post('/:id/variants', authenticateToken, requireRole(['OWNER', 'ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
     const { id } = req.params;
     const variantData = mapVariantInput(req.body || {});
     try {

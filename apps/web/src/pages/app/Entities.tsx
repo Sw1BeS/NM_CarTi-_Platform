@@ -88,6 +88,7 @@ export const EntitiesPage = () => {
                         <div className="p-5 border-b border-[var(--border-color)] flex justify-between items-center bg-[var(--bg-panel)]">
                             <div>
                                 <h2 className="text-lg font-bold text-[var(--text-primary)]">{selectedDef.name}</h2>
+                                <p className="text-xs text-[var(--text-secondary)]">Admin tool for managing dynamic schemas and records.</p>
                                 <p className="text-xs text-[var(--text-secondary)] font-mono">{selectedDef.slug}</p>
                             </div>
                             <div className="flex gap-2">

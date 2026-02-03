@@ -220,8 +220,15 @@ export class ServerAdapter implements DataAdapter {
     }
 
 
-    async getCampaigns() { return this.listEntities<Campaign>(SLUGS.CAMPAIGN); }
-    async saveCampaign(c: Campaign) { return this.saveEntity(SLUGS.CAMPAIGN, c); }
+    async getCampaigns() {
+        const res = await ApiClient.get<Campaign[]>('campaigns');
+        return res.ok ? (res.data || []) : [];
+    }
+    async saveCampaign(c: Campaign) {
+        const res = await ApiClient.post<Campaign>('campaigns', c);
+        if (!res.ok) throw new Error(res.message || 'Campaign save failed');
+        return res.data as Campaign;
+    }
 
     async getMessages(filter?: { chatId?: string; botId?: string; limit?: number }) {
         const params = new URLSearchParams();
@@ -236,6 +243,35 @@ export class ServerAdapter implements DataAdapter {
         const res = await ApiClient.post('messages', m);
         if (!res.ok) throw new Error(res.message);
         return m;
+    }
+
+    // --- Inbox Macros & Notes ---
+    async getMacros() {
+        const res = await ApiClient.get<any[]>('inbox/macros');
+        return res.ok ? (res.data || []) : [];
+    }
+    async createMacro(data: any) {
+        const res = await ApiClient.post<any>('inbox/macros', data);
+        if (!res.ok) throw new Error(res.message);
+        return res.data;
+    }
+    async updateMacro(id: string, data: any) {
+        const res = await ApiClient.put<any>(`inbox/macros/${id}`, data);
+        if (!res.ok) throw new Error(res.message);
+        return res.data;
+    }
+    async deleteMacro(id: string) {
+        const res = await ApiClient.delete(`inbox/macros/${id}`);
+        if (!res.ok) throw new Error(res.message);
+    }
+    async getChatNote(chatId: string) {
+        const res = await ApiClient.get<any>(`inbox/notes?chatId=${encodeURIComponent(chatId)}`);
+        return res.ok ? (res.data || null) : null;
+    }
+    async saveChatNote(data: { chatId: string; text?: string }) {
+        const res = await ApiClient.post<any>('inbox/notes', data);
+        if (!res.ok) throw new Error(res.message);
+        return res.data;
     }
 
     async getDestinations() {

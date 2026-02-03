@@ -10,16 +10,8 @@ import { useToast } from '../../contexts/ToastContext';
 import { useSearchParams } from 'react-router-dom';
 import { useLang } from '../../contexts/LanguageContext';
 import { CarPicker } from '../../components/CarPicker';
-
-const DEFAULT_MACROS: ChatMacro[] = [
-    { id: 'm1', shortcut: '/hi', text: 'Привіт! Чим можу допомогти? 👋', category: 'greeting' },
-    { id: 'm2', shortcut: '/wait', text: 'Уточнюю інформацію, дайте секунду... ⏳', category: 'status' },
-    { id: 'm3', shortcut: '/thanks', text: 'Дякую! Зв\'яжемося найближчим часом 🙏', category: 'closing' },
-    { id: 'm4', shortcut: '/check', text: 'Перевірили наявність, зараз підготуємо варіанти 📋', category: 'status' },
-    { id: 'm5', shortcut: '/price', text: 'Актуальну ціну уточню у постачальника та повернусь протягом години 💰', category: 'info' }
-];
-
-const COMMON_EMOJIS = ['👍', '👎', '❤️', '🔥', '✅', '❌', '🚗', '💰', '🤝', '👋', '🤔', '😎'];
+import Picker from '@emoji-mart/react';
+import data from '@emoji-mart/data';
 
 interface ChatInfo {
     chatId: string;
@@ -39,6 +31,9 @@ export const InboxPage = () => {
     const [managers, setManagers] = useState<User[]>([]);
     const [showMacros, setShowMacros] = useState(false);
     const [showEmojis, setShowEmojis] = useState(false);
+    const [macros, setMacros] = useState<ChatMacro[]>([]);
+    const [macroModalOpen, setMacroModalOpen] = useState(false);
+    const [macroForm, setMacroForm] = useState({ id: '', shortcut: '', text: '', category: '' });
     const [internalNote, setInternalNote] = useState('');
     const [showNotePanel, setShowNotePanel] = useState(false);
     const [requestByChat, setRequestByChat] = useState<Record<string, B2BRequest>>({});
@@ -145,9 +140,29 @@ export const InboxPage = () => {
     }, []);
 
     useEffect(() => {
+        const loadMacros = async () => {
+            try {
+                const list = await Data.getMacros();
+                setMacros(Array.isArray(list) ? list : []);
+            } catch (e) {
+                console.error(e);
+                setMacros([]);
+            }
+        };
+        loadMacros();
+        const sub = Data.subscribe('UPDATE_MACROS', loadMacros);
+        return sub;
+    }, []);
+
+    useEffect(() => {
         if (activeChatId) {
-            setInternalNote(requestByChat[activeChatId]?.internalNote || '');
+            setInternalNote('');
             const req = requestByChat[activeChatId];
+            Data.getChatNote(activeChatId).then(note => {
+                setInternalNote(note?.text || req?.internalNote || '');
+            }).catch(() => {
+                setInternalNote(req?.internalNote || '');
+            });
             if (req) {
                 setTimelineLoading(true);
                 Data.getMessageLogs({ requestId: req.id, chatId: activeChatId, limit: 50 }).then(setTimeline).finally(() => setTimelineLoading(false));
@@ -230,7 +245,7 @@ export const InboxPage = () => {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                        'Authorization': `Bearer ${localStorage.getItem('cartie_token')}`
                     },
                     body: JSON.stringify({ name: file.name, content, type: file.type })
                 }).then(r => r.json());
@@ -254,6 +269,54 @@ export const InboxPage = () => {
             }
         };
         reader.readAsDataURL(file);
+    };
+
+    const resetMacroForm = () => setMacroForm({ id: '', shortcut: '', text: '', category: '' });
+
+    const handleSaveMacro = async () => {
+        if (!macroForm.shortcut.trim() || !macroForm.text.trim()) {
+            return showToast('Shortcut and text are required', 'error');
+        }
+        try {
+            if (macroForm.id) {
+                await Data.updateMacro(macroForm.id, {
+                    shortcut: macroForm.shortcut.trim(),
+                    text: macroForm.text.trim(),
+                    category: macroForm.category || undefined
+                });
+                showToast('Macro updated', 'success');
+            } else {
+                await Data.createMacro({
+                    shortcut: macroForm.shortcut.trim(),
+                    text: macroForm.text.trim(),
+                    category: macroForm.category || undefined
+                });
+                showToast('Macro created', 'success');
+            }
+            resetMacroForm();
+        } catch (e: any) {
+            showToast(e.message || 'Failed to save macro', 'error');
+        }
+    };
+
+    const handleEditMacro = (macro: ChatMacro) => {
+        setMacroForm({
+            id: macro.id,
+            shortcut: macro.shortcut || '',
+            text: macro.text || '',
+            category: macro.category || ''
+        });
+        setMacroModalOpen(true);
+    };
+
+    const handleDeleteMacro = async (id: string) => {
+        if (!confirm('Delete this macro?')) return;
+        try {
+            await Data.deleteMacro(id);
+            showToast('Macro deleted', 'success');
+        } catch (e: any) {
+            showToast(e.message || 'Failed to delete macro', 'error');
+        }
     };
 
     const createLead = async () => {
@@ -287,6 +350,8 @@ export const InboxPage = () => {
         if (!activeChatId) return;
         try {
             const chatInfo = chats.find(c => c.chatId === activeChatId);
+            const yearMinVal = Number(requestForm.yearMin) || 0;
+            const yearMaxVal = Number(requestForm.yearMax) || 0;
             const payload = {
                 clientChatId: activeChatId,
                 title: requestForm.title || (chatInfo ? `Request from ${chatInfo.lastMsg.from}` : 'New Request'),
@@ -294,8 +359,8 @@ export const InboxPage = () => {
                 platform: 'TG',
                 budgetMin: Number(requestForm.budgetMin) || 0,
                 budgetMax: Number(requestForm.budgetMax) || 0,
-                yearMin: Number(requestForm.yearMin) || 0,
-                yearMax: Number(requestForm.yearMax) || 0,
+                yearMin: yearMinVal > 0 ? yearMinVal : undefined,
+                yearMax: yearMaxVal > 0 ? yearMaxVal : undefined,
                 city: requestForm.city || '',
                 description: requestForm.description || '',
                 createdAt: new Date().toISOString()
@@ -320,7 +385,7 @@ export const InboxPage = () => {
                     title: chatInfo ? `Request from ${chatInfo.lastMsg.from}` : 'New Request',
                     status: RequestStatus.DRAFT,
                     platform: 'TG',
-                    budgetMin: 0, budgetMax: 0, yearMin: 0, yearMax: 0, city: '', description: '',
+                    budgetMin: 0, budgetMax: 0, city: '', description: '',
                     createdAt: new Date().toISOString()
                 });
                 req = newReq;
@@ -334,14 +399,20 @@ export const InboxPage = () => {
         showToast(t('inbox.assigned'), 'success');
     };
 
-    const saveNote = async () => { /* ... [Unchanged] ... */
+    const saveNote = async () => {
         if (!activeChatId) return;
         const req = requestByChat[activeChatId];
-        if (!req) return showToast(t('inbox.no_request'), 'error');
-        await RequestsService.updateRequest(req.id, { internalNote });
-        setRequestByChat({ ...requestByChat, [activeChatId]: { ...req, internalNote } });
-        showToast(t('inbox.note_saved'), 'success');
-        setShowNotePanel(false);
+        try {
+            await Data.saveChatNote({ chatId: activeChatId, text: internalNote });
+            if (req) {
+                await RequestsService.updateRequest(req.id, { internalNote });
+                setRequestByChat({ ...requestByChat, [activeChatId]: { ...req, internalNote } });
+            }
+            showToast(t('inbox.note_saved'), 'success');
+            setShowNotePanel(false);
+        } catch (e: any) {
+            showToast(e.message || 'Failed to save note', 'error');
+        }
     };
 
     const activeMessages = activeChatId
@@ -355,6 +426,34 @@ export const InboxPage = () => {
     const visibleChats = filteredChats.slice(0, visibleCount);
     const activeChat = chats.find(c => c.chatId === activeChatId);
     const activeRequest = activeChatId ? requestByChat[activeChatId] : undefined;
+    const renderMessageText = (text: string) => {
+        const lines = String(text || '').split('\n');
+        return lines.map((line, idx) => {
+            const parts = line.split(/(\s+)/);
+            return (
+                <span key={`line-${idx}`}>
+                    {parts.map((part, i) => part.startsWith('/') ? (
+                        <span key={`cmd-${idx}-${i}`} className="px-1 py-0.5 rounded bg-black/10 text-gold-600 font-mono">{part}</span>
+                    ) : (
+                        <span key={`txt-${idx}-${i}`}>{part}</span>
+                    ))}
+                    {idx < lines.length - 1 && <br />}
+                </span>
+            );
+        });
+    };
+
+    const messageItems: Array<{ type: 'date'; date: Date } | { type: 'message'; msg: TelegramMessage }> = [];
+    let lastDateKey = '';
+    activeMessages.forEach(m => {
+        const dateObj = new Date(m.date);
+        const dateKey = dateObj.toDateString();
+        if (dateKey !== lastDateKey) {
+            messageItems.push({ type: 'date', date: dateObj });
+            lastDateKey = dateKey;
+        }
+        messageItems.push({ type: 'message', msg: m });
+    });
 
     return (
         <div className="h-[calc(100vh-100px)] flex gap-6">
@@ -438,12 +537,22 @@ export const InboxPage = () => {
 
                         {/* Messages */}
                         <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-[var(--bg-input)]">
-                            {activeMessages.map(m => {
+                            {messageItems.map((item, idx) => {
+                                if (item.type === 'date') {
+                                    return (
+                                        <div key={`date-${idx}`} className="flex justify-center">
+                                            <span className="text-[10px] uppercase tracking-widest text-[var(--text-secondary)] bg-[var(--bg-panel)] px-3 py-1 rounded-full border border-[var(--border-color)]">
+                                                {item.date.toLocaleDateString()}
+                                            </span>
+                                        </div>
+                                    );
+                                }
+                                const m = item.msg;
                                 const isOut = m.direction === 'OUTGOING';
                                 return (
                                     <div key={m.id} className={`flex ${isOut ? 'justify-end' : 'justify-start'}`}>
                                         <div className={`max-w-[70%] p-3 rounded-2xl shadow-sm text-sm relative group ${isOut ? 'bg-gold-500 text-charcoal-950 rounded-tr-none' : 'bg-[var(--bg-panel)] text-[var(--text-primary)] rounded-tl-none border border-[var(--border-color)]'}`}>
-                                            {m.text}
+                                            {renderMessageText(m.text)}
                                             <div className={`text-[9px] mt-1 text-right opacity-60 ${isOut ? 'text-charcoal-800' : 'text-[var(--text-secondary)]'}`}>{new Date(m.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
                                         </div>
                                     </div>
@@ -456,19 +565,35 @@ export const InboxPage = () => {
                         <div className="border-t border-[var(--border-color)] bg-[var(--bg-panel)] backdrop-blur">
                             {/* Toolbar */}
                             {showEmojis && (
-                                <div className="p-2 border-b border-[var(--border-color)] bg-[var(--bg-input)] flex gap-2 overflow-x-auto">
-                                    {COMMON_EMOJIS.map(e => <button key={e} onClick={() => insertEmoji(e)} className="text-xl hover:bg-[var(--bg-panel)] p-1 rounded transition-colors">{e}</button>)}
+                                <div className="p-2 border-b border-[var(--border-color)] bg-[var(--bg-input)]">
+                                    <Picker
+                                        data={data}
+                                        theme="dark"
+                                        onEmojiSelect={(emoji: any) => insertEmoji(emoji.native || '')}
+                                        previewPosition="none"
+                                        skinTonePosition="none"
+                                        perLine={8}
+                                    />
                                 </div>
                             )}
 
                             {showMacros && (
-                                <div className="p-3 border-b border-[var(--border-color)] bg-[var(--bg-input)] grid grid-cols-2 gap-2">
-                                    {DEFAULT_MACROS.map(macro => (
-                                        <button key={macro.id} onClick={() => { setReplyText(macro.text); setShowMacros(false); }} className="text-left p-2 rounded bg-[var(--bg-panel)] hover:bg-[var(--bg-app)] border border-[var(--border-color)] transition-colors">
-                                            <div className="text-[10px] font-mono text-gold-500 mb-1">{macro.shortcut}</div>
-                                            <div className="text-xs text-[var(--text-primary)] line-clamp-2">{macro.text}</div>
-                                        </button>
-                                    ))}
+                                <div className="p-3 border-b border-[var(--border-color)] bg-[var(--bg-input)] space-y-3">
+                                    <div className="flex items-center justify-between">
+                                        <div className="text-[10px] uppercase text-[var(--text-secondary)] font-bold">Macros</div>
+                                        <button onClick={() => setMacroModalOpen(true)} className="text-[10px] uppercase font-bold text-gold-500">Manage</button>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {macros.length === 0 && (
+                                            <div className="col-span-2 text-xs text-[var(--text-secondary)]">No macros yet. Add one.</div>
+                                        )}
+                                        {macros.map(macro => (
+                                            <button key={macro.id} onClick={() => { setReplyText(macro.text); setShowMacros(false); }} className="text-left p-2 rounded bg-[var(--bg-panel)] hover:bg-[var(--bg-app)] border border-[var(--border-color)] transition-colors">
+                                                <div className="text-[10px] font-mono text-gold-500 mb-1">{macro.shortcut}</div>
+                                                <div className="text-xs text-[var(--text-primary)] line-clamp-2">{macro.text}</div>
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
                             )}
 
@@ -588,6 +713,52 @@ export const InboxPage = () => {
                         <div className="flex justify-end gap-2 pt-2">
                             <button onClick={() => setShowRequestModal(false)} className="btn-secondary">Cancel</button>
                             <button onClick={submitRequest} className="btn-primary">Save Request</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {macroModalOpen && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="panel w-full max-w-2xl p-6 space-y-6">
+                        <div className="flex justify-between items-center">
+                            <div>
+                                <h3 className="text-lg font-bold text-[var(--text-primary)]">Chat Macros</h3>
+                                <p className="text-xs text-[var(--text-secondary)]">Create reusable replies for faster responses.</p>
+                            </div>
+                            <button onClick={() => { setMacroModalOpen(false); resetMacroForm(); }}><X size={18} /></button>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {macros.map(macro => (
+                                <div key={macro.id} className="p-3 rounded-lg border border-[var(--border-color)] bg-[var(--bg-input)] flex flex-col gap-2">
+                                    <div className="flex justify-between items-start">
+                                        <div className="text-[10px] font-mono text-gold-500">{macro.shortcut}</div>
+                                        <div className="flex gap-2">
+                                            <button onClick={() => handleEditMacro(macro)} className="text-xs text-blue-500">Edit</button>
+                                            <button onClick={() => handleDeleteMacro(macro.id)} className="text-xs text-red-500">Delete</button>
+                                        </div>
+                                    </div>
+                                    <div className="text-xs text-[var(--text-primary)] line-clamp-3">{macro.text}</div>
+                                    {macro.category && <div className="text-[10px] text-[var(--text-secondary)]">#{macro.category}</div>}
+                                </div>
+                            ))}
+                            {macros.length === 0 && (
+                                <div className="text-xs text-[var(--text-secondary)]">No macros yet.</div>
+                            )}
+                        </div>
+
+                        <div className="border-t border-[var(--border-color)] pt-4 space-y-3">
+                            <div className="text-xs uppercase text-[var(--text-secondary)] font-bold">{macroForm.id ? 'Edit Macro' : 'New Macro'}</div>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                <input className="input text-sm" placeholder="/shortcut" value={macroForm.shortcut} onChange={e => setMacroForm(prev => ({ ...prev, shortcut: e.target.value }))} />
+                                <input className="input text-sm md:col-span-2" placeholder="Macro text" value={macroForm.text} onChange={e => setMacroForm(prev => ({ ...prev, text: e.target.value }))} />
+                            </div>
+                            <input className="input text-sm" placeholder="Category (optional)" value={macroForm.category} onChange={e => setMacroForm(prev => ({ ...prev, category: e.target.value }))} />
+                            <div className="flex justify-end gap-2">
+                                <button onClick={resetMacroForm} className="btn-ghost text-xs">Clear</button>
+                                <button onClick={handleSaveMacro} className="btn-primary text-xs px-4">Save Macro</button>
+                            </div>
                         </div>
                     </div>
                 </div>

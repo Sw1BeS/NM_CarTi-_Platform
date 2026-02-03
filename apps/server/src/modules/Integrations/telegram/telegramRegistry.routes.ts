@@ -70,4 +70,13 @@ router.get('/registry/:id/logs', requireRole(registryRoles), async (req: any, re
     }
 });
 
+router.delete('/registry/:id', requireRole(registryRoles), async (req: any, res) => {
+    try {
+        await registryService.remove(req.companyId, req.params.id);
+        res.json({ success: true });
+    } catch (e: any) {
+        return errorResponse(res, 400, e.message || 'Delete error', 'TG_REGISTRY_DELETE');
+    }
+});
+
 export default router;

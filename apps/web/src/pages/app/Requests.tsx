@@ -159,14 +159,16 @@ export const RequestList: React.FC = () => {
         }
         setCreating(true);
         try {
+            const yearMinVal = Number(createForm.yearMin) || 0;
+            const yearMaxVal = Number(createForm.yearMax) || 0;
             await RequestsService.createRequest({
                 title: createForm.title,
                 type: createForm.type,
                 description: createForm.description || '',
                 budgetMin: Number(createForm.budgetMin) || 0,
                 budgetMax: Number(createForm.budgetMax),
-                yearMin: Number(createForm.yearMin),
-                yearMax: Number(createForm.yearMax),
+                yearMin: yearMinVal > 0 ? yearMinVal : undefined,
+                yearMax: yearMaxVal > 0 ? yearMaxVal : undefined,
                 city: createForm.city,
                 priority: createForm.priority,
                 status: RequestStatus.DRAFT,
@@ -376,7 +378,7 @@ export const RequestList: React.FC = () => {
 
             {isCreateOpen && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                    <div className="panel w-full max-w-xl p-8 animate-slide-up">
+                    <div className="panel w-full max-w-3xl p-10 animate-slide-up">
                         <div className="flex justify-between items-center mb-6">
                             <h3 className="font-bold text-[var(--text-primary)] text-xl">New Request</h3>
                             <button onClick={() => setIsCreateOpen(false)} className="btn-ghost"><X size={20} /></button>

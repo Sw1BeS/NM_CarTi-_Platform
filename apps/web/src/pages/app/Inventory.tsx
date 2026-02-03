@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { InventoryService } from '../../services/inventoryService';
+import { ApiClient } from '../../services/apiClient';
 import { CarListing, B2BRequest, VariantStatus } from '../../types';
 import { Plus, X, Search, Edit2, Trash2, MapPin, Calendar, Gauge, Link, UserPlus, CheckSquare, Square, DollarSign, CheckCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useToast } from '../../contexts/ToastContext';
@@ -650,8 +651,58 @@ const CarEditor = ({ initialData, onSave, onClose }: any) => {
         source: 'INTERNAL', sourceUrl: '', title: '', price: { amount: 0, currency: 'USD' },
         year: new Date().getFullYear(), mileage: 0, location: 'Kyiv', thumbnail: '', specs: {}, status: 'AVAILABLE'
     });
+    const [uploading, setUploading] = useState(false);
 
     const handleChange = (field: string, value: any) => setForm(prev => ({ ...prev, [field]: value }));
+    const addMediaUrl = (url: string) => {
+        if (!url) return;
+        setForm(prev => {
+            const current = Array.isArray(prev.mediaUrls) ? prev.mediaUrls : [];
+            const next = Array.from(new Set([...current, url]));
+            return {
+                ...prev,
+                mediaUrls: next,
+                thumbnail: prev.thumbnail || url
+            };
+        });
+    };
+
+    const removeMediaUrl = (url: string) => {
+        setForm(prev => {
+            const current = Array.isArray(prev.mediaUrls) ? prev.mediaUrls : [];
+            const next = current.filter(u => u !== url);
+            const nextThumb = prev.thumbnail === url ? (next[0] || '') : prev.thumbnail;
+            return { ...prev, mediaUrls: next, thumbnail: nextThumb };
+        });
+    };
+
+    const handleImageUpload = async (file: File) => {
+        if (!file) return;
+        setUploading(true);
+        try {
+            const reader = new FileReader();
+            const content = await new Promise<string>((resolve, reject) => {
+                reader.onload = () => resolve(reader.result as string);
+                reader.onerror = () => reject(reader.error);
+                reader.readAsDataURL(file);
+            });
+
+            const res = await ApiClient.post<{ ok: boolean; url?: string; name?: string }>('storage/upload', {
+                name: file.name,
+                content,
+                type: file.type
+            });
+
+            if (!res.ok || !res.data?.url) {
+                throw new Error(res.message || 'Upload failed');
+            }
+            addMediaUrl(res.data.url);
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setUploading(false);
+        }
+    };
 
     return (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
@@ -705,6 +756,48 @@ const CarEditor = ({ initialData, onSave, onClose }: any) => {
                     <div>
                         <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest mb-2">Source URL</label>
                         <input className="input" placeholder="https://..." value={form.sourceUrl || ''} onChange={e => handleChange('sourceUrl', e.target.value)} />
+                    </div>
+
+                    <div>
+                        <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest mb-2">Images</label>
+                        <div className="space-y-3">
+                            <div className="flex flex-wrap gap-3">
+                                {(form.mediaUrls || []).map((url) => (
+                                    <div key={url} className="relative w-20 h-20 rounded-lg overflow-hidden border border-[var(--border-color)] bg-[var(--bg-input)]">
+                                        <img src={url} className="w-full h-full object-cover" />
+                                        <button
+                                            onClick={() => removeMediaUrl(url)}
+                                            className="absolute top-1 right-1 bg-black/60 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs"
+                                        >
+                                            ×
+                                        </button>
+                                        <button
+                                            onClick={() => setForm(prev => ({ ...prev, thumbnail: url }))}
+                                            className={`absolute bottom-1 left-1 text-[10px] px-1.5 py-0.5 rounded ${form.thumbnail === url ? 'bg-gold-500 text-black' : 'bg-black/60 text-white'}`}
+                                        >
+                                            Cover
+                                        </button>
+                                    </div>
+                                ))}
+                                {!form.mediaUrls?.length && (
+                                    <div className="text-xs text-[var(--text-secondary)]">No images yet.</div>
+                                )}
+                            </div>
+                            <div className="flex gap-2 items-center">
+                                <label className="btn-secondary text-xs cursor-pointer">
+                                    {uploading ? 'Uploading...' : 'Upload Image'}
+                                    <input type="file" accept="image/*" hidden onChange={e => e.target.files?.[0] && handleImageUpload(e.target.files[0])} />
+                                </label>
+                                <input
+                                    className="input flex-1 text-xs"
+                                    placeholder="Paste image URL"
+                                    value={form.thumbnail || ''}
+                                    onChange={e => setForm(prev => ({ ...prev, thumbnail: e.target.value }))}
+                                />
+                                <button onClick={() => form.thumbnail && addMediaUrl(form.thumbnail)} className="btn-secondary text-xs">Add URL</button>
+                            </div>
+                            <div className="text-[10px] text-[var(--text-secondary)]">Tip: Choose "Cover" to set the main thumbnail.</div>
+                        </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-6">

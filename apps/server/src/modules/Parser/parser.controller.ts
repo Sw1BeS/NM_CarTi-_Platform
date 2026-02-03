@@ -60,6 +60,29 @@ const extractVariables = (html: string, url: string) => {
     const vinMatch = text.match(/\b[A-HJ-NPR-Z0-9]{17}\b/i);
     const vin = vinMatch ? vinMatch[0] : undefined;
 
+    // JSON-LD Extraction (Vehicle/Product)
+    let vehicleLd: any = null;
+    $('script[type="application/ld+json"]').each((_, el) => {
+        try {
+            const json = JSON.parse($(el).html() || '{}');
+            const items = Array.isArray(json) ? json : [json];
+            const found = items.find((i: any) => {
+                const type = String(i['@type'] || '').toLowerCase();
+                return type.includes('vehicle') || type.includes('car') || type.includes('product');
+            });
+            if (found) vehicleLd = found;
+        } catch { }
+    });
+
+    const ldTitle = vehicleLd?.name || vehicleLd?.headline;
+    const ldPrice = vehicleLd?.offers?.price || vehicleLd?.price;
+    const ldCurrency = vehicleLd?.offers?.priceCurrency || vehicleLd?.priceCurrency;
+    const ldYear = vehicleLd?.modelDate || vehicleLd?.productionDate || vehicleLd?.vehicleModelDate;
+    const ldMileage = vehicleLd?.mileageFromOdometer?.value || vehicleLd?.mileageFromOdometer;
+    const ldVin = vehicleLd?.vehicleIdentificationNumber;
+    const ldImage = vehicleLd?.image?.url || (Array.isArray(vehicleLd?.image) ? vehicleLd?.image[0] : vehicleLd?.image);
+    if (ldImage) imageCandidates.push(ldImage);
+
     // FALLBACK: OpenGraph / Meta Tags (Universal)
     // If regex failed, rely on meta
     const finalTitle = title || $('meta[name="twitter:title"]').attr('content') || '';
@@ -77,17 +100,25 @@ const extractVariables = (html: string, url: string) => {
         }
     }
 
+    if (!finalPrice && ldPrice) finalPrice = Number(String(ldPrice).replace(/[^\d.]/g, ''));
+    if (!finalCurrency && ldCurrency) finalCurrency = ldCurrency;
+
+    const finalYear = year || (ldYear ? Number(String(ldYear).match(/(19|20)\d{2}/)?.[0]) : undefined);
+    const mileageRaw = mileage || (ldMileage ? String(ldMileage).replace(/[^\d.]/g, '') : undefined);
+    const finalMileage = mileageRaw ? Number(mileageRaw) : undefined;
+
     return {
         meta: { title: finalTitle, description: finalDesc },
         images: Array.from(new Set(imageCandidates)).filter(Boolean),
         variables: {
-            title: finalTitle || undefined,
+            title: finalTitle || ldTitle || undefined,
             description: finalDesc || undefined,
             price: finalPrice,
             currency: finalCurrency,
-            mileage,
-            year,
-            vin,
+            mileage: finalMileage,
+            year: finalYear,
+            vin: vin || ldVin,
+            location: vehicleLd?.address?.addressLocality,
             url,
             // Add raw meta for UI debugging
             ogImage: finalImage
@@ -124,6 +155,7 @@ const applySelectorMap = (html: string, mapping: Record<string, any>, base: Retu
     };
 
     const next = { ...(base.variables || {}) } as Record<string, any>;
+    let images = Array.isArray(base.images) ? [...base.images] : [];
     const mappedTitle = readText(mapping.title);
     if (mappedTitle) next.title = mappedTitle;
 
@@ -158,7 +190,26 @@ const applySelectorMap = (html: string, mapping: Record<string, any>, base: Retu
         if (parsedCurrency.currency) next.currency = parsedCurrency.currency;
     }
 
-    return { ...base, variables: next };
+    const vinText = readText(mapping.vin);
+    if (vinText) {
+        const vinMatch = vinText.match(/\b[A-HJ-NPR-Z0-9]{17}\b/i);
+        next.vin = vinMatch ? vinMatch[0].toUpperCase() : vinText.trim();
+    }
+
+    const imageContainer = mapping.imageContainer;
+    if (imageContainer) {
+        const container = $(imageContainer);
+        const imgSources: string[] = [];
+        container.find('img').each((_, el) => {
+            const src = $(el).attr('data-src') || $(el).attr('src') || '';
+            if (src) imgSources.push(src);
+        });
+        if (imgSources.length) {
+            images = Array.from(new Set([...images, ...imgSources]));
+        }
+    }
+
+    return { ...base, variables: next, images };
 };
 
 const applyMapping = (html: string, mapping: Record<string, any> | null, base: ReturnType<typeof extractVariables>) => {

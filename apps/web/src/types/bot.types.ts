@@ -47,7 +47,9 @@ export interface MiniAppConfig {
     title: string;
     welcomeText: string;
     headerImageUrl?: string;
+    logoUrl?: string;
     primaryColor: string;
+    accentColor?: string;
     layout: 'GRID' | 'LIST';
     actions: {
         id: string;
@@ -56,6 +58,16 @@ export interface MiniAppConfig {
         actionType: 'SCENARIO' | 'LINK' | 'VIEW';
         value: string;
     }[];
+    navItems?: {
+        id: string;
+        label: string;
+        icon?: string;
+        actionType: 'SCENARIO' | 'LINK' | 'VIEW';
+        value: string;
+    }[];
+    url?: string;
+    showcaseSlug?: string;
+    homeBlocks?: any[];
 }
 
 export type NodeType =
@@ -97,7 +109,13 @@ export interface ScenarioNode {
         conditionValue?: string | number;
         trueNodeId?: string;
         falseNodeId?: string;
-        actionType?: 'NORMALIZE_REQUEST' | 'CREATE_LEAD' | 'CREATE_REQUEST' | 'TAG_USER' | 'SET_LANG' | 'NOTIFY_ADMIN';
+        actionType?: 'NORMALIZE_REQUEST' | 'CREATE_LEAD' | 'CREATE_REQUEST' | 'TAG_USER' | 'SET_LANG' | 'NOTIFY_ADMIN' | 'LOOKUP_REQUEST';
+        leadType?: 'BUY' | 'SELL' | 'SUPPORT' | string;
+        requestType?: 'BUY' | 'SELL' | string;
+        requestTitle?: string;
+        requestDescription?: string;
+        requestStatus?: string;
+        lookupVar?: string;
         destinationId?: string;
         destinationVar?: string;
         imageUrl?: string;

@@ -41,7 +41,9 @@ export const ContentPage = () => {
     const [scheduleDate, setScheduleDate] = useState('');
     const [postLang, setPostLang] = useState<'UA' | 'RU'>('UA');
     const [searchQuery, setSearchQuery] = useState('');
+    const [timeZone, setTimeZone] = useState('UTC');
     const { showToast } = useToast();
+    const activeTemplate = selectedTemplateId ? templates.find(t => t.id === selectedTemplateId) : null;
 
     useEffect(() => {
         loadData();
@@ -64,17 +66,63 @@ export const ContentPage = () => {
     };
 
     const loadData = async () => {
-        const [inv, dests, botList, tplList] = await Promise.all([
+        const [inv, dests, botList, tplList, settings] = await Promise.all([
             Data.getInventory(),
             Data.getDestinations(),
             Data.getBots(),
-            PublicationService.listTemplates().catch(() => [])
+            PublicationService.listTemplates().catch(() => []),
+            Data.getSettings().catch(() => null)
         ]);
         setInventory(inv.filter(c => c.status === 'AVAILABLE'));
         setDestinations(dests.filter(d => d.type === 'CHANNEL'));
         setBots(botList.filter(b => b.active));
         setTemplates(tplList);
+        if (settings?.branding?.timezone) {
+            setTimeZone(settings.branding.timezone);
+        }
         loadJobs();
+    };
+
+    const getTimeZoneOffset = (zone: string, date: Date) => {
+        try {
+            const dtf = new Intl.DateTimeFormat('en-US', {
+                timeZone: zone,
+                hour12: false,
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+            const parts = dtf.formatToParts(date).reduce((acc: any, part) => {
+                acc[part.type] = part.value;
+                return acc;
+            }, {});
+            const asUTC = Date.UTC(
+                Number(parts.year),
+                Number(parts.month) - 1,
+                Number(parts.day),
+                Number(parts.hour),
+                Number(parts.minute),
+                Number(parts.second)
+            );
+            return asUTC - date.getTime();
+        } catch {
+            return 0;
+        }
+    };
+
+    const toZonedISOString = (dateTime: string, zone: string) => {
+        if (!dateTime) return undefined;
+        const [datePart, timePart] = dateTime.split('T');
+        if (!datePart || !timePart) return undefined;
+        const [year, month, day] = datePart.split('-').map(Number);
+        const [hour, minute] = timePart.split(':').map(Number);
+        if (!year || !month || !day) return undefined;
+        const utcDate = new Date(Date.UTC(year, month - 1, day, hour || 0, minute || 0));
+        const offset = getTimeZoneOffset(zone, utcDate);
+        return new Date(utcDate.getTime() - offset).toISOString();
     };
 
     const getTemplateText = () => {
@@ -129,7 +177,7 @@ export const ContentPage = () => {
             return;
         }
 
-        const scheduledAt = scheduleDate ? new Date(scheduleDate).toISOString() : undefined;
+        const scheduledAt = scheduleDate ? toZonedISOString(scheduleDate, timeZone) : undefined;
         const templateText = getTemplateText();
         const created = await PublicationService.createJob({
             title: selectedCar.title,
@@ -217,6 +265,25 @@ export const ContentPage = () => {
             loadData();
         } catch (e: unknown) {
             const message = e instanceof Error ? e.message : 'Failed to save template';
+            showToast(message, 'error');
+        }
+    };
+
+    const updateTemplate = async () => {
+        if (!selectedTemplateId) return;
+        if (!customText) {
+            showToast("Enter custom text to update", "error");
+            return;
+        }
+        try {
+            await PublicationService.updateTemplate(selectedTemplateId, {
+                body: customText,
+                language: postLang
+            });
+            showToast("Template Updated");
+            loadData();
+        } catch (e: unknown) {
+            const message = e instanceof Error ? e.message : 'Failed to update template';
             showToast(message, 'error');
         }
     };
@@ -469,11 +536,18 @@ export const ContentPage = () => {
 
                                 {template === 'CUSTOM' && (
                                     <div>
-                                        <label className="text-xs font-bold text-[var(--text-secondary)] uppercase block mb-2 flex justify-between">
+                                        <label className="text-xs font-bold text-[var(--text-secondary)] uppercase block mb-2 flex justify-between items-center">
                                             <span>Custom Text</span>
-                                            <button onClick={saveTemplate} className="text-gold-500 flex items-center gap-1 hover:underline">
-                                                <Save size={12}/> Save as Template
-                                            </button>
+                                            <div className="flex items-center gap-3">
+                                                {activeTemplate && (
+                                                    <button onClick={updateTemplate} className="text-blue-400 flex items-center gap-1 hover:underline">
+                                                        <Save size={12}/> Update
+                                                    </button>
+                                                )}
+                                                <button onClick={saveTemplate} className="text-gold-500 flex items-center gap-1 hover:underline">
+                                                    <Save size={12}/> Save as Template
+                                                </button>
+                                            </div>
                                         </label>
 
                                         {templates.length > 0 && (
@@ -497,7 +571,6 @@ export const ContentPage = () => {
                                                 <button
                                                     key={token}
                                                     onClick={() => {
-                                                        setSelectedTemplateId(null);
                                                         setCustomText(prev => (prev ? `${prev} ${token}` : token));
                                                     }}
                                                     className="text-[10px] px-2 py-1 rounded bg-[var(--bg-input)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
@@ -511,7 +584,6 @@ export const ContentPage = () => {
                                             placeholder="Write your post here... Use {title}, {price}, {hashtags}"
                                             initialValue={customText}
                                             onChange={(html, markdown) => {
-                                                setSelectedTemplateId(null);
                                                 setCustomText(markdown);
                                             }}
                                         />
@@ -546,6 +618,9 @@ export const ContentPage = () => {
                                         value={scheduleDate}
                                         onChange={e => setScheduleDate(e.target.value)}
                                     />
+                                    <div className="text-[10px] text-[var(--text-secondary)] mt-1">
+                                        Timezone: {timeZone}
+                                    </div>
                                 </div>
                             </div>
 

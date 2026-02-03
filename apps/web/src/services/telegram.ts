@@ -16,8 +16,10 @@ export class TelegramService {
             });
 
             if (!res.ok) {
-                this.lastError = res.message || 'Telegram proxy error';
-                throw new Error(this.lastError);
+                const detail = res.details?.details?.description || res.details?.message || res.details?.error || '';
+                const base = res.details?.error || res.message || 'Telegram proxy error';
+                this.lastError = detail && detail !== base ? `${base} (${detail})` : base;
+                throw new Error(`${method}: ${this.lastError}`);
             }
 
             this.lastUsedProxy = 'Server';

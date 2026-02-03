@@ -1,277 +1,100 @@
-
 import { prisma } from '../services/prisma.js';
 
 const TEMPLATES = [
     {
-        id: 'tmpl_buy_v1',
-        name: '🚗 Car Buying Assistant (Premium)',
-        category: 'LEAD_GEN',
-        description: 'A sophisticated flow to qualify buyers, asking for budget, brand preferences, and timeline.',
+        id: 'tpl_buy_request',
+        name: 'Buy Request (UA/RU/EN)',
+        category: 'B2B',
+        description: 'Collects buy request details and creates a B2B request.',
         isPublic: true,
         structure: {
+            triggerCommand: 'buy',
+            keywords: ['buy', 'купити', 'купить'],
+            entryNodeId: 'start',
             nodes: [
-                {
-                    id: 'node_start',
-                    type: 'MESSAGE',
-                    content: {
-                        text: "Welcome to our Premium Concierge service. I'm here to help you find your perfect car.\n\nTo get started, could you tell me what kind of vehicle you are looking for?",
-                        text_uk: "Вітаємо у нашому преміум консьєрж-сервісі. Я тут, щоб допомогти вам знайти ідеальне авто.\n\nдля початку, скажіть, який транспортний засіб ви шукаєте?",
-                        text_ru: "Добро пожаловать в наш премиум консьерж-сервис. Я здесь, чтобы помочь вам найти идеальное авто.\n\nДля начала, скажите, какое транспортное средство вы ищете?"
-                    },
-                    nextNodeId: 'node_budget'
-                },
-                {
-                    id: 'node_budget',
-                    type: 'QUESTION_CHOICE',
-                    content: {
-                        text: "What is your approximate budget?",
-                        text_uk: "Який ваш приблизний бюджет?",
-                        text_ru: "Каков ваш приблизительный бюджет?",
-                        variable: 'budget',
-                        choices: [
-                            { label: 'Under $10k', value: '10000' },
-                            { label: '$10k - $25k', value: '25000' },
-                            { label: '$25k - $50k', value: '50000' },
-                            { label: '$50k+', value: '100000' }
-                        ]
-                    },
-                    nextNodeId: 'node_brand'
-                },
-                {
-                    id: 'node_brand',
-                    type: 'QUESTION_TEXT',
-                    content: {
-                        text: "Do you have a specific brand or model in mind?",
-                        text_uk: "Чи маєте ви на увазі конкретну марку чи модель?",
-                        text_ru: "У вас есть на примете конкретная марка или модель?",
-                        variable: 'brand_preference'
-                    },
-                    nextNodeId: 'node_search'
-                },
-                {
-                    id: 'node_search',
-                    type: 'SEARCH_CARS',
-                    content: {
-                        brandVar: 'brand_preference',
-                        budgetVar: 'budget'
-                    },
-                    nextNodeId: 'node_check_results'
-                },
-                {
-                    id: 'node_check_results',
-                    type: 'CONDITION',
-                    content: {
-                        conditionVariable: 'found_count',
-                        conditionOperator: 'GT',
-                        conditionValue: '0',
-                        trueNodeId: 'node_results_msg',
-                        falseNodeId: 'node_fallback'
-                    }
-                },
-                {
-                    id: 'node_results_msg',
-                    type: 'MESSAGE',
-                    content: {
-                        text: "Here are some options I found for you:",
-                        text_uk: "Ось декілька варіантів, які я знайшов:",
-                        text_ru: "Вот несколько вариантов, которые я нашел:"
-                    },
-                    nextNodeId: 'node_gallery'
-                },
-                {
-                    id: 'node_gallery',
-                    type: 'GALLERY',
-                    content: {},
-                    nextNodeId: 'node_contact'
-                },
-                {
-                    id: 'node_fallback',
-                    type: 'MESSAGE',
-                    content: {
-                        text: "I couldn't find exact matches in our immediate stock, but our team can source this for you.",
-                        text_uk: "Я не знайшов точних збігів у нашому наявному складі, але наша команда може знайти це для вас.",
-                        text_ru: "Я не нашел точных совпадений на складе, но наша команда может найти это для вас."
-                    },
-                    nextNodeId: 'node_contact'
-                },
-                {
-                    id: 'node_contact',
-                    type: 'ACTION',
-                    content: {
-                        actionType: 'CREATE_LEAD',
-                        notifyAdmin: true
-                    },
-                    nextNodeId: 'node_end'
-                },
-                {
-                    id: 'node_end',
-                    type: 'MESSAGE',
-                    content: {
-                        text: "Thank you! A manager will contact you shortly with a personalized selection.",
-                        text_uk: "Дякую! Менеджер зв'яжеться з вами найближчим часом з персональною підбіркою.",
-                        text_ru: "Спасибо! Менеджер свяжется с вами в ближайшее время с персональной подборкой."
-                    }
-                }
+                { id: 'start', type: 'START', content: { text: '' }, nextNodeId: 'greet' },
+                { id: 'greet', type: 'MESSAGE', content: { text: '👋 Hi! Let\'s find a car for you.', text_uk: '👋 Вітаємо! Допоможемо підібрати авто.', text_ru: '👋 Здравствуйте! Поможем подобрать авто.' }, nextNodeId: 'ask_brand' },
+                { id: 'ask_brand', type: 'QUESTION_TEXT', content: { text: 'Which brand?', text_uk: 'Яка марка вас цікавить?', text_ru: 'Какая марка интересует?', variableName: 'brand' }, nextNodeId: 'ask_model' },
+                { id: 'ask_model', type: 'QUESTION_TEXT', content: { text: 'Model?', text_uk: 'Яка модель?', text_ru: 'Какая модель?', variableName: 'model' }, nextNodeId: 'ask_budget' },
+                { id: 'ask_budget', type: 'QUESTION_TEXT', content: { text: 'Budget (USD)?', text_uk: 'Бюджет (USD)?', text_ru: 'Бюджет (USD)?', variableName: 'budget' }, nextNodeId: 'ask_year' },
+                { id: 'ask_year', type: 'QUESTION_TEXT', content: { text: 'Year (e.g., 2019+)?', text_uk: 'Рік (наприклад 2019+)?', text_ru: 'Год (например 2019+)?', variableName: 'year' }, nextNodeId: 'ask_city' },
+                { id: 'ask_city', type: 'QUESTION_TEXT', content: { text: 'City?', text_uk: 'Місто?', text_ru: 'Город?', variableName: 'city' }, nextNodeId: 'ask_contact' },
+                { id: 'ask_contact', type: 'REQUEST_CONTACT', content: { text: 'Please share your contact so we can reach you.', text_uk: 'Поділіться контактом для звʼязку.', text_ru: 'Поделитесь контактом для связи.' }, nextNodeId: 'create_lead' },
+                { id: 'create_lead', type: 'ACTION', content: { actionType: 'CREATE_LEAD', leadType: 'BUY' }, nextNodeId: 'create_request' },
+                { id: 'create_request', type: 'ACTION', content: { actionType: 'CREATE_REQUEST', requestType: 'BUY' }, nextNodeId: 'confirm' },
+                { id: 'confirm', type: 'MESSAGE', content: { text: '✅ Request created. We will contact you shortly.', text_uk: '✅ Запит створено. Звʼяжемося найближчим часом.', text_ru: '✅ Запрос создан. Свяжемся в ближайшее время.' } }
             ]
         }
     },
     {
-        id: 'tmpl_sell_v1',
-        name: '💰 Trade-In / Sell Valuation',
-        category: 'ACQUISITION',
-        description: 'Collects car details from user for trade-in evaluation.',
+        id: 'tpl_sell_tradein',
+        name: 'Sell / Trade-in (UA/RU/EN)',
+        category: 'B2B',
+        description: 'Collects sell/trade-in details and creates a B2B request.',
         isPublic: true,
         structure: {
+            triggerCommand: 'sell',
+            keywords: ['sell', 'продати', 'продать', 'trade-in'],
+            entryNodeId: 'start',
             nodes: [
-                {
-                    id: 'node_start',
-                    type: 'MESSAGE',
-                    content: {
-                        text: "Great! Let's get an estimate for your car. What is the Year, Make, and Model of your vehicle?",
-                        text_uk: "Чудово! Давайте оцінимо ваше авто. Який рік, марка та модель вашого автомобіля?",
-                        text_ru: "Отлично! Давайте оценим ваш автомобиль. Какой год, марка и модель вашего авто?"
-                    },
-                    nextNodeId: 'node_details'
-                },
-                {
-                    id: 'node_details',
-                    type: 'QUESTION_TEXT',
-                    content: {
-                        variable: 'user_car_details',
-                        text: "Please type it below (e.g., 2018 BMW X5):",
-                        text_uk: "Будь ласка, напишіть нижче (наприклад, 2018 BMW X5):",
-                        text_ru: "Пожалуйста, напишите ниже (например, 2018 BMW X5):"
-                    },
-                    nextNodeId: 'node_photos'
-                },
-                {
-                    id: 'node_photos',
-                    type: 'MESSAGE',
-                    content: {
-                        text: "Got it. If you have photos, you can send them now, or just click 'Skip'.",
-                        text_uk: "Зрозумів. Якщо у вас є фото, можете надіслати їх зараз або натисніть 'Пропустити'.",
-                        text_ru: "Понял. Если есть фото, можете отправить их сейчас или нажмите 'Пропустить'."
-                    },
-                    nextNodeId: 'node_skip_btn'
-                },
-                {
-                    id: 'node_skip_btn',
-                    type: 'QUESTION_CHOICE',
-                    content: {
-                        variable: 'photos_provided',
-                        text: "Select an option:",
-                        text_uk: "Оберіть опцію:",
-                        text_ru: "Выберите опцию:",
-                        choices: [
-                            { label: 'Skip Photos', value: 'no' },
-                            { label: 'I sent them', value: 'yes' }
-                        ]
-                    },
-                    nextNodeId: 'node_action'
-                },
-                {
-                    id: 'node_action',
-                    type: 'ACTION',
-                    content: { actionType: 'NOTIFY_ADMIN', text: 'New Trade-In Request: {{user_car_details}}' },
-                    nextNodeId: 'node_final'
-                },
-                {
-                    id: 'node_final',
-                    type: 'MESSAGE',
-                    content: {
-                        text: "Thanks! We've received your request and will send you a valuation within 24 hours.",
-                        text_uk: "Дякую! Ми отримали ваш запит і надішлемо оцінку протягом 24 годин.",
-                        text_ru: "Спасибо! Мы получили ваш запрос и отправим оценку в течение 24 часов."
-                    }
-                }
+                { id: 'start', type: 'START', content: { text: '' }, nextNodeId: 'greet' },
+                { id: 'greet', type: 'MESSAGE', content: { text: '👋 Let\'s evaluate your car.', text_uk: '👋 Оцінимо ваше авто.', text_ru: '👋 Оценим ваш автомобиль.' }, nextNodeId: 'ask_brand' },
+                { id: 'ask_brand', type: 'QUESTION_TEXT', content: { text: 'Brand?', text_uk: 'Марка?', text_ru: 'Марка?', variableName: 'brand' }, nextNodeId: 'ask_model' },
+                { id: 'ask_model', type: 'QUESTION_TEXT', content: { text: 'Model?', text_uk: 'Модель?', text_ru: 'Модель?', variableName: 'model' }, nextNodeId: 'ask_year' },
+                { id: 'ask_year', type: 'QUESTION_TEXT', content: { text: 'Year?', text_uk: 'Рік?', text_ru: 'Год?', variableName: 'year' }, nextNodeId: 'ask_mileage' },
+                { id: 'ask_mileage', type: 'QUESTION_TEXT', content: { text: 'Mileage (km)?', text_uk: 'Пробіг (км)?', text_ru: 'Пробег (км)?', variableName: 'mileage' }, nextNodeId: 'ask_vin' },
+                { id: 'ask_vin', type: 'QUESTION_TEXT', content: { text: 'VIN (optional)?', text_uk: 'VIN (необовʼязково)?', text_ru: 'VIN (необязательно)?', variableName: 'vin' }, nextNodeId: 'ask_price' },
+                { id: 'ask_price', type: 'QUESTION_TEXT', content: { text: 'Expected price (USD)?', text_uk: 'Очікувана ціна (USD)?', text_ru: 'Ожидаемая цена (USD)?', variableName: 'budget' }, nextNodeId: 'ask_city' },
+                { id: 'ask_city', type: 'QUESTION_TEXT', content: { text: 'City?', text_uk: 'Місто?', text_ru: 'Город?', variableName: 'city' }, nextNodeId: 'ask_contact' },
+                { id: 'ask_contact', type: 'REQUEST_CONTACT', content: { text: 'Please share your contact.', text_uk: 'Поділіться контактом.', text_ru: 'Поделитесь контактом.' }, nextNodeId: 'create_lead' },
+                { id: 'create_lead', type: 'ACTION', content: { actionType: 'CREATE_LEAD', leadType: 'SELL' }, nextNodeId: 'create_request' },
+                { id: 'create_request', type: 'ACTION', content: { actionType: 'CREATE_REQUEST', requestType: 'SELL' }, nextNodeId: 'confirm' },
+                { id: 'confirm', type: 'MESSAGE', content: { text: '✅ Thanks! We will contact you with an offer.', text_uk: '✅ Дякуємо! Звʼяжемося з пропозицією.', text_ru: '✅ Спасибо! Свяжемся с предложением.' } }
             ]
         }
     },
     {
-        id: 'tmpl_lang_v1',
-        name: '🌐 Language Selection',
+        id: 'tpl_status_support',
+        name: 'Support / Status (UA/RU/EN)',
         category: 'SUPPORT',
-        description: 'Allows user to select their preferred language (EN/UK/RU).',
+        description: 'Checks request status or creates a support lead.',
         isPublic: true,
         structure: {
+            triggerCommand: 'status',
+            keywords: ['status', 'support', 'статус', 'підтримка', 'поддержка'],
+            entryNodeId: 'start',
             nodes: [
-                {
-                    id: 'node_start',
-                    type: 'MESSAGE',
-                    content: {
-                        text: "Please select your language:\nБудь ласка, оберіть мову:\nПожалуйста, выберите язык:",
-                        text_uk: "Будь ласка, оберіть мову:",
-                        text_ru: "Пожалуйста, выберите язык:"
-                    },
-                    nextNodeId: 'node_lang_choice'
-                },
-                {
-                    id: 'node_lang_choice',
-                    type: 'QUESTION_CHOICE',
-                    content: {
-                        variable: 'temp_lang',
-                        text: "Options / Опції:",
-                        choices: [
-                            { label: '🇬🇧 English', value: 'EN', nextNodeId: 'node_set_en' },
-                            { label: '🇺🇦 Українська', value: 'UK', nextNodeId: 'node_set_uk' },
-                            { label: '🇷🇺 Русский', value: 'RU', nextNodeId: 'node_set_ru' }
-                        ]
-                    },
-                    nextNodeId: ''
-                },
-                {
-                    id: 'node_set_en',
-                    type: 'ACTION',
-                    content: { actionType: 'SET_LANG' },
-                    nextNodeId: 'node_end_en'
-                },
-                {
-                    id: 'node_set_uk',
-                    type: 'ACTION',
-                    content: { actionType: 'SET_LANG' },
-                    nextNodeId: 'node_end_uk'
-                },
-                {
-                    id: 'node_set_ru',
-                    type: 'ACTION',
-                    content: { actionType: 'SET_LANG' },
-                    nextNodeId: 'node_end_ru'
-                },
-                {
-                    id: 'node_end_en',
-                    type: 'ACTION',
-                    content: { actionType: 'SET_VAR', varName: 'language', varValue: 'EN' },
-                    nextNodeId: 'node_msg_en'
-                },
-                {
-                    id: 'node_end_uk',
-                    type: 'ACTION',
-                    content: { actionType: 'SET_VAR', varName: 'language', varValue: 'UK' },
-                    nextNodeId: 'node_msg_uk'
-                },
-                {
-                    id: 'node_end_ru',
-                    type: 'ACTION',
-                    content: { actionType: 'SET_VAR', varName: 'language', varValue: 'RU' },
-                    nextNodeId: 'node_msg_ru'
-                },
-                {
-                    id: 'node_msg_en',
-                    type: 'MESSAGE',
-                    content: { text: "Language set to English! 🇬🇧" }
-                },
-                {
-                    id: 'node_msg_uk',
-                    type: 'MESSAGE',
-                    content: { text: "Мову змінено на Українську! 🇺🇦" }
-                },
-                {
-                    id: 'node_msg_ru',
-                    type: 'MESSAGE',
-                    content: { text: "Язык изменен на Русский! 🇷🇺" }
-                }
-            ],
-            triggerCommand: 'lang'
+                { id: 'start', type: 'START', content: { text: '' }, nextNodeId: 'ask_lookup' },
+                { id: 'ask_lookup', type: 'QUESTION_TEXT', content: { text: 'Enter request ID or phone number.', text_uk: 'Введіть ID заявки або телефон.', text_ru: 'Введите ID заявки или телефон.', variableName: 'lookup' }, nextNodeId: 'lookup_action' },
+                { id: 'lookup_action', type: 'ACTION', content: { actionType: 'LOOKUP_REQUEST', lookupVar: 'lookup' }, nextNodeId: 'check_found' },
+                { id: 'check_found', type: 'CONDITION', content: { conditionVariable: 'lookup_found', conditionOperator: 'HAS_VALUE', trueNodeId: 'show_status', falseNodeId: 'not_found' } },
+                { id: 'show_status', type: 'MESSAGE', content: { text: '✅ Status for #{requestPublicId}: {request_status}. Manager: {request_manager}', text_uk: '✅ Статус заявки #{requestPublicId}: {request_status}. Менеджер: {request_manager}', text_ru: '✅ Статус заявки #{requestPublicId}: {request_status}. Менеджер: {request_manager}' } },
+                { id: 'not_found', type: 'MESSAGE', content: { text: 'We could not find a request. Creating support request...', text_uk: 'Не знайшли заявку. Створюємо запит у підтримку...', text_ru: 'Не нашли заявку. Создаем запрос в поддержку...' }, nextNodeId: 'support_lead' },
+                { id: 'support_lead', type: 'ACTION', content: { actionType: 'CREATE_LEAD', leadType: 'SUPPORT' }, nextNodeId: 'notify_admin' },
+                { id: 'notify_admin', type: 'ACTION', content: { actionType: 'NOTIFY_ADMIN', text: '🔔 Support request from {lookup}' } }
+            ]
+        }
+    },
+    {
+        id: 'tpl_lang_select',
+        name: 'Language Selector',
+        category: 'SUPPORT',
+        description: 'Sets the preferred language for the session.',
+        isPublic: true,
+        structure: {
+            triggerCommand: 'lang',
+            keywords: ['lang', 'language', 'мова', 'язык'],
+            entryNodeId: 'start',
+            nodes: [
+                { id: 'start', type: 'START', content: { text: '' }, nextNodeId: 'choose_lang' },
+                { id: 'choose_lang', type: 'QUESTION_CHOICE', content: { text: 'Choose language', text_uk: 'Оберіть мову', text_ru: 'Выберите язык', variableName: 'language', choices: [
+                    { label: 'English', label_uk: 'English', label_ru: 'English', value: 'EN', nextNodeId: 'set_lang' },
+                    { label: 'Ukrainian', label_uk: 'Українська', label_ru: 'Украинский', value: 'UK', nextNodeId: 'set_lang' },
+                    { label: 'Russian', label_uk: 'Російська', label_ru: 'Русский', value: 'RU', nextNodeId: 'set_lang' }
+                ] } },
+                { id: 'set_lang', type: 'ACTION', content: { actionType: 'SET_LANG' }, nextNodeId: 'confirm' },
+                { id: 'confirm', type: 'MESSAGE', content: { text: 'Language updated ✅', text_uk: 'Мову змінено ✅', text_ru: 'Язык обновлен ✅' } }
+            ]
         }
     }
 ];
@@ -280,7 +103,6 @@ async function main() {
     console.log('🌱 Seeding Scenario Templates...');
 
     for (const t of TEMPLATES) {
-        // Use upsert to avoid duplicates
         const existing = await prisma.scenarioTemplate.findUnique({ where: { id: t.id } });
         if (existing) {
             await prisma.scenarioTemplate.update({
@@ -289,7 +111,7 @@ async function main() {
             });
             console.log(`Updated template: ${t.name}`);
         } else {
-            await prisma.scenarioTemplate.create({ data: t });
+            await prisma.scenarioTemplate.create({ data: t as any });
             console.log(`Created template: ${t.name}`);
         }
     }
@@ -302,8 +124,5 @@ main()
         process.exit(1);
     })
     .finally(async () => {
-        // process.exit handles disconnect in prisma.ts logic usually, but here explicit is fine.
-        // But since we use singleton, we should probably not disconnect if other things used it.
-        // However, this is a script, so it exits anyway.
         await prisma.$disconnect();
     });

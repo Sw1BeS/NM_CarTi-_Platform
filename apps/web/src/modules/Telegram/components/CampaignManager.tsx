@@ -57,7 +57,7 @@ export const CampaignManager = ({ bot }: { bot: Bot }) => {
             name: data.name,
             botId: bot.id,
             contentId: content.id,
-            destinationIds: targets.map(d => d.id),
+            destinationIds: targets.map(d => d.identifier),
             status: 'RUNNING'
         });
 

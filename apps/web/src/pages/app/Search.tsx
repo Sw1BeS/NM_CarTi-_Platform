@@ -6,6 +6,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Data } from '../../services/data';
 import { ContentGenerator } from '../../services/contentGenerator';
 import { CarSearchEngine } from '../../services/carService'; // Real Service
+import { parseListingFromUrl } from '../../services/parserClient';
 import { RequestsService } from '../../services/requestsService'; // Real Service
 import { useToast } from '../../contexts/ToastContext';
 
@@ -97,17 +98,29 @@ export const SearchPage = () => {
         setParsePreview(null);
 
         try {
-            // Use Real CarSearchEngine
-            const data = await CarSearchEngine.parseUrl(directUrl);
-            setResults([{ ...data, url: directUrl, source: data.source }]);
-            const priceLabel = data.price ? `${data.price.amount.toLocaleString()} ${data.price.currency}` : '—';
+            // Server-side parser for URL
+            const parsed = await parseListingFromUrl(directUrl);
+            const result: any = {
+                title: parsed.title || '—',
+                price: { amount: parsed.price || 0, currency: parsed.currency || 'USD' },
+                year: parsed.year,
+                mileage: parsed.mileage,
+                specs: { vin: parsed.variables?.vin || parsed.raw?.jsonLd?.vin || '' },
+                thumbnail: parsed.thumbnail || parsed.raw?.images?.[0],
+                mediaUrls: parsed.raw?.images || [],
+                sourceUrl: parsed.url || directUrl,
+                source: parsed.domain || new URL(directUrl).hostname.replace(/^www\./, '')
+            };
+
+            setResults([{ ...result, url: directUrl }]);
+            const priceLabel = result.price?.amount ? `${result.price.amount.toLocaleString()} ${result.price.currency}` : '—';
             setParsePreview({
-                title: data.title || '—',
+                title: result.title || '—',
                 price: priceLabel,
-                vin: data.specs?.vin || '—',
-                image: (data.mediaUrls && data.mediaUrls.length > 0 ? data.mediaUrls[0] : data.thumbnail) || '—',
-                sourceId: data.sourceId || '—',
-                source: data.source || '—'
+                vin: result.specs?.vin || '—',
+                image: (result.mediaUrls && result.mediaUrls.length > 0 ? result.mediaUrls[0] : result.thumbnail) || '—',
+                sourceId: result.sourceUrl || '—',
+                source: result.source || '—'
             });
         } catch (err: any) {
             console.error(err);

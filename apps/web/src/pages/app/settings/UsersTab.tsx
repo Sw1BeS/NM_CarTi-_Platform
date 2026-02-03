@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Data } from '../../../services/data';
+import { ApiClient } from '../../../services/apiClient';
 import { User } from '../../../types';
 import { Plus, X } from 'lucide-react';
 import { useToast } from '../../../contexts/ToastContext';
@@ -10,7 +10,7 @@ import { EmptyState } from '../../../components/EmptyState';
 export const UsersTab = () => {
     const [users, setUsers] = useState<User[]>([]);
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [formData, setFormData] = useState({ username: '', password: '', role: 'MANAGER', name: '', telegramUserId: '', companyId: '' });
+    const [formData, setFormData] = useState({ email: '', role: 'MANAGER', name: '' });
     const { showToast } = useToast();
     const { user } = useAuth();
     const { t } = useLang();
@@ -19,29 +19,35 @@ export const UsersTab = () => {
         load();
     }, []);
 
-    const load = () => Data.getUsers().then(setUsers);
+    const load = async () => {
+        const res = await ApiClient.get<User[]>('companies/current/users');
+        setUsers(res.ok ? (res.data || []) : []);
+    };
 
     const handleCreate = async () => {
-        if (!formData.username || !formData.password) return showToast(t('form.required'), 'error');
-        const companyId = formData.companyId || user?.companyId;
-        if (!companyId) {
-            showToast(t('form.company_required'), 'error');
-            return;
-        }
+        if (!formData.email) return showToast(t('form.required'), 'error');
 
-        await Data.saveUser({
-            id: `u_${Date.now()}`,
-            name: formData.name || formData.username,
-            email: `${formData.username}@cartie.local`,
-            username: formData.username,
-            telegramUserId: formData.telegramUserId || undefined,
-            companyId,
-            password: formData.password,
-            role: formData.role as any
-        } as any);
+        const res = await ApiClient.post<any>('companies/current/users', {
+            email: formData.email,
+            name: formData.name || undefined,
+            role: formData.role
+        });
+        if (!res.ok) throw new Error(res.message || 'Failed to invite user');
+        if (res.data?.tempPassword) {
+            showToast(`User invited. Temp password: ${res.data.tempPassword}`, 'success');
+        } else {
+            showToast("User invited");
+        }
         setIsModalOpen(false);
         load();
-        showToast("User created");
+    };
+
+    const handleRemove = async (userId: string) => {
+        if (!confirm('Remove this user from company?')) return;
+        const res = await ApiClient.delete(`companies/current/users/${userId}`);
+        if (!res.ok) throw new Error(res.message || 'Remove failed');
+        showToast('User removed');
+        load();
     };
 
     return (
@@ -77,6 +83,9 @@ export const UsersTab = () => {
                                 </div>
                             </div>
                             <div className="text-xs text-[var(--text-muted)] font-mono">{u.email}</div>
+                            {user?.role === 'OWNER' && (
+                                <button onClick={() => handleRemove(u.id)} className="text-xs text-red-500 hover:text-red-400">Remove</button>
+                            )}
                         </div>
                     ))}
                 </div>
@@ -91,15 +100,13 @@ export const UsersTab = () => {
                         </div>
                         <div className="space-y-4">
                             <input className="input" placeholder={t('form.display_name')} value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} />
-                            <input className="input" placeholder={t('form.username')} value={formData.username} onChange={e => setFormData({ ...formData, username: e.target.value })} />
-                            <input className="input" type="password" placeholder={t('form.password')} value={formData.password} onChange={e => setFormData({ ...formData, password: e.target.value })} />
-                            <input className="input" placeholder={t('form.tg_id_opt')} value={formData.telegramUserId} onChange={e => setFormData({ ...formData, telegramUserId: e.target.value })} />
-                            <input className="input" placeholder={t('form.company_id_opt')} value={formData.companyId} onChange={e => setFormData({ ...formData, companyId: e.target.value })} />
+                            <input className="input" placeholder="Email" value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} />
                             <select className="input" value={formData.role} onChange={e => setFormData({ ...formData, role: e.target.value })}>
                                 <option value="MANAGER">{t('role.manager')}</option>
                                 <option value="ADMIN">{t('role.admin')}</option>
                                 <option value="OWNER">{t('role.owner')}</option>
                                 <option value="VIEWER">{t('role.viewer')}</option>
+                                <option value="OPERATOR">Operator</option>
                             </select>
                         </div>
                         <div className="flex justify-end gap-3 mt-6">

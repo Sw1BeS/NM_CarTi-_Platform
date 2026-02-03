@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useCompany } from '../../contexts/CompanyContext';
 import { useToast } from '../../contexts/ToastContext';
-import { ApiClient } from '../../services/apiClient';
+import { apiFetch } from '../../services/apiClient';
 import {
     Building2, Palette, Globe, Users, Crown, Upload, X,
     Mail, Shield, Trash2, UserPlus
@@ -52,7 +52,7 @@ export const CompanySettingsPage = () => {
 
     const loadUsers = async () => {
         try {
-            const data = await ApiClient.apiFetch('/companies/current/users');
+            const data = await apiFetch('/companies/current/users');
             setUsers(data);
         } catch (e) {
             console.error('Failed to load users:', e);
@@ -61,7 +61,7 @@ export const CompanySettingsPage = () => {
 
     const saveBranding = async () => {
         try {
-            await ApiClient.apiFetch('/companies/current/branding', {
+            await apiFetch('/companies/current/branding', {
                 method: 'PUT',
                 body: JSON.stringify(branding)
             });
@@ -74,7 +74,7 @@ export const CompanySettingsPage = () => {
 
     const inviteUser = async () => {
         try {
-            await ApiClient.apiFetch('/companies/current/users', {
+            await apiFetch('/companies/current/users', {
                 method: 'POST',
                 body: JSON.stringify(inviteData)
             });
@@ -91,7 +91,7 @@ export const CompanySettingsPage = () => {
         if (!confirm('Are you sure you want to remove this user?')) return;
 
         try {
-            await ApiClient.apiFetch(`/companies/current/users/${userId}`, {
+            await apiFetch(`/companies/current/users/${userId}`, {
                 method: 'DELETE'
             });
             showToast('User removed', 'success');

@@ -153,6 +153,13 @@ export const MiniApp = () => {
             { id: 'a_req', label: 'Request', actionType: 'VIEW', value: 'REQUEST', icon: 'MessageSquare' },
             { id: 'a_status', label: 'Status', actionType: 'VIEW', value: 'STATUS', icon: 'ClipboardList' }
         ],
+        navItems: [
+            { id: 'nav_home', label: 'Home', icon: 'Home', actionType: 'VIEW', value: 'HOME' },
+            { id: 'nav_stock', label: 'Stock', icon: 'LayoutGrid', actionType: 'VIEW', value: 'INVENTORY' },
+            { id: 'nav_saved', label: 'Saved', icon: 'Heart', actionType: 'VIEW', value: 'FAVORITES' },
+            { id: 'nav_request', label: 'Request', icon: 'Search', actionType: 'VIEW', value: 'REQUEST' },
+            { id: 'nav_status', label: 'Status', icon: 'ClipboardList', actionType: 'VIEW', value: 'STATUS' }
+        ],
         homeBlocks: [],
         showcaseSlug: target
     });
@@ -247,14 +254,25 @@ export const MiniApp = () => {
     if (!config) return <div className="h-screen flex items-center justify-center text-white bg-black">Loading App...</div>;
 
     const primaryColor = config.primaryColor || '#D4AF37';
+    const navItems = (config.navItems && config.navItems.length > 0)
+        ? config.navItems
+        : [
+            { id: 'nav_home', label: 'Home', icon: 'Home', actionType: 'VIEW', value: 'HOME' },
+            { id: 'nav_stock', label: 'Stock', icon: 'LayoutGrid', actionType: 'VIEW', value: 'INVENTORY' },
+            { id: 'nav_saved', label: 'Saved', icon: 'Heart', actionType: 'VIEW', value: 'FAVORITES' },
+            { id: 'nav_request', label: 'Request', icon: 'Search', actionType: 'VIEW', value: 'REQUEST' },
+            { id: 'nav_status', label: 'Status', icon: 'ClipboardList', actionType: 'VIEW', value: 'STATUS' }
+        ];
 
     const handleAction = (act: MiniAppConfig['actions'][number]) => {
         const tg = (window as any).Telegram?.WebApp;
         if (act.actionType === 'VIEW') {
+            if (act.value === 'HOME') setView('HOME');
             if (act.value === 'INVENTORY') setView('INVENTORY');
             if (act.value === 'REQUEST') setView('REQUEST');
             if (act.value === 'FAVORITES') setView('FAVORITES');
             if (act.value === 'STATUS') setView('STATUS');
+            if (act.value === 'PROFILE') setView('PROFILE');
         } else if (act.actionType === 'LINK') {
             if (tg && tg.openLink) {
                 tg.openLink(act.value);
@@ -366,7 +384,12 @@ export const MiniApp = () => {
             {/* Header */}
             <div className="pt-8 pb-8 px-6 rounded-b-[40px] shadow-lg relative overflow-hidden" style={{ background: `linear-gradient(135deg, ${primaryColor}30 0%, #000000 100%)` }}>
                 <div className="relative z-10">
-                    <h1 className="text-2xl font-bold text-white mb-1">{config.title}</h1>
+                    <div className="flex items-center gap-3 mb-2">
+                        {config.logoUrl && (
+                            <img src={config.logoUrl} className="w-10 h-10 rounded-xl object-cover border border-white/20 bg-white/10" />
+                        )}
+                        <h1 className="text-2xl font-bold text-white">{config.title}</h1>
+                    </div>
                     <p className="text-white/70 text-sm">{config.welcomeText}</p>
 
                     {tgUser && (
@@ -394,7 +417,7 @@ export const MiniApp = () => {
                                 className="bg-[#2c2c2e] hover:bg-[#3a3a3c] transition-colors p-4 rounded-xl flex flex-col items-center justify-center gap-2 text-center group active:scale-95 duration-100 border border-transparent hover:border-white/5"
                             >
                                 <div className="w-12 h-12 rounded-full bg-black/30 flex items-center justify-center shadow-inner" style={{ color: primaryColor }}>
-                                    <AppIcon name={act.icon} />
+                                    {renderIcon(act.icon, 24)}
                                 </div>
                                 <span className="text-sm font-medium text-white">{act.label}</span>
                             </button>
@@ -1023,9 +1046,10 @@ export const MiniApp = () => {
         </div>
     );
 
-    const AppIcon = ({ name }: { name: string }) => {
-        const props = { size: 24 };
+    const AppIcon = ({ name, size = 24 }: { name: string; size?: number }) => {
+        const props = { size };
         switch (name) {
+            case 'Home': return <Home {...props} />;
             case 'Search': return <Search {...props} />;
             case 'Zap': return <Zap {...props} />;
             case 'DollarSign': return <DollarSign {...props} />;
@@ -1036,8 +1060,21 @@ export const MiniApp = () => {
             case 'Phone': return <Phone {...props} />;
             case 'Heart': return <Heart {...props} />;
             case 'ClipboardList': return <ClipboardList {...props} />;
+            case 'User': return <User {...props} />;
             default: return <Star {...props} />;
         }
+    };
+
+    const renderIcon = (icon?: string, size = 22) => {
+        if (!icon) return <AppIcon name="Star" size={size} />;
+        if (icon.startsWith('http://') || icon.startsWith('https://')) {
+            return <img src={icon} className="w-6 h-6 object-cover rounded-full" />;
+        }
+        const hasNonAlpha = /[^a-z0-9_]/i.test(icon);
+        if (hasNonAlpha) {
+            return <span className="text-lg leading-none">{icon}</span>;
+        }
+        return <AppIcon name={icon} size={size} />;
     };
 
     return (
@@ -1107,26 +1144,22 @@ export const MiniApp = () => {
 
             {/* Bottom Navigation */}
             <div className="h-20 bg-[#1c1c1e]/90 backdrop-blur-md border-t border-white/5 fixed bottom-0 w-full max-w-md flex items-center justify-around z-50 pb-4 shadow-lg">
-                <button onClick={() => setView('HOME')} className={`flex flex-col items-center gap-1 transition-colors ${view === 'HOME' ? 'text-white' : 'text-white/40'}`}>
-                    <Home size={22} className={view === 'HOME' ? 'fill-current' : ''} style={view === 'HOME' ? { color: primaryColor } : {}} />
-                    <span className="text-[10px] font-medium">Home</span>
-                </button>
-                <button onClick={() => setView('INVENTORY')} className={`flex flex-col items-center gap-1 transition-colors ${view === 'INVENTORY' ? 'text-white' : 'text-white/40'}`}>
-                    <LayoutGrid size={22} className={view === 'INVENTORY' ? 'fill-current' : ''} style={view === 'INVENTORY' ? { color: primaryColor } : {}} />
-                    <span className="text-[10px] font-medium">Stock</span>
-                </button>
-                <button onClick={() => setView('FAVORITES')} className={`flex flex-col items-center gap-1 transition-colors ${view === 'FAVORITES' ? 'text-white' : 'text-white/40'}`}>
-                    <Heart size={22} className={view === 'FAVORITES' ? 'fill-current' : ''} style={view === 'FAVORITES' ? { color: primaryColor } : {}} />
-                    <span className="text-[10px] font-medium">Saved</span>
-                </button>
-                <button onClick={() => setView('REQUEST')} className={`flex flex-col items-center gap-1 transition-colors ${view === 'REQUEST' ? 'text-white' : 'text-white/40'}`}>
-                    <Search size={22} className="stroke-[3px]" style={view === 'REQUEST' ? { color: primaryColor } : {}} />
-                    <span className="text-[10px] font-medium">Request</span>
-                </button>
-                <button onClick={() => setView('STATUS')} className={`flex flex-col items-center gap-1 transition-colors ${view === 'STATUS' ? 'text-white' : 'text-white/40'}`}>
-                    <ClipboardList size={22} className={view === 'STATUS' ? 'fill-current' : ''} style={view === 'STATUS' ? { color: primaryColor } : {}} />
-                    <span className="text-[10px] font-medium">Status</span>
-                </button>
+                {navItems.map(item => {
+                    const isView = item.actionType === 'VIEW';
+                    const isActive = isView && view === item.value;
+                    return (
+                        <button
+                            key={item.id}
+                            onClick={() => handleAction(item as any)}
+                            className={`flex flex-col items-center gap-1 transition-colors ${isActive ? 'text-white' : 'text-white/40'}`}
+                        >
+                            <span style={isActive ? { color: primaryColor } : {}}>
+                                {renderIcon(item.icon || 'Star', 22)}
+                            </span>
+                            <span className="text-[10px] font-medium">{item.label}</span>
+                        </button>
+                    );
+                })}
             </div>
         </div>
     );

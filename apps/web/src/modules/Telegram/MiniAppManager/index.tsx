@@ -1,8 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Data } from '../../../services/data';
+import { ApiClient } from '../../../services/apiClient';
 import { Bot, MiniAppConfig, Scenario } from '../../../types';
 import { useToast } from '../../../contexts/ToastContext';
-import { Smartphone, Plus, Trash2, Grid, List as ListIcon, Palette } from 'lucide-react';
+import { Smartphone, Plus, Trash2, Grid, List as ListIcon, Palette, Image as ImageIcon, Globe, Copy, UploadCloud } from 'lucide-react';
+
+const DEFAULT_NAV_ITEMS: MiniAppConfig['navItems'] = [
+    { id: 'nav_home', label: 'Home', icon: 'Home', actionType: 'VIEW', value: 'HOME' },
+    { id: 'nav_stock', label: 'Stock', icon: 'LayoutGrid', actionType: 'VIEW', value: 'INVENTORY' },
+    { id: 'nav_saved', label: 'Saved', icon: 'Heart', actionType: 'VIEW', value: 'FAVORITES' },
+    { id: 'nav_request', label: 'Request', icon: 'Search', actionType: 'VIEW', value: 'REQUEST' },
+    { id: 'nav_status', label: 'Status', icon: 'ClipboardList', actionType: 'VIEW', value: 'STATUS' }
+];
 
 export const MiniAppManager = ({ botId }: { botId: string }) => {
     const { showToast } = useToast();
@@ -14,8 +23,13 @@ export const MiniAppManager = ({ botId }: { botId: string }) => {
         welcomeText: 'Welcome',
         primaryColor: '#D4AF37',
         layout: 'GRID',
-        actions: []
+        actions: [],
+        navItems: DEFAULT_NAV_ITEMS
     });
+    const [publicBaseUrl, setPublicBaseUrl] = useState('');
+    const [showcaseSlug, setShowcaseSlug] = useState('');
+    const [saving, setSaving] = useState(false);
+    const saveTimerRef = useRef<number | null>(null);
 
     useEffect(() => {
         const loadBot = async () => {
@@ -23,13 +37,28 @@ export const MiniAppManager = ({ botId }: { botId: string }) => {
             const found = bots.find(b => b.id === botId);
             if (found) {
                 setBot(found);
-                // Fix for crash: ensure actions is always an array
+                // Fix for crash: ensure actions/navItems are always arrays
                 const loadedConfig = found.miniAppConfig || {};
+                const baseConfig: MiniAppConfig = {
+                    isEnabled: true,
+                    title: 'CarTié',
+                    welcomeText: 'Welcome',
+                    primaryColor: '#D4AF37',
+                    layout: 'GRID',
+                    actions: [],
+                    navItems: DEFAULT_NAV_ITEMS
+                };
                 setConfig({
-                    ...config,
+                    ...baseConfig,
                     ...loadedConfig,
-                    actions: Array.isArray(loadedConfig.actions) ? loadedConfig.actions : []
+                    actions: Array.isArray(loadedConfig.actions) ? loadedConfig.actions : [],
+                    navItems: Array.isArray(loadedConfig.navItems) && loadedConfig.navItems.length
+                        ? loadedConfig.navItems
+                        : baseConfig.navItems
                 });
+                const baseUrl = (found.publicBaseUrl || window.location.origin).replace(/\/$/, '');
+                setPublicBaseUrl(baseUrl);
+                setShowcaseSlug(found.defaultShowcaseSlug || found.username || 'system');
             }
         };
         loadBot();
@@ -38,16 +67,38 @@ export const MiniAppManager = ({ botId }: { botId: string }) => {
 
     const buildMiniAppUrl = (baseUrl: string, slug: string) => `${baseUrl.replace(/\/$/, '')}/p/app/${slug}`;
 
-    const save = async (newConfig: MiniAppConfig) => {
+    const persistConfig = async (newConfig: MiniAppConfig, options?: { baseUrl?: string; slug?: string; silent?: boolean }) => {
         if (!bot) return;
-        const slug = bot.defaultShowcaseSlug || 'system';
-        const baseUrl = (bot.publicBaseUrl || window.location.origin).replace(/\/$/, '');
+        const baseUrl = (options?.baseUrl || publicBaseUrl || bot.publicBaseUrl || window.location.origin).replace(/\/$/, '');
+        const slug = (options?.slug || showcaseSlug || bot.defaultShowcaseSlug || bot.username || 'system').trim();
         const miniAppUrl = newConfig.url || buildMiniAppUrl(baseUrl, slug);
         const merged = { ...newConfig, url: miniAppUrl, showcaseSlug: slug };
+        setSaving(true);
         setConfig(merged);
-        await Data.saveBot({ ...bot, miniAppConfig: merged });
-        showToast('Mini App config saved');
+        const updatedBot = { ...bot, publicBaseUrl: baseUrl, defaultShowcaseSlug: slug, miniAppConfig: merged };
+        await Data.saveBot(updatedBot);
+        setBot(updatedBot);
+        setSaving(false);
+        if (!options?.silent) showToast('Mini App config saved');
     };
+
+    const save = (newConfig: MiniAppConfig, options?: { debounce?: number; silent?: boolean }) => {
+        setConfig(newConfig);
+        if (options?.debounce) {
+            if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current);
+            saveTimerRef.current = window.setTimeout(() => {
+                persistConfig(newConfig, { silent: options?.silent }).catch(() => setSaving(false));
+            }, options.debounce);
+            return;
+        }
+        persistConfig(newConfig, { silent: options?.silent }).catch(() => setSaving(false));
+    };
+
+    useEffect(() => {
+        return () => {
+            if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current);
+        };
+    }, []);
 
     const addAction = () => {
         save({
@@ -56,26 +107,85 @@ export const MiniAppManager = ({ botId }: { botId: string }) => {
                 ...config.actions,
                 { id: `act_${Date.now()}`, label: 'Action', icon: 'Zap', actionType: 'VIEW', value: 'REQUEST' }
             ]
-        });
+        }, { silent: true });
     };
 
     const removeAction = (id: string) => {
-        save({ ...config, actions: config.actions.filter(a => a.id !== id) });
+        save({ ...config, actions: config.actions.filter(a => a.id !== id) }, { silent: true });
     };
 
     const updateAction = (id: string, updates: Partial<MiniAppConfig['actions'][number]>) => {
         save({
             ...config,
             actions: config.actions.map(a => a.id === id ? { ...a, ...updates } : a)
-        });
+        }, { silent: true });
     };
+
+    const addNavItem = () => {
+        const next = Array.isArray(config.navItems) ? config.navItems : [];
+        save({
+            ...config,
+            navItems: [
+                ...next,
+                { id: `nav_${Date.now()}`, label: 'New', icon: 'Home', actionType: 'VIEW', value: 'HOME' }
+            ]
+        }, { silent: true });
+    };
+
+    const removeNavItem = (id: string) => {
+        const next = (config.navItems || []).filter(n => n.id !== id);
+        save({ ...config, navItems: next }, { silent: true });
+    };
+
+    const updateNavItem = (id: string, updates: Partial<NonNullable<MiniAppConfig['navItems']>[number]>) => {
+        const next = (config.navItems || []).map(n => n.id === id ? { ...n, ...updates } : n);
+        save({ ...config, navItems: next }, { silent: true });
+    };
+
+    const handleLogoUpload = async (file: File) => {
+        if (!file) return;
+        try {
+            const reader = new FileReader();
+            const content = await new Promise<string>((resolve, reject) => {
+                reader.onload = () => resolve(reader.result as string);
+                reader.onerror = () => reject(reader.error);
+                reader.readAsDataURL(file);
+            });
+            const res = await ApiClient.post<{ ok: boolean; url?: string; name?: string }>('storage/upload', {
+                name: file.name,
+                content,
+                type: file.type
+            });
+            if (!res.ok || !res.data?.url) {
+                throw new Error(res.message || 'Logo upload failed');
+            }
+            save({ ...config, logoUrl: res.data.url }, { silent: true });
+        } catch (e: any) {
+            showToast(e.message || 'Logo upload failed', 'error');
+        }
+    };
+
+    const computedMiniAppUrl = buildMiniAppUrl(publicBaseUrl || window.location.origin, showcaseSlug || 'system');
 
     const scenarioOptions = scenarios.map(s => ({ value: s.id, label: s.name }));
     const viewValueOptions = [
+        { value: 'HOME', label: 'Home' },
         { value: 'INVENTORY', label: 'Inventory' },
+        { value: 'FAVORITES', label: 'Favorites' },
         { value: 'REQUEST', label: 'New Request' },
+        { value: 'STATUS', label: 'Status' },
         { value: 'PROFILE', label: 'Profile' }
     ];
+
+    const renderPreviewIcon = (icon?: string) => {
+        if (!icon) return '•';
+        if (icon.startsWith('http://') || icon.startsWith('https://')) {
+            return <img src={icon} className="w-6 h-6 rounded-full object-cover" />;
+        }
+        const hasNonAlpha = /[^a-z0-9_]/i.test(icon);
+        if (hasNonAlpha) return <span className="text-lg leading-none">{icon}</span>;
+        return <span className="text-xs font-bold">{icon.slice(0, 1).toUpperCase()}</span>;
+    };
 
     return (
         <div className="flex h-full flex-col md:flex-row">
@@ -97,7 +207,7 @@ export const MiniAppManager = ({ botId }: { botId: string }) => {
                         <input
                             className="input"
                             value={config.title}
-                            onChange={e => save({ ...config, title: e.target.value })}
+                            onChange={e => save({ ...config, title: e.target.value }, { silent: true })}
                             placeholder="e.g. CarTié"
                         />
                     </div>
@@ -110,9 +220,84 @@ export const MiniAppManager = ({ botId }: { botId: string }) => {
                         <textarea
                             className="textarea h-20"
                             value={config.welcomeText}
-                            onChange={e => save({ ...config, welcomeText: e.target.value })}
+                            onChange={e => save({ ...config, welcomeText: e.target.value }, { silent: true })}
                             placeholder="Welcome to our service!"
                         />
+                    </div>
+
+                    {/* Logo */}
+                    <div>
+                        <label className="text-xs font-bold text-[var(--text-secondary)] uppercase block mb-2">
+                            <ImageIcon size={12} className="inline mr-1" /> Logo
+                        </label>
+                        <div className="flex gap-2 items-center">
+                            <input
+                                className="input flex-1"
+                                value={config.logoUrl || ''}
+                                onChange={e => save({ ...config, logoUrl: e.target.value }, { silent: true })}
+                                placeholder="https://..."
+                            />
+                            <label className="btn-secondary text-xs cursor-pointer flex items-center gap-1">
+                                <UploadCloud size={14} /> Upload
+                                <input type="file" accept="image/*" hidden onChange={e => e.target.files?.[0] && handleLogoUpload(e.target.files[0])} />
+                            </label>
+                        </div>
+                        {config.logoUrl && (
+                            <div className="mt-3 flex items-center gap-3">
+                                <img src={config.logoUrl} className="w-12 h-12 rounded-xl object-cover border border-[var(--border-color)]" />
+                                <span className="text-xs text-[var(--text-secondary)]">Displayed in Mini App header</span>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Public URL */}
+                    <div className="panel p-4 bg-[var(--bg-input)] border border-[var(--border-color)]">
+                        <div className="text-xs font-bold text-[var(--text-secondary)] uppercase mb-3 flex items-center gap-2">
+                            <Globe size={12} /> Public Mini App URL
+                        </div>
+                        <div className="space-y-3">
+                            <div>
+                                <label className="text-[10px] uppercase text-[var(--text-secondary)]">Base URL</label>
+                                <input
+                                    className="input mt-1"
+                                    value={publicBaseUrl}
+                                    onChange={e => setPublicBaseUrl(e.target.value)}
+                                    placeholder="https://your-domain.com"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[10px] uppercase text-[var(--text-secondary)]">Showcase Slug</label>
+                                <input
+                                    className="input mt-1"
+                                    value={showcaseSlug}
+                                    onChange={e => setShowcaseSlug(e.target.value)}
+                                    placeholder="your-bot"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[10px] uppercase text-[var(--text-secondary)]">Computed URL</label>
+                                <div className="flex gap-2 mt-1">
+                                    <input className="input flex-1 font-mono text-xs" value={computedMiniAppUrl} readOnly />
+                                    <button
+                                        onClick={async () => {
+                                            await navigator.clipboard.writeText(computedMiniAppUrl);
+                                            showToast('URL copied');
+                                        }}
+                                        className="btn-secondary px-2"
+                                        title="Copy URL"
+                                    >
+                                        <Copy size={14} />
+                                    </button>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => persistConfig(config, { baseUrl: publicBaseUrl, slug: showcaseSlug })}
+                                className="btn-primary w-full text-xs"
+                            >
+                                Save URL & Slug
+                            </button>
+                            {saving && <div className="text-[10px] text-[var(--text-secondary)]">Saving...</div>}
+                        </div>
                     </div>
 
                     {/* Color & Layout */}
@@ -127,13 +312,13 @@ export const MiniAppManager = ({ botId }: { botId: string }) => {
                                         type="color"
                                         className="h-10 w-10 rounded-lg cursor-pointer border-2 border-[var(--border-color)] hover:border-gold-500 transition-colors"
                                         value={config.primaryColor}
-                                        onChange={e => save({ ...config, primaryColor: e.target.value })}
+                                        onChange={e => save({ ...config, primaryColor: e.target.value }, { debounce: 600, silent: true })}
                                     />
                                 </div>
                                 <input
                                     className="input flex-1 font-mono text-xs"
                                     value={config.primaryColor}
-                                    onChange={e => save({ ...config, primaryColor: e.target.value })}
+                                    onChange={e => save({ ...config, primaryColor: e.target.value }, { debounce: 600, silent: true })}
                                     placeholder="#D4AF37"
                                 />
                             </div>
@@ -144,7 +329,7 @@ export const MiniAppManager = ({ botId }: { botId: string }) => {
                             </label>
                             <div className="flex bg-[var(--bg-input)] p-1 rounded-lg border border-[var(--border-color)]">
                                 <button
-                                    onClick={() => save({ ...config, layout: 'GRID' })}
+                                    onClick={() => save({ ...config, layout: 'GRID' }, { silent: true })}
                                     className={`flex-1 py-2 rounded flex justify-center items-center gap-1 transition-all ${config.layout === 'GRID' ? 'bg-[var(--bg-panel)] text-gold-500 shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
                                         }`}
                                 >
@@ -152,7 +337,7 @@ export const MiniAppManager = ({ botId }: { botId: string }) => {
                                     <span className="text-xs font-bold hidden sm:inline">Grid</span>
                                 </button>
                                 <button
-                                    onClick={() => save({ ...config, layout: 'LIST' })}
+                                    onClick={() => save({ ...config, layout: 'LIST' }, { silent: true })}
                                     className={`flex-1 py-2 rounded flex justify-center items-center gap-1 transition-all ${config.layout === 'LIST' ? 'bg-[var(--bg-panel)] text-gold-500 shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
                                         }`}
                                 >
@@ -267,6 +452,110 @@ export const MiniAppManager = ({ botId }: { botId: string }) => {
                             )}
                         </div>
                     </div>
+                    {/* Bottom Navigation */}
+                    <div>
+                        <div className="flex justify-between items-center mb-3">
+                            <label className="text-xs font-bold text-[var(--text-secondary)] uppercase">Bottom Navigation</label>
+                            <button
+                                onClick={addNavItem}
+                                className="btn-secondary text-xs px-3 py-1.5 flex items-center gap-1"
+                            >
+                                <Plus size={14} /> Add Nav
+                            </button>
+                        </div>
+                        <div className="space-y-3">
+                            {(config.navItems || []).map(nav => (
+                                <div
+                                    key={nav.id}
+                                    className="bg-[var(--bg-input)] p-4 rounded-lg border border-[var(--border-color)] hover:border-gold-500/30 transition-colors space-y-3"
+                                >
+                                    <div className="flex justify-between items-start">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-8 h-8 rounded-full bg-gold-500/10 flex items-center justify-center text-gold-500 text-sm">
+                                                {nav.icon?.startsWith('http') ? (
+                                                    <img src={nav.icon} className="w-6 h-6 rounded-full object-cover" />
+                                                ) : (
+                                                    (nav.icon || '•')
+                                                )}
+                                            </div>
+                                            <input
+                                                className="input text-sm font-semibold"
+                                                value={nav.label}
+                                                onChange={e => updateNavItem(nav.id, { label: e.target.value })}
+                                            />
+                                        </div>
+                                        <button
+                                            onClick={() => removeNavItem(nav.id)}
+                                            className="text-red-500 hover:text-red-400 p-1 rounded hover:bg-red-500/10 transition-colors"
+                                        >
+                                            <Trash2 size={16} />
+                                        </button>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                        <div>
+                                            <label className="text-[10px] font-bold text-[var(--text-secondary)] uppercase mb-1 block">Action</label>
+                                            <select
+                                                className="input text-sm"
+                                                value={nav.actionType}
+                                                onChange={e => updateNavItem(nav.id, { actionType: e.target.value as any, value: '' })}
+                                            >
+                                                <option value="VIEW">Open View</option>
+                                                <option value="SCENARIO">Run Scenario</option>
+                                                <option value="LINK">Open Link</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-bold text-[var(--text-secondary)] uppercase mb-1 block">
+                                                {nav.actionType === 'VIEW' ? 'View' : nav.actionType === 'SCENARIO' ? 'Scenario' : 'URL'}
+                                            </label>
+                                            {nav.actionType === 'SCENARIO' ? (
+                                                <select
+                                                    className="input text-sm"
+                                                    value={nav.value}
+                                                    onChange={e => updateNavItem(nav.id, { value: e.target.value })}
+                                                >
+                                                    <option value="">Select scenario...</option>
+                                                    {scenarioOptions.map(opt => (
+                                                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                                    ))}
+                                                </select>
+                                            ) : nav.actionType === 'VIEW' ? (
+                                                <select
+                                                    className="input text-sm"
+                                                    value={nav.value}
+                                                    onChange={e => updateNavItem(nav.id, { value: e.target.value })}
+                                                >
+                                                    {viewValueOptions.map(v => <option key={v.value} value={v.value}>{v.label}</option>)}
+                                                </select>
+                                            ) : (
+                                                <input
+                                                    className="input text-sm"
+                                                    placeholder="https://..."
+                                                    value={nav.value}
+                                                    onChange={e => updateNavItem(nav.id, { value: e.target.value })}
+                                                />
+                                            )}
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-bold text-[var(--text-secondary)] uppercase mb-1 block">Icon (emoji/url/name)</label>
+                                            <input
+                                                className="input text-sm"
+                                                value={nav.icon || ''}
+                                                onChange={e => updateNavItem(nav.id, { icon: e.target.value })}
+                                                placeholder="🏠 or https://..."
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                            {(config.navItems || []).length === 0 && (
+                                <div className="text-center py-6 text-[var(--text-secondary)] text-sm border-2 border-dashed border-[var(--border-color)] rounded-lg">
+                                    No navigation items. Add at least 3 for a full bottom bar.
+                                </div>
+                            )}
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -283,7 +572,12 @@ export const MiniAppManager = ({ botId }: { botId: string }) => {
                             <span className="font-bold text-sm">Mini App</span>
                             <span className="w-8"></span>
                         </div>
-                        <h2 className="text-xl font-bold text-white">{config.title}</h2>
+                        <div className="flex items-center gap-3">
+                            {config.logoUrl && (
+                                <img src={config.logoUrl} className="w-10 h-10 rounded-xl object-cover border border-white/10 bg-white/5" />
+                            )}
+                            <h2 className="text-xl font-bold text-white">{config.title}</h2>
+                        </div>
                         <p className="text-white/60 text-xs mt-1">{config.welcomeText}</p>
                     </div>
 
@@ -296,15 +590,26 @@ export const MiniAppManager = ({ botId }: { botId: string }) => {
                                     className="bg-[#182533] p-4 rounded-xl border border-white/5 flex flex-col items-center justify-center gap-2 text-center"
                                 >
                                     <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-white/80">
-                                        ⚡
+                                        {renderPreviewIcon(act.icon)}
                                     </div>
                                     <span className="text-xs font-bold text-white/90">{act.label}</span>
                                 </div>
                             ))}
                         </div>
                     </div>
+
+                    {/* Bottom Nav Preview */}
+                    <div className="absolute bottom-0 left-0 right-0 h-16 bg-[#111821] border-t border-white/5 flex items-center justify-around px-4">
+                        {(config.navItems || []).slice(0, 5).map(item => (
+                            <div key={item.id} className="flex flex-col items-center gap-1 text-white/70 text-[9px]">
+                                <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center">
+                                    {renderPreviewIcon(item.icon)}
+                                </div>
+                                <span className="truncate max-w-[48px]">{item.label}</span>
+                            </div>
+                        ))}
+                    </div>
                 </div>
             </div>
-        </div>
     );
 };

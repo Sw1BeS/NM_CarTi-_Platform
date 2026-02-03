@@ -51,6 +51,14 @@ export interface DataAdapter {
     getMessages(filter?: { chatId?: string; botId?: string; limit?: number }): Promise<TelegramMessage[]>;
     saveMessage(msg: TelegramMessage): Promise<TelegramMessage>;
 
+    // Inbox macros & notes
+    getMacros(): Promise<any[]>;
+    createMacro(data: any): Promise<any>;
+    updateMacro(id: string, data: any): Promise<any>;
+    deleteMacro(id: string): Promise<void>;
+    getChatNote(chatId: string): Promise<any | null>;
+    saveChatNote(data: { chatId: string; text?: string }): Promise<any>;
+
     getDestinations(): Promise<TelegramDestination[]>;
     saveDestination(dest: TelegramDestination): Promise<TelegramDestination>;
 

@@ -58,7 +58,7 @@ const resolveCompanyId = async (requestedCompanyId?: string | null, userCompanyI
 };
 
 // --- Bot Management (CRUD) ---
-router.get('/bots', requireRole(['ADMIN', 'MANAGER']), async (req, res) => {
+router.get('/bots', requireRole(['OWNER', 'ADMIN', 'MANAGER']), async (req, res) => {
     const user = (req as any).user || {};
     const isSuperadmin = user.role === 'SUPER_ADMIN';
     const userCompanyId = user.companyId || user.workspaceId;
@@ -74,7 +74,7 @@ router.get('/bots', requireRole(['ADMIN', 'MANAGER']), async (req, res) => {
     res.json(bots.map(mapBotOutput));
 });
 
-router.post('/bots', requireRole(['ADMIN']), async (req, res) => {
+router.post('/bots', requireRole(['OWNER', 'ADMIN']), async (req, res) => {
     const { data } = mapBotInput(req.body || {});
     if (!data.token) return errorResponse(res, 400, 'Token is required');
 
@@ -218,7 +218,7 @@ router.post('/bots', requireRole(['ADMIN']), async (req, res) => {
     }
 });
 
-router.put('/bots/:id', requireRole(['ADMIN']), async (req, res) => {
+router.put('/bots/:id', requireRole(['OWNER', 'ADMIN']), async (req, res) => {
     const { id } = req.params;
     const existing = await prisma.botConfig.findUnique({ where: { id } });
     if (!existing) return errorResponse(res, 404, 'Bot not found');
@@ -258,7 +258,7 @@ router.put('/bots/:id', requireRole(['ADMIN']), async (req, res) => {
     }
 });
 
-router.post('/bots/:id/webhook', requireRole(['ADMIN']), async (req, res) => {
+router.post('/bots/:id/webhook', requireRole(['OWNER', 'ADMIN']), async (req, res) => {
     try {
         const { id } = req.params;
         const user = (req as any).user || {};
@@ -288,7 +288,7 @@ router.post('/bots/:id/webhook', requireRole(['ADMIN']), async (req, res) => {
     }
 });
 
-router.delete('/bots/:id/webhook', requireRole(['ADMIN']), async (req, res) => {
+router.delete('/bots/:id/webhook', requireRole(['OWNER', 'ADMIN']), async (req, res) => {
     try {
         const { id } = req.params;
         const user = (req as any).user || {};
@@ -309,7 +309,7 @@ router.delete('/bots/:id/webhook', requireRole(['ADMIN']), async (req, res) => {
     }
 });
 
-router.delete('/bots/:id', requireRole(['ADMIN']), async (req, res) => {
+router.delete('/bots/:id', requireRole(['OWNER', 'ADMIN']), async (req, res) => {
     const { id } = req.params;
     try {
         const user = (req as any).user || {};
@@ -377,7 +377,7 @@ const callTelegram = async (token: string, method: string, params: Record<string
 };
 
 // --- Telegram Proxy (server-side) ---
-router.post('/telegram/call', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
+router.post('/telegram/call', requireRole(['OWNER', 'ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
     try {
         const { token, botId, method, params } = req.body || {};
         if (!method || !TELEGRAM_METHODS.has(method)) {
@@ -545,7 +545,7 @@ router.post('/telegram/call', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), asy
 });
 
 // --- Telegram Messages (Inbox) ---
-router.get('/messages', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
+router.get('/messages', requireRole(['OWNER', 'ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
     try {
         const limit = Math.min(500, Math.max(1, Number(req.query.limit) || 200));
         const chatId = typeof req.query.chatId === 'string' ? req.query.chatId : undefined;
@@ -650,7 +650,7 @@ router.get('/events', requireRole(['ADMIN', 'MANAGER']), async (req, res) => {
 });
 
 // MessageLog timeline (Request-aware)
-router.get('/messages/logs', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
+router.get('/messages/logs', requireRole(['OWNER', 'ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
     try {
         const requestId = typeof req.query.requestId === 'string' ? req.query.requestId : undefined;
         const chatId = typeof req.query.chatId === 'string' ? req.query.chatId : undefined;
@@ -700,7 +700,7 @@ router.get('/messages/logs', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), asyn
     }
 });
 
-router.post('/messages', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
+router.post('/messages', requireRole(['OWNER', 'ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
     try {
         const payload = req.body || {};
         if (!payload.botId || !payload.chatId || !payload.text || !payload.direction) {
@@ -742,29 +742,197 @@ router.post('/messages', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), async (r
     }
 });
 
+// --- Inbox Macros ---
+router.get('/inbox/macros', requireRole(['OWNER', 'ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
+    try {
+        const user = (req as any).user || {};
+        const isSuperadmin = user.role === 'SUPER_ADMIN';
+        const userCompanyId = user.companyId || user.workspaceId;
+        const requestedCompanyId = typeof req.query.companyId === 'string' ? req.query.companyId : undefined;
+        const companyId = isSuperadmin ? requestedCompanyId : userCompanyId;
+        if (!companyId && !isSuperadmin) return errorResponse(res, 400, 'Company context required');
+
+        const macros = await prisma.chatMacro.findMany({
+            where: companyId ? { companyId } : {},
+            orderBy: { updatedAt: 'desc' }
+        });
+        res.json(macros);
+    } catch (e: any) {
+        logger.error('[Inbox Macros] List error:', e.message || e);
+        errorResponse(res, 500, 'Failed to list macros');
+    }
+});
+
+router.post('/inbox/macros', requireRole(['OWNER', 'ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
+    try {
+        const user = (req as any).user || {};
+        const isSuperadmin = user.role === 'SUPER_ADMIN';
+        const userCompanyId = user.companyId || user.workspaceId;
+        const requestedCompanyId = typeof (req.body || {}).companyId === 'string' ? (req.body || {}).companyId : undefined;
+        const companyId = isSuperadmin ? (requestedCompanyId || userCompanyId) : userCompanyId;
+        if (!companyId && !isSuperadmin) return errorResponse(res, 400, 'Company context required');
+
+        const { shortcut, text, category, isActive } = req.body || {};
+        if (!shortcut || !text) return errorResponse(res, 400, 'shortcut and text are required');
+
+        const macro = await prisma.chatMacro.create({
+            data: {
+                companyId,
+                shortcut: String(shortcut).trim(),
+                text: String(text).trim(),
+                category: category ? String(category).trim() : null,
+                isActive: isActive !== undefined ? !!isActive : true
+            }
+        });
+        res.json(macro);
+    } catch (e: any) {
+        logger.error('[Inbox Macros] Create error:', e.message || e);
+        errorResponse(res, 500, e.message || 'Failed to create macro');
+    }
+});
+
+router.put('/inbox/macros/:id', requireRole(['OWNER', 'ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
+    try {
+        const { id } = req.params;
+        const user = (req as any).user || {};
+        const isSuperadmin = user.role === 'SUPER_ADMIN';
+        const userCompanyId = user.companyId || user.workspaceId;
+        if (!isSuperadmin && !userCompanyId) return errorResponse(res, 400, 'Company context required');
+
+        const existing = await prisma.chatMacro.findUnique({ where: { id } });
+        if (!existing) return errorResponse(res, 404, 'Macro not found');
+        if (!isSuperadmin && existing.companyId !== userCompanyId) {
+            return errorResponse(res, 403, 'Forbidden');
+        }
+
+        const { shortcut, text, category, isActive } = req.body || {};
+        const macro = await prisma.chatMacro.update({
+            where: { id },
+            data: {
+                ...(shortcut !== undefined ? { shortcut: String(shortcut).trim() } : {}),
+                ...(text !== undefined ? { text: String(text).trim() } : {}),
+                ...(category !== undefined ? { category: category ? String(category).trim() : null } : {}),
+                ...(isActive !== undefined ? { isActive: !!isActive } : {})
+            }
+        });
+        res.json(macro);
+    } catch (e: any) {
+        logger.error('[Inbox Macros] Update error:', e.message || e);
+        errorResponse(res, 500, e.message || 'Failed to update macro');
+    }
+});
+
+router.delete('/inbox/macros/:id', requireRole(['OWNER', 'ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
+    try {
+        const { id } = req.params;
+        const user = (req as any).user || {};
+        const isSuperadmin = user.role === 'SUPER_ADMIN';
+        const userCompanyId = user.companyId || user.workspaceId;
+        if (!isSuperadmin && !userCompanyId) return errorResponse(res, 400, 'Company context required');
+
+        const existing = await prisma.chatMacro.findUnique({ where: { id } });
+        if (!existing) return errorResponse(res, 404, 'Macro not found');
+        if (!isSuperadmin && existing.companyId !== userCompanyId) {
+            return errorResponse(res, 403, 'Forbidden');
+        }
+
+        await prisma.chatMacro.delete({ where: { id } });
+        res.json({ success: true });
+    } catch (e: any) {
+        logger.error('[Inbox Macros] Delete error:', e.message || e);
+        errorResponse(res, 500, e.message || 'Failed to delete macro');
+    }
+});
+
+// --- Inbox Notes ---
+router.get('/inbox/notes', requireRole(['OWNER', 'ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
+    try {
+        const user = (req as any).user || {};
+        const isSuperadmin = user.role === 'SUPER_ADMIN';
+        const userCompanyId = user.companyId || user.workspaceId;
+        const requestedCompanyId = typeof req.query.companyId === 'string' ? req.query.companyId : undefined;
+        const companyId = isSuperadmin ? requestedCompanyId : userCompanyId;
+        if (!companyId && !isSuperadmin) return errorResponse(res, 400, 'Company context required');
+
+        const chatId = typeof req.query.chatId === 'string' ? req.query.chatId : undefined;
+        if (chatId) {
+            if (!companyId) return errorResponse(res, 400, 'Company context required');
+            const note = await prisma.chatNote.findUnique({
+                where: { companyId_chatId: { companyId: companyId as string, chatId } }
+            });
+            return res.json(note || null);
+        }
+        const notes = await prisma.chatNote.findMany({
+            where: companyId ? { companyId } : {},
+            orderBy: { updatedAt: 'desc' }
+        });
+        res.json(notes);
+    } catch (e: any) {
+        logger.error('[Inbox Notes] List error:', e.message || e);
+        errorResponse(res, 500, 'Failed to list notes');
+    }
+});
+
+router.post('/inbox/notes', requireRole(['OWNER', 'ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
+    try {
+        const user = (req as any).user || {};
+        const isSuperadmin = user.role === 'SUPER_ADMIN';
+        const userCompanyId = user.companyId || user.workspaceId;
+        const requestedCompanyId = typeof (req.body || {}).companyId === 'string' ? (req.body || {}).companyId : undefined;
+        const companyId = isSuperadmin ? (requestedCompanyId || userCompanyId) : userCompanyId;
+        if (!companyId && !isSuperadmin) return errorResponse(res, 400, 'Company context required');
+
+        const { chatId, text } = req.body || {};
+        if (!chatId) return errorResponse(res, 400, 'chatId is required');
+
+        const note = await prisma.chatNote.upsert({
+            where: { companyId_chatId: { companyId, chatId: String(chatId) } },
+            create: { companyId, chatId: String(chatId), text: text ? String(text) : null },
+            update: { text: text ? String(text) : null }
+        });
+        res.json(note);
+    } catch (e: any) {
+        logger.error('[Inbox Notes] Save error:', e.message || e);
+        errorResponse(res, 500, e.message || 'Failed to save note');
+    }
+});
+
 // --- Scenarios (Missing Routes Implemented) ---
 // --- Scenarios ---
-router.get('/scenarios/templates', requireRole(['ADMIN', 'MANAGER']), async (req, res) => {
+router.get('/scenarios/templates', requireRole(['OWNER', 'ADMIN', 'MANAGER']), async (req, res) => {
     try {
-        const templatesDir = path.join(__dirname, '../data/templates');
-        if (!fs.existsSync(templatesDir)) {
-            return res.json([]);
-        }
-        const files = fs.readdirSync(templatesDir).filter(f => f.endsWith('.json'));
-        const templates = files.map(f => {
-            try {
-                const content = fs.readFileSync(path.join(templatesDir, f), 'utf-8');
-                return JSON.parse(content);
-            } catch (e) { return null; }
-        }).filter(Boolean);
-        res.json(templates);
+        const templates = await prisma.scenarioTemplate.findMany({
+            where: { isPublic: true },
+            orderBy: { updatedAt: 'desc' }
+        });
+
+        const mapped = templates.map(t => {
+            const structure = (t.structure as any) || {};
+            const nodes = Array.isArray(structure.nodes) ? structure.nodes : [];
+            const entryNodeId = structure.entryNodeId || (nodes[0]?.id || '');
+            return {
+                id: t.id,
+                name: t.name,
+                description: t.description,
+                category: t.category,
+                triggerCommand: structure.triggerCommand || t.name?.toLowerCase()?.replace(/\s+/g, '_'),
+                keywords: Array.isArray(structure.keywords) ? structure.keywords : [],
+                isActive: false,
+                nodes,
+                entryNodeId,
+                createdAt: t.createdAt,
+                updatedAt: t.updatedAt
+            };
+        });
+
+        res.json(mapped);
     } catch (e) {
         logger.error('[Templates] List error:', e);
         res.json([]);
     }
 });
 
-router.get('/scenarios', requireRole(['ADMIN', 'MANAGER']), async (req, res) => {
+router.get('/scenarios', requireRole(['OWNER', 'ADMIN', 'MANAGER']), async (req, res) => {
     try {
         const user = (req as any).user || {};
         const isSuperadmin = user.role === 'SUPER_ADMIN';
@@ -786,7 +954,7 @@ router.get('/scenarios', requireRole(['ADMIN', 'MANAGER']), async (req, res) => 
     }
 });
 
-router.post('/scenarios', requireRole(['ADMIN', 'MANAGER']), async (req, res) => {
+router.post('/scenarios', requireRole(['OWNER', 'ADMIN', 'MANAGER']), async (req, res) => {
     try {
         const { id, _recordId, ...data } = req.body || {};
         const companyId = (req as any).user?.companyId;
@@ -884,7 +1052,7 @@ router.post('/scenarios', requireRole(['ADMIN', 'MANAGER']), async (req, res) =>
     }
 });
 
-router.delete('/scenarios/:id', requireRole(['ADMIN', 'MANAGER']), async (req, res) => {
+router.delete('/scenarios/:id', requireRole(['OWNER', 'ADMIN', 'MANAGER']), async (req, res) => {
     try {
         const { id } = req.params;
         const companyId = (req as any).user?.companyId;
@@ -898,7 +1066,7 @@ router.delete('/scenarios/:id', requireRole(['ADMIN', 'MANAGER']), async (req, r
     }
 });
 
-router.post('/messages/send', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
+router.post('/messages/send', requireRole(['OWNER', 'ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
     try {
         const { chatId, text, imageUrl, botId, keyboard } = req.body || {};
         if (!chatId || !text) {
@@ -939,6 +1107,160 @@ router.post('/messages/send', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), asy
     } catch (e: any) {
         logger.error('[Messages] Send error:', e.message || e);
         errorResponse(res, 500, e.message || 'Failed to send message');
+    }
+});
+
+// --- Broadcast Campaigns ---
+router.get('/campaigns', requireRole(['OWNER', 'ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
+    try {
+        const user = (req as any).user || {};
+        const isSuperadmin = user.role === 'SUPER_ADMIN';
+        const userCompanyId = user.companyId || user.workspaceId;
+        const requestedCompanyId = typeof req.query.companyId === 'string' ? req.query.companyId : undefined;
+        const companyId = isSuperadmin ? requestedCompanyId : userCompanyId;
+        if (!companyId && !isSuperadmin) return errorResponse(res, 400, 'Company context required');
+
+        const campaigns = await prisma.campaign.findMany({
+            where: companyId ? { bot: { companyId } } : {},
+            orderBy: { createdAt: 'desc' }
+        });
+
+        const mapped = campaigns.map(c => {
+            const content = (c.content as any) || {};
+            const stats = (c.stats as any) || {};
+            return {
+                id: c.id,
+                name: c.name,
+                botId: c.botId,
+                contentId: content.contentId,
+                destinationIds: content.destinationIds || [],
+                status: c.status,
+                scheduledAt: c.scheduledAt,
+                createdAt: c.createdAt,
+                progress: {
+                    sent: stats.sent || 0,
+                    failed: stats.failed || 0,
+                    total: stats.total || (content.destinationIds || []).length
+                },
+                logs: stats.logs || []
+            };
+        });
+
+        res.json(mapped);
+    } catch (e: any) {
+        logger.error('[Campaigns] List error:', e.message || e);
+        errorResponse(res, 500, 'Failed to list campaigns');
+    }
+});
+
+router.post('/campaigns', requireRole(['OWNER', 'ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
+    try {
+        const user = (req as any).user || {};
+        const isSuperadmin = user.role === 'SUPER_ADMIN';
+        const userCompanyId = user.companyId || user.workspaceId;
+        const requestedCompanyId = typeof (req.body || {}).companyId === 'string' ? (req.body || {}).companyId : undefined;
+        const companyId = isSuperadmin ? (requestedCompanyId || userCompanyId) : userCompanyId;
+        if (!companyId && !isSuperadmin) return errorResponse(res, 400, 'Company context required');
+
+        const { name, botId, contentId, destinationIds, message } = req.body || {};
+        if (!name || !botId) return errorResponse(res, 400, 'name and botId are required');
+        if (!Array.isArray(destinationIds) || destinationIds.length === 0) {
+            return errorResponse(res, 400, 'destinationIds must be a non-empty array');
+        }
+
+        const bot = await prisma.botConfig.findUnique({ where: { id: String(botId) } });
+        if (!bot?.token) return errorResponse(res, 400, 'Bot not found or token missing');
+        if (!isSuperadmin && bot.companyId !== companyId) return errorResponse(res, 403, 'Forbidden');
+
+        let contentText = typeof message === 'string' ? message : '';
+        if (!contentText && contentId) {
+            const record = await prisma.entityRecord.findFirst({
+                where: {
+                    entity: { slug: 'tg_content' },
+                    data: { path: ['id'], equals: String(contentId) }
+                }
+            });
+            if (record?.data && typeof record.data === 'object') {
+                const data = record.data as any;
+                contentText = String(data.body || data.text || '');
+            }
+        }
+        if (!contentText) return errorResponse(res, 400, 'content text not found');
+
+        const total = destinationIds.length;
+        const initialStats = { sent: 0, failed: 0, total, logs: [] };
+        const campaign = await prisma.campaign.create({
+            data: {
+                name: String(name),
+                botId: bot.id,
+                content: {
+                    contentId: contentId || null,
+                    destinationIds,
+                    message: contentText
+                } as any,
+                status: 'RUNNING',
+                stats: initialStats as any
+            }
+        });
+
+        const responsePayload = {
+            id: campaign.id,
+            name: campaign.name,
+            botId: campaign.botId,
+            contentId: contentId || null,
+            destinationIds,
+            status: campaign.status,
+            createdAt: campaign.createdAt,
+            progress: initialStats,
+            logs: []
+        };
+
+        res.json(responsePayload);
+
+        // Async worker-like send
+        setImmediate(async () => {
+            let sent = 0;
+            let failed = 0;
+            const logs: any[] = [];
+            for (const dest of destinationIds) {
+                const destination = String(dest);
+                try {
+                    const result = await integrationService.publishTelegramChannelPost({
+                        companyId: String(companyId || bot.companyId || ''),
+                        botToken: bot.token,
+                        botId: bot.id,
+                        destination,
+                        text: contentText
+                    });
+                    sent += 1;
+                    logs.push({
+                        destinationId: destination,
+                        status: 'SUCCESS',
+                        sentAt: new Date().toISOString(),
+                        messageId: (result?.result as any)?.message_id || (result as any)?.message_id || undefined
+                    });
+                } catch (e: any) {
+                    failed += 1;
+                    logs.push({
+                        destinationId: destination,
+                        status: 'FAILED',
+                        sentAt: new Date().toISOString(),
+                        error: e.message || 'Send failed'
+                    });
+                }
+            }
+            const finalStatus = failed && !sent ? 'FAILED' : 'COMPLETED';
+            await prisma.campaign.update({
+                where: { id: campaign.id },
+                data: {
+                    status: finalStatus,
+                    stats: { sent, failed, total, logs } as any
+                }
+            });
+        });
+    } catch (e: any) {
+        logger.error('[Campaigns] Create error:', e.message || e);
+        errorResponse(res, 500, e.message || 'Failed to create campaign');
     }
 });
 
@@ -1071,7 +1393,30 @@ router.get('/proxy', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), async (req, 
             return errorResponse(res, 400, 'url is required');
         }
         const parsed = new URL(target);
-        const allowedHosts = new Set(['auto.ria.com', 'www.auto.ria.com', 'olx.ua', 'www.olx.ua']);
+        const allowedHosts = new Set([
+            'auto.ria.com',
+            'www.auto.ria.com',
+            'olx.ua',
+            'www.olx.ua',
+            'rst.ua',
+            'www.rst.ua',
+            'autoplus.ua',
+            'www.autoplus.ua',
+            'autotrader.com',
+            'www.autotrader.com',
+            'cars.com',
+            'www.cars.com',
+            'cargurus.com',
+            'www.cargurus.com',
+            'carsforsale.com',
+            'www.carsforsale.com',
+            'copart.com',
+            'www.copart.com',
+            'iaai.com',
+            'www.iaai.com',
+            'autotempest.com',
+            'www.autotempest.com'
+        ]);
         if (!allowedHosts.has(parsed.hostname)) {
             return errorResponse(res, 400, 'Host not allowed');
         }
@@ -1307,7 +1652,7 @@ router.delete('/drafts/:id', requireRole(['ADMIN', 'MANAGER']), async (req, res)
 });
 
 // --- Content Templates & Publication Jobs ---
-router.get('/content/templates', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
+router.get('/content/templates', requireRole(['OWNER', 'ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
     try {
         const user = (req as any).user || {};
         const isSuperadmin = user.role === 'SUPER_ADMIN';
@@ -1326,7 +1671,7 @@ router.get('/content/templates', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), 
     }
 });
 
-router.post('/content/templates', requireRole(['ADMIN', 'MANAGER']), async (req, res) => {
+router.post('/content/templates', requireRole(['OWNER', 'ADMIN', 'MANAGER']), async (req, res) => {
     try {
         const payload = req.body || {};
         const user = (req as any).user || {};
@@ -1355,7 +1700,7 @@ router.post('/content/templates', requireRole(['ADMIN', 'MANAGER']), async (req,
     }
 });
 
-router.put('/content/templates/:id', requireRole(['ADMIN', 'MANAGER']), async (req, res) => {
+router.put('/content/templates/:id', requireRole(['OWNER', 'ADMIN', 'MANAGER']), async (req, res) => {
     try {
         const { id } = req.params;
         const payload = req.body || {};
@@ -1387,7 +1732,7 @@ router.put('/content/templates/:id', requireRole(['ADMIN', 'MANAGER']), async (r
     }
 });
 
-router.delete('/content/templates/:id', requireRole(['ADMIN', 'MANAGER']), async (req, res) => {
+router.delete('/content/templates/:id', requireRole(['OWNER', 'ADMIN', 'MANAGER']), async (req, res) => {
     try {
         const { id } = req.params;
         const user = (req as any).user || {};
@@ -1409,7 +1754,7 @@ router.delete('/content/templates/:id', requireRole(['ADMIN', 'MANAGER']), async
     }
 });
 
-router.post('/content/templates/preview', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
+router.post('/content/templates/preview', requireRole(['OWNER', 'ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
     try {
         const payload = req.body || {};
         const user = (req as any).user || {};
@@ -1434,7 +1779,7 @@ router.post('/content/templates/preview', requireRole(['ADMIN', 'MANAGER', 'OPER
     }
 });
 
-router.get('/content/publication-jobs', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
+router.get('/content/publication-jobs', requireRole(['OWNER', 'ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
     try {
         const user = (req as any).user || {};
         const isSuperadmin = user.role === 'SUPER_ADMIN';
@@ -1467,7 +1812,7 @@ router.get('/content/publication-jobs', requireRole(['ADMIN', 'MANAGER', 'OPERAT
     }
 });
 
-router.post('/content/publication-jobs', requireRole(['ADMIN', 'MANAGER']), async (req, res) => {
+router.post('/content/publication-jobs', requireRole(['OWNER', 'ADMIN', 'MANAGER']), async (req, res) => {
     try {
         const payload = req.body || {};
         const user = (req as any).user || {};
@@ -1648,7 +1993,7 @@ router.post('/content/publication-jobs', requireRole(['ADMIN', 'MANAGER']), asyn
     }
 });
 
-router.post('/content/publication-jobs/:id/retry', requireRole(['ADMIN', 'MANAGER']), async (req, res) => {
+router.post('/content/publication-jobs/:id/retry', requireRole(['OWNER', 'ADMIN', 'MANAGER']), async (req, res) => {
     try {
         const { id } = req.params;
         const user = (req as any).user || {};
@@ -1671,7 +2016,7 @@ router.post('/content/publication-jobs/:id/retry', requireRole(['ADMIN', 'MANAGE
     }
 });
 
-router.get('/content/publication-jobs/:id/results', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
+router.get('/content/publication-jobs/:id/results', requireRole(['OWNER', 'ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
     try {
         const { id } = req.params;
         const user = (req as any).user || {};
@@ -1695,7 +2040,7 @@ router.get('/content/publication-jobs/:id/results', requireRole(['ADMIN', 'MANAG
     }
 });
 
-router.delete('/content/publication-jobs/:id', requireRole(['ADMIN', 'MANAGER']), async (req, res) => {
+router.delete('/content/publication-jobs/:id', requireRole(['OWNER', 'ADMIN', 'MANAGER']), async (req, res) => {
     try {
         const { id } = req.params;
         const user = (req as any).user || {};
@@ -1892,7 +2237,7 @@ router.get('/logs', requireRole(['ADMIN']), async (req, res) => {
     res.json(logs);
 });
 
-router.post('/storage/upload', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
+router.post('/storage/upload', requireRole(['OWNER', 'ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
     try {
         const { name, content, type } = req.body || {};
         if (!name || !content) return errorResponse(res, 400, 'name and content required');

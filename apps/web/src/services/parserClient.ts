@@ -19,6 +19,7 @@ export const parseListingFromUrl = async (url: string) => {
 
   return {
     url: payload.url || url,
+    domain: payload.domain,
     title: variables.title,
     price: variables.price,
     currency: variables.currency,
@@ -37,7 +38,8 @@ export const parseListingFromUrl = async (url: string) => {
 };
 
 export const saveParserProfile = async (domain: string, selectors: any) => {
-  const res = await ApiClient.post<any>('parser/mapping', { domain, mapping: selectors, remember: true });
+  const mapping = selectors?.mode ? selectors : { mode: 'fieldMap', fields: selectors };
+  const res = await ApiClient.post<any>('parser/mapping', { domain, mapping, remember: true });
   if (!res.ok) throw new Error(res.message || 'Save failed');
   return res.data;
 };

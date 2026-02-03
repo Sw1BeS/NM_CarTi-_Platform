@@ -64,6 +64,7 @@ export const ContentCalendarPage = () => {
     const [customTemplates, setCustomTemplates] = useState<Record<string, TemplateConfig>>({});
     const [editingTemplate, setEditingTemplate] = useState<TemplateConfig | null>(null);
     const [templates, setTemplates] = useState<ContentTemplate[]>([]);
+    const [timeZone, setTimeZone] = useState('UTC');
 
     const { showToast } = useToast();
     const timeSlots = [9, 12, 15, 18, 21];
@@ -73,18 +74,22 @@ export const ContentCalendarPage = () => {
     }, []);
 
     const loadData = async () => {
-        const [inv, dests, botList, jobList, tplList] = await Promise.all([
+        const [inv, dests, botList, jobList, tplList, settings] = await Promise.all([
             Data.getInventory(),
             Data.getDestinations(),
             Data.getBots(),
             PublicationService.listJobs(),
-            PublicationService.listTemplates().catch(() => [])
+            PublicationService.listTemplates().catch(() => []),
+            Data.getSettings().catch(() => null)
         ]);
         setInventory(inv.filter(c => c.status === 'AVAILABLE'));
         setDestinations(dests.filter(d => d.type === 'CHANNEL'));
         setBots(botList.filter(b => b.active));
         setJobs(jobList);
         setTemplates(tplList);
+        if (settings?.branding?.timezone) {
+            setTimeZone(settings.branding.timezone);
+        }
 
         const grouped: Record<string, TemplateConfig> = {};
         tplList.forEach(t => {
@@ -94,6 +99,46 @@ export const ContentCalendarPage = () => {
             else grouped[key].ua = t.body;
         });
         setCustomTemplates(grouped);
+    };
+
+    const getTimeZoneOffset = (zone: string, date: Date) => {
+        try {
+            const dtf = new Intl.DateTimeFormat('en-US', {
+                timeZone: zone,
+                hour12: false,
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+            const parts = dtf.formatToParts(date).reduce((acc: any, part) => {
+                acc[part.type] = part.value;
+                return acc;
+            }, {});
+            const asUTC = Date.UTC(
+                Number(parts.year),
+                Number(parts.month) - 1,
+                Number(parts.day),
+                Number(parts.hour),
+                Number(parts.minute),
+                Number(parts.second)
+            );
+            return asUTC - date.getTime();
+        } catch {
+            return 0;
+        }
+    };
+
+    const toZonedISOString = (datePart: string, timePart: string, zone: string) => {
+        if (!datePart || !timePart) return undefined;
+        const [year, month, day] = datePart.split('-').map(Number);
+        const [hour, minute] = timePart.split(':').map(Number);
+        if (!year || !month || !day) return undefined;
+        const utcDate = new Date(Date.UTC(year, month - 1, day, hour || 0, minute || 0));
+        const offset = getTimeZoneOffset(zone, utcDate);
+        return new Date(utcDate.getTime() - offset).toISOString();
     };
 
     const getWeekDays = () => {
@@ -128,8 +173,13 @@ export const ContentCalendarPage = () => {
             return;
         }
 
-        const scheduledDate = new Date(date);
-        scheduledDate.setHours(hour, 0, 0, 0);
+        const datePart = [
+            date.getFullYear(),
+            String(date.getMonth() + 1).padStart(2, '0'),
+            String(date.getDate()).padStart(2, '0')
+        ].join('-');
+        const timePart = `${String(hour).padStart(2, '0')}:00`;
+        const scheduledAt = toZonedISOString(datePart, timePart, timeZone) || new Date(datePart + 'T' + timePart).toISOString();
 
         const tpl = allTemplates[bulkConfig.template] || DEFAULT_TEMPLATES.IN_STOCK;
         const templateText = bulkConfig.lang === 'RU' ? (tpl.ru || tpl.ua) : (tpl.ua || tpl.ru);
@@ -140,7 +190,7 @@ export const ContentCalendarPage = () => {
             carId: car.canonicalId,
             template: templateText,
             destination: bulkConfig.destination,
-            scheduledAt: scheduledDate.toISOString(),
+            scheduledAt,
             publishNow: false,
             mediaUrl: car.thumbnail,
             botId: bot.id,
@@ -162,7 +212,8 @@ export const ContentCalendarPage = () => {
             return;
         }
 
-        const startDateTime = new Date(`${bulkConfig.startDate}T${bulkConfig.startTime}`);
+        const startIso = toZonedISOString(bulkConfig.startDate, bulkConfig.startTime, timeZone);
+        const startDateTime = startIso ? new Date(startIso) : new Date(`${bulkConfig.startDate}T${bulkConfig.startTime}`);
         const carsArray = Array.from(selectedCars).map(id => inventory.find(c => c.canonicalId === id)!);
 
         const newJobs: any[] = [];

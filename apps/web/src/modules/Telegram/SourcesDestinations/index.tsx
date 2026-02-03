@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { ApiClient } from '../../../services/apiClient';
 import { useToast } from '../../../contexts/ToastContext';
 import { TelegramRegistryItem } from '../../../types';
-import { Activity, AlertTriangle, PauseCircle, PlayCircle, RefreshCw, Search, Plus, FileText } from 'lucide-react';
+import { Activity, AlertTriangle, PauseCircle, PlayCircle, RefreshCw, Search, Plus, FileText, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 type RegistryLogItem = {
@@ -85,6 +85,17 @@ export const SourcesDestinationsRegistry = () => {
             loadItems();
         } catch (e: any) {
             showToast(e.message || 'Sync failed', 'error');
+        }
+    };
+
+    const handleDelete = async (item: TelegramRegistryItem) => {
+        if (!confirm(`Delete ${item.title}? This cannot be undone.`)) return;
+        try {
+            await ApiClient.delete(`integrations/telegram/registry/${item.id}`);
+            showToast('Registry item deleted', 'success');
+            loadItems();
+        } catch (e: any) {
+            showToast(e.message || 'Delete failed', 'error');
         }
     };
 
@@ -221,6 +232,9 @@ export const SourcesDestinationsRegistry = () => {
                                         )}
                                         <button onClick={() => openLogs(item)} className="btn-ghost px-2 py-1 text-xs flex items-center gap-1 text-[var(--text-secondary)]">
                                             <FileText size={12} /> Logs
+                                        </button>
+                                        <button onClick={() => handleDelete(item)} className="btn-ghost px-2 py-1 text-xs flex items-center gap-1 text-red-500 hover:bg-red-500/10">
+                                            <Trash2 size={12} /> Delete
                                         </button>
                                     </div>
                                 </div>
