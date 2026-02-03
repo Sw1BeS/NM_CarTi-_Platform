@@ -611,5 +611,6 @@ export const MiniAppManager = ({ botId }: { botId: string }) => {
                     </div>
                 </div>
             </div>
+        </div>
     );
 };
