@@ -68,7 +68,10 @@ export class MTProtoWorker {
 
             // Let's fetch the last 50 messages for now (Snapshot approach)
             // A real backfill would need sophisticated offset management.
-            const messages = await MTProtoService.getHistory(source.connectorId, source.channelId, 50);
+            const messages = await MTProtoService.getHistory(source.connectorId, source.channelId, 50, 0, undefined, {
+                username: source.username,
+                sourceId: source.id
+            });
 
             let count = 0;
             for (const msg of messages) {

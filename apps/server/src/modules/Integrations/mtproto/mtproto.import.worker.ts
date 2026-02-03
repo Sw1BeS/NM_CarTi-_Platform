@@ -101,7 +101,10 @@ export class MTProtoImportWorker {
             let done = false;
 
             while (!done && processedThisRun < MAX_MESSAGES_PER_RUN) {
-                const batch = await MTProtoService.getHistory(source.connectorId, source.channelId, BATCH_LIMIT, offsetId, offsetDate);
+                const batch = await MTProtoService.getHistory(source.connectorId, source.channelId, BATCH_LIMIT, offsetId, offsetDate, {
+                    username: source.username,
+                    sourceId: source.id
+                });
                 if (!batch.length) {
                     done = true;
                     break;

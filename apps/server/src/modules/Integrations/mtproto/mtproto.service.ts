@@ -246,22 +246,56 @@ export class MTProtoService {
     /**
      * History & Sync
      */
-    static async getHistory(connectorId: string, channelId: string, limit = 20, offsetId = 0, offsetDate?: number) {
+    static async getHistory(
+        connectorId: string,
+        channelId: string,
+        limit = 20,
+        offsetId = 0,
+        offsetDate?: number,
+        options?: { username?: string | null; sourceId?: string | null }
+    ) {
         const client = await this.getClient(connectorId);
         await client.connect();
 
         try {
-            // gramjs expects channel as an input peer or identifier.
-            // ID from our DB (string) usually needs BigInt for parsing if it's raw ID.
-            // But getMessages often takes username or entity.
+            let entity: any | null = null;
+            const username = options?.username?.trim();
 
-            // To be safe, we try to resolve entity first (cached by gramjs internally hopefully)
-            // or just pass the ID if strict.
+            if (username) {
+                entity = await client.getEntity(username);
+            }
 
-            // NOTE: channelId from resolveChannel is often BigInt string.
-            // client.getInputEntity might be needed.
+            if (!entity) {
+                try {
+                    entity = await client.getEntity(channelId);
+                } catch {
+                    entity = null;
+                }
+            }
 
-            const messages = await client.getMessages(channelId, {
+            if (!entity) {
+                throw new Error('Failed to resolve channel entity');
+            }
+
+            if (entity.className !== 'Channel' && entity.className !== 'Chat') {
+                throw new Error('Target is not a channel or group');
+            }
+
+            const resolvedId = entity.id ? entity.id.toString() : channelId;
+            if (resolvedId && resolvedId !== channelId) {
+                const updateData: any = { channelId: resolvedId };
+                if (entity.username && !username) updateData.username = entity.username;
+                if (options?.sourceId) {
+                    await channelSourceRepo.update(options.sourceId, updateData).catch(() => null);
+                } else {
+                    await prisma.channelSource.update({
+                        where: { connectorId_channelId: { connectorId, channelId } },
+                        data: updateData
+                    }).catch(() => null);
+                }
+            }
+
+            const messages = await client.getMessages(entity, {
                 limit,
                 offsetId,
                 ...(offsetDate ? { offsetDate } : {})
@@ -270,6 +304,12 @@ export class MTProtoService {
             return messages;
         } catch (e: any) {
             logger.error(e);
+            if (options?.sourceId) {
+                await channelSourceRepo.update(options.sourceId, {
+                    status: 'ERROR',
+                    lastError: e.message || 'Failed to fetch history'
+                }).catch(() => null);
+            }
             throw new Error(`Failed to fetch history: ${e.message}`);
         }
     }
@@ -498,11 +538,14 @@ export class MTProtoService {
             throw new Error('MTProto connector is not authenticated');
         }
 
-        const client = await this.getClient(connectorId);
-        await client.connect();
-
         try {
-            const messages = await client.getMessages(source.channelId, { limit: 20 });
+            const client = await this.getClient(connectorId);
+            await client.connect();
+
+            const messages = await MTProtoService.getHistory(connectorId, source.channelId, 20, 0, undefined, {
+                username: source.username || undefined,
+                sourceId: source.id
+            });
             let imported = 0;
 
             for (const msg of messages) {

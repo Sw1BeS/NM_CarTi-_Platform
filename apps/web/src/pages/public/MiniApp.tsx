@@ -229,6 +229,12 @@ export const MiniApp = () => {
             } catch (e) {
                 console.error('Failed to load public bots for MiniApp', e);
             }
+            if (!bots || bots.length === 0) {
+                setInitError(`Mini App configuration not found. No public bots available for slug "${resolvedSlug}".`);
+                setConfig(buildFallbackConfig(resolvedSlug));
+                setCars([]);
+                return;
+            }
             const matchedBot = bots.find(b => (b.defaultShowcaseSlug || '').toLowerCase() === resolvedSlug.toLowerCase());
             const fallbackBot = bots.find(b => b.active) || bots[0];
             const bot = matchedBot || fallbackBot || null;
@@ -258,7 +264,8 @@ export const MiniApp = () => {
         };
         load().catch((e) => {
             console.error('Mini App init failed', e);
-            setInitError('Failed to initialize Mini App. Check base URL, slug, and bot config.');
+            const reason = e instanceof Error ? e.message : String(e);
+            setInitError(`Failed to initialize Mini App. ${reason ? `Reason: ${reason}. ` : ''}Check base URL, slug, and bot config.`);
             const fallbackSlug = slug || 'system';
             setTargetSlug(fallbackSlug);
             setConfig(buildFallbackConfig(fallbackSlug));

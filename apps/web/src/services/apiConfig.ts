@@ -8,7 +8,19 @@ function normalizeApiBase(value: string): string {
     return `${trimmed}/api`;
 }
 
+function isPublicRoute(): boolean {
+    if (typeof window === 'undefined') return false;
+    const path = window.location?.pathname || '';
+    return path.startsWith('/p/') || path.startsWith('/public');
+}
+
 export function getApiBase(): string {
+    // 0. For public routes (Mini App / public pages), always use same-origin API
+    // to avoid broken localStorage overrides inside Telegram WebView.
+    if (isPublicRoute()) {
+        return `${window.location.origin.replace(/\/$/, '')}/api`;
+    }
+
     // 1. LocalStorage override
     const stored = localStorage.getItem('cartie_api_base');
     if (stored) {

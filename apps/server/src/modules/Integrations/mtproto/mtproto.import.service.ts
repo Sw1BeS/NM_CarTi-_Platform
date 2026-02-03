@@ -41,7 +41,14 @@ const buildSkipReason = (reason?: string) => {
 };
 
 export class MTProtoImportService {
-    private async collectPreviewMessages(connectorId: string, channelId: string, fromDate: Date, toDate: Date, limit: number) {
+    private async collectPreviewMessages(
+        connectorId: string,
+        channelId: string,
+        fromDate: Date,
+        toDate: Date,
+        limit: number,
+        options?: { username?: string | null; sourceId?: string | null }
+    ) {
         const results: any[] = [];
 
         let offsetDate = Math.floor(toDate.getTime() / 1000);
@@ -49,7 +56,7 @@ export class MTProtoImportService {
         let done = false;
 
         while (!done && results.length < limit) {
-            const batch = await MTProtoService.getHistory(connectorId, channelId, BATCH_LIMIT, offsetId, offsetDate);
+            const batch = await MTProtoService.getHistory(connectorId, channelId, BATCH_LIMIT, offsetId, offsetDate, options);
             if (!batch.length) break;
 
             for (const msg of batch) {
@@ -93,7 +100,10 @@ export class MTProtoImportService {
         if (!source || source.connectorId !== connectorId) throw new Error('Channel source not found');
         if (source.connector.status !== 'READY') throw new Error('Connector is not ready');
 
-        const messages = await this.collectPreviewMessages(connectorId, source.channelId, fromDate, toDate, PREVIEW_LIMIT);
+        const messages = await this.collectPreviewMessages(connectorId, source.channelId, fromDate, toDate, PREVIEW_LIMIT, {
+            username: source.username,
+            sourceId: source.id
+        });
 
         const preview = [];
         for (const msg of messages) {

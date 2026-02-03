@@ -370,9 +370,13 @@ export class ScenarioEngine {
     const input = normalizeTextCommand(inputRaw);
     const messageTextRaw = update.message?.text || '';
     const chatId = String(update.message?.chat?.id || update.callback_query?.message?.chat?.id || session.chatId);
-    const userIdRaw = update.message?.from?.id || update.callback_query?.from?.id || update.inline_query?.from?.id;
+    const fromUser = update.message?.from || update.callback_query?.from || update.inline_query?.from;
+    const userIdRaw = fromUser?.id;
     const userId = userIdRaw ? String(userIdRaw) : undefined;
     if (userId) vars.__telegramUserId = userId;
+    if (fromUser?.username) vars.__telegramUsername = fromUser.username;
+    if (fromUser?.first_name) vars.__telegramFirstName = fromUser.first_name;
+    if (fromUser?.last_name) vars.__telegramLastName = fromUser.last_name;
     const lang = getLanguage(vars);
     const startPayloadRaw = messageTextRaw.startsWith('/start') ? messageTextRaw.split(' ')[1] : '';
     const hasStartPayload = !!(startPayloadRaw && parseStartPayload(startPayloadRaw));
@@ -1279,22 +1283,43 @@ export class ScenarioEngine {
         if (actionType === 'NORMALIZE_REQUEST') {
           const rawBrand = vars.brandRaw || vars.brand;
           if (rawBrand) vars.brand = String(rawBrand).trim();
+          if (vars.model) vars.model = String(vars.model).trim();
+          if (vars.city) vars.city = String(vars.city).trim();
+          if (vars.clientName) vars.clientName = String(vars.clientName).trim();
+          if (vars.companyName) vars.companyName = String(vars.companyName).trim();
+        }
+        if (actionType === 'CHECK_DAILY_REQUEST_LIMIT') {
+          const limitRaw = node.content?.limit || process.env.LEAD_REQUEST_DAILY_LIMIT || 3;
+          const limit = Number(limitRaw);
+          const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+          const count = await prisma.b2bRequest.count({
+            where: {
+              botId: bot.id,
+              chatId: session.chatId,
+              createdAt: { gte: since }
+            }
+          });
+          vars.limit_reached = Number.isFinite(limit) ? count >= limit : false;
+          vars.limit_remaining = Number.isFinite(limit) ? Math.max(limit - count, 0) : undefined;
         }
         if (actionType === 'CREATE_LEAD') {
           const leadTypeRaw = node.content?.leadType || vars.leadType || vars.requestType || vars.type;
           const leadType = normalizeRequestType(leadTypeRaw);
-          await createOrMergeLead({
+          const leadResult = await createOrMergeLead({
             botId: bot.id,
             companyId: bot.companyId || null,
             chatId: session.chatId,
             userId: vars.__telegramUserId || undefined,
-            name: vars.name || vars.first_name || 'Client',
+            name: vars.clientName || vars.name || vars.first_name || vars.__telegramFirstName || 'Client',
+            telegramUsername: vars.__telegramUsername,
+            telegramName: [vars.__telegramFirstName, vars.__telegramLastName].filter(Boolean).join(' ') || undefined,
             phone: vars.phone,
             source: 'TELEGRAM',
             payload: { language: vars.language },
             leadType,
             createRequest: false
           }, bot.config);
+          if (leadResult?.lead?.id) vars.leadId = leadResult.lead.id;
         }
         if (actionType === 'CREATE_REQUEST') {
           const requestType = normalizeRequestType(node.content?.requestType || vars.requestType || vars.type);
@@ -1314,12 +1339,33 @@ export class ScenarioEngine {
           if (vars.color) details.push(`Color: ${vars.color}`);
 
           const descOverride = node.content?.requestDescription || vars.requestDescription;
+          const tgUser = vars.__telegramUsername ? `@${vars.__telegramUsername}` : undefined;
+          const tgName = [vars.__telegramFirstName, vars.__telegramLastName].filter(Boolean).join(' ');
           const description = descOverride || [
-            `Via Bot. User: ${vars.name || vars.first_name || ''}`.trim(),
+            `Via Bot. User: ${vars.clientName || vars.name || vars.first_name || tgName || ''}`.trim(),
+            tgUser ? `Telegram: ${tgUser}` : null,
+            vars.__telegramUserId ? `Telegram ID: ${vars.__telegramUserId}` : null,
             details.length ? details.join(' | ') : null
           ].filter(Boolean).join('\n');
 
           const status = node.content?.requestStatus || vars.requestStatus || 'COLLECTING_VARIANTS';
+          if (!vars.leadId && vars.phone) {
+            const leadResult = await createOrMergeLead({
+              botId: bot.id,
+              companyId: bot.companyId || null,
+              chatId: session.chatId,
+              userId: vars.__telegramUserId || undefined,
+              name: vars.clientName || vars.name || vars.first_name || vars.__telegramFirstName || 'Client',
+              telegramUsername: vars.__telegramUsername,
+              telegramName: [vars.__telegramFirstName, vars.__telegramLastName].filter(Boolean).join(' ') || undefined,
+              phone: vars.phone,
+              source: 'TELEGRAM',
+              payload: { language: vars.language },
+              leadType: requestType,
+              createRequest: false
+            }, bot.config);
+            if (leadResult?.lead?.id) vars.leadId = leadResult.lead.id;
+          }
           const request = await prisma.b2bRequest.create({
             data: {
               title,
@@ -1335,7 +1381,8 @@ export class ScenarioEngine {
               language: vars.language,
               publicId: generatePublicId(),
               companyId: bot.companyId || null,
-              botId: bot.id
+              botId: bot.id,
+              leadId: vars.leadId || null
             }
           });
           vars.requestId = request.publicId;

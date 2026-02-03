@@ -55,19 +55,48 @@ export const SCENARIO_TEMPLATE_PACK = [
     id: 'tpl_lead_basic',
     name: 'Basic Lead Bot (UA/RU/EN)',
     category: 'LEAD_GEN',
-    description: 'Collects contact details and creates a lead + request.',
+    description: 'Language + step-by-step form, consent, and request creation.',
     isPremium: false,
     structure: {
       triggerCommand: 'lead',
       keywords: ['lead', 'contact', 'звʼязок', 'связь', 'catalog', 'каталог'],
       entryNodeId: 'start',
       nodes: [
-        { id: 'start', type: 'START', content: { text: '' }, nextNodeId: 'greet' },
-        { id: 'greet', type: 'MESSAGE', content: { text: '👋 Hi! I can help you with car selection.', text_uk: '👋 Вітаємо! Допоможемо підібрати авто.', text_ru: '👋 Здравствуйте! Поможем подобрать авто.' }, nextNodeId: 'ask_contact' },
-        { id: 'ask_contact', type: 'REQUEST_CONTACT', content: { text: 'Please share your contact so we can reach you.', text_uk: 'Поділіться контактом для звʼязку.', text_ru: 'Поделитесь контактом для связи.' }, nextNodeId: 'create_lead' },
-        { id: 'create_lead', type: 'ACTION', content: { actionType: 'CREATE_LEAD', leadType: 'BUY' }, nextNodeId: 'create_request' },
-        { id: 'create_request', type: 'ACTION', content: { actionType: 'CREATE_REQUEST', requestType: 'BUY' }, nextNodeId: 'confirm' },
-        { id: 'confirm', type: 'MESSAGE', content: { text: '✅ Request created. We will contact you shortly.', text_uk: '✅ Запит створено. Звʼяжемося найближчим часом.', text_ru: '✅ Запрос создан. Свяжемся в ближайшее время.' } }
+        { id: 'start', type: 'START', content: { text: '' }, nextNodeId: 'choose_lang' },
+        { id: 'choose_lang', type: 'QUESTION_CHOICE', content: { text: 'Choose language', text_uk: 'Оберіть мову', text_ru: 'Выберите язык', variableName: 'language', choices: [
+          { label: 'English', label_uk: 'English', label_ru: 'English', value: 'EN', nextNodeId: 'set_lang' },
+          { label: 'Ukrainian', label_uk: 'Українська', label_ru: 'Украинский', value: 'UK', nextNodeId: 'set_lang' },
+          { label: 'Russian', label_uk: 'Російська', label_ru: 'Русский', value: 'RU', nextNodeId: 'set_lang' }
+        ] } },
+        { id: 'set_lang', type: 'ACTION', content: { actionType: 'SET_LANG' }, nextNodeId: 'greet' },
+        { id: 'greet', type: 'MESSAGE', content: { text: '👋 Hi! I will help you create a request. Use /back to go back or /menu to main.', text_uk: '👋 Вітаємо! Допоможу створити заявку. /back — назад, /menu — меню.', text_ru: '👋 Здравствуйте! Помогу создать заявку. /back — назад, /menu — меню.' }, nextNodeId: 'limit_check' },
+        { id: 'limit_check', type: 'ACTION', content: { actionType: 'CHECK_DAILY_REQUEST_LIMIT', limit: 3 }, nextNodeId: 'limit_gate' },
+        { id: 'limit_gate', type: 'CONDITION', content: { conditionVariable: 'limit_reached', conditionOperator: 'EQUALS', conditionValue: true, trueNodeId: 'limit_msg', falseNodeId: 'ask_brand' } },
+        { id: 'limit_msg', type: 'MESSAGE', content: { text: '⚠️ Daily limit reached. Please try again tomorrow.', text_uk: '⚠️ Ліміт заявок на сьогодні вичерпано. Спробуйте завтра.', text_ru: '⚠️ Лимит заявок на сегодня исчерпан. Попробуйте завтра.' } },
+
+        { id: 'ask_brand', type: 'QUESTION_TEXT', content: { text: 'Brand?', text_uk: 'Марка?', text_ru: 'Марка?', variableName: 'brand' }, nextNodeId: 'ask_model' },
+        { id: 'ask_model', type: 'QUESTION_TEXT', content: { text: 'Model?', text_uk: 'Модель?', text_ru: 'Модель?', variableName: 'model' }, nextNodeId: 'ask_year' },
+        { id: 'ask_year', type: 'QUESTION_TEXT', content: { text: 'Min year?', text_uk: 'Мін. рік?', text_ru: 'Мин. год?', variableName: 'year' }, nextNodeId: 'ask_budget' },
+        { id: 'ask_budget', type: 'QUESTION_TEXT', content: { text: 'Max budget (USD)?', text_uk: 'Макс. бюджет (USD)?', text_ru: 'Макс. бюджет (USD)?', variableName: 'budget' }, nextNodeId: 'ask_city' },
+        { id: 'ask_city', type: 'QUESTION_TEXT', content: { text: 'City?', text_uk: 'Місто?', text_ru: 'Город?', variableName: 'city' }, nextNodeId: 'ask_name' },
+        { id: 'ask_name', type: 'QUESTION_TEXT', content: { text: 'Your name / company?', text_uk: 'Ваше імʼя / компанія?', text_ru: 'Ваше имя / компания?', variableName: 'clientName' }, nextNodeId: 'ask_contact' },
+        { id: 'ask_contact', type: 'REQUEST_CONTACT', content: { text: 'Share your phone number', text_uk: 'Поділіться номером', text_ru: 'Поделитесь номером' }, nextNodeId: 'consent' },
+        { id: 'consent', type: 'QUESTION_CHOICE', content: { text: 'Do you agree to data processing?', text_uk: 'Згода на обробку даних?', text_ru: 'Согласие на обработку данных?', variableName: 'consent', choices: [
+          { label: 'Yes', label_uk: 'Так', label_ru: 'Да', value: 'yes', nextNodeId: 'normalize' },
+          { label: 'No', label_uk: 'Ні', label_ru: 'Нет', value: 'no', nextNodeId: 'no_consent' }
+        ] } },
+        { id: 'no_consent', type: 'MESSAGE', content: { text: '⚠️ Cannot continue without consent.', text_uk: '⚠️ Без згоди не можемо продовжити.', text_ru: '⚠️ Без согласия мы не можем продолжить.' } },
+
+        { id: 'normalize', type: 'ACTION', content: { actionType: 'NORMALIZE_REQUEST' }, nextNodeId: 'create_lead' },
+        { id: 'create_lead', type: 'ACTION', content: { actionType: 'CREATE_LEAD', leadType: 'BUY' }, nextNodeId: 'summary' },
+        { id: 'summary', type: 'MESSAGE', content: { text: '📄 Summary:\n{brand} {model}\nYear: {year}+\nBudget: {budget}\nCity: {city}\nName: {clientName}\nPhone: {phone}', text_uk: '📄 Підсумок:\n{brand} {model}\nРік: {year}+\nБюджет: {budget}\nМісто: {city}\nІмʼя: {clientName}\nТелефон: {phone}', text_ru: '📄 Итог:\n{brand} {model}\nГод: {year}+\nБюджет: {budget}\nГород: {city}\nИмя: {clientName}\nТелефон: {phone}' }, nextNodeId: 'confirm' },
+        { id: 'confirm', type: 'QUESTION_CHOICE', content: { text: 'Send request?', text_uk: 'Надіслати заявку?', text_ru: 'Отправить заявку?', variableName: 'confirm', choices: [
+          { label: 'Send', label_uk: 'Надіслати', label_ru: 'Отправить', value: 'send', nextNodeId: 'create_request' },
+          { label: 'Edit', label_uk: 'Змінити', label_ru: 'Изменить', value: 'edit', nextNodeId: 'edit_msg' }
+        ] } },
+        { id: 'edit_msg', type: 'MESSAGE', content: { text: 'Let’s edit your request.', text_uk: 'Давайте виправимо заявку.', text_ru: 'Давайте исправим заявку.' }, nextNodeId: 'ask_brand' },
+        { id: 'create_request', type: 'ACTION', content: { actionType: 'CREATE_REQUEST', requestType: 'BUY' }, nextNodeId: 'confirm_done' },
+        { id: 'confirm_done', type: 'MESSAGE', content: { text: '✅ Request created. We will contact you shortly.', text_uk: '✅ Запит створено. Звʼяжемося найближчим часом.', text_ru: '✅ Запрос создан. Свяжемся в ближайшее время.' } }
       ]
     }
   },
