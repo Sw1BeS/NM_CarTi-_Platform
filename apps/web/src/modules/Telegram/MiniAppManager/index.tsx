@@ -8,7 +8,9 @@ import { Smartphone, Plus, Trash2, Grid, List as ListIcon, Palette, Image as Ima
 const DEFAULT_NAV_ITEMS: MiniAppConfig['navItems'] = [
     { id: 'nav_home', label: 'Home', icon: 'Home', actionType: 'VIEW', value: 'HOME' },
     { id: 'nav_stock', label: 'Stock', icon: 'LayoutGrid', actionType: 'VIEW', value: 'INVENTORY' },
-    { id: 'nav_saved', label: 'Saved', icon: 'Heart', actionType: 'VIEW', value: 'FAVORITES' }
+    { id: 'nav_saved', label: 'Saved', icon: 'Heart', actionType: 'VIEW', value: 'FAVORITES' },
+    { id: 'nav_request', label: 'Request', icon: 'Search', actionType: 'VIEW', value: 'REQUEST' },
+    { id: 'nav_status', label: 'Status', icon: 'ClipboardList', actionType: 'VIEW', value: 'STATUS' }
 ];
 
 export const MiniAppManager = ({ botId }: { botId: string }) => {
@@ -19,10 +21,7 @@ export const MiniAppManager = ({ botId }: { botId: string }) => {
         isEnabled: true,
         title: 'CarTié',
         welcomeText: 'Welcome',
-        tagline: '',
         primaryColor: '#D4AF37',
-        ctaLabel: 'Request details',
-        styleVariant: 'NOIR',
         layout: 'GRID',
         actions: [],
         navItems: DEFAULT_NAV_ITEMS
@@ -53,10 +52,7 @@ export const MiniAppManager = ({ botId }: { botId: string }) => {
                     isEnabled: true,
                     title: 'CarTié',
                     welcomeText: 'Welcome',
-                    tagline: '',
                     primaryColor: '#D4AF37',
-                    ctaLabel: 'Request details',
-                    styleVariant: 'NOIR',
                     layout: 'GRID',
                     actions: [],
                     navItems: DEFAULT_NAV_ITEMS
@@ -180,29 +176,6 @@ export const MiniAppManager = ({ botId }: { botId: string }) => {
         }
     };
 
-    const handleHeroUpload = async (file: File) => {
-        if (!file) return;
-        try {
-            const reader = new FileReader();
-            const content = await new Promise<string>((resolve, reject) => {
-                reader.onload = () => resolve(reader.result as string);
-                reader.onerror = () => reject(reader.error);
-                reader.readAsDataURL(file);
-            });
-            const res = await ApiClient.post<{ ok: boolean; url?: string; name?: string }>('storage/upload', {
-                name: file.name,
-                content,
-                type: file.type
-            });
-            if (!res.ok || !res.data?.url) {
-                throw new Error(res.message || 'Hero image upload failed');
-            }
-            save({ ...config, heroImageUrl: res.data.url }, { silent: true });
-        } catch (e: any) {
-            showToast(e.message || 'Hero image upload failed', 'error');
-        }
-    };
-
     const computedMiniAppUrl = buildMiniAppUrl(publicBaseUrl || companyBaseUrl || window.location.origin, showcaseSlug || 'system');
 
     const scenarioOptions = scenarios.map(s => ({ value: s.id, label: s.name }));
@@ -210,6 +183,8 @@ export const MiniAppManager = ({ botId }: { botId: string }) => {
         { value: 'HOME', label: 'Home' },
         { value: 'INVENTORY', label: 'Inventory' },
         { value: 'FAVORITES', label: 'Favorites' },
+        { value: 'REQUEST', label: 'New Request' },
+        { value: 'STATUS', label: 'Status' },
         { value: 'PROFILE', label: 'Profile' }
     ];
 
@@ -261,49 +236,6 @@ export const MiniAppManager = ({ botId }: { botId: string }) => {
                         />
                     </div>
 
-                    {/* Tagline */}
-                    <div>
-                        <label className="text-xs font-bold text-[var(--text-secondary)] uppercase block mb-2">
-                            Tagline
-                        </label>
-                        <input
-                            className="input"
-                            value={config.tagline || ''}
-                            onChange={e => save({ ...config, tagline: e.target.value }, { silent: true })}
-                            placeholder="Curated stock. Updated daily."
-                        />
-                    </div>
-
-                    {/* CTA Label */}
-                    <div>
-                        <label className="text-xs font-bold text-[var(--text-secondary)] uppercase block mb-2">
-                            CTA Button Label
-                        </label>
-                        <input
-                            className="input"
-                            value={config.ctaLabel || ''}
-                            onChange={e => save({ ...config, ctaLabel: e.target.value }, { silent: true })}
-                            placeholder="Request details"
-                        />
-                    </div>
-
-                    {/* Style Variant */}
-                    <div>
-                        <label className="text-xs font-bold text-[var(--text-secondary)] uppercase block mb-2">
-                            Style Variant
-                        </label>
-                        <select
-                            className="input"
-                            value={config.styleVariant || 'NOIR'}
-                            onChange={e => save({ ...config, styleVariant: e.target.value as MiniAppConfig['styleVariant'] }, { silent: true })}
-                        >
-                            <option value="NOIR">Noir</option>
-                            <option value="STUDIO">Studio</option>
-                            <option value="SUNSET">Sunset</option>
-                            <option value="AURORA">Aurora</option>
-                        </select>
-                    </div>
-
                     {/* Logo */}
                     <div>
                         <label className="text-xs font-bold text-[var(--text-secondary)] uppercase block mb-2">
@@ -325,31 +257,6 @@ export const MiniAppManager = ({ botId }: { botId: string }) => {
                             <div className="mt-3 flex items-center gap-3">
                                 <img src={config.logoUrl} className="w-12 h-12 rounded-xl object-cover border border-[var(--border-color)]" />
                                 <span className="text-xs text-[var(--text-secondary)]">Displayed in Mini App header</span>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Hero Image */}
-                    <div>
-                        <label className="text-xs font-bold text-[var(--text-secondary)] uppercase block mb-2">
-                            <ImageIcon size={12} className="inline mr-1" /> Hero Image
-                        </label>
-                        <div className="flex gap-2 items-center">
-                            <input
-                                className="input flex-1"
-                                value={config.heroImageUrl || ''}
-                                onChange={e => save({ ...config, heroImageUrl: e.target.value }, { silent: true })}
-                                placeholder="https://..."
-                            />
-                            <label className="btn-secondary text-xs cursor-pointer flex items-center gap-1">
-                                <UploadCloud size={14} /> Upload
-                                <input type="file" accept="image/*" hidden onChange={e => e.target.files?.[0] && handleHeroUpload(e.target.files[0])} />
-                            </label>
-                        </div>
-                        {config.heroImageUrl && (
-                            <div className="mt-3 flex items-center gap-3">
-                                <img src={config.heroImageUrl} className="w-16 h-10 rounded-lg object-cover border border-[var(--border-color)]" />
-                                <span className="text-xs text-[var(--text-secondary)]">Used as Mini App header background</span>
                             </div>
                         )}
                     </div>
@@ -673,14 +580,7 @@ export const MiniAppManager = ({ botId }: { botId: string }) => {
                     <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-6 bg-[#18181B] rounded-b-xl z-20" />
 
                     {/* Header */}
-                    <div
-                        className="pt-10 px-6 pb-6 shadow-sm"
-                        style={{
-                            background: config.heroImageUrl
-                                ? `linear-gradient(180deg, rgba(0,0,0,0.75), transparent), url(${config.heroImageUrl}) center/cover no-repeat`
-                                : `linear-gradient(to bottom, ${config.primaryColor}20, transparent)`
-                        }}
-                    >
+                    <div className="pt-10 px-6 pb-6 shadow-sm" style={{ background: `linear-gradient(to bottom, ${config.primaryColor}20, transparent)` }}>
                         <div className="flex justify-between items-center mb-4 text-white">
                             <span className="text-blue-400 font-medium text-sm flex items-center gap-1 cursor-pointer">← Back</span>
                             <span className="font-bold text-sm">Mini App</span>
@@ -693,7 +593,6 @@ export const MiniAppManager = ({ botId }: { botId: string }) => {
                             <h2 className="text-xl font-bold text-white">{config.title}</h2>
                         </div>
                         <p className="text-white/60 text-xs mt-1">{config.welcomeText}</p>
-                        {config.tagline && <p className="text-white/40 text-[10px] mt-1">{config.tagline}</p>}
                     </div>
 
                     {/* Content */}

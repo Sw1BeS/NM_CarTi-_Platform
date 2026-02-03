@@ -13,7 +13,6 @@ export interface Bot {
     autoSync?: boolean;
     lastUpdateId?: number;
     defaultScenarioId?: string;
-    allowKeywordTriggers?: boolean;
     menuConfig?: {
         buttons: BotMenuButtonConfig[];
         welcomeMessage?: string;
@@ -47,14 +46,10 @@ export interface MiniAppConfig {
     isEnabled: boolean;
     title: string;
     welcomeText: string;
-    tagline?: string;
     headerImageUrl?: string;
-    heroImageUrl?: string;
     logoUrl?: string;
     primaryColor: string;
     accentColor?: string;
-    ctaLabel?: string;
-    styleVariant?: 'NOIR' | 'STUDIO' | 'SUNSET' | 'AURORA';
     layout: 'GRID' | 'LIST';
     actions: {
         id: string;

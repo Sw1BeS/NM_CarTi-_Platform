@@ -146,20 +146,21 @@ export const MiniApp = () => {
     const buildFallbackConfig = (target: string): MiniAppConfig => ({
         title: 'CarTié',
         welcomeText: 'Browse our live inventory',
-        tagline: 'Curated stock. Updated daily.',
         layout: 'GRID',
         primaryColor: '#D4AF37',
         accentColor: '#111',
-        ctaLabel: 'Request details',
-        styleVariant: 'NOIR',
         actions: [
             { id: 'a_inv', label: 'Inventory', actionType: 'VIEW', value: 'INVENTORY', icon: 'LayoutGrid' },
-            { id: 'a_fav', label: 'Favorites', actionType: 'VIEW', value: 'FAVORITES', icon: 'Heart' }
+            { id: 'a_fav', label: 'Favorites', actionType: 'VIEW', value: 'FAVORITES', icon: 'Heart' },
+            { id: 'a_req', label: 'Request', actionType: 'VIEW', value: 'REQUEST', icon: 'MessageSquare' },
+            { id: 'a_status', label: 'Status', actionType: 'VIEW', value: 'STATUS', icon: 'ClipboardList' }
         ],
         navItems: [
             { id: 'nav_home', label: 'Home', icon: 'Home', actionType: 'VIEW', value: 'HOME' },
             { id: 'nav_stock', label: 'Stock', icon: 'LayoutGrid', actionType: 'VIEW', value: 'INVENTORY' },
-            { id: 'nav_saved', label: 'Saved', icon: 'Heart', actionType: 'VIEW', value: 'FAVORITES' }
+            { id: 'nav_saved', label: 'Saved', icon: 'Heart', actionType: 'VIEW', value: 'FAVORITES' },
+            { id: 'nav_request', label: 'Request', icon: 'Search', actionType: 'VIEW', value: 'REQUEST' },
+            { id: 'nav_status', label: 'Status', icon: 'ClipboardList', actionType: 'VIEW', value: 'STATUS' }
         ],
         homeBlocks: [],
         showcaseSlug: target
@@ -215,6 +216,11 @@ export const MiniApp = () => {
 
             // 2. Determine Target Slug (priority: URL slug > start_param > system)
             const resolvedSlug = slug || startParam || 'system';
+            setTargetSlug(resolvedSlug);
+            await loadFavorites(resolvedSlug, {
+                tgUserId: resolvedUser?.id ? String(resolvedUser.id) : undefined,
+                visitorId
+            });
 
             // 3. Load Bot Configuration matched by showcase slug
             let bots: Bot[] = [];
@@ -226,42 +232,34 @@ export const MiniApp = () => {
             if (!bots || bots.length === 0) {
                 setInitError(`Mini App configuration not found. No public bots available for slug "${resolvedSlug}".`);
                 setConfig(buildFallbackConfig(resolvedSlug));
+                setCars([]);
+                return;
             }
             const matchedBot = bots.find(b => (b.defaultShowcaseSlug || '').toLowerCase() === resolvedSlug.toLowerCase());
             const fallbackBot = bots.find(b => b.active) || bots[0];
             const bot = matchedBot || fallbackBot || null;
-            const effectiveSlug = (resolvedSlug === 'system' && bot?.defaultShowcaseSlug)
-                ? bot.defaultShowcaseSlug
-                : resolvedSlug;
-            setTargetSlug(effectiveSlug);
-            await loadFavorites(effectiveSlug, {
-                tgUserId: resolvedUser?.id ? String(resolvedUser.id) : undefined,
-                visitorId
-            });
             if (bot) {
                 setActiveBot(bot);
-                setConfig(bot.miniAppConfig || buildFallbackConfig(effectiveSlug));
+                setConfig(bot.miniAppConfig || buildFallbackConfig(resolvedSlug));
             } else {
                 // No bot configured; still render with fallback to avoid blank screen
-                setConfig(buildFallbackConfig(effectiveSlug));
+                setConfig(buildFallbackConfig(resolvedSlug));
             }
 
             // 4. Load Data
             try {
                 // Try Showcase API first
                 try {
-                    const res = await getShowcaseInventory(effectiveSlug);
+                    const res = await getShowcaseInventory(resolvedSlug);
                     setCars(res.items);
                 } catch (e) {
                     // Fallback to legacy public inventory if showcase not found
-                    console.warn(`Showcase '${effectiveSlug}' not found, falling back to legacy`, e);
-                    const res = await import('../../services/publicApi').then(m => m.getPublicInventory(effectiveSlug));
+                    console.warn(`Showcase '${resolvedSlug}' not found, falling back to legacy`, e);
+                    const res = await import('../../services/publicApi').then(m => m.getPublicInventory(resolvedSlug));
                     setCars(res.items);
                 }
             } catch (e) {
                 console.error("Failed to load inventory for Mini App", e);
-                const reason = e instanceof Error ? e.message : String(e);
-                setInitError(prev => prev || `Inventory load failed. ${reason || 'Check API base and slug.'}`);
             }
         };
         load().catch((e) => {
@@ -276,32 +274,26 @@ export const MiniApp = () => {
     }, [slug]);
 
     if (!config) return <div className="h-screen flex items-center justify-center text-white bg-black">Loading App...</div>;
+    if (initError) {
+        return (
+            <div className="h-screen flex items-center justify-center text-white bg-black px-6 text-center">
+                <div>
+                    <div className="text-xl font-bold mb-2">Mini App Error</div>
+                    <div className="text-white/70 text-sm">{initError}</div>
+                </div>
+            </div>
+        );
+    }
 
     const primaryColor = config.primaryColor || '#D4AF37';
-    const heroImage = config.heroImageUrl || config.headerImageUrl;
-    const ctaLabel = config.ctaLabel || 'Request details';
-    const styleVariant = (config.styleVariant || 'NOIR').toUpperCase();
-    const headerStyle = heroImage
-        ? {
-            backgroundImage: `linear-gradient(135deg, rgba(0,0,0,0.75), rgba(0,0,0,0.95)), url(${heroImage})`,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center'
-        }
-        : {
-            background: styleVariant === 'SUNSET'
-                ? `linear-gradient(135deg, ${primaryColor}55 0%, #3b1f0f 100%)`
-                : styleVariant === 'AURORA'
-                    ? 'linear-gradient(135deg, #1a3a4a 0%, #000000 100%)'
-                    : styleVariant === 'STUDIO'
-                        ? 'linear-gradient(135deg, #2a2b2f 0%, #0b0b0c 100%)'
-                        : `linear-gradient(135deg, ${primaryColor}30 0%, #000000 100%)`
-        };
     const navItems = (config.navItems && config.navItems.length > 0)
         ? config.navItems
         : [
             { id: 'nav_home', label: 'Home', icon: 'Home', actionType: 'VIEW', value: 'HOME' },
             { id: 'nav_stock', label: 'Stock', icon: 'LayoutGrid', actionType: 'VIEW', value: 'INVENTORY' },
-            { id: 'nav_saved', label: 'Saved', icon: 'Heart', actionType: 'VIEW', value: 'FAVORITES' }
+            { id: 'nav_saved', label: 'Saved', icon: 'Heart', actionType: 'VIEW', value: 'FAVORITES' },
+            { id: 'nav_request', label: 'Request', icon: 'Search', actionType: 'VIEW', value: 'REQUEST' },
+            { id: 'nav_status', label: 'Status', icon: 'ClipboardList', actionType: 'VIEW', value: 'STATUS' }
         ];
 
     const handleAction = (act: MiniAppConfig['actions'][number]) => {
@@ -425,22 +417,10 @@ export const MiniApp = () => {
         return `${price.amount.toLocaleString()} ${curr}`;
     };
 
-    const formatYear = (year?: number) => Number.isFinite(year) ? String(year) : '—';
-
-    const formatMileage = (mileage?: number) => {
-        if (!Number.isFinite(mileage)) return '—';
-        return `${Number(mileage).toLocaleString()} km`;
-    };
-
-    const formatMileageShort = (mileage?: number) => {
-        if (!Number.isFinite(mileage)) return '—';
-        return `${Math.round(Number(mileage) / 1000)}k km`;
-    };
-
     const renderHome = () => (
         <div className="animate-fade-in pb-24">
             {/* Header */}
-            <div className="pt-8 pb-8 px-6 rounded-b-[40px] shadow-lg relative overflow-hidden" style={headerStyle}>
+            <div className="pt-8 pb-8 px-6 rounded-b-[40px] shadow-lg relative overflow-hidden" style={{ background: `linear-gradient(135deg, ${primaryColor}30 0%, #000000 100%)` }}>
                 <div className="relative z-10">
                     <div className="flex items-center gap-3 mb-2">
                         {config.logoUrl && (
@@ -449,7 +429,6 @@ export const MiniApp = () => {
                         <h1 className="text-2xl font-bold text-white">{config.title}</h1>
                     </div>
                     <p className="text-white/70 text-sm">{config.welcomeText}</p>
-                    {config.tagline && <p className="text-white/50 text-xs mt-1">{config.tagline}</p>}
 
                     {tgUser && (
                         <div className="mt-6 flex items-center gap-3 bg-white/10 p-2.5 rounded-xl backdrop-blur-md border border-white/5 shadow-inner">
@@ -513,12 +492,12 @@ export const MiniApp = () => {
                                         <Heart size={14} className={isFavorite(getCarId(car)) ? 'text-red-400 fill-red-400' : 'text-white/70'} />
                                     </button>
                                     <div className="absolute top-2 right-2 bg-black/60 backdrop-blur px-2 py-1 rounded text-[10px] font-bold text-white">
-                                        {formatYear(car.year)}
+                                        {car.year}
                                     </div>
                                 </div>
                                 <div className="p-3">
                                     <h4 className="text-sm font-bold text-white truncate">{car.title}</h4>
-                                    <p className="text-xs text-white/50 mt-1 mb-2">{car.specs?.engine || '—'} • {formatMileageShort(car.mileage)}</p>
+                                    <p className="text-xs text-white/50 mt-1 mb-2">{car.specs?.engine} • {car.mileage / 1000}k km</p>
                                     <div className="font-bold text-sm" style={{ color: primaryColor }}>
                                         {formatPrice(car.price)}
                                     </div>
@@ -708,11 +687,11 @@ export const MiniApp = () => {
                                 <div className="p-4">
                                     <div className="flex justify-between items-center mb-4">
                                         <div className="text-xl font-bold" style={{ color: primaryColor }}>{formatPrice(car.price)}</div>
-                                        <div className="text-xs text-white/50 bg-white/5 px-2 py-1 rounded">{formatYear(car.year)}</div>
+                                        <div className="text-xs text-white/50 bg-white/5 px-2 py-1 rounded">{car.year}</div>
                                     </div>
                                     <div className="grid grid-cols-3 gap-2 text-xs text-white/70 mb-4">
                                         <div className="bg-black/30 p-2 rounded text-center border border-white/5">{car.specs?.engine || 'N/A'}</div>
-                                        <div className="bg-black/30 p-2 rounded text-center border border-white/5">{formatMileage(car.mileage)}</div>
+                                        <div className="bg-black/30 p-2 rounded text-center border border-white/5">{car.mileage.toLocaleString()} km</div>
                                         <div className="bg-black/30 p-2 rounded text-center border border-white/5">{car.specs?.fuel || 'N/A'}</div>
                                     </div>
                                     <button
@@ -720,7 +699,7 @@ export const MiniApp = () => {
                                         className="w-full py-3 rounded-xl font-bold text-black flex items-center justify-center gap-2 active:scale-95 transition-transform"
                                         style={{ backgroundColor: primaryColor }}
                                     >
-                                        <MessageSquare size={18} /> {ctaLabel}
+                                        <MessageSquare size={18} /> Запросить просчет
                                     </button>
                                     <button
                                         onClick={() => openListing(car)}
@@ -771,7 +750,7 @@ export const MiniApp = () => {
                                 </div>
                                 <div className="p-4">
                                     <h3 className="text-base font-bold text-white truncate">{car.title}</h3>
-                                    <div className="text-sm text-white/60 mt-1">{formatYear(car.year)} • {formatMileage(car.mileage)}</div>
+                                    <div className="text-sm text-white/60 mt-1">{car.year} • {car.mileage.toLocaleString()} km</div>
                                     <div className="mt-2 font-bold" style={{ color: primaryColor }}>
                                         {formatPrice(car.price)}
                                     </div>
@@ -837,7 +816,7 @@ export const MiniApp = () => {
                                 <Heart size={18} className={isFavorite(getCarId(selectedCar)) ? 'text-red-400 fill-red-400' : 'text-white/70'} />
                             </button>
                         </div>
-                        <div className="text-sm text-white/60">{formatYear(selectedCar.year)} • {formatMileage(selectedCar.mileage)}</div>
+                        <div className="text-sm text-white/60">{selectedCar.year} • {selectedCar.mileage.toLocaleString()} km</div>
                         <div className="text-sm text-white/60 mt-1">{selectedCar.specs?.engine || 'N/A'} • {selectedCar.specs?.fuel || 'N/A'}</div>
                     </div>
 
@@ -846,7 +825,7 @@ export const MiniApp = () => {
                         className="w-full py-4 rounded-xl font-bold text-black flex items-center justify-center gap-2"
                         style={{ backgroundColor: primaryColor }}
                     >
-                        <MessageSquare size={18} /> {ctaLabel}
+                        <MessageSquare size={18} /> Request This Car
                     </button>
                 </div>
             </div>
@@ -1144,11 +1123,6 @@ export const MiniApp = () => {
             {isPreview && (
                 <div className="bg-orange-500/20 text-orange-400 text-[10px] uppercase font-bold text-center py-1 border-b border-orange-500/30 flex items-center justify-center gap-2">
                     <AlertTriangle size={10} /> Preview Mode (No Telegram Bridge)
-                </div>
-            )}
-            {initError && (
-                <div className="bg-red-500/15 text-red-300 text-[11px] px-4 py-2 border-b border-red-500/30 flex items-center gap-2">
-                    <AlertTriangle size={12} /> {initError}
                 </div>
             )}
 

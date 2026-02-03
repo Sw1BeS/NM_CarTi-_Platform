@@ -193,7 +193,7 @@ export class MTProtoService {
 
             // Basic validation
             if (entity.className !== 'Channel' && entity.className !== 'Chat') {
-                throw new Error(`Target is not a channel or group (${entity.className || 'unknown'})`);
+                throw new Error('Target is not a channel or group');
             }
 
             return {
@@ -259,14 +259,10 @@ export class MTProtoService {
 
         try {
             let entity: any | null = null;
-            const username = options?.username?.trim()?.replace(/^@/, '')?.replace(/^https?:\/\/t\.me\//, '');
+            const username = options?.username?.trim();
 
             if (username) {
-                try {
-                    entity = await client.getEntity(username);
-                } catch {
-                    entity = null;
-                }
+                entity = await client.getEntity(username);
             }
 
             if (!entity) {
@@ -282,7 +278,7 @@ export class MTProtoService {
             }
 
             if (entity.className !== 'Channel' && entity.className !== 'Chat') {
-                throw new Error(`Target is not a channel or group (${entity.className || 'unknown'})`);
+                throw new Error('Target is not a channel or group');
             }
 
             const resolvedId = entity.id ? entity.id.toString() : channelId;

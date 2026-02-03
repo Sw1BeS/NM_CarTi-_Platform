@@ -21,10 +21,12 @@ const ensureMiniAppUrl = (config: any) => {
   const mini = config?.miniAppConfig;
   if (!mini || typeof mini !== 'object') return;
   if (mini.url) return;
-  const baseUrl = String(config.publicBaseUrl || process.env.MINIAPP_URL || '').trim();
+  const baseUrl = String(config.publicBaseUrl || '').trim();
   const slug = String(config.defaultShowcaseSlug || mini.showcaseSlug || config.username || '').trim();
   if (baseUrl && slug) {
     mini.url = `${baseUrl.replace(/\/$/, '')}/p/app/${slug}`;
+  } else if (slug) {
+    mini.url = `https://t.me/${slug}/app`;
   }
   config.miniAppConfig = mini;
 };
@@ -38,8 +40,6 @@ export const mapBotInput = (input: any, existingConfig: any = {}) => {
   if ('menuConfig' in input) setConfigValue(config, 'menuConfig', input.menuConfig);
   if ('miniAppConfig' in input) setConfigValue(config, 'miniAppConfig', input.miniAppConfig);
   if ('defaultShowcaseSlug' in input) setConfigValue(config, 'defaultShowcaseSlug', input.defaultShowcaseSlug);
-  if ('defaultScenarioId' in input) setConfigValue(config, 'defaultScenarioId', input.defaultScenarioId);
-  if ('allowKeywordTriggers' in input) setConfigValue(config, 'allowKeywordTriggers', input.allowKeywordTriggers);
   if ('stats' in input) setConfigValue(config, 'stats', input.stats);
   if ('processedUpdateIds' in input) setConfigValue(config, 'processedUpdateIds', input.processedUpdateIds);
   if ('lastUpdateId' in input) setConfigValue(config, 'lastUpdateId', input.lastUpdateId);
@@ -78,8 +78,6 @@ export const mapBotOutput = (bot: any) => {
     username: config.username || bot.name || '',
     defaultShowcaseId: bot.defaultShowcaseId,
     defaultShowcaseSlug: bot.defaultShowcase?.slug || config.defaultShowcaseSlug,
-    defaultScenarioId: config.defaultScenarioId,
-    allowKeywordTriggers: config.allowKeywordTriggers,
     token: bot.token,
     role: config.role || 'CLIENT',
     active: bot.isEnabled,

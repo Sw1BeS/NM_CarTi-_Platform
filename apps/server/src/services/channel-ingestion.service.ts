@@ -68,61 +68,46 @@ const normalizeNumberString = (raw: string) => {
 
 const detectCurrency = (text: string) => {
     const upper = text.toUpperCase();
-    if (upper.includes('UAH') || upper.includes('ГРН') || text.includes('₴')) return 'UAH';
+    if (upper.includes('UAH') || text.includes('₴')) return 'UAH';
     if (upper.includes('EUR') || text.includes('€')) return 'EUR';
-    if (upper.includes('USD') || upper.includes('ДОЛ') || upper.includes('БАКС') || text.includes('$')) return 'USD';
+    if (upper.includes('USD') || text.includes('$')) return 'USD';
     return undefined;
 };
 
-const collectCurrencyHints = (text: string) => {
-    const upper = text.toUpperCase();
-    const hints = new Set<string>();
-    if (upper.includes('UAH') || upper.includes('ГРН') || text.includes('₴')) hints.add('UAH');
-    if (upper.includes('EUR') || text.includes('€')) hints.add('EUR');
-    if (upper.includes('USD') || upper.includes('ДОЛ') || upper.includes('БАКС') || text.includes('$')) hints.add('USD');
-    return hints;
-};
-
 const parsePriceFromText = (text: string): { amount?: number; currency?: string } => {
-    const pattern = /(?:price|цена|стоимость|💰)?\s*[:\-]?\s*([\d\s.,]+)\s*(k|к|тыс|тис)?\s*([€$₴]|USD|EUR|UAH|грн|дол|бакс)?/gi;
-    const candidates: { amount: number; currency?: string; hasExplicitCurrency: boolean }[] = [];
-    const fallbackNumbers: number[] = [];
+    const labeled = text.match(/(?:price|цена|стоимость|💰)\s*[:\-]?\s*([\d\s.,]+)\s*(k|к|тыс|тис)?\s*(\$|€|₴|USD|EUR|UAH)?/i);
+    const symbolFirst = text.match(/(\$|€|₴|USD|EUR|UAH)\s*([\d\s.,]+)\s*(k|к|тыс|тис)?/i);
+    const symbolLast = text.match(/([\d\s.,]+)\s*(k|к|тыс|тис)?\s*(\$|€|₴|USD|EUR|UAH)/i);
 
-    let match: RegExpExecArray | null;
-    while ((match = pattern.exec(text)) !== null) {
-        const rawNum = match[1];
-        const suffix = match[2];
-        const token = match[3];
-        if (!rawNum) continue;
+    let rawNum: string | undefined;
+    let rawCurr: string | undefined;
+    let suffix: string | undefined;
 
-        const normalized = normalizeNumberString(rawNum);
-        let amount = Number.parseFloat(normalized);
-        if (!Number.isFinite(amount)) continue;
-        if (amount < 1000 || amount > 2000000) continue;
-
-        if (suffix && /k|к|тыс|тис/i.test(suffix)) {
-            amount = amount * 1000;
-        }
-
-        const hasExplicitCurrency = !!token || /[$€₴]/.test(match[0]) || /(USD|EUR|UAH|грн|дол|бакс)/i.test(match[0]);
-        const currency = hasExplicitCurrency ? detectCurrency(token || match[0]) : undefined;
-        candidates.push({ amount, currency, hasExplicitCurrency });
-        if (!hasExplicitCurrency) fallbackNumbers.push(amount);
+    if (labeled) {
+        rawNum = labeled[1];
+        suffix = labeled[2];
+        rawCurr = labeled[3];
+    } else if (symbolFirst) {
+        rawCurr = symbolFirst[1];
+        rawNum = symbolFirst[2];
+        suffix = symbolFirst[3];
+    } else if (symbolLast) {
+        rawNum = symbolLast[1];
+        suffix = symbolLast[2];
+        rawCurr = symbolLast[3];
     }
 
-    const explicit = candidates.find(c => c.hasExplicitCurrency && c.currency);
-    if (explicit) return { amount: explicit.amount, currency: explicit.currency };
+    if (!rawNum) return {};
+    const normalized = normalizeNumberString(rawNum);
+    let amount = Number.parseFloat(normalized);
+    if (!Number.isFinite(amount)) return {};
 
-    if (fallbackNumbers.length) {
-        const hints = collectCurrencyHints(text);
-        if (hints.size === 1) {
-            const [currency] = Array.from(hints);
-            return { amount: fallbackNumbers[0], currency };
-        }
-        return { amount: fallbackNumbers[0], currency: undefined };
+    if (suffix && /k|к|тыс|тис/i.test(suffix)) {
+        amount = amount * 1000;
     }
 
-    return {};
+    const currency = rawCurr ? detectCurrency(rawCurr) : detectCurrency(text);
+    return { amount, currency };
 };
 
 const normalizeMediaItem = (item: MediaItem): Prisma.InputJsonObject => {
