@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Data } from '../../services/data';
-import { PublicationService, PublicationJob, ContentTemplate } from '../../services/publicationService';
+import { PublicationService, PublicationJob, ContentTemplate, PublicationResult } from '../../services/publicationService';
 import { CarListing, TelegramDestination, Bot } from '../../types';
 import { useToast } from '../../contexts/ToastContext';
 import {
@@ -65,6 +65,9 @@ export const ContentCalendarPage = () => {
     const [editingTemplate, setEditingTemplate] = useState<TemplateConfig | null>(null);
     const [templates, setTemplates] = useState<ContentTemplate[]>([]);
     const [timeZone, setTimeZone] = useState('UTC');
+    const [resultsJob, setResultsJob] = useState<PublicationJob | null>(null);
+    const [results, setResults] = useState<PublicationResult[]>([]);
+    const [resultsLoading, setResultsLoading] = useState(false);
 
     const { showToast } = useToast();
     const timeSlots = [9, 12, 15, 18, 21];
@@ -168,8 +171,10 @@ export const ContentCalendarPage = () => {
             showToast('Select destination first', 'error');
             return;
         }
-        if (bots.length === 0) {
-            showToast('No active bot found', 'error');
+        const dest = destinations.find(d => d.identifier === bulkConfig.destination);
+        const botId = dest?.botId;
+        if (!botId) {
+            showToast('Destination has no bot assigned', 'error');
             return;
         }
 
@@ -184,7 +189,6 @@ export const ContentCalendarPage = () => {
         const tpl = allTemplates[bulkConfig.template] || DEFAULT_TEMPLATES.IN_STOCK;
         const templateText = bulkConfig.lang === 'RU' ? (tpl.ru || tpl.ua) : (tpl.ua || tpl.ru);
 
-        const bot = bots[0];
         const created = await PublicationService.createJob({
             title: car.title,
             carId: car.canonicalId,
@@ -193,7 +197,7 @@ export const ContentCalendarPage = () => {
             scheduledAt,
             publishNow: false,
             mediaUrl: car.thumbnail,
-            botId: bot.id,
+            botId,
             lang: bulkConfig.lang,
             createDraft: true
         });
@@ -207,8 +211,10 @@ export const ContentCalendarPage = () => {
             showToast('Select cars and destination', 'error');
             return;
         }
-        if (bots.length === 0) {
-            showToast('No active bot found', 'error');
+        const dest = destinations.find(d => d.identifier === bulkConfig.destination);
+        const botId = dest?.botId;
+        if (!botId) {
+            showToast('Destination has no bot assigned', 'error');
             return;
         }
 
@@ -231,7 +237,7 @@ export const ContentCalendarPage = () => {
                 scheduledAt: currentTime.toISOString(),
                 publishNow: false,
                 mediaUrl: car.thumbnail,
-                botId: bots[0].id,
+                botId,
                 lang: bulkConfig.lang,
                 createDraft: true
             });
@@ -246,6 +252,20 @@ export const ContentCalendarPage = () => {
         setShowBulkScheduler(false);
         setSelectedCars(new Set());
         showToast(`${newJobs.length} posts scheduled!`, 'success');
+    };
+
+    const openResults = async (job: PublicationJob) => {
+        setResultsJob(job);
+        setResultsLoading(true);
+        try {
+            const list = await PublicationService.listJobResults(job.id);
+            setResults(list);
+        } catch (e: any) {
+            showToast(e.message || 'Failed to load results', 'error');
+            setResults([]);
+        } finally {
+            setResultsLoading(false);
+        }
     };
 
     const deletePost = async (id: string) => {
@@ -607,12 +627,32 @@ export const ContentCalendarPage = () => {
                                             {job.lastError}
                                         </div>
                                     )}
-                                    <button
-                                        onClick={() => deletePost(job.id)}
-                                        className="btn-ghost text-xs text-red-500 hover:bg-red-500/10 py-1"
-                                    >
-                                        Delete
-                                    </button>
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() => openResults(job)}
+                                            className="btn-secondary text-xs flex-1"
+                                        >
+                                            Results
+                                        </button>
+                                        {job.status === 'FAILED' && (
+                                            <button
+                                                onClick={async () => {
+                                                    const updated = await PublicationService.retryJob(job.id);
+                                                    setJobs(prev => prev.map(j => j.id === job.id ? updated : j));
+                                                    showToast('Retry queued', 'success');
+                                                }}
+                                                className="btn-secondary text-xs flex-1"
+                                            >
+                                                Retry
+                                            </button>
+                                        )}
+                                        <button
+                                            onClick={() => deletePost(job.id)}
+                                            className="btn-ghost text-xs text-red-500 hover:bg-red-500/10 py-1 flex-1"
+                                        >
+                                            Delete
+                                        </button>
+                                    </div>
                                 </div>
                             );
                         })}
@@ -868,6 +908,36 @@ export const ContentCalendarPage = () => {
                                     <button onClick={() => setEditingTemplate(null)} className="btn-ghost flex-1">Cancel</button>
                                     <button onClick={saveTemplate} className="btn-primary flex-1">Save Template</button>
                                 </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {resultsJob && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="panel w-full max-w-xl p-6 space-y-4">
+                        <div className="flex justify-between items-center">
+                            <h3 className="text-lg font-bold text-[var(--text-primary)]">Publication Results</h3>
+                            <button onClick={() => { setResultsJob(null); setResults([]); }}><X size={18} /></button>
+                        </div>
+                        <div className="text-xs text-[var(--text-secondary)]">Job: {resultsJob.id}</div>
+                        {resultsLoading ? (
+                            <div className="text-sm text-[var(--text-secondary)]">Loading...</div>
+                        ) : results.length === 0 ? (
+                            <div className="text-sm text-[var(--text-secondary)]">No results yet.</div>
+                        ) : (
+                            <div className="space-y-2">
+                                {results.map(r => (
+                                    <div key={r.id} className="p-3 rounded border border-[var(--border-color)] bg-[var(--bg-input)] text-xs">
+                                        <div className="flex justify-between">
+                                            <span className="font-bold">{r.status}</span>
+                                            <span className="text-[var(--text-secondary)]">{r.messageId ? `#${r.messageId}` : ''}</span>
+                                        </div>
+                                        {r.error && <div className="text-red-500 mt-1">{r.error}</div>}
+                                        {r.createdAt && <div className="text-[10px] text-[var(--text-secondary)] mt-1">{new Date(r.createdAt).toLocaleString()}</div>}
+                                    </div>
+                                ))}
                             </div>
                         )}
                     </div>

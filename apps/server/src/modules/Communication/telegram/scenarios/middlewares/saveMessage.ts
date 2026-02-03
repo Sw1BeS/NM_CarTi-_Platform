@@ -2,6 +2,7 @@ import { PipelineMiddleware } from '../../core/types.js';
 import { prisma } from '../../../../../services/prisma.js';
 import { summarizeText } from '../../core/events/eventEmitter.js';
 import { logger } from '../../../../../utils/logger.js';
+import { logIntegrationEvent } from '../../../../../services/integrationEventLog.service.js';
 
 export const saveMessage: PipelineMiddleware = async (ctx, next) => {
     // 1. Proceed with pipeline first (or parallel? - safer to wait for next to ensure we don't save duplicates if dedup fails?)
@@ -49,6 +50,19 @@ export const saveMessage: PipelineMiddleware = async (ctx, next) => {
                             type: ctx.updateType,
                             from: message?.from || callback?.from
                         }
+                    }
+                });
+                await logIntegrationEvent({
+                    companyId: ctx.companyId || undefined,
+                    integration: 'TELEGRAM',
+                    entityId: ctx.bot.id,
+                    action: 'message.received',
+                    status: 'OK',
+                    message: summarizeText(text) || 'incoming',
+                    meta: {
+                        botId: ctx.bot.id,
+                        chatId: ctx.chatId,
+                        messageId: messageId
                     }
                 });
             }

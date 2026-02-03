@@ -41,10 +41,21 @@ export const AddBotModal = ({ onClose }: { onClose: () => void }) => {
     const [adminChatId, setAdminChatId] = useState('');
     // @ts-ignore
     const envUrl = import.meta.env.VITE_PUBLIC_URL;
-    const [publicBaseUrl, setPublicBaseUrl] = useState(envUrl || window.location.origin.replace(/\/$/, ''));
+    const [companyBaseUrl, setCompanyBaseUrl] = useState(envUrl || window.location.origin.replace(/\/$/, ''));
+    const [publicBaseUrl, setPublicBaseUrl] = useState('');
     const [mode, setMode] = useState<'polling' | 'webhook'>('polling');
     const [saving, setSaving] = useState(false);
     const { showToast } = useToast();
+    const effectiveBaseUrl = (publicBaseUrl || companyBaseUrl || window.location.origin).replace(/\/$/, '');
+
+    useEffect(() => {
+        Data.getSettings()
+            .then(settings => {
+                const base = (settings.modules || {}).telegram?.publicBaseUrl;
+                if (base) setCompanyBaseUrl(base.replace(/\/$/, ''));
+            })
+            .catch(() => {});
+    }, []);
 
     const handleAdd = async () => {
         if (!token.trim()) {
@@ -57,7 +68,7 @@ export const AddBotModal = ({ onClose }: { onClose: () => void }) => {
             const fallbackName = 'My New Bot';
             const fallbackSlug = name.trim() ? name.trim().toLowerCase().replace(/\s+/g, '_') : 'bot';
 
-            const { base, detectedSlug } = resolveBaseUrl(publicBaseUrl || window.location.origin);
+            const { base, detectedSlug } = resolveBaseUrl(effectiveBaseUrl || window.location.origin);
             const slug = detectedSlug || fallbackSlug;
             const miniAppUrl = buildMiniAppUrl(base, slug);
 
@@ -82,7 +93,7 @@ export const AddBotModal = ({ onClose }: { onClose: () => void }) => {
                 adminChatId: adminChatId || undefined,
                 deliveryMode: mode === 'webhook' ? 'webhook' : 'polling',
                 config: {
-                    publicBaseUrl: base || undefined,
+                    publicBaseUrl: publicBaseUrl ? (base || undefined) : undefined,
                     deliveryMode: mode,
                     menuConfig,
                     miniAppConfig
@@ -96,7 +107,7 @@ export const AddBotModal = ({ onClose }: { onClose: () => void }) => {
             if (mode === 'webhook' && bot?.id) {
                 try {
                     await ApiClient.post(`bots/${bot.id}/webhook`, {
-                        publicBaseUrl: publicBaseUrl || window.location.origin
+                        publicBaseUrl: effectiveBaseUrl || window.location.origin
                     });
                 } catch (err: any) {
                     console.error(err);
@@ -134,8 +145,13 @@ export const AddBotModal = ({ onClose }: { onClose: () => void }) => {
                         </div>
                         <div>
                             <label className="text-xs font-bold text-[var(--text-secondary)] uppercase block mb-1">Public Base URL (HTTPS)</label>
-                            <input className="input" placeholder="https://your.domain" value={publicBaseUrl} onChange={e => setPublicBaseUrl(e.target.value)} />
-                            {publicBaseUrl.includes('localhost') && (
+                            <input className="input" placeholder={companyBaseUrl || 'https://your.domain'} value={publicBaseUrl} onChange={e => setPublicBaseUrl(e.target.value)} />
+                            {!publicBaseUrl && (
+                                <div className="text-[10px] text-[var(--text-secondary)] mt-1 flex items-center gap-1">
+                                    Using company base URL by default.
+                                </div>
+                            )}
+                            {effectiveBaseUrl.includes('localhost') && (
                                 <div className="text-[10px] text-amber-500 mt-1 flex items-center gap-1">
                                     <AlertTriangle size={10} /> Localhost won't work for Telegram Webhooks/Mini Apps
                                 </div>
@@ -159,6 +175,9 @@ export const BotSettings = ({ bot }: { bot: Bot }) => {
     const { showToast } = useToast();
     const [form, setForm] = useState(bot);
     const [showcases, setShowcases] = useState<Showcase[]>([]);
+    const [companySettings, setCompanySettings] = useState<any>(null);
+    const [companyBaseUrl, setCompanyBaseUrl] = useState('');
+    const [companyBaseDraft, setCompanyBaseDraft] = useState('');
 
     // Diagnostic stats
     const lastError = TelegramAPI.lastError;
@@ -169,9 +188,22 @@ export const BotSettings = ({ bot }: { bot: Bot }) => {
         ShowcaseService.getShowcases().then(setShowcases).catch(console.error);
     }, []);
 
+    useEffect(() => {
+        Data.getSettings()
+            .then(settings => {
+                setCompanySettings(settings);
+                const base = (settings.modules || {}).telegram?.publicBaseUrl || '';
+                setCompanyBaseUrl(base);
+                setCompanyBaseDraft(base);
+            })
+            .catch(() => {});
+    }, []);
+
     const normalizeMiniAppConfig = (draft: Bot) => {
         const fallbackSlug = draft.defaultShowcaseSlug || 'system';
-        const { base, detectedSlug } = resolveBaseUrl(draft.publicBaseUrl || window.location.origin);
+        const hasOverride = !!draft.publicBaseUrl;
+        const baseCandidate = draft.publicBaseUrl || companyBaseUrl || window.location.origin;
+        const { base, detectedSlug } = resolveBaseUrl(baseCandidate);
         const slug = detectedSlug || fallbackSlug;
         const miniAppUrl = buildMiniAppUrl(base, slug);
         const menuConfig = {
@@ -187,7 +219,7 @@ export const BotSettings = ({ bot }: { bot: Bot }) => {
             url: miniAppUrl,
             showcaseSlug: slug
         };
-        return { ...draft, publicBaseUrl: base, menuConfig, miniAppConfig, defaultShowcaseSlug: slug };
+        return { ...draft, publicBaseUrl: hasOverride ? base : undefined, menuConfig, miniAppConfig, defaultShowcaseSlug: slug };
     };
 
     const save = async () => {
@@ -200,12 +232,34 @@ export const BotSettings = ({ bot }: { bot: Bot }) => {
     const handleSyncMenu = async () => {
         try {
             // Respect publicBaseUrl
-            const baseUrl = form.publicBaseUrl || window.location.origin;
+            const baseUrl = form.publicBaseUrl || companyBaseUrl || window.location.origin;
             const slug = form.defaultShowcaseSlug || 'system';
             const appUrl = buildMiniAppUrl(baseUrl, slug);
             await TelegramAPI.setChatMenuButton(form.token, "Open App", appUrl);
             showToast("Menu Button Synced");
         } catch (e: any) { showToast(e.message, 'error'); }
+    };
+
+    const saveCompanyBaseUrl = async () => {
+        if (!companySettings?.id) return;
+        const updated = {
+            ...companySettings,
+            modules: {
+                ...(companySettings.modules || {}),
+                telegram: {
+                    ...((companySettings.modules || {}).telegram || {}),
+                    publicBaseUrl: companyBaseDraft || undefined
+                }
+            }
+        };
+        try {
+            await Data.saveSettings(updated);
+            setCompanySettings(updated);
+            setCompanyBaseUrl(companyBaseDraft);
+            showToast('Company base URL saved');
+        } catch (e: any) {
+            showToast(e.message || 'Failed to save company base URL', 'error');
+        }
     };
 
     const handleSyncCommands = async () => {
@@ -229,6 +283,25 @@ export const BotSettings = ({ bot }: { bot: Bot }) => {
 
     return (
         <div className="max-w-2xl mx-auto p-8 space-y-8 overflow-y-auto h-full">
+            <div className="panel p-6 space-y-4 border-gold-500/20">
+                <div className="flex justify-between items-center">
+                    <div>
+                        <h3 className="font-bold text-lg text-[var(--text-primary)]">Company Base URL</h3>
+                        <p className="text-xs text-[var(--text-secondary)]">Default base URL for webhooks and mini apps. Bots can override if needed.</p>
+                    </div>
+                    <button onClick={saveCompanyBaseUrl} className="btn-secondary text-xs px-4">Save</button>
+                </div>
+                <input
+                    className="input font-mono text-sm"
+                    placeholder="https://your-domain.com"
+                    value={companyBaseDraft}
+                    onChange={e => setCompanyBaseDraft(e.target.value)}
+                />
+                {companyBaseUrl && (
+                    <div className="text-[10px] text-[var(--text-secondary)]">Current: {companyBaseUrl}</div>
+                )}
+            </div>
+
             <div className="panel p-6 space-y-6">
                 <div className="flex justify-between items-center border-b border-[var(--border-color)] pb-4">
                     <h3 className="font-bold text-lg text-[var(--text-primary)]">General Settings</h3>
@@ -290,10 +363,10 @@ export const BotSettings = ({ bot }: { bot: Bot }) => {
                 </div>
                 <div>
                     <label className="text-xs font-bold text-[var(--text-secondary)] uppercase mb-2 block">Public App Base URL</label>
-                    <input className="input font-mono text-sm" placeholder="https://your-domain.com" value={form.publicBaseUrl || ''} onChange={e => setForm({ ...form, publicBaseUrl: e.target.value })} />
+                    <input className="input font-mono text-sm" placeholder={companyBaseUrl || 'https://your-domain.com'} value={form.publicBaseUrl || ''} onChange={e => setForm({ ...form, publicBaseUrl: e.target.value })} />
                     {!form.publicBaseUrl && (
-                        <div className="text-[10px] text-amber-500 mt-1 flex items-center gap-1">
-                            <AlertTriangle size={10} /> Using current origin. Mini App may not open if local/private.
+                        <div className="text-[10px] text-[var(--text-secondary)] mt-1 flex items-center gap-1">
+                            Using company base URL by default.
                         </div>
                     )}
                 </div>

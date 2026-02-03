@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import DOMPurify from 'dompurify';
 import { Data } from '../../services/data';
-import { PublicationService, PublicationJob, ContentTemplate } from '../../services/publicationService';
+import { PublicationService, PublicationJob, ContentTemplate, PublicationResult } from '../../services/publicationService';
 import { CarListing, TelegramDestination, Bot } from '../../types';
 import { useToast } from '../../contexts/ToastContext';
 import { Send, Image as ImageIcon, Calendar, Eye, X, Check, Plus, Search, Filter, Save } from 'lucide-react';
@@ -36,6 +36,9 @@ export const ContentPage = () => {
     const [template, setTemplate] = useState<PostTemplate>('IN_STOCK');
     const [customText, setCustomText] = useState('');
     const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
+    const [resultsJob, setResultsJob] = useState<PublicationJob | null>(null);
+    const [results, setResults] = useState<PublicationResult[]>([]);
+    const [resultsLoading, setResultsLoading] = useState(false);
     const [previewText, setPreviewText] = useState('');
     const [selectedDest, setSelectedDest] = useState('');
     const [scheduleDate, setScheduleDate] = useState('');
@@ -170,10 +173,10 @@ export const ContentPage = () => {
             showToast('Select car and destination', 'error');
             return;
         }
-
-        const bot = bots[0];
-        if (!bot) {
-            showToast('No active bot found', 'error');
+        const dest = destinations.find(d => d.identifier === selectedDest);
+        const botId = dest?.botId;
+        if (!botId) {
+            showToast('Destination has no bot assigned', 'error');
             return;
         }
 
@@ -188,7 +191,7 @@ export const ContentPage = () => {
             scheduledAt,
             publishNow: false,
             mediaUrl: selectedCar.thumbnail,
-            botId: bot.id,
+            botId,
             lang: postLang,
             createDraft: true
         });
@@ -200,12 +203,16 @@ export const ContentPage = () => {
     };
 
     const publishNow = async () => {
-        if (!selectedCar || !selectedDest || bots.length === 0) {
-            showToast('Missing car, destination, or active bot', 'error');
+        if (!selectedCar || !selectedDest) {
+            showToast('Missing car or destination', 'error');
             return;
         }
-
-        const bot = bots[0]; // Use first active bot
+        const dest = destinations.find(d => d.identifier === selectedDest);
+        const botId = dest?.botId;
+        if (!botId) {
+            showToast('Destination has no bot assigned', 'error');
+            return;
+        }
         try {
             const templateText = getTemplateText();
             const created = await PublicationService.createJob({
@@ -216,7 +223,7 @@ export const ContentPage = () => {
                 destination: selectedDest,
                 publishNow: true,
                 mediaUrl: selectedCar.thumbnail,
-                botId: bot.id,
+                botId,
                 lang: postLang,
                 createDraft: true
             });
@@ -235,6 +242,20 @@ export const ContentPage = () => {
         const updated = jobs.filter(j => j.id !== id);
         setJobs(updated);
         showToast('Post removed', 'success');
+    };
+
+    const openResults = async (job: PublicationJob) => {
+        setResultsJob(job);
+        setResultsLoading(true);
+        try {
+            const list = await PublicationService.listJobResults(job.id);
+            setResults(list);
+        } catch (e: any) {
+            showToast(e.message || 'Failed to load results', 'error');
+            setResults([]);
+        } finally {
+            setResultsLoading(false);
+        }
     };
 
     const resetForm = () => {
@@ -393,6 +414,12 @@ export const ContentPage = () => {
                                     </div>
                                 )}
                                 <div className="flex gap-2">
+                                    <button
+                                        onClick={() => openResults(job)}
+                                        className="btn-secondary text-xs flex-1"
+                                    >
+                                        Results
+                                    </button>
                                     {job.status === 'FAILED' && (
                                         <button
                                             onClick={async () => {
@@ -659,12 +686,42 @@ export const ContentPage = () => {
                             </button>
                             <button
                                 onClick={publishNow}
-                                disabled={!selectedCar || !selectedDest || bots.length === 0}
+                                disabled={!selectedCar || !selectedDest}
                                 className="btn-primary px-6 flex items-center gap-2"
                             >
                                 <Send size={16} /> Publish Now
                             </button>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {resultsJob && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="panel w-full max-w-xl p-6 space-y-4">
+                        <div className="flex justify-between items-center">
+                            <h3 className="text-lg font-bold text-[var(--text-primary)]">Publication Results</h3>
+                            <button onClick={() => { setResultsJob(null); setResults([]); }}><X size={18} /></button>
+                        </div>
+                        <div className="text-xs text-[var(--text-secondary)]">Job: {resultsJob.id}</div>
+                        {resultsLoading ? (
+                            <div className="text-sm text-[var(--text-secondary)]">Loading...</div>
+                        ) : results.length === 0 ? (
+                            <div className="text-sm text-[var(--text-secondary)]">No results yet.</div>
+                        ) : (
+                            <div className="space-y-2">
+                                {results.map(r => (
+                                    <div key={r.id} className="p-3 rounded border border-[var(--border-color)] bg-[var(--bg-input)] text-xs">
+                                        <div className="flex justify-between">
+                                            <span className="font-bold">{r.status}</span>
+                                            <span className="text-[var(--text-secondary)]">{r.messageId ? `#${r.messageId}` : ''}</span>
+                                        </div>
+                                        {r.error && <div className="text-red-500 mt-1">{r.error}</div>}
+                                        {r.createdAt && <div className="text-[10px] text-[var(--text-secondary)] mt-1">{new Date(r.createdAt).toLocaleString()}</div>}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 </div>
             )}

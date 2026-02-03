@@ -31,7 +31,8 @@ export const ClientProposal = () => {
             if (res?.proposal) {
                 setProposal(res.proposal);
                 setVariants(res.variants || []);
-                await trackPublicProposalView(res.proposal.id);
+                const initData = (window as any).Telegram?.WebApp?.initData;
+                await trackPublicProposalView(res.proposal.id, initData);
             } else {
                 setProposal(null);
                 setVariants(res?.variants || []);
@@ -45,7 +46,8 @@ export const ClientProposal = () => {
         if (!proposal) return;
         
         const newFeedback = { ...(proposal.clientFeedback || {}), [variantId]: type };
-        await sendPublicProposalFeedback(proposal.id, variantId, type);
+        const initData = (window as any).Telegram?.WebApp?.initData;
+        await sendPublicProposalFeedback(proposal.id, variantId, type, initData);
         
         setFeedbackSent({ ...feedbackSent, [variantId]: type });
         setProposal({ ...proposal, clientFeedback: newFeedback });

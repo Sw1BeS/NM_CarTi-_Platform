@@ -50,7 +50,7 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
-app.use(express.json() as any);
+app.use(express.json({ limit: '30mb' }) as any);
 
 // v4.1 Workspace Context Middleware (extracts workspace from headers/domain/token)
 app.use(workspaceContext);

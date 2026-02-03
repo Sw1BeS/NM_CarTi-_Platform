@@ -2,6 +2,7 @@ import cron from 'node-cron';
 import { PrismaClient } from '@prisma/client';
 import { MTProtoService } from '../modules/Integrations/mtproto/mtproto.service.js';
 import { mtprotoWorker } from '../modules/Integrations/mtproto/mtproto.worker.js';
+import { parsingWorker } from './parsing.worker.js';
 import { logIntegrationEvent } from '../services/integrationEventLog.service.js';
 import { logger } from '../utils/logger.js';
 
@@ -30,7 +31,17 @@ export const startScheduler = () => {
         }
     });
 
-    logger.info('⏰ Scheduler: Started. Jobs: [sync_telegram_channels, mtproto_import_jobs]');
+    // Process parsing jobs every minute
+    cron.schedule('* * * * *', async () => {
+        logger.info('⏰ Scheduler: Starting Job [parsing_jobs]');
+        try {
+            await parsingWorker.runJobs();
+        } catch (e) {
+            logger.error('⏰ Scheduler: Job [parsing_jobs] Failed', e);
+        }
+    });
+
+    logger.info('⏰ Scheduler: Started. Jobs: [sync_telegram_channels, mtproto_import_jobs, parsing_jobs]');
 };
 
 async function syncAllChannels() {

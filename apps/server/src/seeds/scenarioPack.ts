@@ -52,6 +52,26 @@ export const SCENARIO_TEMPLATE_PACK = [
     }
   },
   {
+    id: 'tpl_lead_basic',
+    name: 'Basic Lead Bot (UA/RU/EN)',
+    category: 'LEAD_GEN',
+    description: 'Collects contact details and creates a lead + request.',
+    isPremium: false,
+    structure: {
+      triggerCommand: 'lead',
+      keywords: ['lead', 'contact', 'звʼязок', 'связь', 'catalog', 'каталог'],
+      entryNodeId: 'start',
+      nodes: [
+        { id: 'start', type: 'START', content: { text: '' }, nextNodeId: 'greet' },
+        { id: 'greet', type: 'MESSAGE', content: { text: '👋 Hi! I can help you with car selection.', text_uk: '👋 Вітаємо! Допоможемо підібрати авто.', text_ru: '👋 Здравствуйте! Поможем подобрать авто.' }, nextNodeId: 'ask_contact' },
+        { id: 'ask_contact', type: 'REQUEST_CONTACT', content: { text: 'Please share your contact so we can reach you.', text_uk: 'Поділіться контактом для звʼязку.', text_ru: 'Поделитесь контактом для связи.' }, nextNodeId: 'create_lead' },
+        { id: 'create_lead', type: 'ACTION', content: { actionType: 'CREATE_LEAD', leadType: 'BUY' }, nextNodeId: 'create_request' },
+        { id: 'create_request', type: 'ACTION', content: { actionType: 'CREATE_REQUEST', requestType: 'BUY' }, nextNodeId: 'confirm' },
+        { id: 'confirm', type: 'MESSAGE', content: { text: '✅ Request created. We will contact you shortly.', text_uk: '✅ Запит створено. Звʼяжемося найближчим часом.', text_ru: '✅ Запрос создан. Свяжемся в ближайшее время.' } }
+      ]
+    }
+  },
+  {
     id: 'tpl_status_support',
     name: 'Support / Status (UA/RU/EN)',
     category: 'SUPPORT',

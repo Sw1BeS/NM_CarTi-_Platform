@@ -104,6 +104,8 @@ export interface B2BRequest {
     internalNote?: string;
     payload?: Record<string, unknown>;
     status: RequestStatus;
+    leadId?: string;
+    botId?: string;
     createdAt: string;
     updatedAt?: string;
     variants: Variant[];

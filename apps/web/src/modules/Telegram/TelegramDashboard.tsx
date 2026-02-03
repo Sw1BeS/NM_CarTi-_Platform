@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Data } from '../../services/data';
+import { MetricsService } from '../../services/metricsService';
 import { Bot } from '../../types';
 import { useToast } from '../../contexts/ToastContext';
 import {
@@ -13,7 +14,7 @@ import { BotOverview } from './components/BotOverview';
 import { AudienceManager } from './components/AudienceManager';
 import { CampaignManager } from './components/CampaignManager';
 import { AutomationSuite } from './components/AutomationSuite';
-import { MTProtoManager } from './components/MTProtoManager';
+import { MTProtoSources } from './MTProtoSources';
 import { AddBotModal } from './components/AddBotModal';
 
 type Tab = 'DASHBOARD' | 'CAMPAIGNS' | 'AUDIENCE' | 'AUTOMATION' | 'CHANNELS' | 'SETTINGS';
@@ -37,8 +38,9 @@ export const TelegramDashboard = () => {
 
         // Load aggregate stats
         const dests = await Data.getDestinations();
-        const msgs = await Data.getMessages({ limit: 1 }); // Just to check count if API supported it, but we'll mock or use length if tiny
-        setStats({ totalUsers: dests.length, totalMessages: 0 });
+        const metrics = await MetricsService.getTelegramMetrics({ range: '30d' }).catch(() => null);
+        const totalMessages = metrics ? (metrics.counts.sent + metrics.counts.received) : 0;
+        setStats({ totalUsers: dests.length, totalMessages });
     };
 
     useEffect(() => {
@@ -177,7 +179,7 @@ export const TelegramDashboard = () => {
                         {activeTab === 'CAMPAIGNS' && <CampaignManager bot={selectedBot} />}
                         {activeTab === 'AUDIENCE' && <AudienceManager bot={selectedBot} />}
                         {activeTab === 'AUTOMATION' && <AutomationSuite />}
-                        {activeTab === 'CHANNELS' && <MTProtoManager bot={selectedBot} />}
+                        {activeTab === 'CHANNELS' && <MTProtoSources botId={selectedBot.id} />}
                         {activeTab === 'SETTINGS' && (
                             <div className="p-8">
                                 <h2 className="text-2xl font-bold mb-6">Settings</h2>

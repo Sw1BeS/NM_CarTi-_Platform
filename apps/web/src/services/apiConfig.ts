@@ -51,3 +51,14 @@ export function setApiBase(url: string) {
         localStorage.removeItem('cartie_api_base');
     }
 }
+
+export function getApiOrigin(): string {
+    const base = getApiBase();
+    if (!base) return window.location.origin;
+    const trimmed = base.replace(/\/$/, '');
+    if (trimmed.endsWith('/api')) {
+        const origin = trimmed.slice(0, -4);
+        return origin || window.location.origin;
+    }
+    return trimmed;
+}

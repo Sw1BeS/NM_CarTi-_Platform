@@ -110,6 +110,39 @@ router.post('/', requireRole(['ADMIN', 'MANAGER']), async (req, res) => {
     }
 });
 
+router.post('/bulk', requireRole(['ADMIN', 'MANAGER']), async (req, res) => {
+    try {
+        const user = (req as any).user || {};
+        const isSuperadmin = user.role === 'SUPER_ADMIN';
+        const userCompanyId = user.companyId || user.workspaceId;
+        const requestedCompanyId = typeof (req.body || {}).companyId === 'string' ? (req.body || {}).companyId : undefined;
+        const companyId = isSuperadmin ? (requestedCompanyId || userCompanyId) : userCompanyId;
+        if (!companyId && !isSuperadmin) return errorResponse(res, 400, 'Company context required', 'COMPANY_REQUIRED');
+
+        const ids = Array.isArray(req.body?.ids) ? req.body.ids.filter(Boolean).map(String) : [];
+        if (!ids.length) return errorResponse(res, 400, 'ids[] is required', 'INVALID_INPUT');
+
+        const updateData = mapInventoryInput((req.body || {}).updates || {});
+        if (!Object.keys(updateData).length) {
+            return errorResponse(res, 400, 'updates is required', 'INVALID_INPUT');
+        }
+        delete (updateData as any).id;
+
+        const result = await prisma.carListing.updateMany({
+            where: {
+                id: { in: ids },
+                ...(companyId ? { companyId } : {})
+            },
+            data: updateData
+        });
+
+        res.json({ count: result.count });
+    } catch (e: any) {
+        logger.error('[Inventory BULK Error]:', e);
+        errorResponse(res, 500, `Failed to update inventory: ${e.message}`);
+    }
+});
+
 router.put('/:id', requireRole(['ADMIN', 'MANAGER']), async (req, res) => {
     try {
         const id = req.params.id;

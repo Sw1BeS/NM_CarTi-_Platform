@@ -1,8 +1,13 @@
 import { Router } from 'express';
 import { miniAppService } from '../services/miniapp.service.js';
 import { errorResponse } from '../utils/errorResponse.js';
+import { verifyTelegramInitData } from '../modules/Communication/telegram/core/telegramAuth.js';
+import { ShowcaseService } from '../modules/Marketing/showcase/showcase.service.js';
+import { getWorkspaceBySlug } from '../services/v41/readService.js';
+import { prisma } from '../services/prisma.js';
 
 const router = Router();
+const showcaseService = new ShowcaseService();
 
 const readString = (value: unknown): string | undefined => {
   if (typeof value === 'string') {
@@ -18,6 +23,34 @@ const readNumber = (value: unknown): number | undefined => {
   if (value === null || value === undefined || value === '') return undefined;
   const n = typeof value === 'number' ? value : Number(value);
   return Number.isFinite(n) ? n : undefined;
+};
+
+const resolveCompanyIdBySlug = async (slug?: string | null) => {
+  const trimmed = String(slug || '').trim();
+  if (!trimmed) return null;
+  try {
+    const showcase = await showcaseService.getShowcaseBySlug(trimmed);
+    if (showcase?.workspaceId) return showcase.workspaceId;
+  } catch {
+    // ignore
+  }
+  const workspace = await getWorkspaceBySlug(trimmed);
+  return workspace?.id || null;
+};
+
+const requireInitData = async (initData: string | undefined, companyId?: string | null) => {
+  if (!initData) return { ok: false, message: 'initData is required' };
+  const init = initData;
+  const bots = await prisma.botConfig.findMany({
+    where: {
+      isEnabled: true,
+      ...(companyId ? { companyId } : {})
+    },
+    select: { token: true }
+  });
+  const verified = bots.some(bot => verifyTelegramInitData(init, bot.token));
+  if (!verified) return { ok: false, message: 'Invalid Telegram init data' };
+  return { ok: true };
 };
 
 router.get('/favorites', async (req, res) => {
@@ -44,8 +77,14 @@ router.post('/favorites/:carListingId', async (req, res) => {
 
     const body = (req.body || {}) as Record<string, unknown>;
     const slug = readString(body.slug);
+    const initData = readString(body.initData);
     const tgUserId = readString(body.tgUserId) || readString(body.telegramUserId) || readString(body.userId);
     const visitorId = readString(body.visitorId);
+
+    const listing = await prisma.carListing.findUnique({ where: { id: carListingId }, select: { companyId: true } });
+    const companyId = listing?.companyId || (await resolveCompanyIdBySlug(slug)) || null;
+    const initCheck = await requireInitData(initData, companyId);
+    if (!initCheck.ok) return errorResponse(res, 401, initCheck.message || 'Unauthorized');
 
     if (!tgUserId && !visitorId) return errorResponse(res, 400, 'tgUserId or visitorId is required');
 
@@ -61,8 +100,12 @@ router.post('/requests', async (req, res) => {
   try {
     const body = (req.body || {}) as Record<string, unknown>;
     const slug = readString(body.slug);
+    const initData = readString(body.initData);
 
     if (!slug) return errorResponse(res, 400, 'slug is required');
+    const companyId = await resolveCompanyIdBySlug(slug);
+    const initCheck = await requireInitData(initData, companyId);
+    if (!initCheck.ok) return errorResponse(res, 401, initCheck.message || 'Unauthorized');
 
     const request = await miniAppService.createRequest({
       slug,

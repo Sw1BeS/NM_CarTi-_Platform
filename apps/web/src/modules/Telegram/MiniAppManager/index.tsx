@@ -27,12 +27,21 @@ export const MiniAppManager = ({ botId }: { botId: string }) => {
         navItems: DEFAULT_NAV_ITEMS
     });
     const [publicBaseUrl, setPublicBaseUrl] = useState('');
+    const [companyBaseUrl, setCompanyBaseUrl] = useState('');
     const [showcaseSlug, setShowcaseSlug] = useState('');
     const [saving, setSaving] = useState(false);
     const saveTimerRef = useRef<number | null>(null);
 
     useEffect(() => {
         const loadBot = async () => {
+            let companyBase = '';
+            try {
+                const settings = await Data.getSettings();
+                companyBase = (settings.modules || {}).telegram?.publicBaseUrl || '';
+                setCompanyBaseUrl(companyBase);
+            } catch {
+                companyBase = '';
+            }
             const bots = await Data.getBots();
             const found = bots.find(b => b.id === botId);
             if (found) {
@@ -56,8 +65,8 @@ export const MiniAppManager = ({ botId }: { botId: string }) => {
                         ? loadedConfig.navItems
                         : baseConfig.navItems
                 });
-                const baseUrl = (found.publicBaseUrl || window.location.origin).replace(/\/$/, '');
-                setPublicBaseUrl(baseUrl);
+                const overrideBase = found.publicBaseUrl || '';
+                setPublicBaseUrl(overrideBase);
                 setShowcaseSlug(found.defaultShowcaseSlug || found.username || 'system');
             }
         };
@@ -69,13 +78,15 @@ export const MiniAppManager = ({ botId }: { botId: string }) => {
 
     const persistConfig = async (newConfig: MiniAppConfig, options?: { baseUrl?: string; slug?: string; silent?: boolean }) => {
         if (!bot) return;
-        const baseUrl = (options?.baseUrl || publicBaseUrl || bot.publicBaseUrl || window.location.origin).replace(/\/$/, '');
+        const hasOverride = !!publicBaseUrl;
+        const baseSource = options?.baseUrl || (hasOverride ? publicBaseUrl : (companyBaseUrl || window.location.origin));
+        const baseUrl = baseSource.replace(/\/$/, '');
         const slug = (options?.slug || showcaseSlug || bot.defaultShowcaseSlug || bot.username || 'system').trim();
         const miniAppUrl = newConfig.url || buildMiniAppUrl(baseUrl, slug);
         const merged = { ...newConfig, url: miniAppUrl, showcaseSlug: slug };
         setSaving(true);
         setConfig(merged);
-        const updatedBot = { ...bot, publicBaseUrl: baseUrl, defaultShowcaseSlug: slug, miniAppConfig: merged };
+        const updatedBot = { ...bot, publicBaseUrl: publicBaseUrl ? baseUrl : undefined, defaultShowcaseSlug: slug, miniAppConfig: merged };
         await Data.saveBot(updatedBot);
         setBot(updatedBot);
         setSaving(false);
@@ -165,7 +176,7 @@ export const MiniAppManager = ({ botId }: { botId: string }) => {
         }
     };
 
-    const computedMiniAppUrl = buildMiniAppUrl(publicBaseUrl || window.location.origin, showcaseSlug || 'system');
+    const computedMiniAppUrl = buildMiniAppUrl(publicBaseUrl || companyBaseUrl || window.location.origin, showcaseSlug || 'system');
 
     const scenarioOptions = scenarios.map(s => ({ value: s.id, label: s.name }));
     const viewValueOptions = [
@@ -262,8 +273,11 @@ export const MiniAppManager = ({ botId }: { botId: string }) => {
                                     className="input mt-1"
                                     value={publicBaseUrl}
                                     onChange={e => setPublicBaseUrl(e.target.value)}
-                                    placeholder="https://your-domain.com"
+                                    placeholder={companyBaseUrl || 'https://your-domain.com'}
                                 />
+                                {!publicBaseUrl && (
+                                    <div className="text-[10px] text-[var(--text-secondary)] mt-1">Using company base URL by default.</div>
+                                )}
                             </div>
                             <div>
                                 <label className="text-[10px] uppercase text-[var(--text-secondary)]">Showcase Slug</label>
@@ -291,7 +305,7 @@ export const MiniAppManager = ({ botId }: { botId: string }) => {
                                 </div>
                             </div>
                             <button
-                                onClick={() => persistConfig(config, { baseUrl: publicBaseUrl, slug: showcaseSlug })}
+                                onClick={() => persistConfig(config, { baseUrl: publicBaseUrl || undefined, slug: showcaseSlug })}
                                 className="btn-primary w-full text-xs"
                             >
                                 Save URL & Slug

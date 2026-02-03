@@ -8,6 +8,7 @@ import { authenticateToken, requireRole } from '../middleware/auth.js';
 import { ScenarioEngine } from '../modules/Communication/bots/scenario.engine.js';
 import { logger } from '../utils/logger.js';
 import { errorResponse } from '../utils/errorResponse.js';
+import axios from 'axios';
 
 const router = Router();
 
@@ -117,6 +118,56 @@ router.post('/simulate/message', authenticateToken, requireRole(['SUPER_ADMIN', 
   } catch (e: any) {
     logger.error('[QA Simulate] Error:', e);
     errorResponse(res, 500, e.message || 'Simulation failed');
+  }
+});
+
+router.get('/telegram/token', authenticateToken, requireRole(['SUPER_ADMIN', 'ADMIN']), async (req, res) => {
+  try {
+    const botId = req.query.botId as string | undefined;
+    const bot = botId
+      ? await prisma.botConfig.findUnique({ where: { id: botId } })
+      : await prisma.botConfig.findFirst({ where: { isEnabled: true } });
+    if (!bot?.token) return errorResponse(res, 400, 'Bot token missing');
+
+    const resp = await axios.get(`https://api.telegram.org/bot${bot.token}/getMe`, { timeout: 8000 });
+    res.json({ ok: resp.data?.ok, result: resp.data?.result });
+  } catch (e: any) {
+    errorResponse(res, 500, e?.response?.data?.description || e.message || 'Token check failed');
+  }
+});
+
+router.get('/telegram/webhook', authenticateToken, requireRole(['SUPER_ADMIN', 'ADMIN']), async (req, res) => {
+  try {
+    const botId = req.query.botId as string | undefined;
+    const bot = botId
+      ? await prisma.botConfig.findUnique({ where: { id: botId } })
+      : await prisma.botConfig.findFirst({ where: { isEnabled: true } });
+    if (!bot?.token) return errorResponse(res, 400, 'Bot token missing');
+
+    const resp = await axios.get(`https://api.telegram.org/bot${bot.token}/getWebhookInfo`, { timeout: 8000 });
+    res.json({ ok: resp.data?.ok, result: resp.data?.result });
+  } catch (e: any) {
+    errorResponse(res, 500, e?.response?.data?.description || e.message || 'Webhook check failed');
+  }
+});
+
+router.get('/media/check', authenticateToken, requireRole(['SUPER_ADMIN', 'ADMIN']), async (req, res) => {
+  try {
+    const url = req.query.url as string;
+    if (!url) return errorResponse(res, 400, 'url required');
+
+    const settings = await prisma.systemSettings.findFirst({ orderBy: { id: 'desc' } });
+    const baseUrl = (settings?.modules as any)?.telegram?.publicBaseUrl || process.env.PUBLIC_BASE_URL || '';
+    const resolved = url.startsWith('http') ? url : `${baseUrl.replace(/\/$/, '')}${url.startsWith('/') ? '' : '/'}${url}`;
+
+    if (!resolved || !resolved.startsWith('http')) {
+      return errorResponse(res, 400, 'Unable to resolve URL');
+    }
+
+    const resp = await axios.head(resolved, { timeout: 8000 });
+    res.json({ ok: resp.status >= 200 && resp.status < 400, status: resp.status, url: resolved });
+  } catch (e: any) {
+    errorResponse(res, 500, e?.message || 'Media check failed');
   }
 });
 

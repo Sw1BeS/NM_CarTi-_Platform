@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Data } from '../../../services/data';
 import { ApiClient } from '../../../services/apiClient';
 import { useToast } from '../../../contexts/ToastContext';
@@ -11,14 +11,24 @@ export const AddBotModal = ({ onClose }: any) => {
     const [token, setToken] = useState('');
     const [channelId, setChannelId] = useState('');
     const [adminChatId, setAdminChatId] = useState('');
-    // Use env var or window origin
-    const [publicBaseUrl, setPublicBaseUrl] = useState(import.meta.env.VITE_API_URL || window.location.origin.replace(/\/$/, ''));
+    // Use company base URL if available
+    const [companyBaseUrl, setCompanyBaseUrl] = useState(import.meta.env.VITE_API_URL || window.location.origin.replace(/\/$/, ''));
+    const [publicBaseUrl, setPublicBaseUrl] = useState('');
     const [mode, setMode] = useState<'polling' | 'webhook'>('polling');
     const [showAdvanced, setShowAdvanced] = useState(false);
     const [saving, setSaving] = useState(false);
     const { showToast } = useToast();
+    const effectiveBaseUrl = (publicBaseUrl || companyBaseUrl || window.location.origin).replace(/\/$/, '');
 
     const buildMiniAppUrl = (baseUrl: string, slug: string) => `${baseUrl.replace(/\/$/, '')}/p/app/${slug}`;
+    useEffect(() => {
+        Data.getSettings()
+            .then(settings => {
+                const base = (settings.modules || {}).telegram?.publicBaseUrl;
+                if (base) setCompanyBaseUrl(base.replace(/\/$/, ''));
+            })
+            .catch(() => {});
+    }, []);
 
     const handleAdd = async () => {
         if (!token.trim()) {
@@ -29,7 +39,7 @@ export const AddBotModal = ({ onClose }: any) => {
         try {
             // Auto-generate temporary slug if name missing, backend will update it
             const tempSlug = name.trim() ? name.trim().toLowerCase().replace(/\s+/g, '_') : 'bot';
-            const baseUrl = (publicBaseUrl || window.location.origin).replace(/\/$/, '');
+            const baseUrl = effectiveBaseUrl.replace(/\/$/, '');
             // We can resolve final URL after backend returns username, but for initial config we use a placeholder or derived
             const miniAppUrl = buildMiniAppUrl(baseUrl, tempSlug); // This will need dynamic update if slug changes
 
@@ -54,7 +64,7 @@ export const AddBotModal = ({ onClose }: any) => {
                 adminChatId: adminChatId || undefined,
                 deliveryMode: mode === 'webhook' ? 'webhook' : 'polling',
                 config: {
-                    publicBaseUrl: baseUrl || undefined,
+                    publicBaseUrl: publicBaseUrl ? baseUrl || undefined : undefined,
                     deliveryMode: mode,
                     menuConfig,
                     miniAppConfig
@@ -68,7 +78,7 @@ export const AddBotModal = ({ onClose }: any) => {
             if (mode === 'webhook' && bot?.id) {
                 try {
                     await ApiClient.post(`bots/${bot.id}/webhook`, {
-                        publicBaseUrl: publicBaseUrl || window.location.origin
+                        publicBaseUrl: effectiveBaseUrl || window.location.origin
                     });
                 } catch (err: any) {
                     console.error(err);
@@ -113,8 +123,8 @@ export const AddBotModal = ({ onClose }: any) => {
                         {showAdvanced && (
                             <div className="mt-3 animate-slide-down">
                                 <label className="text-xs font-bold text-[var(--text-secondary)] uppercase block mb-1">Public Base URL (Webhook)</label>
-                                <input className="input" placeholder="https://your.domain" value={publicBaseUrl} onChange={e => setPublicBaseUrl(e.target.value)} />
-                                <p className="text-[10px] text-[var(--text-secondary)] mt-1">Leave as is unless you are using a tunnel or custom domain proxy.</p>
+                                <input className="input" placeholder={companyBaseUrl || 'https://your.domain'} value={publicBaseUrl} onChange={e => setPublicBaseUrl(e.target.value)} />
+                                <p className="text-[10px] text-[var(--text-secondary)] mt-1">Leave empty to use company base URL.</p>
                             </div>
                         )}
                     </div>

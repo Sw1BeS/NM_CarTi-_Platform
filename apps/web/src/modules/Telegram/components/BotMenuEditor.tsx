@@ -29,6 +29,7 @@ export const BotMenuEditor = ({ scenarios, botId, standalone = false }: { scenar
     const [bots, setBots] = useState<Bot[]>([]);
     const [selectedBotId, setSelectedBotId] = useState<string>(botId || '');
     const [templateId, setTemplateId] = useState('standard');
+    const [companyBaseUrl, setCompanyBaseUrl] = useState('');
     const { showToast } = useToast();
     const configInputRef = useRef<HTMLInputElement>(null);
 
@@ -40,6 +41,12 @@ export const BotMenuEditor = ({ scenarios, botId, standalone = false }: { scenar
         };
         load();
     }, [botId]);
+
+    useEffect(() => {
+        Data.getSettings()
+            .then(settings => setCompanyBaseUrl((settings.modules || {}).telegram?.publicBaseUrl || ''))
+            .catch(() => setCompanyBaseUrl(''));
+    }, []);
 
     // If botId prop changes (Studio Mode), update selection
     useEffect(() => { if (botId) setSelectedBotId(botId); }, [botId]);
@@ -62,6 +69,7 @@ export const BotMenuEditor = ({ scenarios, botId, standalone = false }: { scenar
     const scenarioIdMap: Record<string, string> = {
         tpl_buy_request: 'scn_buy',
         tpl_sell_tradein: 'scn_sell',
+        tpl_lead_basic: 'scn_lead_basic',
         tpl_status_support: 'scn_support',
         tpl_lang_select: 'scn_lang'
     };
@@ -69,6 +77,7 @@ export const BotMenuEditor = ({ scenarios, botId, standalone = false }: { scenar
     const getScenarioIds = (list: Scenario[]) => ({
         buy: resolveScenarioId('buy', list) || scenarioIdMap.tpl_buy_request,
         sell: resolveScenarioId('sell', list) || scenarioIdMap.tpl_sell_tradein,
+        lead: resolveScenarioId('lead', list) || scenarioIdMap.tpl_lead_basic,
         support: resolveScenarioId('status', list) || resolveScenarioId('support', list) || scenarioIdMap.tpl_status_support,
         lang: resolveScenarioId('lang', list) || scenarioIdMap.tpl_lang_select
     });
@@ -77,7 +86,7 @@ export const BotMenuEditor = ({ scenarios, botId, standalone = false }: { scenar
 
     const resolveMiniAppUrl = () => {
         if (bot.miniAppConfig?.url) return bot.miniAppConfig.url;
-        const base = (bot.publicBaseUrl || window.location.origin).replace(/\/$/, '');
+        const base = (bot.publicBaseUrl || companyBaseUrl || window.location.origin).replace(/\/$/, '');
         const slug = (bot.defaultShowcaseSlug || bot.username || 'system').trim();
         if (!base || !slug) return '{{MINI_APP_URL}}';
         return `${base}/p/app/${slug}`;
@@ -119,6 +128,16 @@ export const BotMenuEditor = ({ scenarios, botId, standalone = false }: { scenar
                 { id: 'btn_app', label: '📱 Open App', label_uk: '📱 Додаток', label_ru: '📱 Приложение', type: 'WEB_APP', value: miniAppUrl, row: 0, col: 0 },
                 { id: 'btn_support', label: '📞 Status / Support', label_uk: '📞 Статус / Підтримка', label_ru: '📞 Статус / Поддержка', type: 'SCENARIO', value: ids.support, row: 0, col: 1 }
             ]
+        },
+        {
+            id: 'lead_basic',
+            name: 'Lead Bot Basic',
+            description: 'Mini App + quick contact lead flow',
+            welcomeMessage: '👋 Welcome! Choose an option below:',
+            buttons: [
+                { id: 'btn_app', label: '📱 Catalog', label_uk: '📱 Каталог', label_ru: '📱 Каталог', type: 'WEB_APP', value: miniAppUrl, row: 0, col: 0 },
+                { id: 'btn_lead', label: '📞 Request Contact', label_uk: '📞 Запит на звʼязок', label_ru: '📞 Запрос связи', type: 'SCENARIO', value: ids.lead, row: 0, col: 1 }
+            ]
         }
     ]);
 
@@ -129,6 +148,7 @@ export const BotMenuEditor = ({ scenarios, botId, standalone = false }: { scenar
         const required = [
             { templateId: 'tpl_buy_request', scenarioId: scenarioIdMap.tpl_buy_request, trigger: 'buy' },
             { templateId: 'tpl_sell_tradein', scenarioId: scenarioIdMap.tpl_sell_tradein, trigger: 'sell' },
+            { templateId: 'tpl_lead_basic', scenarioId: scenarioIdMap.tpl_lead_basic, trigger: 'lead' },
             { templateId: 'tpl_status_support', scenarioId: scenarioIdMap.tpl_status_support, trigger: 'status' },
             { templateId: 'tpl_lang_select', scenarioId: scenarioIdMap.tpl_lang_select, trigger: 'lang' }
         ];
@@ -182,6 +202,10 @@ export const BotMenuEditor = ({ scenarios, botId, standalone = false }: { scenar
             if (commands.length) await TelegramAPI.setMyCommands(bot.token, commands);
             const appUrl = resolveMiniAppUrl();
             if (appUrl && appUrl !== '{{MINI_APP_URL}}') {
+                if (appUrl.includes('localhost')) {
+                    showToast('Set a public base URL before publishing menu', 'error');
+                    return;
+                }
                 await TelegramAPI.setChatMenuButton(bot.token, "Open App", appUrl);
             }
             showToast("Commands & Menu Published");

@@ -9,6 +9,7 @@ const dryRun = args.includes('--dry-run');
 const scenarioIdMap: Record<string, string> = {
     tpl_buy_request: 'scn_buy',
     tpl_sell_tradein: 'scn_sell',
+    tpl_lead_basic: 'scn_lead_basic',
     tpl_status_support: 'scn_support',
     tpl_lang_select: 'scn_lang'
 };

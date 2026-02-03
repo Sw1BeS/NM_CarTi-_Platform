@@ -3,8 +3,8 @@ import { Data } from '../../services/data';
 import { BotEngine } from '../../services/botEngine';
 import { RequestsService } from '../../services/requestsService';
 import { LeadsService } from '../../services/leadsService';
-import { TelegramMessage, ChatMacro, User, B2BRequest, RequestStatus } from '../../types';
-import { Send, Inbox, Trash2, X, Zap, UserCheck, StickyNote, Filter, Paperclip, Car, Smile, Image as ImageIcon, UserPlus, FileText } from 'lucide-react';
+import { TelegramMessage, ChatMacro, User, B2BRequest, RequestStatus, Lead } from '../../types';
+import { Send, Inbox, Trash2, X, Zap, UserCheck, StickyNote, Filter, Paperclip, Car, Smile, Image as ImageIcon, UserPlus, FileText, Users, Link2 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
 import { useSearchParams } from 'react-router-dom';
@@ -18,6 +18,7 @@ import { getApiBase } from '../../services/apiConfig';
 interface ChatInfo {
     chatId: string;
     lastMsg: TelegramMessage;
+    botId?: string;
     assignedTo?: string;
     internalNote?: string;
     requestId?: string;
@@ -39,6 +40,7 @@ export const InboxPage = () => {
     const [internalNote, setInternalNote] = useState('');
     const [showNotePanel, setShowNotePanel] = useState(false);
     const [requestByChat, setRequestByChat] = useState<Record<string, B2BRequest>>({});
+    const [requestsList, setRequestsList] = useState<B2BRequest[]>([]);
     const [timeline, setTimeline] = useState<any[]>([]);
     const [timelineLoading, setTimelineLoading] = useState(false);
     const [bots, setBots] = useState<any[]>([]);
@@ -52,6 +54,16 @@ export const InboxPage = () => {
     const [showRequestModal, setShowRequestModal] = useState(false);
     const [requestForm, setRequestForm] = useState({ title: '', budgetMin: 0, budgetMax: 0, yearMin: 0, yearMax: 0, city: '', description: '' });
     const [visibleCount, setVisibleCount] = useState(40);
+    const [leadModalOpen, setLeadModalOpen] = useState(false);
+    const [mergeModalOpen, setMergeModalOpen] = useState(false);
+    const [linkRequestModalOpen, setLinkRequestModalOpen] = useState(false);
+    const [leads, setLeads] = useState<Lead[]>([]);
+    const [leadsLoaded, setLeadsLoaded] = useState(false);
+    const [leadSearch, setLeadSearch] = useState('');
+    const [selectedLeadId, setSelectedLeadId] = useState('');
+    const [primaryLeadId, setPrimaryLeadId] = useState('');
+    const [duplicateLeadId, setDuplicateLeadId] = useState('');
+    const [selectedRequestId, setSelectedRequestId] = useState('');
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const replyInputRef = useRef<HTMLTextAreaElement>(null);
@@ -59,6 +71,24 @@ export const InboxPage = () => {
     const { showToast } = useToast();
     const { t } = useLang();
     const [searchParams] = useSearchParams();
+    const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
+
+    const formatSendError = (err: any) => {
+        const message = err?.message || 'Failed to send';
+        if (err?.status === 413 || /too large/i.test(message) || /MEDIA_TOO_LARGE/i.test(message)) {
+            return 'File is too large (max 25MB)';
+        }
+        if (/bot token|bot not found|no active bot/i.test(message)) {
+            return 'Bot not selected or unavailable';
+        }
+        if (/forbidden|403/i.test(message)) {
+            return 'Bot has no access to this chat';
+        }
+        if (/not found|404/i.test(message)) {
+            return 'Chat or destination not found';
+        }
+        return message;
+    };
 
     // ... [Load Logic Unchanged] ...
     useEffect(() => {
@@ -96,6 +126,7 @@ export const InboxPage = () => {
                 });
 
                 setRequestByChat(reqMap);
+                setRequestsList(requestRes.items || []);
 
                 finalMessages.forEach(m => {
                     const linkedReq = reqMap[m.chatId];
@@ -103,6 +134,7 @@ export const InboxPage = () => {
                         chatMap.set(m.chatId, {
                             chatId: m.chatId,
                             lastMsg: m,
+                            botId: m.botId,
                             assignedTo: linkedReq?.assigneeId,
                             internalNote: linkedReq?.internalNote,
                             requestId: linkedReq?.id,
@@ -112,6 +144,7 @@ export const InboxPage = () => {
                         const existing = chatMap.get(m.chatId)!;
                         if (new Date(m.date) > new Date(existing.lastMsg.date)) {
                             existing.lastMsg = m;
+                            existing.botId = m.botId || existing.botId;
                         }
                     }
                 });
@@ -184,9 +217,18 @@ export const InboxPage = () => {
         }
     }, [activeChatId]);
 
+    useEffect(() => {
+        const active = chats.find(c => c.chatId === activeChatId);
+        if (active?.lastMsg?.botId && active.lastMsg.botId !== selectedBotId) {
+            setSelectedBotId(active.lastMsg.botId);
+        }
+    }, [activeChatId, chats, selectedBotId]);
+
     const handleReply = async () => {
         if (!activeChatId) return;
-        if (!selectedBotId) return showToast(t('inbox.select_bot'), 'error');
+        const active = chats.find(c => c.chatId === activeChatId);
+        const resolvedBotId = active?.lastMsg?.botId || selectedBotId;
+        if (!resolvedBotId) return showToast(t('inbox.select_bot'), 'error');
         const hasText = !!replyText.trim();
         const hasAttachment = !!attachmentUrl.trim();
         if (!hasText && !hasAttachment) return;
@@ -196,30 +238,42 @@ export const InboxPage = () => {
                     type: attachmentType,
                     url: attachmentUrl.trim(),
                     caption: hasText ? replyText : undefined,
-                    botId: selectedBotId
-                }, selectedBotId);
+                    botId: resolvedBotId
+                }, resolvedBotId);
                 setAttachmentUrl('');
                 setShowAttachment(false);
                 setReplyText('');
             } else if (hasText) {
-                await BotEngine.sendUnifiedMessage('TG', activeChatId, replyText, undefined, selectedBotId);
+                await BotEngine.sendUnifiedMessage('TG', activeChatId, replyText, undefined, resolvedBotId);
                 setReplyText('');
             }
             // Trigger refresh
             Data._notify('UPDATE_MESSAGES');
         } catch (e: any) {
-            showToast(e.message || t('inbox.send_failed'), 'error');
+            showToast(formatSendError(e), 'error');
         }
     };
 
     const handleCarSelect = async (car: any) => {
-        if (!activeChatId || !selectedBotId) return;
+        if (!activeChatId) return;
+        const active = chats.find(c => c.chatId === activeChatId);
+        const resolvedBotId = active?.lastMsg?.botId || selectedBotId;
+        if (!resolvedBotId) return;
         try {
-            await BotEngine.sendCar(activeChatId, car, selectedBotId);
+            await BotEngine.sendCar(activeChatId, car, resolvedBotId);
+            if (activeRequest?.id) {
+                await ApiClient.post('messages/logs', {
+                    chatId: activeChatId,
+                    requestId: activeRequest.id,
+                    direction: 'OUTGOING',
+                    text: car.title || '[car_card]',
+                    payload: { type: 'car_card', carId: car.canonicalId || car.id }
+                });
+            }
             showToast('Card sent');
             setShowCarPicker(false);
         } catch (e: any) {
-            showToast(e.message, 'error');
+            showToast(formatSendError(e), 'error');
         }
     };
 
@@ -232,9 +286,8 @@ export const InboxPage = () => {
         const file = e.target.files?.[0];
         if (!file) return;
 
-        // 5MB Limit
-        if (file.size > 5 * 1024 * 1024) {
-            showToast('File is too large (max 5MB)', 'error');
+        if (file.size > MAX_UPLOAD_BYTES) {
+            showToast('File is too large (max 25MB)', 'error');
             return;
         }
 
@@ -259,7 +312,8 @@ export const InboxPage = () => {
                     setShowAttachment(true);
                     showToast('File attached', 'success');
                 } else {
-                    showToast(res.message || 'Upload failed', 'error');
+                    const msg = res.status === 413 ? 'File is too large (max 25MB)' : (res.message || 'Upload failed');
+                    showToast(msg, 'error');
                 }
             } catch (err) {
                 console.error(err);
@@ -328,8 +382,101 @@ export const InboxPage = () => {
                 status: 'NEW'
             });
             showToast('Lead created', 'success');
+            setLeadsLoaded(false);
         } catch (e: any) {
             showToast(e.message, 'error');
+        }
+    };
+
+    const loadLeads = async () => {
+        if (leadsLoaded) return;
+        try {
+            const res = await LeadsService.getLeads({ status: 'ALL', limit: 200 });
+            setLeads(res.items || []);
+            setLeadsLoaded(true);
+        } catch (e: any) {
+            showToast(e.message || 'Failed to load leads', 'error');
+        }
+    };
+
+    const openLinkLeadModal = async () => {
+        if (!activeRequest) {
+            showToast('Create or link a request first', 'error');
+            return;
+        }
+        await loadLeads();
+        setSelectedLeadId('');
+        setLeadSearch('');
+        setLeadModalOpen(true);
+    };
+
+    const openMergeModal = async () => {
+        await loadLeads();
+        setPrimaryLeadId('');
+        setDuplicateLeadId('');
+        setLeadSearch('');
+        setMergeModalOpen(true);
+    };
+
+    const openLinkRequestModal = () => {
+        if (!activeChatId) return;
+        setSelectedRequestId('');
+        setLinkRequestModalOpen(true);
+    };
+
+    const handleLinkLead = async () => {
+        if (!activeRequest) return;
+        if (!selectedLeadId) {
+            showToast('Select a lead', 'error');
+            return;
+        }
+        try {
+            const updated = await RequestsService.linkLead(activeRequest.id, selectedLeadId);
+            if (activeChatId) {
+                setRequestByChat(prev => ({ ...prev, [activeChatId]: updated }));
+                setChats(prev => prev.map(c => c.chatId === activeChatId ? { ...c, requestId: updated.id } : c));
+            }
+            showToast('Lead linked to request', 'success');
+            setLeadModalOpen(false);
+        } catch (e: any) {
+            showToast(e.message || 'Failed to link lead', 'error');
+        }
+    };
+
+    const handleMergeLeads = async () => {
+        if (!primaryLeadId || !duplicateLeadId) {
+            showToast('Select primary and duplicate leads', 'error');
+            return;
+        }
+        if (primaryLeadId === duplicateLeadId) {
+            showToast('Select two different leads', 'error');
+            return;
+        }
+        try {
+            await LeadsService.mergeLeads(primaryLeadId, duplicateLeadId);
+            showToast('Leads merged', 'success');
+            setMergeModalOpen(false);
+            setLeadsLoaded(false);
+        } catch (e: any) {
+            showToast(e.message || 'Failed to merge leads', 'error');
+        }
+    };
+
+    const handleLinkRequest = async () => {
+        if (!activeChatId) return;
+        if (!selectedRequestId) {
+            showToast('Select a request', 'error');
+            return;
+        }
+        try {
+            const updated = await RequestsService.linkChat(selectedRequestId, activeChatId);
+            const request = requestsList.find(r => r.id === selectedRequestId) || updated;
+            setRequestByChat(prev => ({ ...prev, [activeChatId]: request }));
+            setChats(prev => prev.map(c => c.chatId === activeChatId ? { ...c, requestId: request.id } : c));
+            showToast('Chat linked to request', 'success');
+            setLinkRequestModalOpen(false);
+        } catch (e: any) {
+            showToast(e.message || 'Failed to link request', 'error');
         }
     };
 
@@ -365,6 +512,7 @@ export const InboxPage = () => {
             };
             const newReq = await RequestsService.createRequest(payload);
             setRequestByChat(prev => ({ ...prev, [activeChatId]: newReq }));
+            setRequestsList(prev => [newReq, ...prev]);
             if (chatInfo) setChats(prev => prev.map(c => c.chatId === activeChatId ? { ...c, requestId: newReq.id } : c));
             showToast('Request created', 'success');
             setShowRequestModal(false);
@@ -609,6 +757,18 @@ export const InboxPage = () => {
         }
         messageItems.push({ type: 'message', msg: m });
     });
+    const filteredLeads = leads.filter(l => {
+        const term = leadSearch.trim().toLowerCase();
+        if (!term) return true;
+        return [
+            l.name,
+            l.telegramUsername,
+            l.phone,
+            l.email,
+            l.telegramChatId
+        ].filter(Boolean).some(value => String(value).toLowerCase().includes(term));
+    });
+    const availableRequests = requestsList.filter(r => r.status !== RequestStatus.CLOSED);
 
     return (
         <div className="h-[calc(100vh-100px)] flex gap-6">
@@ -671,7 +831,11 @@ export const InboxPage = () => {
                             </div>
                             <div className="flex items-center gap-2">
                                 <button onClick={createLead} className="btn-secondary px-2 py-1 text-xs" title="Create Lead"><UserPlus size={14} /></button>
+                                <button onClick={openLinkLeadModal} className="btn-secondary px-2 py-1 text-xs" title="Link Lead"><UserCheck size={14} /></button>
+                                <button onClick={openMergeModal} className="btn-secondary px-2 py-1 text-xs" title="Merge Duplicates"><Users size={14} /></button>
                                 <button onClick={openRequestModal} className={`btn-secondary px-2 py-1 text-xs ${activeRequest ? 'text-green-500' : ''}`} title={activeRequest ? "Request Exists" : "Create Request"}><FileText size={14} /></button>
+                                <button onClick={openLinkRequestModal} className="btn-secondary px-2 py-1 text-xs" title="Link Request"><Link2 size={14} /></button>
+                                <button onClick={() => setMacroModalOpen(true)} className="btn-secondary px-2 py-1 text-xs" title="Manage Macros"><Zap size={14} /></button>
 
                                 <select className="input text-xs px-2 py-1" value={activeChat?.assignedTo || ''} onChange={e => assignChat(activeChatId, e.target.value)}>
                                     <option value="">Unassigned</option>
@@ -777,7 +941,7 @@ export const InboxPage = () => {
                                             <input type="file" hidden onChange={handleFileUpload} />
                                         </label>
                                     </div>
-                                    <p className="text-[10px] text-[var(--text-secondary)]">Tip: paste a public https:// URL or an existing Telegram file_id to reuse Telegram storage.</p>
+                                    <p className="text-[10px] text-[var(--text-secondary)]">Tip: paste a public https:// URL or an existing Telegram file_id (max 25MB).</p>
                                 </div>
                             )}
 
@@ -874,6 +1038,112 @@ export const InboxPage = () => {
                         <div className="flex justify-end gap-2 pt-2">
                             <button onClick={() => setShowRequestModal(false)} className="btn-secondary">Cancel</button>
                             <button onClick={submitRequest} className="btn-primary">Save Request</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {leadModalOpen && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="panel w-full max-w-lg p-6 space-y-4">
+                        <div className="flex justify-between items-center">
+                            <div>
+                                <h3 className="text-lg font-bold text-[var(--text-primary)]">Link Lead to Request</h3>
+                                <p className="text-xs text-[var(--text-secondary)]">Attach an existing lead to the current request.</p>
+                            </div>
+                            <button onClick={() => setLeadModalOpen(false)}><X size={18} /></button>
+                        </div>
+                        <input
+                            className="input"
+                            placeholder="Search leads by name, username, phone..."
+                            value={leadSearch}
+                            onChange={e => setLeadSearch(e.target.value)}
+                        />
+                        <select className="input" value={selectedLeadId} onChange={e => setSelectedLeadId(e.target.value)}>
+                            <option value="">Select lead...</option>
+                            {filteredLeads.map(lead => (
+                                <option key={lead.id} value={lead.id}>
+                                    {lead.name || 'Lead'} {lead.telegramUsername ? `(@${lead.telegramUsername})` : ''} {lead.phone ? `• ${lead.phone}` : ''}
+                                </option>
+                            ))}
+                        </select>
+                        <div className="flex justify-end gap-2">
+                            <button onClick={() => setLeadModalOpen(false)} className="btn-secondary">Cancel</button>
+                            <button onClick={handleLinkLead} className="btn-primary" disabled={!selectedLeadId}>Link Lead</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {mergeModalOpen && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="panel w-full max-w-xl p-6 space-y-4">
+                        <div className="flex justify-between items-center">
+                            <div>
+                                <h3 className="text-lg font-bold text-[var(--text-primary)]">Merge Duplicate Leads</h3>
+                                <p className="text-xs text-[var(--text-secondary)]">Select primary and duplicate leads to merge.</p>
+                            </div>
+                            <button onClick={() => setMergeModalOpen(false)}><X size={18} /></button>
+                        </div>
+                        <input
+                            className="input"
+                            placeholder="Search leads by name, username, phone..."
+                            value={leadSearch}
+                            onChange={e => setLeadSearch(e.target.value)}
+                        />
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div className="space-y-2">
+                                <label className="text-xs text-[var(--text-secondary)] font-bold">Primary</label>
+                                <select className="input" value={primaryLeadId} onChange={e => setPrimaryLeadId(e.target.value)}>
+                                    <option value="">Select lead...</option>
+                                    {filteredLeads.map(lead => (
+                                        <option key={lead.id} value={lead.id}>
+                                            {lead.name || 'Lead'} {lead.telegramUsername ? `(@${lead.telegramUsername})` : ''} {lead.phone ? `• ${lead.phone}` : ''}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-xs text-[var(--text-secondary)] font-bold">Duplicate</label>
+                                <select className="input" value={duplicateLeadId} onChange={e => setDuplicateLeadId(e.target.value)}>
+                                    <option value="">Select lead...</option>
+                                    {filteredLeads.map(lead => (
+                                        <option key={lead.id} value={lead.id}>
+                                            {lead.name || 'Lead'} {lead.telegramUsername ? `(@${lead.telegramUsername})` : ''} {lead.phone ? `• ${lead.phone}` : ''}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+                        <div className="flex justify-end gap-2">
+                            <button onClick={() => setMergeModalOpen(false)} className="btn-secondary">Cancel</button>
+                            <button onClick={handleMergeLeads} className="btn-primary" disabled={!primaryLeadId || !duplicateLeadId}>Merge Leads</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {linkRequestModalOpen && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="panel w-full max-w-lg p-6 space-y-4">
+                        <div className="flex justify-between items-center">
+                            <div>
+                                <h3 className="text-lg font-bold text-[var(--text-primary)]">Link Chat to Request</h3>
+                                <p className="text-xs text-[var(--text-secondary)]">Associate this chat with an existing request.</p>
+                            </div>
+                            <button onClick={() => setLinkRequestModalOpen(false)}><X size={18} /></button>
+                        </div>
+                        <select className="input" value={selectedRequestId} onChange={e => setSelectedRequestId(e.target.value)}>
+                            <option value="">Select request...</option>
+                            {availableRequests.map(req => (
+                                <option key={req.id} value={req.id}>
+                                    {req.publicId} • {req.title}
+                                </option>
+                            ))}
+                        </select>
+                        <div className="flex justify-end gap-2">
+                            <button onClick={() => setLinkRequestModalOpen(false)} className="btn-secondary">Cancel</button>
+                            <button onClick={handleLinkRequest} className="btn-primary" disabled={!selectedRequestId}>Link Request</button>
                         </div>
                     </div>
                 </div>

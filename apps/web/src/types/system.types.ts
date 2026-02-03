@@ -11,11 +11,30 @@ export interface SystemBranding {
 
 export type FeatureKey = 'scenarios' | 'inventory' | 'analytics' | 'bots' | 'crm' | 'finance';
 
+export interface DashboardPresetConfig {
+    filters?: Record<string, any>;
+    widgets?: Record<string, any>;
+    updatedAt?: string;
+}
+
+export interface DashboardModuleConfig {
+    filters?: Record<string, any>;
+    widgets?: Record<string, any>;
+    presets?: Record<string, DashboardPresetConfig>;
+}
+
+export interface TelegramModuleConfig {
+    publicBaseUrl?: string;
+}
+
 export interface SystemModules {
     scenarios?: boolean;
     inventory?: boolean;
     analytics?: boolean;
     bots?: boolean;
+    dashboard?: DashboardModuleConfig;
+    telegram?: TelegramModuleConfig;
+    [key: string]: any;
 }
 
 export interface NavigationItem {

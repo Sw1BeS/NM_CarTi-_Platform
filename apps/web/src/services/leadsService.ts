@@ -60,5 +60,11 @@ export const LeadsService = {
     async deleteLead(id: string | number): Promise<void> {
         const res = await ApiClient.delete(`leads/${id}`);
         if (!res.ok) throw new Error(res.message);
+    },
+
+    async mergeLeads(primaryId: string, duplicateId: string): Promise<Lead> {
+        const res = await ApiClient.post<Lead>('leads/merge', attachSuperadminCompany({ primaryId, duplicateId } as any));
+        if (!res.ok) throw new Error(res.message);
+        return res.data as Lead;
     }
 };

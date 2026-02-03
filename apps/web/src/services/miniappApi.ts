@@ -24,6 +24,7 @@ export type MiniAppTrackingMeta = {
 
 export type MiniAppRequestPayload = {
   slug: string;
+  initData?: string;
   title?: string;
   description?: string;
   budgetMax?: number;
@@ -52,7 +53,7 @@ export async function getMiniAppFavorites(params: { slug: string; tgUserId?: str
   });
 }
 
-export async function toggleMiniAppFavorite(carListingId: string, payload: { slug?: string; tgUserId?: string; visitorId?: string }): Promise<MiniAppFavoriteToggleResponse> {
+export async function toggleMiniAppFavorite(carListingId: string, payload: { slug?: string; tgUserId?: string; visitorId?: string; initData?: string }): Promise<MiniAppFavoriteToggleResponse> {
   return await apiFetch(`/miniapp/favorites/${carListingId}`, {
     method: 'POST',
     skipAuth: true,

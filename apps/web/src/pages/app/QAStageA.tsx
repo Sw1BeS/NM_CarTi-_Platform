@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { parseListingFromUrl } from '../../services/parserClient';
 import { ApiClient } from '../../services/apiClient';
 import { useToast } from '../../contexts/ToastContext';
+import { Data } from '../../services/data';
 
 export const QAStageA = () => {
   const [url, setUrl] = useState('');
@@ -10,7 +11,17 @@ export const QAStageA = () => {
   const [dlType, setDlType] = useState<'dealer_invite' | 'request'>('dealer_invite');
   const [dlReq, setDlReq] = useState('');
   const [dlDealer, setDlDealer] = useState('');
+  const [bots, setBots] = useState<any[]>([]);
+  const [selectedBotId, setSelectedBotId] = useState('');
+  const [tokenInfo, setTokenInfo] = useState<any>(null);
+  const [webhookInfo, setWebhookInfo] = useState<any>(null);
+  const [mediaUrl, setMediaUrl] = useState('');
+  const [mediaCheck, setMediaCheck] = useState<any>(null);
   const { showToast } = useToast();
+
+  useEffect(() => {
+    Data.getBots().then(setBots).catch(() => setBots([]));
+  }, []);
 
   const handleParse = async () => {
     if (!url) {
@@ -47,6 +58,93 @@ export const QAStageA = () => {
             <pre className="bg-[var(--bg-input)] p-3 rounded mt-2 text-xs overflow-auto">
               {JSON.stringify(parseResult.data, null, 2)}
             </pre>
+          </div>
+        )}
+      </div>
+
+      <div className="panel p-4 mb-6">
+        <h3 className="font-bold mb-2">Telegram Diagnostics</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+          <div>
+            <label className="text-xs font-bold text-[var(--text-secondary)] uppercase">Bot</label>
+            <select className="input mt-1" value={selectedBotId} onChange={e => setSelectedBotId(e.target.value)}>
+              <option value="">Auto (first active)</option>
+              {bots.map(b => (
+                <option key={b.id} value={b.id}>{b.name || b.username || b.id}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex items-end gap-2">
+            <button
+              className="btn-secondary text-xs"
+              onClick={async () => {
+                try {
+                  const res = await ApiClient.get<any>(`qa/telegram/token${selectedBotId ? `?botId=${selectedBotId}` : ''}`);
+                  if (!res.ok) throw new Error(res.message);
+                  setTokenInfo(res.data);
+                } catch (e: any) {
+                  showToast(e.message || 'Token check failed', 'error');
+                }
+              }}
+            >
+              Check Token
+            </button>
+            <button
+              className="btn-secondary text-xs"
+              onClick={async () => {
+                try {
+                  const res = await ApiClient.get<any>(`qa/telegram/webhook${selectedBotId ? `?botId=${selectedBotId}` : ''}`);
+                  if (!res.ok) throw new Error(res.message);
+                  setWebhookInfo(res.data);
+                } catch (e: any) {
+                  showToast(e.message || 'Webhook check failed', 'error');
+                }
+              }}
+            >
+              Check Webhook
+            </button>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs text-[var(--text-secondary)]">
+          <div className="bg-[var(--bg-input)] p-3 rounded">
+            <div className="font-bold text-[var(--text-primary)] mb-2">Token Result</div>
+            <pre className="text-[10px] overflow-auto">{JSON.stringify(tokenInfo, null, 2)}</pre>
+          </div>
+          <div className="bg-[var(--bg-input)] p-3 rounded">
+            <div className="font-bold text-[var(--text-primary)] mb-2">Webhook Info</div>
+            <pre className="text-[10px] overflow-auto">{JSON.stringify(webhookInfo, null, 2)}</pre>
+          </div>
+        </div>
+      </div>
+
+      <div className="panel p-4 mb-6">
+        <h3 className="font-bold mb-2">Media Availability</h3>
+        <div className="flex gap-2">
+          <input
+            className="input flex-1"
+            value={mediaUrl}
+            onChange={e => setMediaUrl(e.target.value)}
+            placeholder="/media/telegram/..."
+          />
+          <button
+            className="btn-secondary text-xs"
+            onClick={async () => {
+              if (!mediaUrl) return showToast('Enter media URL', 'error');
+              try {
+                const res = await ApiClient.get<any>(`qa/media/check?url=${encodeURIComponent(mediaUrl)}`);
+                if (!res.ok) throw new Error(res.message);
+                setMediaCheck(res.data);
+              } catch (e: any) {
+                showToast(e.message || 'Media check failed', 'error');
+              }
+            }}
+          >
+            Check
+          </button>
+        </div>
+        {mediaCheck && (
+          <div className="mt-3 text-xs bg-[var(--bg-input)] p-3 rounded">
+            {JSON.stringify(mediaCheck, null, 2)}
           </div>
         )}
       </div>

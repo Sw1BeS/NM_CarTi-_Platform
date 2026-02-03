@@ -12,6 +12,7 @@ import { RequestsService } from './requestsService';
 import { ContentGenerator } from './contentGenerator';
 import { buildDeepLink, createDeepLinkKeyboard } from './deeplink';
 import { DraftsService } from './draftsService';
+import { getApiOrigin } from './apiConfig';
 
 // Platform Adapter Interface
 interface PlatformAdapter {
@@ -54,6 +55,14 @@ const normalizeMenuConfig = (menuConfig?: Bot['menuConfig']) => {
     };
 };
 
+const resolvePublicUrl = (value?: string | null) => {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+    if (raw.startsWith('http://') || raw.startsWith('https://')) return raw;
+    if (raw.startsWith('/')) return `${getApiOrigin()}${raw}`;
+    return raw;
+};
+
 // Telegram Implementation
 const TelegramAdapter = (token: string): PlatformAdapter => ({
     sendMessage: async (chatId, text, options) => {
@@ -61,7 +70,8 @@ const TelegramAdapter = (token: string): PlatformAdapter => ({
     },
     sendPhoto: async (chatId, photo, caption, options) => {
         try {
-            return await TelegramAPI.sendPhoto(token, chatId, photo, caption, options?.reply_markup);
+            const resolved = resolvePublicUrl(photo);
+            return await TelegramAPI.sendPhoto(token, chatId, resolved, caption, options?.reply_markup);
         } catch (e) {
             console.warn("[Adapter] Photo failed, falling back to text:", e);
             const fallbackText = `${caption}\n\n(🖼️ Image unavailable)`;
@@ -71,7 +81,7 @@ const TelegramAdapter = (token: string): PlatformAdapter => ({
     sendMediaGroup: async (chatId, mediaUrls, caption) => {
         const media = mediaUrls.slice(0, 10).map((url, i) => ({
             type: 'photo' as const,
-            media: url,
+            media: resolvePublicUrl(url),
             caption: i === 0 ? caption : undefined,
             parse_mode: 'HTML'
         }));
@@ -131,8 +141,8 @@ const TelegramAdapter = (token: string): PlatformAdapter => ({
 
         // Handle Base64 or URL
         let finalPhoto = car.thumbnail;
-        if (finalPhoto && finalPhoto.startsWith('/')) {
-            finalPhoto = `${window.location.origin}${finalPhoto}`;
+        if (finalPhoto) {
+            finalPhoto = resolvePublicUrl(finalPhoto);
         }
 
         if (finalPhoto && (finalPhoto.startsWith('http') || finalPhoto.length < 1024)) {
@@ -1209,27 +1219,28 @@ export class BotEngine {
         const active = botId ? bots.find(b => b.id === botId) : bots.find(b => b.active) || bots[0];
         if (!active) throw new Error('No active bot configured');
         const token = active.token;
+        const resolvedUrl = resolvePublicUrl(payload.url);
         switch (payload.type) {
             case 'photo':
-                await TelegramAPI.sendPhoto(token, chatId, payload.url, payload.caption, payload.replyMarkup);
+                await TelegramAPI.sendPhoto(token, chatId, resolvedUrl, payload.caption, payload.replyMarkup);
                 break;
             case 'document':
-                await TelegramAPI.sendDocument(token, chatId, payload.url, payload.caption, payload.replyMarkup);
+                await TelegramAPI.sendDocument(token, chatId, resolvedUrl, payload.caption, payload.replyMarkup);
                 break;
             case 'video':
-                await TelegramAPI.sendVideo(token, chatId, payload.url, payload.caption, payload.replyMarkup);
+                await TelegramAPI.sendVideo(token, chatId, resolvedUrl, payload.caption, payload.replyMarkup);
                 break;
             case 'audio':
-                await TelegramAPI.sendAudio(token, chatId, payload.url, payload.caption, payload.replyMarkup);
+                await TelegramAPI.sendAudio(token, chatId, resolvedUrl, payload.caption, payload.replyMarkup);
                 break;
             case 'voice':
-                await TelegramAPI.sendVoice(token, chatId, payload.url, payload.caption, payload.replyMarkup);
+                await TelegramAPI.sendVoice(token, chatId, resolvedUrl, payload.caption, payload.replyMarkup);
                 break;
             case 'animation':
-                await TelegramAPI.sendAnimation(token, chatId, payload.url, payload.caption, payload.replyMarkup);
+                await TelegramAPI.sendAnimation(token, chatId, resolvedUrl, payload.caption, payload.replyMarkup);
                 break;
             case 'sticker':
-                await TelegramAPI.sendSticker(token, chatId, payload.url);
+                await TelegramAPI.sendSticker(token, chatId, resolvedUrl);
                 break;
             default:
                 throw new Error('Unsupported media type');

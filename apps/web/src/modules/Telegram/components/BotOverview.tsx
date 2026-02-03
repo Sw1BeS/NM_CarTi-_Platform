@@ -1,19 +1,22 @@
 
 import React, { useState, useEffect } from 'react';
 import { Data } from '../../../services/data';
-import { Bot, TelegramDestination, Campaign, TelegramMessage } from '../../../types';
+import { MetricsService } from '../../../services/metricsService';
+import { Bot, TelegramDestination, Campaign } from '../../../types';
 import { Users, MessageSquare, Megaphone, AlertTriangle, Check } from 'lucide-react';
 
 export const BotOverview = ({ bot }: { bot: Bot }) => {
     const stats = bot.stats || { processed: 0, ignored: 0, errors: 0, lastRun: '' };
     const [destinations, setDestinations] = useState<TelegramDestination[]>([]);
     const [campaigns, setCampaigns] = useState<Campaign[]>([]);
-    const [messages, setMessages] = useState<TelegramMessage[]>([]);
+    const [messageStats, setMessageStats] = useState({ sent: 0, received: 0, failed: 0 });
 
     useEffect(() => {
         Data.getDestinations().then(setDestinations);
         Data.getCampaigns().then(all => setCampaigns(all.filter(c => c.botId === bot.id)));
-        Data.getMessages().then(setMessages);
+        MetricsService.getTelegramMetrics({ range: '30d', botId: bot.id })
+            .then(res => setMessageStats(res.counts || { sent: 0, received: 0, failed: 0 }))
+            .catch(() => setMessageStats({ sent: 0, received: 0, failed: 0 }));
     }, [bot.id]);
 
     return (
@@ -22,9 +25,9 @@ export const BotOverview = ({ bot }: { bot: Bot }) => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                 <StatCard title="Total Subscribers" value={destinations.length} icon={Users} color="text-blue-500" />
-                <StatCard title="Messages Processed" value={messages.length} icon={MessageSquare} color="text-green-500" />
+                <StatCard title="Messages Sent" value={messageStats.sent} icon={MessageSquare} color="text-green-500" />
                 <StatCard title="Active Campaigns" value={campaigns.filter(c => c.status === 'RUNNING').length} icon={Megaphone} color="text-gold-500" />
-                <StatCard title="Errors" value={stats.errors} icon={AlertTriangle} color="text-red-500" />
+                <StatCard title="Errors" value={messageStats.failed} icon={AlertTriangle} color="text-red-500" />
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

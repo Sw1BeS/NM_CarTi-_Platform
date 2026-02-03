@@ -184,6 +184,11 @@ model Integration {
 
   // Credentials & config
   config Json @db.JsonB
+  healthStatus    String?
+  healthMessage   String?
+  healthCheckedAt DateTime?
+  retryCount      Int      @default(0)
+  lastError       String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -215,6 +220,7 @@ model BotConfig {
   sessions        BotSession[]
   campaigns       Campaign[]
   leads           Lead[]
+  requests        B2bRequest[]
   channelPosts    ChannelPost[]
   publicationJobs PublicationJob[]
   platformEvents  PlatformEvent[]
@@ -247,6 +253,7 @@ model Lead {
   updatedAt DateTime @updatedAt
 
   activities LeadActivity[]
+  requests   B2bRequest[]
 
   @@index([botId])
   @@index([status])
@@ -340,6 +347,10 @@ model B2bRequest {
   companyId     String?
   assignedTo    String? // Stage A: Manager assignment
   internalNotes String? // Stage A: Private notes
+  leadId        String?
+  lead          Lead?   @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  botId         String?
+  bot           BotConfig? @relation(fields: [botId], references: [id], onDelete: SetNull)
 
   variants     RequestVariant[]
   channelPosts ChannelPost[]
@@ -352,6 +363,9 @@ model B2bRequest {
   @@index([status])
   @@index([companyId, status])
   @@index([companyId, status, createdAt])
+  @@index([leadId])
+  @@index([botId])
+  @@index([companyId, botId, createdAt])
 }
 
 model RequestVariant {
@@ -503,6 +517,25 @@ model IntegrationEventLog {
   @@index([entityId])
   @@index([entityType])
   @@index([traceId])
+}
+
+model ParsingJob {
+  id        String   @id @default(cuid())
+  companyId String?
+  workspace Workspace? @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  url      String
+  status   String   @default("PENDING") // PENDING, RUNNING, DONE, FAILED
+  result   Json?    @db.JsonB
+  error    String?
+  attempts Int      @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([status])
+  @@index([createdAt])
 }
 
 model CarListing {
@@ -988,6 +1021,7 @@ model Workspace {
   integrationEventLogs IntegrationEventLog[]
   chatMacros           ChatMacro[]
   chatNotes            ChatNote[]
+  parsingJobs          ParsingJob[]
 
   @@index([deleted_at])
   @@map("workspaces")

@@ -113,6 +113,7 @@ export const PublicRequest = () => {
         
         const userTgId = tg?.initDataUnsafe?.user?.id ? String(tg.initDataUnsafe.user.id) : undefined;
         const username = tg?.initDataUnsafe?.user?.username;
+        const initData = tg?.initData;
 
         try {
             // 1. Create Lead
@@ -125,7 +126,8 @@ export const PublicRequest = () => {
                 goal: `${data.brand} ${data.model} (${data.yearMin}+)`,
                 status: LeadStatus.NEW,
                 language: lang,
-                notes: `Budget: ${data.budgetMax || 'N/A'}\nCity: ${data.city}\nVia Mini App`
+                notes: `Budget: ${data.budgetMax || 'N/A'}\nCity: ${data.city}\nVia Mini App`,
+                initData
             } as any);
 
             // 2. Create Request (if car details present)
@@ -139,7 +141,8 @@ export const PublicRequest = () => {
                     status: RequestStatus.COLLECTING_VARIANTS,
                     priority: 'HIGH',
                     clientChatId: userTgId,
-                    language: lang
+                    language: lang,
+                    initData
                 } as any);
             }
 

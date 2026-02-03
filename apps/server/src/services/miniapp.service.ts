@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { ShowcaseService } from '../modules/Marketing/showcase/showcase.service.js';
 import { getWorkspaceBySlug } from './v41/readService.js';
 import { generatePublicId, mapInventoryOutput, mapRequestInput, mapRequestOutput } from './dto.js';
+import { createOrMergeLead } from '../modules/Communication/telegram/core/leadService.js';
 
 export type MiniAppIdentity = {
   tgUserId?: string;
@@ -83,6 +84,32 @@ const resolveCompanyIdBySlug = async (slug: string): Promise<string | null> => {
 
   const workspace = await getWorkspaceBySlug(trimmed);
   return workspace?.id || null;
+};
+
+const resolveBotForSlug = async (slug: string, companyId?: string | null) => {
+  const trimmed = slug.trim();
+  if (!trimmed) return { botId: undefined, companyId };
+
+  try {
+    const showcase = await showcaseService.getShowcaseBySlug(trimmed);
+    if (showcase?.botId) return { botId: showcase.botId, companyId: showcase.workspaceId };
+  } catch {
+    // ignore showcase errors
+  }
+
+  const botFromConfig = await prisma.botConfig.findFirst({
+    where: {
+      ...(companyId ? { companyId } : {}),
+      config: { path: ['defaultShowcaseSlug'], equals: trimmed }
+    }
+  });
+  if (botFromConfig) return { botId: botFromConfig.id, companyId: botFromConfig.companyId };
+
+  const fallback = await prisma.botConfig.findFirst({
+    where: { ...(companyId ? { companyId } : {}), isEnabled: true },
+    orderBy: { createdAt: 'asc' }
+  });
+  return { botId: fallback?.id, companyId: fallback?.companyId || companyId };
 };
 
 export class MiniAppService {
@@ -167,6 +194,8 @@ export class MiniAppService {
   async createRequest(input: MiniAppRequestInput) {
     const companyId = await resolveCompanyIdBySlug(input.slug);
     if (!companyId) throw new Error('Company not found');
+    const botResolution = await resolveBotForSlug(input.slug, companyId);
+    const botId = botResolution.botId;
 
     const titleFromInput = toOptionalString(input.title);
     const descriptionFromInput = toOptionalString(input.description);
@@ -210,14 +239,49 @@ export class MiniAppService {
       budgetMax: toOptionalNumber(input.budgetMax),
       yearMin: toOptionalNumber(input.yearMin),
       chatId: toOptionalString((telegram as Record<string, unknown>)?.userId),
+      botId,
       payload
     });
 
     if (!requestInput.publicId) requestInput.publicId = generatePublicId();
     requestInput.companyId = companyId;
 
+    const tgUserId = toOptionalString((telegram as Record<string, unknown>)?.userId);
+    const tgUsername = toOptionalString((telegram as Record<string, unknown>)?.username);
+    const tgName = toOptionalString((telegram as Record<string, unknown>)?.name);
+    const leadName = tgName || (tgUsername ? `@${tgUsername.replace(/^@/, '')}` : undefined) || 'Client';
+
+    let leadId: string | undefined;
+    if (botId) {
+      try {
+        const botConfig = await prisma.botConfig.findUnique({ where: { id: botId } });
+        const leadResult = await createOrMergeLead({
+          botId,
+          companyId,
+          chatId: tgUserId || undefined,
+          userId: tgUserId || undefined,
+          name: leadName,
+          telegramUsername: tgUsername,
+          telegramName: tgName,
+          phone: phone || undefined,
+          request: title || undefined,
+          source: 'TELEGRAM',
+          payload: payload as Record<string, any>,
+          leadType: 'BUY',
+          createRequest: false
+        }, botConfig?.config as any);
+        leadId = leadResult.lead?.id || undefined;
+      } catch {
+        // best-effort lead creation
+      }
+    }
+
     const request = await prisma.b2bRequest.create({
-      data: requestInput
+      data: {
+        ...requestInput,
+        leadId: leadId || undefined,
+        botId: botId || undefined
+      }
     });
 
     return mapRequestOutput(request);

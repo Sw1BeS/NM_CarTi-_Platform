@@ -64,5 +64,12 @@ export const InventoryService = {
     async deleteCar(id: string): Promise<void> {
         const res = await ApiClient.delete(`inventory/${id}`);
         if (!res.ok) throw new Error(res.message);
+    },
+
+    async bulkUpdate(ids: string[], updates: Partial<CarListing>): Promise<{ count: number }> {
+        const payload = attachSuperadminCompany({ ids, updates } as any);
+        const res = await ApiClient.post<{ count: number }>('inventory/bulk', payload);
+        if (!res.ok) throw new Error(res.message);
+        return res.data as { count: number };
     }
 };

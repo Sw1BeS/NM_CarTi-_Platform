@@ -15,9 +15,16 @@ export const MenuDesigner = ({ bot }: MenuDesignerProps) => {
     const [menuConfig, setMenuConfig] = useState(bot.menuConfig || { welcomeMessage: '', buttons: [] });
     const [scenarios, setScenarios] = useState<Scenario[]>([]);
     const [isSyncing, setIsSyncing] = useState(false);
+    const [companyBaseUrl, setCompanyBaseUrl] = useState('');
 
     useEffect(() => {
         Data.getScenarios().then(setScenarios);
+    }, []);
+
+    useEffect(() => {
+        Data.getSettings()
+            .then(settings => setCompanyBaseUrl((settings.modules || {}).telegram?.publicBaseUrl || ''))
+            .catch(() => setCompanyBaseUrl(''));
     }, []);
 
     useEffect(() => {
@@ -32,9 +39,14 @@ export const MenuDesigner = ({ bot }: MenuDesignerProps) => {
     const handleSync = async () => {
         setIsSyncing(true);
         try {
-            const base = (bot.publicBaseUrl || window.location.origin).replace(/\/$/, '');
+            const base = (bot.publicBaseUrl || companyBaseUrl || window.location.origin).replace(/\/$/, '');
             const slug = (bot.defaultShowcaseSlug || bot.username || 'system').trim();
             const appUrl = base && slug ? `${base}/p/app/${slug}` : undefined;
+            if (!base || base.includes('localhost')) {
+                showToast('Set a public base URL before pushing menu', 'error');
+                setIsSyncing(false);
+                return;
+            }
             if (appUrl) {
                 await TelegramAPI.setChatMenuButton(bot.token, "Open App", appUrl);
             }

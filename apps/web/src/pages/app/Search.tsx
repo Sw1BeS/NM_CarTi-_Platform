@@ -1,12 +1,12 @@
 
 import React, { useState, useEffect } from 'react';
-import { Search as SearchIcon, Download, Loader, CheckCircle, Plus, Globe, Link as LinkIcon, ArrowRight, Eye, Edit3, Terminal, Filter, AlertTriangle, Bug, Megaphone } from 'lucide-react';
+import { Search as SearchIcon, Download, Loader, CheckCircle, Plus, Globe, Link as LinkIcon, ArrowRight, Eye, Filter, AlertTriangle, Bug, Megaphone } from 'lucide-react';
 import { B2BRequest, RequestStatus, Variant, VariantStatus, TelegramContent, ContentStatus } from '../../types';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Data } from '../../services/data';
 import { ContentGenerator } from '../../services/contentGenerator';
 import { CarSearchEngine } from '../../services/carService'; // Real Service
-import { parseListingFromUrl } from '../../services/parserClient';
+import { ParsingJobService, ParsingJob } from '../../services/parsingJobService';
 import { RequestsService } from '../../services/requestsService'; // Real Service
 import { useToast } from '../../contexts/ToastContext';
 
@@ -32,6 +32,9 @@ export const SearchPage = () => {
         sourceId: string;
         source: string;
     } | null>(null);
+    const [jobs, setJobs] = useState<ParsingJob[]>([]);
+    const [activeJobId, setActiveJobId] = useState<string>('');
+    const [pollingJobs, setPollingJobs] = useState(false);
 
     const [requests, setRequests] = useState<B2BRequest[]>([]);
     const [selectedReqId, setSelectedReqId] = useState<string>('');
@@ -57,7 +60,16 @@ export const SearchPage = () => {
             setQuery(q);
             handleSearch(null, q);
         }
+        loadJobs({ silent: true });
     }, [searchParams]);
+
+    useEffect(() => {
+        if (!pollingJobs || !activeJobId) return;
+        const timer = window.setInterval(() => {
+            loadJobs({ silent: true });
+        }, 3000);
+        return () => window.clearInterval(timer);
+    }, [pollingJobs, activeJobId]);
 
     const parseSearchQuery = (raw: string) => {
         const tokens = raw.split(/\s+/).filter(Boolean);
@@ -96,6 +108,59 @@ export const SearchPage = () => {
         return { brand, model, year, priceMax };
     };
 
+    const applyParsedResult = (parsed: any, sourceUrl: string) => {
+        let sourceDomain = parsed?.domain || '';
+        if (!sourceDomain && sourceUrl) {
+            try {
+                sourceDomain = new URL(sourceUrl).hostname.replace(/^www\./, '');
+            } catch {
+                sourceDomain = '';
+            }
+        }
+        const result: any = {
+            title: parsed?.title || '—',
+            price: { amount: parsed?.price || 0, currency: parsed?.currency || 'USD' },
+            year: parsed?.year,
+            mileage: parsed?.mileage,
+            specs: { vin: parsed?.variables?.vin || parsed?.raw?.jsonLd?.vin || '' },
+            thumbnail: parsed?.thumbnail || parsed?.raw?.images?.[0],
+            mediaUrls: parsed?.raw?.images || [],
+            sourceUrl: parsed?.url || sourceUrl,
+            source: sourceDomain
+        };
+        setResults([{ ...result, url: sourceUrl }]);
+        const priceLabel = result.price?.amount ? `${result.price.amount.toLocaleString()} ${result.price.currency}` : '—';
+        setParsePreview({
+            title: result.title || '—',
+            price: priceLabel,
+            vin: result.specs?.vin || '—',
+            image: (result.mediaUrls && result.mediaUrls.length > 0 ? result.mediaUrls[0] : result.thumbnail) || '—',
+            sourceId: result.sourceUrl || '—',
+            source: result.source || '—'
+        });
+    };
+
+    const loadJobs = async (options?: { silent?: boolean }) => {
+        try {
+            const list = await ParsingJobService.list({ limit: 30 });
+            setJobs(list);
+            if (activeJobId) {
+                const active = list.find(j => j.id === activeJobId);
+                if (active && (active.status === 'DONE' || active.status === 'FAILED')) {
+                    setPollingJobs(false);
+                    if (active.status === 'DONE' && active.result) {
+                        applyParsedResult(active.result, active.url);
+                    } else if (active.status === 'FAILED') {
+                        setErrorMsg(active.error || 'Parsing failed');
+                    }
+                    setActiveJobId('');
+                }
+            }
+        } catch (e: any) {
+            if (!options?.silent) setErrorMsg(e.message || 'Failed to load parsing jobs');
+        }
+    };
+
     const handleSearch = async (e: React.FormEvent | null, overrideQuery?: string) => {
         if (e) e.preventDefault();
         const q = overrideQuery || query;
@@ -131,33 +196,13 @@ export const SearchPage = () => {
         setParsePreview(null);
 
         try {
-            // Server-side parser for URL
-            const parsed = await parseListingFromUrl(directUrl);
-            const result: any = {
-                title: parsed.title || '—',
-                price: { amount: parsed.price || 0, currency: parsed.currency || 'USD' },
-                year: parsed.year,
-                mileage: parsed.mileage,
-                specs: { vin: parsed.variables?.vin || parsed.raw?.jsonLd?.vin || '' },
-                thumbnail: parsed.thumbnail || parsed.raw?.images?.[0],
-                mediaUrls: parsed.raw?.images || [],
-                sourceUrl: parsed.url || directUrl,
-                source: parsed.domain || new URL(directUrl).hostname.replace(/^www\./, '')
-            };
-
-            setResults([{ ...result, url: directUrl }]);
-            const priceLabel = result.price?.amount ? `${result.price.amount.toLocaleString()} ${result.price.currency}` : '—';
-            setParsePreview({
-                title: result.title || '—',
-                price: priceLabel,
-                vin: result.specs?.vin || '—',
-                image: (result.mediaUrls && result.mediaUrls.length > 0 ? result.mediaUrls[0] : result.thumbnail) || '—',
-                sourceId: result.sourceUrl || '—',
-                source: result.source || '—'
-            });
+            const job = await ParsingJobService.enqueue(directUrl);
+            setJobs(prev => [job, ...prev.filter(j => j.id !== job.id)]);
+            setActiveJobId(job.id);
+            setPollingJobs(true);
         } catch (err: any) {
             console.error(err);
-            setErrorMsg(err.message || "Failed to parse URL. Ensure it's a valid public listing.");
+            setErrorMsg(err.message || "Failed to enqueue parsing job. Ensure it's a valid public listing.");
         } finally {
             setLoading(false);
         }
@@ -365,6 +410,57 @@ export const SearchPage = () => {
                                 <div className="text-[10px] uppercase font-bold">images[0]</div>
                                 <div className="text-[var(--text-primary)] break-all">{parsePreview.image}</div>
                             </div>
+                        </div>
+                    </div>
+                )}
+
+                {mode === 'DIRECT' && jobs.length > 0 && (
+                    <div className="mt-4 panel p-4">
+                        <div className="flex justify-between items-center mb-3">
+                            <h3 className="font-bold text-[var(--text-primary)]">Parsing Jobs</h3>
+                            <button onClick={() => loadJobs()} className="btn-secondary text-xs">Refresh</button>
+                        </div>
+                        <div className="space-y-2">
+                            {jobs.slice(0, 6).map(job => (
+                                <div key={job.id} className="flex items-center justify-between text-xs bg-[var(--bg-input)] border border-[var(--border-color)] rounded-lg px-3 py-2">
+                                    <div className="flex-1 min-w-0">
+                                        <div className="font-mono text-[10px] text-[var(--text-secondary)] truncate">{job.url}</div>
+                                        <div className="text-[10px] text-[var(--text-secondary)] mt-1">
+                                            {job.status} {job.error ? `• ${job.error}` : ''}
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        {job.status === 'FAILED' && (
+                                            <button
+                                                className="btn-secondary text-[10px]"
+                                                onClick={async () => {
+                                                    try {
+                                                        const next = await ParsingJobService.enqueue(job.url);
+                                                        setJobs(prev => [next, ...prev]);
+                                                        setActiveJobId(next.id);
+                                                        setPollingJobs(true);
+                                                        setErrorMsg('');
+                                                    } catch (e: any) {
+                                                        setErrorMsg(e.message || 'Retry failed');
+                                                    }
+                                                }}
+                                            >
+                                                Retry
+                                            </button>
+                                        )}
+                                        {job.status === 'DONE' && (
+                                            <button
+                                                className="btn-secondary text-[10px]"
+                                                onClick={() => {
+                                                    if (job.result) applyParsedResult(job.result, job.url);
+                                                }}
+                                            >
+                                                View
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
                         </div>
                     </div>
                 )}

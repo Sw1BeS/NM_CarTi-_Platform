@@ -254,6 +254,14 @@ export const mapRequestInput = (input: any) => {
   if ('assignedTo' in input || 'assigneeId' in input) {
     data.assignedTo = input.assignedTo ?? input.assigneeId ?? null;
   }
+  if ('leadId' in input) {
+    const leadId = toString(input.leadId);
+    if (leadId) data.leadId = leadId;
+  }
+  if ('botId' in input) {
+    const botId = toString(input.botId);
+    if (botId) data.botId = botId;
+  }
   if ('internalNote' in input || 'internalNotes' in input || 'notes' in input) {
     data.internalNotes = input.internalNote ?? input.internalNotes ?? input.notes ?? null;
   }
@@ -276,6 +284,8 @@ export const mapRequestOutput = (request: any) => ({
   language: request.language ?? undefined,
   status: request.status ?? DbRequestStatus.DRAFT,
   priority: request.priority ?? 'NORMAL',
+  leadId: request.leadId ?? undefined,
+  botId: request.botId ?? undefined,
   assigneeId: request.assignedTo ?? undefined,
   internalNote: request.internalNotes ?? undefined,
   clientChatId: request.chatId ?? undefined,

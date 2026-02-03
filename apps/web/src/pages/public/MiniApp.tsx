@@ -34,6 +34,8 @@ export const MiniApp = () => {
     const [favoriteItems, setFavoriteItems] = useState<CarListing[]>([]);
     const [tgUser, setTgUser] = useState<TgUser | null>(null);
     const [isPreview, setIsPreview] = useState(false);
+    const [initData, setInitData] = useState<string | undefined>(undefined);
+    const [initError, setInitError] = useState<string | null>(null);
     const [visitorId] = useState(() => {
         try {
             const existing = localStorage.getItem('miniapp_visitor_id');
@@ -107,7 +109,7 @@ export const MiniApp = () => {
             visitorId
         };
         try {
-            const res = await toggleMiniAppFavorite(id, { ...identity, slug: targetSlug || 'system' });
+            const res = await toggleMiniAppFavorite(id, { ...identity, slug: targetSlug || 'system', initData });
             if (res.action === 'removed') {
                 setFavorites(prev => prev.filter(x => x !== id));
                 setFavoriteItems(prev => prev.filter(item => getCarId(item) !== id));
@@ -175,12 +177,13 @@ export const MiniApp = () => {
 
             let resolvedUser: TgUser | null = null;
             if (tg && tg.initData) {
-                tg.ready();
-                tg.expand();
-                tg.enableClosingConfirmation();
+                tg.ready?.();
+                tg.expand?.();
+                tg.enableClosingConfirmation?.();
                 resolvedUser = tg.initDataUnsafe?.user;
                 setTgUser(resolvedUser);
                 setIsPreview(false);
+                setInitData(tg.initData);
                 startParam = tg.initDataUnsafe?.start_param;
             } else {
                 // Mock environment for browser preview
@@ -253,10 +256,27 @@ export const MiniApp = () => {
                 console.error("Failed to load inventory for Mini App", e);
             }
         };
-        load();
+        load().catch((e) => {
+            console.error('Mini App init failed', e);
+            setInitError('Failed to initialize Mini App. Check base URL, slug, and bot config.');
+            const fallbackSlug = slug || 'system';
+            setTargetSlug(fallbackSlug);
+            setConfig(buildFallbackConfig(fallbackSlug));
+            setCars([]);
+        });
     }, [slug]);
 
     if (!config) return <div className="h-screen flex items-center justify-center text-white bg-black">Loading App...</div>;
+    if (initError) {
+        return (
+            <div className="h-screen flex items-center justify-center text-white bg-black px-6 text-center">
+                <div>
+                    <div className="text-xl font-bold mb-2">Mini App Error</div>
+                    <div className="text-white/70 text-sm">{initError}</div>
+                </div>
+            </div>
+        );
+    }
 
     const primaryColor = config.primaryColor || '#D4AF37';
     const navItems = (config.navItems && config.navItems.length > 0)
@@ -374,14 +394,20 @@ export const MiniApp = () => {
 
         // Client-side Sort
         if (sortBy === 'price_asc') {
-            filtered.sort((a, b) => a.price.amount - b.price.amount);
+            filtered.sort((a, b) => (a.price?.amount || 0) - (b.price?.amount || 0));
         } else if (sortBy === 'price_desc') {
-            filtered.sort((a, b) => b.price.amount - a.price.amount);
+            filtered.sort((a, b) => (b.price?.amount || 0) - (a.price?.amount || 0));
         } else if (sortBy === 'year_desc') {
             filtered.sort((a, b) => b.year - a.year);
         }
 
         return filtered;
+    };
+
+    const formatPrice = (price?: { amount?: number; currency?: string }) => {
+        if (!price || !price.amount) return '—';
+        const curr = price.currency || 'USD';
+        return `${price.amount.toLocaleString()} ${curr}`;
     };
 
     const renderHome = () => (
@@ -466,7 +492,7 @@ export const MiniApp = () => {
                                     <h4 className="text-sm font-bold text-white truncate">{car.title}</h4>
                                     <p className="text-xs text-white/50 mt-1 mb-2">{car.specs?.engine} • {car.mileage / 1000}k km</p>
                                     <div className="font-bold text-sm" style={{ color: primaryColor }}>
-                                        {car.price.amount.toLocaleString()} $
+                                        {formatPrice(car.price)}
                                     </div>
                                     <button
                                         onClick={() => openListing(car)}
@@ -653,7 +679,7 @@ export const MiniApp = () => {
                                 </div>
                                 <div className="p-4">
                                     <div className="flex justify-between items-center mb-4">
-                                        <div className="text-xl font-bold" style={{ color: primaryColor }}>{car.price.amount.toLocaleString()} $</div>
+                                        <div className="text-xl font-bold" style={{ color: primaryColor }}>{formatPrice(car.price)}</div>
                                         <div className="text-xs text-white/50 bg-white/5 px-2 py-1 rounded">{car.year}</div>
                                     </div>
                                     <div className="grid grid-cols-3 gap-2 text-xs text-white/70 mb-4">
@@ -719,7 +745,7 @@ export const MiniApp = () => {
                                     <h3 className="text-base font-bold text-white truncate">{car.title}</h3>
                                     <div className="text-sm text-white/60 mt-1">{car.year} • {car.mileage.toLocaleString()} km</div>
                                     <div className="mt-2 font-bold" style={{ color: primaryColor }}>
-                                        {car.price.amount.toLocaleString()} $
+                                        {formatPrice(car.price)}
                                     </div>
                                 </div>
                             </div>
@@ -775,7 +801,7 @@ export const MiniApp = () => {
 
                     <div className="bg-[#1c1c1e] rounded-2xl p-4 border border-white/5">
                         <div className="flex justify-between items-center mb-2">
-                            <div className="text-xl font-bold text-white">{selectedCar.price.amount.toLocaleString()} $</div>
+                            <div className="text-xl font-bold text-white">{formatPrice(selectedCar.price)}</div>
                             <button
                                 onClick={() => toggleFavorite(selectedCar)}
                                 className="w-10 h-10 rounded-full bg-black/40 flex items-center justify-center"
@@ -872,6 +898,7 @@ export const MiniApp = () => {
 
                 const requestPayload = {
                     slug,
+                    initData,
                     title: listingId && selectedCar?.title ? `Request: ${selectedCar.title}` : `Request: ${reqData.brand || 'Car'} ${reqData.year || ''}`.trim(),
                     description: descriptionParts.length ? descriptionParts.join('\n') : undefined,
                     budgetMax: reqData.budget ? Number(reqData.budget) : undefined,
@@ -897,7 +924,8 @@ export const MiniApp = () => {
                 }
             } catch (e) {
                 console.error(e);
-                alert("Failed to submit request.");
+                const message = e instanceof Error ? e.message : 'Failed to submit request.';
+                alert(message);
             }
         }
     };

@@ -198,6 +198,8 @@ export const createOrMergeLead = async (input: LeadCreateInput, botConfig?: any)
       ...reqInput,
       publicId: generatePublicId(),
       chatId: input.chatId || undefined,
+      leadId: lead.id,
+      botId: input.botId,
       companyId
     });
 

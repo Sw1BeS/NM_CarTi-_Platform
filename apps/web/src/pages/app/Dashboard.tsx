@@ -1,12 +1,14 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend } from 'recharts';
-import { Users, FileText, Send, AlertTriangle, Zap, CheckCircle, Clock, MessageCircle, TrendingUp, Filter, Car, Briefcase, ChevronRight } from 'lucide-react';
+import { Users, FileText, Send, Zap, CheckCircle, Clock, MessageCircle, TrendingUp, Filter, Car, Briefcase, ChevronRight } from 'lucide-react';
 import { Data } from '../../services/data';
+import { MetricsService } from '../../services/metricsService';
 import { useNavigate } from 'react-router-dom';
 import { useLang } from '../../contexts/LanguageContext';
 import { ActivityLog, Bot } from '../../types';
 import { useToast } from '../../contexts/ToastContext';
+import { useAuth } from '../../contexts/AuthContext';
 
 // Dark Theme Palette
 const COLORS = ['#D4AF37', '#27272A', '#52525B', '#A1A1AA', '#4B5563'];
@@ -31,9 +33,12 @@ export const Dashboard: React.FC = () => {
     const [stats, setStats] = useState<any>(null);
     const [activities, setActivities] = useState<ActivityLog[]>([]);
     const [bots, setBots] = useState<Bot[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
     const navigate = useNavigate();
     const { t } = useLang();
     const { showToast } = useToast();
+    const { user } = useAuth();
 
     // Chart Data
     const [funnelData, setFunnelData] = useState<any[]>([]);
@@ -56,6 +61,7 @@ export const Dashboard: React.FC = () => {
     const [systemSettings, setSystemSettings] = useState<any>(null);
     const [settingsLoaded, setSettingsLoaded] = useState(false);
     const saveTimerRef = useRef<number | null>(null);
+    const roleKey = user?.role || 'USER';
 
     useEffect(() => {
         const loadSettings = async () => {
@@ -63,11 +69,14 @@ export const Dashboard: React.FC = () => {
                 const settings = await Data.getSettings();
                 setSystemSettings(settings);
                 const dashboard = (settings.modules || {}).dashboard || {};
-                if (dashboard.filters) {
-                    setFilters((prev) => ({ ...prev, ...dashboard.filters }));
+                const preset = dashboard?.presets?.[roleKey] || null;
+                const presetFilters = preset?.filters || dashboard.filters;
+                const presetWidgets = preset?.widgets || dashboard.widgets;
+                if (presetFilters) {
+                    setFilters((prev) => ({ ...prev, ...presetFilters }));
                 }
-                if (dashboard.widgets) {
-                    setWidgets((prev) => ({ ...prev, ...dashboard.widgets }));
+                if (presetWidgets) {
+                    setWidgets((prev) => ({ ...prev, ...presetWidgets }));
                 }
             } catch (e: any) {
                 // Non-admins may not have access; ignore.
@@ -80,13 +89,23 @@ export const Dashboard: React.FC = () => {
 
     const persistDashboardSettings = async (nextFilters = filters, nextWidgets = widgets) => {
         if (!systemSettings || !systemSettings.id) return;
+        const dashboard = (systemSettings.modules || {}).dashboard || {};
+        const presets = {
+            ...(dashboard.presets || {}),
+            [roleKey]: {
+                filters: nextFilters,
+                widgets: nextWidgets,
+                updatedAt: new Date().toISOString()
+            }
+        };
         const updated = {
             ...systemSettings,
             modules: {
                 ...(systemSettings.modules || {}),
                 dashboard: {
                     filters: nextFilters,
-                    widgets: nextWidgets
+                    widgets: nextWidgets,
+                    presets
                 }
             }
         };
@@ -115,98 +134,47 @@ export const Dashboard: React.FC = () => {
 
     useEffect(() => {
         refreshData();
-        const interval = setInterval(refreshData, 5000);
+        const interval = setInterval(refreshData, 30000);
         return () => clearInterval(interval);
     }, [filters]);
 
     const refreshData = async () => {
-        const [
-            leadsRaw,
-            msgsRaw,
-            companies,
-            users,
-            activityLogsRaw,
-            requestsRaw,
-            inventory,
-            campaignsRaw,
-            botList
-        ] = await Promise.all([
-            Data.getLeads(),
-            Data.getMessages(),
-            Data.getCompanies(),
-            Data.getUsers(),
-            Data.getActivity(),
-            Data.getRequests?.() || [],
-            Data.getInventory?.() || [],
-            Data.getCampaigns?.() || [],
-            Data.getBots?.() || []
-        ]);
+        setLoading(true);
+        try {
+            const [botList, metrics] = await Promise.all([
+                Data.getBots?.() || [],
+                MetricsService.getDashboardMetrics({
+                    range: filters.range,
+                    botId: filters.botId === 'ALL' ? undefined : filters.botId,
+                    requestStatus: filters.requestStatus
+                })
+            ]);
 
-        setBots(botList || []);
-
-        const rangeDays = filters.range === '7d' ? 7 : filters.range === '30d' ? 30 : filters.range === '90d' ? 90 : null;
-        const rangeCutoff = rangeDays ? Date.now() - rangeDays * 24 * 60 * 60 * 1000 : null;
-        const inRange = (value?: string) => {
-            if (!rangeCutoff) return true;
-            if (!value) return false;
-            return new Date(value).getTime() >= rangeCutoff;
-        };
-
-        const msgs = (msgsRaw || []).filter((m: any) =>
-            inRange(m.date) && (filters.botId === 'ALL' || !filters.botId || m.botId === filters.botId)
-        );
-        const leads = (leadsRaw || []).filter((l: any) => inRange(l.createdAt));
-        const requests = (requestsRaw || []).filter((r: any) =>
-            inRange(r.createdAt) && (filters.requestStatus === 'ALL' || r.status === filters.requestStatus)
-        );
-        const campaigns = (campaignsRaw || []).filter((c: any) =>
-            inRange(c.createdAt) && (filters.botId === 'ALL' || !filters.botId || c.botId === filters.botId)
-        );
-        const activityLogs = (activityLogsRaw || []).filter((a: any) => inRange(a.timestamp));
-
-        const requestsProgress = requests.filter((r: any) => !['WON', 'LOST', 'DRAFT'].includes(r.status)).length;
-        const requestsWithOffers = requests.filter((r: any) => (r.variants?.length || 0) > 0);
-        const offersFresh = requestsWithOffers.filter((r: any) => {
-            const updatedAt = new Date(r.updatedAt || r.createdAt);
-            return Date.now() - updatedAt.getTime() < 1000 * 60 * 60 * 24;
-        }).length;
-        const drafts = (await Data.getDrafts()).filter((d: any) => inRange(d.createdAt || d.scheduledAt || d.postedAt));
-        const dbStats = {
-            requestsNew: requests.length,
-            requestsProgress,
-            offersFresh,
-            requestsWithOffers: requestsWithOffers.length,
-            inventoryValue: (inventory as any[]).reduce<number>((sum, car: any) => sum + (car.price?.amount || 0), 0),
-            inventoryCount: inventory.length,
-            inboxNew: msgs.filter(m => m.direction === 'INCOMING').length,
-            campaignsActive: campaigns.filter((c: any) => c.status === 'RUNNING').length,
-            leadsToday: leads.filter((l: any) => new Date(l.createdAt).toDateString() === new Date().toDateString()).length,
-            draftsScheduled: drafts.filter((d: any) => d.status === 'SCHEDULED').length,
-            draftsPosted: drafts.filter((d: any) => d.status === 'POSTED' && new Date(d.postedAt).toDateString() === new Date().toDateString()).length
-        };
-
-        setFunnelData([
-            { name: 'Incoming', value: msgs.length, fill: '#3F3F46' }, // Dark Grey
-            { name: 'Leads', value: leads.length, fill: '#D4AF37' }, // Gold
-            { name: 'In Progress', value: leads.filter(l => l.status !== 'NEW').length, fill: '#A1A1AA' }, // Light Grey
-            { name: 'Won', value: leads.filter(l => l.status === 'WON').length, fill: '#FAFAFA' } // White
-        ]);
-
-        const sources = leads.reduce((acc: any, lead) => {
-            acc[lead.source] = (acc[lead.source] || 0) + 1;
-            return acc;
-        }, {});
-        setSourceData(Object.keys(sources).map(key => ({ name: key, value: sources[key] })));
-
-        const dealerStats = companies.map(c => {
-            const memberIds = users.filter(u => u.companyId === c.id).map(u => u.id);
-            const score = memberIds.length * 10 + Math.floor(Math.random() * 5);
-            return { name: c.name, value: score };
-        }).sort((a, b) => b.value - a.value).slice(0, 5);
-        setDealerPerformance(dealerStats);
-
-        setStats(dbStats);
-        setActivities(activityLogs.slice(0, 10));
+            setBots(botList || []);
+            setStats(metrics.stats);
+            setFunnelData([
+                { name: 'Incoming', value: metrics.funnel?.incoming || 0, fill: '#3F3F46' },
+                { name: 'Leads', value: metrics.funnel?.leads || 0, fill: '#D4AF37' },
+                { name: 'In Progress', value: metrics.funnel?.inProgress || 0, fill: '#A1A1AA' },
+                { name: 'Won', value: metrics.funnel?.won || 0, fill: '#FAFAFA' }
+            ]);
+            setSourceData(metrics.sources || []);
+            setDealerPerformance(metrics.partnerActivity || []);
+            const activityItems = (metrics.activity || []).map((entry: any) => ({
+                id: entry.id || entry.recordId || entry.timestamp || Math.random().toString(36),
+                action: entry.action || entry.title || 'Activity',
+                details: entry.details || entry.message || '',
+                entityType: entry.entityType || entry.type || '',
+                timestamp: entry.timestamp || entry.createdAt || new Date().toISOString(),
+                userId: entry.userId || ''
+            }));
+            setActivities(activityItems.slice(0, 10));
+            setLastUpdated(new Date());
+        } catch (e: any) {
+            showToast(e.message || 'Failed to load dashboard metrics', 'error');
+        } finally {
+            setLoading(false);
+        }
     };
 
     if (!stats) return <div className="p-8 text-center text-gray-500 font-bold text-lg">Loading System...</div>;
@@ -256,10 +224,17 @@ export const Dashboard: React.FC = () => {
                     <button onClick={() => setShowCustomize(!showCustomize)} className="btn-secondary text-sm">
                         {showCustomize ? 'Hide Widgets' : 'Customize'}
                     </button>
+                    <button onClick={refreshData} className="btn-secondary text-sm" disabled={loading}>
+                        {loading ? 'Refreshing...' : 'Refresh'}
+                    </button>
                     <button onClick={() => navigate('/requests')} className="btn-primary shadow-xl">
                         <FileText size={20} /> New Request
                     </button>
                 </div>
+            </div>
+            <div className="text-xs text-[var(--text-secondary)] flex items-center gap-2">
+                <Clock size={12} className="text-[var(--text-secondary)]" />
+                {lastUpdated ? `Last updated ${lastUpdated.toLocaleTimeString()}` : 'Not updated yet'}
             </div>
 
             {showCustomize && (

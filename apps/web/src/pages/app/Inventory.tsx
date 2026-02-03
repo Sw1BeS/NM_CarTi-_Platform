@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { InventoryService } from '../../services/inventoryService';
 import { ApiClient } from '../../services/apiClient';
-import { CarListing, B2BRequest, VariantStatus } from '../../types';
+import { CarListing, B2BRequest, Showcase } from '../../types';
 import { Plus, X, Search, Edit2, Trash2, MapPin, Calendar, Gauge, Link, UserPlus, CheckSquare, Square, DollarSign, CheckCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useToast } from '../../contexts/ToastContext';
 import { useNavigate } from 'react-router-dom';
@@ -10,6 +10,7 @@ import { MatchingService } from '../../services/matchingService';
 import { RequestsService } from '../../services/requestsService';
 import { parseListingFromUrl, saveParserProfile } from '../../services/parserClient';
 import { PageHeader } from '../../components/ui/PageHeader';
+import { ShowcaseService } from '../../services/showcaseService';
 
 export const InventoryPage = () => {
     // Data State
@@ -36,6 +37,22 @@ export const InventoryPage = () => {
     const [importUrl, setImportUrl] = useState('');
     const [mappingModal, setMappingModal] = useState<{ url: string, domain: string, variables: Record<string, any>, images?: string[] } | null>(null);
     const [csvFile, setCsvFile] = useState<File | null>(null);
+    const [showcases, setShowcases] = useState<Showcase[]>([]);
+    const [showcaseModalOpen, setShowcaseModalOpen] = useState(false);
+    const [showcaseForm, setShowcaseForm] = useState({
+        id: '',
+        name: '',
+        slug: '',
+        mode: 'FILTER' as 'FILTER' | 'MANUAL' | 'HYBRID',
+        isPublic: true,
+        statusFilters: [] as string[],
+        priceMin: '',
+        priceMax: '',
+        yearMin: '',
+        yearMax: '',
+        includeIds: '',
+        excludeIds: ''
+    });
 
     const { showToast } = useToast();
     const navigate = useNavigate();
@@ -52,6 +69,10 @@ export const InventoryPage = () => {
     useEffect(() => {
         loadData();
     }, [page, search, statusFilter]);
+
+    useEffect(() => {
+        loadShowcases();
+    }, []);
 
     const loadData = async () => {
         setLoading(true);
@@ -82,6 +103,15 @@ export const InventoryPage = () => {
         }
     };
 
+    const loadShowcases = async () => {
+        try {
+            const list = await ShowcaseService.getShowcases();
+            setShowcases(Array.isArray(list) ? list : []);
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
     const toggleSelection = (id: string) => {
         const newSet = new Set(selectedIds);
         if (newSet.has(id)) newSet.delete(id);
@@ -100,20 +130,21 @@ export const InventoryPage = () => {
     const handleBulkAction = (action: 'DELETE' | 'SOLD' | 'AVAILABLE') => {
         if (!confirm(`Apply ${action} to ${selectedIds.size} items?`)) return;
 
-        // This should theoretically be a bulk API call. 
-        // For now, loop calls (inefficient but works for small batches).
-        Array.from(selectedIds).forEach(async (id: string) => {
-            if (action === 'DELETE') {
-                await InventoryService.deleteCar(id);
-            } else {
-                const car = cars.find(c => c.canonicalId === id);
-                if (car) await InventoryService.saveCar({ ...car, status: action });
+        const ids = Array.from(selectedIds);
+        (async () => {
+            try {
+                if (action === 'DELETE') {
+                    await Promise.all(ids.map(id => InventoryService.deleteCar(id)));
+                } else {
+                    await InventoryService.bulkUpdate(ids, { status: action });
+                }
+                setSelectedIds(new Set());
+                showToast(`Bulk Action Completed: ${action}`);
+                await loadData();
+            } catch (e: any) {
+                showToast(e.message || 'Bulk action failed', 'error');
             }
-        });
-
-        setTimeout(loadData, 1000); // Lazy refresh
-        setSelectedIds(new Set());
-        showToast(`Bulk Action Completed: ${action}`);
+        })();
     };
 
     const handleSave = async (car: CarListing) => {
@@ -146,18 +177,93 @@ export const InventoryPage = () => {
     };
 
     const handleAttachToRequest = async (car: CarListing, reqId: string) => {
-        await RequestsService.addVariant(reqId, {
-            title: car.title,
-            price: car.price,
-            year: car.year,
-            location: car.location,
-            thumbnail: car.thumbnail,
-            url: car.sourceUrl || '#internal',
-            source: 'INTERNAL',
-            status: VariantStatus.SUBMITTED
-        });
+        const carId = car.canonicalId || (car as any).id;
+        await RequestsService.addVariantsFromInventory(reqId, [carId]);
         showToast(`Attached ${car.title} to Request`);
         setAttachModal(null);
+    };
+
+    const resetShowcaseForm = () => {
+        setShowcaseForm({
+            id: '',
+            name: '',
+            slug: '',
+            mode: 'FILTER',
+            isPublic: true,
+            statusFilters: [],
+            priceMin: '',
+            priceMax: '',
+            yearMin: '',
+            yearMax: '',
+            includeIds: '',
+            excludeIds: ''
+        });
+    };
+
+    const openShowcaseModal = () => {
+        setShowcaseModalOpen(true);
+        loadShowcases();
+    };
+
+    const editShowcase = (sc: Showcase) => {
+        setShowcaseForm({
+            id: sc.id,
+            name: sc.name,
+            slug: sc.slug,
+            mode: (sc.rules?.mode || 'FILTER') as any,
+            isPublic: sc.isPublic,
+            statusFilters: sc.rules?.filters?.status || [],
+            priceMin: sc.rules?.filters?.priceMin ? String(sc.rules.filters.priceMin) : '',
+            priceMax: sc.rules?.filters?.priceMax ? String(sc.rules.filters.priceMax) : '',
+            yearMin: sc.rules?.filters?.yearMin ? String(sc.rules.filters.yearMin) : '',
+            yearMax: sc.rules?.filters?.yearMax ? String(sc.rules.filters.yearMax) : '',
+            includeIds: (sc.rules?.includeIds || []).join(','),
+            excludeIds: (sc.rules?.excludeIds || []).join(',')
+        });
+    };
+
+    const saveShowcase = async () => {
+        if (!showcaseForm.name.trim()) {
+            showToast('Showcase name is required', 'error');
+            return;
+        }
+        const slug = showcaseForm.slug.trim() || showcaseForm.name.trim().toLowerCase().replace(/\s+/g, '-');
+        const rules = {
+            mode: showcaseForm.mode,
+            filters: {
+                status: showcaseForm.statusFilters.length ? showcaseForm.statusFilters : undefined,
+                priceMin: showcaseForm.priceMin ? Number(showcaseForm.priceMin) : undefined,
+                priceMax: showcaseForm.priceMax ? Number(showcaseForm.priceMax) : undefined,
+                yearMin: showcaseForm.yearMin ? Number(showcaseForm.yearMin) : undefined,
+                yearMax: showcaseForm.yearMax ? Number(showcaseForm.yearMax) : undefined
+            },
+            includeIds: showcaseForm.includeIds.split(',').map(s => s.trim()).filter(Boolean),
+            excludeIds: showcaseForm.excludeIds.split(',').map(s => s.trim()).filter(Boolean)
+        };
+        try {
+            if (showcaseForm.id) {
+                await ShowcaseService.updateShowcase(showcaseForm.id, { name: showcaseForm.name, slug, isPublic: showcaseForm.isPublic, rules });
+                showToast('Showcase updated');
+            } else {
+                await ShowcaseService.createShowcase({ name: showcaseForm.name, slug, isPublic: showcaseForm.isPublic, rules });
+                showToast('Showcase created');
+            }
+            resetShowcaseForm();
+            loadShowcases();
+        } catch (e: any) {
+            showToast(e.message || 'Failed to save showcase', 'error');
+        }
+    };
+
+    const deleteShowcase = async (id: string) => {
+        if (!confirm('Delete this showcase?')) return;
+        try {
+            await ShowcaseService.deleteShowcase(id);
+            loadShowcases();
+            showToast('Showcase deleted');
+        } catch (e: any) {
+            showToast(e.message || 'Failed to delete showcase', 'error');
+        }
     };
 
     return (
@@ -167,6 +273,9 @@ export const InventoryPage = () => {
                 subtitle={`${totalItems} vehicles • Page ${page} of ${totalPages}`}
                 actions={(
                     <>
+                        <button onClick={openShowcaseModal} className="btn-secondary">
+                            <Plus size={18} /> Showcases
+                        </button>
                         <button onClick={() => setImporting(true)} className="btn-secondary">
                             <Plus size={18} /> Import URL
                         </button>
@@ -365,6 +474,99 @@ export const InventoryPage = () => {
                                     <div className="text-sm text-[var(--text-secondary)] group-hover:text-gold-500 mt-1">{r.publicId} • {r.status}</div>
                                 </button>
                             ))}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {showcaseModalOpen && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="panel w-full max-w-4xl p-6 animate-slide-up">
+                        <div className="flex justify-between items-center mb-4">
+                            <div>
+                                <h3 className="font-bold text-[var(--text-primary)] text-lg">Showcases</h3>
+                                <p className="text-xs text-[var(--text-secondary)]">Create saved inventory presets for Mini App and sharing.</p>
+                            </div>
+                            <div className="flex gap-2">
+                                <button onClick={resetShowcaseForm} className="btn-secondary text-xs">New</button>
+                                <button onClick={() => setShowcaseModalOpen(false)} className="btn-ghost text-xs">Close</button>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="space-y-3">
+                                <div className="text-xs font-bold text-[var(--text-secondary)] uppercase">Existing</div>
+                                <div className="space-y-2 max-h-80 overflow-y-auto pr-2">
+                                    {showcases.map(sc => (
+                                        <div key={sc.id} className="p-3 rounded-lg border border-[var(--border-color)] bg-[var(--bg-input)] flex justify-between items-center">
+                                            <div>
+                                                <div className="font-bold text-sm text-[var(--text-primary)]">{sc.name}</div>
+                                                <div className="text-[10px] text-[var(--text-secondary)]">{sc.slug} • {sc.rules?.mode || 'FILTER'}</div>
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <button onClick={() => editShowcase(sc)} className="btn-secondary text-[10px]">Edit</button>
+                                                <button onClick={() => deleteShowcase(sc.id)} className="btn-secondary text-[10px] text-red-500">Delete</button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {showcases.length === 0 && (
+                                        <div className="text-xs text-[var(--text-secondary)]">No showcases yet.</div>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="space-y-3">
+                                <div className="text-xs font-bold text-[var(--text-secondary)] uppercase">Showcase Form</div>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <input className="input col-span-2" placeholder="Name" value={showcaseForm.name} onChange={e => setShowcaseForm(prev => ({ ...prev, name: e.target.value }))} />
+                                    <input className="input col-span-2" placeholder="Slug" value={showcaseForm.slug} onChange={e => setShowcaseForm(prev => ({ ...prev, slug: e.target.value }))} />
+                                    <select className="input" value={showcaseForm.mode} onChange={e => setShowcaseForm(prev => ({ ...prev, mode: e.target.value as any }))}>
+                                        <option value="FILTER">Filter</option>
+                                        <option value="MANUAL">Manual</option>
+                                        <option value="HYBRID">Hybrid</option>
+                                    </select>
+                                    <select className="input" value={showcaseForm.isPublic ? 'public' : 'private'} onChange={e => setShowcaseForm(prev => ({ ...prev, isPublic: e.target.value === 'public' }))}>
+                                        <option value="public">Public</option>
+                                        <option value="private">Private</option>
+                                    </select>
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <input className="input" placeholder="Price min" value={showcaseForm.priceMin} onChange={e => setShowcaseForm(prev => ({ ...prev, priceMin: e.target.value }))} />
+                                    <input className="input" placeholder="Price max" value={showcaseForm.priceMax} onChange={e => setShowcaseForm(prev => ({ ...prev, priceMax: e.target.value }))} />
+                                    <input className="input" placeholder="Year min" value={showcaseForm.yearMin} onChange={e => setShowcaseForm(prev => ({ ...prev, yearMin: e.target.value }))} />
+                                    <input className="input" placeholder="Year max" value={showcaseForm.yearMax} onChange={e => setShowcaseForm(prev => ({ ...prev, yearMax: e.target.value }))} />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] uppercase text-[var(--text-secondary)]">Status Filters</label>
+                                    <div className="flex gap-2 mt-1">
+                                        {['AVAILABLE', 'RESERVED', 'SOLD'].map(status => (
+                                            <button
+                                                key={status}
+                                                onClick={() => setShowcaseForm(prev => ({
+                                                    ...prev,
+                                                    statusFilters: prev.statusFilters.includes(status)
+                                                        ? prev.statusFilters.filter(s => s !== status)
+                                                        : [...prev.statusFilters, status]
+                                                }))}
+                                                className={`px-3 py-1 text-[10px] rounded border ${showcaseForm.statusFilters.includes(status) ? 'border-gold-500 text-gold-500 bg-gold-500/10' : 'border-[var(--border-color)] text-[var(--text-secondary)]'}`}
+                                            >
+                                                {status}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="text-[10px] uppercase text-[var(--text-secondary)]">Include IDs (comma)</label>
+                                    <input className="input" value={showcaseForm.includeIds} onChange={e => setShowcaseForm(prev => ({ ...prev, includeIds: e.target.value }))} placeholder="car_1,car_2" />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] uppercase text-[var(--text-secondary)]">Exclude IDs (comma)</label>
+                                    <input className="input" value={showcaseForm.excludeIds} onChange={e => setShowcaseForm(prev => ({ ...prev, excludeIds: e.target.value }))} placeholder="car_3,car_4" />
+                                </div>
+                                <div className="flex justify-end gap-2">
+                                    <button onClick={saveShowcase} className="btn-primary text-xs px-4">Save Showcase</button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>

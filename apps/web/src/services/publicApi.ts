@@ -1,7 +1,7 @@
 import { apiFetch } from './apiClient';
 import type { Lead, B2BRequest, Proposal, Variant } from '../types';
 
-export async function createPublicLead(payload: Partial<Lead>): Promise<Lead> {
+export async function createPublicLead(payload: Partial<Lead> & { initData?: string }): Promise<Lead> {
   return await apiFetch('/public/leads', {
     method: 'POST',
     skipAuth: true,
@@ -9,7 +9,7 @@ export async function createPublicLead(payload: Partial<Lead>): Promise<Lead> {
   });
 }
 
-export async function createPublicRequest(payload: Partial<B2BRequest>): Promise<B2BRequest> {
+export async function createPublicRequest(payload: Partial<B2BRequest> & { initData?: string }): Promise<B2BRequest> {
   return await apiFetch('/public/requests', {
     method: 'POST',
     skipAuth: true,
@@ -17,7 +17,7 @@ export async function createPublicRequest(payload: Partial<B2BRequest>): Promise
   });
 }
 
-export async function addPublicVariant(requestId: string, payload: any): Promise<any> {
+export async function addPublicVariant(requestId: string, payload: any & { initData?: string }): Promise<any> {
   return await apiFetch(`/public/requests/${requestId}/variants`, {
     method: 'POST',
     skipAuth: true,
@@ -79,7 +79,7 @@ export async function getPublicInventory(slug: string, filters?: any): Promise<{
   });
 }
 
-export async function createPublicRequestWithSlug(slug: string, payload: Partial<B2BRequest>): Promise<B2BRequest> {
+export async function createPublicRequestWithSlug(slug: string, payload: Partial<B2BRequest> & { initData?: string }): Promise<B2BRequest> {
   return await apiFetch(`/public/${slug}/requests`, {
     method: 'POST',
     skipAuth: true,
@@ -106,17 +106,18 @@ export async function getPublicProposal(id: string): Promise<{ proposal: Proposa
   });
 }
 
-export async function trackPublicProposalView(id: string): Promise<void> {
+export async function trackPublicProposalView(id: string, initData?: string): Promise<void> {
   await apiFetch(`/public/proposals/${id}/view`, {
     method: 'POST',
-    skipAuth: true
+    skipAuth: true,
+    body: JSON.stringify({ initData })
   });
 }
 
-export async function sendPublicProposalFeedback(id: string, variantId: string, type: 'LIKE' | 'DISLIKE' | 'INTERESTED'): Promise<void> {
+export async function sendPublicProposalFeedback(id: string, variantId: string, type: 'LIKE' | 'DISLIKE' | 'INTERESTED', initData?: string): Promise<void> {
   await apiFetch(`/public/proposals/${id}/feedback`, {
     method: 'POST',
     skipAuth: true,
-    body: JSON.stringify({ variantId, type })
+    body: JSON.stringify({ variantId, type, initData })
   });
 }

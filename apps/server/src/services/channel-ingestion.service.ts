@@ -58,6 +58,58 @@ const isMeaningfulYear = (value?: number | null) =>
 
 const isRealUrl = (value?: string | null) => typeof value === 'string' && /^https?:\/\//.test(value);
 
+const normalizeNumberString = (raw: string) => {
+    const cleaned = raw.replace(/\s/g, '');
+    if (/^\d{1,3}([.,]\d{3})+$/.test(cleaned)) {
+        return cleaned.replace(/[.,]/g, '');
+    }
+    return cleaned.replace(/,/g, '');
+};
+
+const detectCurrency = (text: string) => {
+    const upper = text.toUpperCase();
+    if (upper.includes('UAH') || text.includes('₴')) return 'UAH';
+    if (upper.includes('EUR') || text.includes('€')) return 'EUR';
+    if (upper.includes('USD') || text.includes('$')) return 'USD';
+    return undefined;
+};
+
+const parsePriceFromText = (text: string): { amount?: number; currency?: string } => {
+    const labeled = text.match(/(?:price|цена|стоимость|💰)\s*[:\-]?\s*([\d\s.,]+)\s*(k|к|тыс|тис)?\s*(\$|€|₴|USD|EUR|UAH)?/i);
+    const symbolFirst = text.match(/(\$|€|₴|USD|EUR|UAH)\s*([\d\s.,]+)\s*(k|к|тыс|тис)?/i);
+    const symbolLast = text.match(/([\d\s.,]+)\s*(k|к|тыс|тис)?\s*(\$|€|₴|USD|EUR|UAH)/i);
+
+    let rawNum: string | undefined;
+    let rawCurr: string | undefined;
+    let suffix: string | undefined;
+
+    if (labeled) {
+        rawNum = labeled[1];
+        suffix = labeled[2];
+        rawCurr = labeled[3];
+    } else if (symbolFirst) {
+        rawCurr = symbolFirst[1];
+        rawNum = symbolFirst[2];
+        suffix = symbolFirst[3];
+    } else if (symbolLast) {
+        rawNum = symbolLast[1];
+        suffix = symbolLast[2];
+        rawCurr = symbolLast[3];
+    }
+
+    if (!rawNum) return {};
+    const normalized = normalizeNumberString(rawNum);
+    let amount = Number.parseFloat(normalized);
+    if (!Number.isFinite(amount)) return {};
+
+    if (suffix && /k|к|тыс|тис/i.test(suffix)) {
+        amount = amount * 1000;
+    }
+
+    const currency = rawCurr ? detectCurrency(rawCurr) : detectCurrency(text);
+    return { amount, currency };
+};
+
 const normalizeMediaItem = (item: MediaItem): Prisma.InputJsonObject => {
     const normalized: Record<string, Prisma.InputJsonValue> = {};
     if (item.url) normalized.url = item.url;
@@ -396,23 +448,20 @@ export class ChannelIngestionService {
             }
         }
 
-        const priceMatch = text.match(/[\$€]?\s*(\d+[\s,]?\d*)\s*k?[\$€]?/i);
-        if (priceMatch) {
-            let priceStr = priceMatch[1].replace(/[\s,]/g, '');
-            let price = parseInt(priceStr);
-
-            if (text.toLowerCase().includes('k')) {
-                price = price * 1000;
-            }
-            data.price = price;
+        const parsedPrice = parsePriceFromText(text);
+        if (parsedPrice.amount) {
+            data.price = Math.round(parsedPrice.amount);
+        }
+        if (parsedPrice.currency) {
+            data.currency = parsedPrice.currency;
         }
 
-        const mileageMatch = text.match(/(\d+[\s,]?\d*)\s*k?\s*(км|km|miles)/i);
+        const mileageMatch = text.match(/(\d+[\s,]?\d*)\s*(k|к|тыс|тис)?\s*(км|km|miles|mi)/i);
         if (mileageMatch) {
             let mileageStr = mileageMatch[1].replace(/[\s,]/g, '');
             let mileage = parseInt(mileageStr);
 
-            if (text.toLowerCase().includes('k')) {
+            if (mileageMatch[2]) {
                 mileage = mileage * 1000;
             }
             data.mileage = mileage;

@@ -8,6 +8,7 @@ export interface RequestsFilter {
     limit?: number;
     status?: string;
     search?: string;
+    botId?: string;
 }
 
 export interface RequestsResponse {
@@ -25,6 +26,7 @@ export const RequestsService = {
         if (filter.limit) query.append('limit', String(filter.limit));
         if (filter.status && filter.status !== 'ALL') query.append('status', filter.status);
         if (filter.search) query.append('search', filter.search);
+        if (filter.botId && filter.botId !== 'ALL') query.append('botId', filter.botId);
 
         const queryString = appendSuperadminCompanyParam(query).toString();
         const res = await ApiClient.get<RequestsResponse | B2BRequest[]>(`requests${queryString ? `?${queryString}` : ''}`);
@@ -63,6 +65,24 @@ export const RequestsService = {
         const res = await ApiClient.post<Variant>(`requests/${requestId}/variants`, attachSuperadminCompany(variant as any));
         if (!res.ok) throw new Error(res.message);
         return res.data as Variant;
+    },
+
+    async addVariantsFromInventory(requestId: string, carIds: string[]): Promise<Variant[]> {
+        const res = await ApiClient.post<Variant[]>(`requests/${requestId}/variants/from-inventory`, attachSuperadminCompany({ carIds } as any));
+        if (!res.ok) throw new Error(res.message);
+        return res.data as Variant[];
+    },
+
+    async linkLead(requestId: string, leadId: string): Promise<B2BRequest> {
+        const res = await ApiClient.post<B2BRequest>(`requests/${requestId}/link-lead`, attachSuperadminCompany({ leadId } as any));
+        if (!res.ok) throw new Error(res.message);
+        return res.data as B2BRequest;
+    },
+
+    async linkChat(requestId: string, chatId: string): Promise<B2BRequest> {
+        const res = await ApiClient.post<B2BRequest>(`requests/${requestId}/link-chat`, attachSuperadminCompany({ chatId } as any));
+        if (!res.ok) throw new Error(res.message);
+        return res.data as B2BRequest;
     },
 
     async publishToChannel(requestId: string, payload: { botId?: string; channelId: string; text?: string; template?: string }) {

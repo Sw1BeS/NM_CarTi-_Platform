@@ -32,9 +32,19 @@ router.get('/', authenticateToken, async (req, res) => {
 
     const status = req.query.status as string;
     const search = req.query.search as string;
+    const botId = typeof req.query.botId === 'string' ? req.query.botId : undefined;
 
     const where: any = {};
     if (companyId) where.companyId = companyId;
+    if (botId && botId !== 'ALL') {
+        if (!isSuperadmin) {
+            const bot = await prisma.botConfig.findUnique({ where: { id: botId }, select: { companyId: true } });
+            if (!bot || (companyId && bot.companyId !== companyId)) {
+                return errorResponse(res, 403, 'Forbidden');
+            }
+        }
+        where.botId = botId;
+    }
     if (status && status !== 'ALL') {
         const mappedStatus = mapRequestStatusFilter(status);
         if (mappedStatus) where.status = mappedStatus;
@@ -79,6 +89,13 @@ router.post('/', authenticateToken, requireRole(['OWNER', 'ADMIN', 'MANAGER', 'O
         const requestedCompanyId = typeof (data || {}).companyId === 'string' ? (data || {}).companyId : undefined;
         const companyId = isSuperadmin ? (requestedCompanyId || userCompanyId) : userCompanyId;
         if (!companyId && !isSuperadmin) return errorResponse(res, 400, 'Company context required', 'COMPANY_REQUIRED');
+
+        const requestedBotId = data?.botId ? String(data.botId) : undefined;
+        if (requestedBotId) {
+            const bot = await prisma.botConfig.findUnique({ where: { id: requestedBotId }, select: { companyId: true } });
+            if (!bot) return errorResponse(res, 400, 'Invalid botId');
+            if (!isSuperadmin && bot.companyId !== companyId) return errorResponse(res, 403, 'Forbidden');
+        }
 
         const request = await requestRepo.createRequest({
             title: data.title || 'New Request',
@@ -135,6 +152,56 @@ router.put('/:id', authenticateToken, requireRole(['OWNER', 'ADMIN', 'MANAGER', 
     }
 });
 
+router.post('/:id/link-lead', authenticateToken, requireRole(['OWNER', 'ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { leadId } = req.body || {};
+        if (!leadId) return errorResponse(res, 400, 'leadId is required');
+        const user = (req as any).user || {};
+        const isSuperadmin = user.role === 'SUPER_ADMIN';
+        const userCompanyId = user.companyId || user.workspaceId;
+        if (!isSuperadmin && !userCompanyId) return errorResponse(res, 400, 'Company context required', 'COMPANY_REQUIRED');
+
+        const existing = await requestRepo.findById(id);
+        if (!existing) return errorResponse(res, 404, 'Request not found');
+        if (!isSuperadmin) {
+            if (existing.companyId && existing.companyId !== userCompanyId) return errorResponse(res, 403, 'Forbidden');
+            if (!existing.companyId && userCompanyId !== 'company_system') return errorResponse(res, 403, 'Forbidden');
+        }
+
+        const updated = await requestRepo.updateRequest(id, { leadId: String(leadId) } as any);
+        res.json(mapRequestOutput(updated));
+    } catch (e: any) {
+        logger.error(e);
+        errorResponse(res, 500, 'Failed to link lead');
+    }
+});
+
+router.post('/:id/link-chat', authenticateToken, requireRole(['OWNER', 'ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { chatId } = req.body || {};
+        if (!chatId) return errorResponse(res, 400, 'chatId is required');
+        const user = (req as any).user || {};
+        const isSuperadmin = user.role === 'SUPER_ADMIN';
+        const userCompanyId = user.companyId || user.workspaceId;
+        if (!isSuperadmin && !userCompanyId) return errorResponse(res, 400, 'Company context required', 'COMPANY_REQUIRED');
+
+        const existing = await requestRepo.findById(id);
+        if (!existing) return errorResponse(res, 404, 'Request not found');
+        if (!isSuperadmin) {
+            if (existing.companyId && existing.companyId !== userCompanyId) return errorResponse(res, 403, 'Forbidden');
+            if (!existing.companyId && userCompanyId !== 'company_system') return errorResponse(res, 403, 'Forbidden');
+        }
+
+        const updated = await requestRepo.updateRequest(id, { chatId: String(chatId) } as any);
+        res.json(mapRequestOutput(updated));
+    } catch (e: any) {
+        logger.error(e);
+        errorResponse(res, 500, 'Failed to link chat');
+    }
+});
+
 router.delete('/:id', authenticateToken, requireRole(['OWNER', 'ADMIN']), async (req, res) => {
     try {
         const { id } = req.params;
@@ -175,6 +242,60 @@ router.post('/:id/variants', authenticateToken, requireRole(['OWNER', 'ADMIN', '
         res.json(mapVariantOutput(variant));
     } catch (e: any) {
         errorResponse(res, 500, 'Failed to add variant');
+    }
+});
+
+router.post('/:id/variants/from-inventory', authenticateToken, requireRole(['OWNER', 'ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
+    const { id } = req.params;
+    const { carIds } = req.body || {};
+    const ids = Array.isArray(carIds) ? carIds.filter(Boolean).map(String) : [];
+    if (!ids.length) return errorResponse(res, 400, 'carIds[] is required');
+
+    try {
+        const user = (req as any).user || {};
+        const isSuperadmin = user.role === 'SUPER_ADMIN';
+        const userCompanyId = user.companyId || user.workspaceId;
+        if (!isSuperadmin && !userCompanyId) return errorResponse(res, 400, 'Company context required', 'COMPANY_REQUIRED');
+
+        const request = await requestRepo.findById(id);
+        if (!request) return errorResponse(res, 404, 'Request not found');
+        if (!isSuperadmin) {
+            if (request.companyId && request.companyId !== userCompanyId) return errorResponse(res, 403, 'Forbidden');
+            if (!request.companyId && userCompanyId !== 'company_system') return errorResponse(res, 403, 'Forbidden');
+        }
+
+        const cars = await prisma.carListing.findMany({
+            where: {
+                id: { in: ids },
+                ...(request.companyId ? { companyId: request.companyId } : {})
+            }
+        });
+        if (!cars.length) return errorResponse(res, 404, 'No cars found');
+
+        const created = await Promise.all(cars.map(car => prisma.requestVariant.create({
+            data: {
+                requestId: id,
+                status: 'SUBMITTED',
+                source: 'INVENTORY',
+                sourceUrl: car.sourceUrl || undefined,
+                title: car.title,
+                price: car.price,
+                currency: car.currency,
+                year: car.year,
+                mileage: car.mileage,
+                location: car.location,
+                thumbnail: car.thumbnail,
+                specs: {
+                    ...(car.specs as any || {}),
+                    carId: car.id
+                }
+            }
+        })));
+
+        res.json(created.map(mapVariantOutput));
+    } catch (e: any) {
+        logger.error(e);
+        errorResponse(res, 500, 'Failed to add variants');
     }
 });
 

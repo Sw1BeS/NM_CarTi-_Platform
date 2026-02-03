@@ -3,15 +3,15 @@ import React, { useState, useEffect } from 'react';
 import DOMPurify from 'dompurify';
 import { RequestsService } from '../../services/requestsService';
 import { Data } from '../../services/data';
-import { ApiClient } from '../../services/apiClient';
 import { ContentGenerator } from '../../services/contentGenerator';
 import { createDeepLinkKeyboard, buildDeepLink } from '../../services/deeplink';
 import { B2BRequest, RequestStatus, TelegramDestination, Bot } from '../../types';
-import { Plus, List as ListIcon, LayoutGrid, Search as SearchIcon, Filter, DollarSign, Calendar, ChevronRight, ChevronLeft, Send, X } from 'lucide-react';
+import { Plus, List as ListIcon, LayoutGrid, Search as SearchIcon, DollarSign, Calendar, ChevronRight, ChevronLeft, Send, X } from 'lucide-react';
 import { useToast } from '../../contexts/ToastContext';
 import { useSearchParams } from 'react-router-dom';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { StatusBadge } from '../../components/ui/StatusBadge';
+import { CarPicker } from '../../components/CarPicker';
 
 const isRecord = (value: unknown): value is Record<string, unknown> => {
     return !!value && typeof value === 'object' && !Array.isArray(value);
@@ -46,6 +46,7 @@ export const RequestList: React.FC = () => {
     const [totalPages, setTotalPages] = useState(1);
     const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState<'ALL' | string>('ALL');
+    const [botFilter, setBotFilter] = useState<string>('ALL');
 
     const [loading, setLoading] = useState(false);
     const { showToast } = useToast();
@@ -57,6 +58,8 @@ export const RequestList: React.FC = () => {
     const [broadcastTemplate, setBroadcastTemplate] = useState<'RAW' | 'IN_STOCK' | 'IN_TRANSIT'>('RAW');
     const [broadcasting, setBroadcasting] = useState(false);
     const [isCreateOpen, setIsCreateOpen] = useState(false);
+    const [detailRequest, setDetailRequest] = useState<B2BRequest | null>(null);
+    const [showCarPicker, setShowCarPicker] = useState(false);
     const [createForm, setCreateForm] = useState({
         title: '',
         type: 'BUY' as 'BUY' | 'SELL',
@@ -71,7 +74,12 @@ export const RequestList: React.FC = () => {
     const [creating, setCreating] = useState(false);
     const [searchParams, setSearchParams] = useSearchParams();
 
-    useEffect(() => { loadRequests(); }, [page, search, statusFilter]);
+    useEffect(() => { loadRequests(); }, [page, search, statusFilter, botFilter]);
+    useEffect(() => {
+        if (!detailRequest) return;
+        const updated = requests.find(r => r.id === detailRequest.id);
+        if (updated) setDetailRequest(updated);
+    }, [requests]);
     useEffect(() => {
         if (searchParams.get('create') === '1') {
             setIsCreateOpen(true);
@@ -98,7 +106,8 @@ export const RequestList: React.FC = () => {
                 page,
                 limit,
                 search: search || undefined,
-                status: statusFilter
+                status: statusFilter,
+                botId: botFilter
             });
             setRequests(data.items);
             setTotalItems(data.total);
@@ -197,6 +206,28 @@ export const RequestList: React.FC = () => {
         }
     };
 
+    const openDetails = (req: B2BRequest) => {
+        setDetailRequest(req);
+    };
+
+    const handleAddFromInventory = async (car: any) => {
+        if (!detailRequest) return;
+        const carId = car.canonicalId || car.id;
+        try {
+            const added = await RequestsService.addVariantsFromInventory(detailRequest.id, [carId]);
+            setRequests(prev => prev.map(r => r.id === detailRequest.id ? { ...r, variants: [...(r.variants || []), ...added] } : r));
+            setDetailRequest(prev => prev ? { ...prev, variants: [...(prev.variants || []), ...added] } : prev);
+            showToast('Car added to request', 'success');
+        } catch (e: any) {
+            showToast(e.message || 'Failed to add car', 'error');
+        } finally {
+            setShowCarPicker(false);
+        }
+    };
+
+    const statusOptions = ['ALL', ...Object.values(RequestStatus)];
+    const botOptions = [{ id: 'ALL', name: 'All Bots' }, ...bots];
+
     return (
         <div className="space-y-8 h-[calc(100vh-140px)] flex flex-col">
             <PageHeader
@@ -215,7 +246,7 @@ export const RequestList: React.FC = () => {
                 )}
             />
 
-            <div className="flex gap-4 shrink-0">
+            <div className="flex gap-4 shrink-0 flex-wrap">
                 <div className="relative flex-1">
                     <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)]" size={20} />
                     <input
@@ -225,9 +256,24 @@ export const RequestList: React.FC = () => {
                         onChange={e => { setSearch(e.target.value); setPage(1); }}
                     />
                 </div>
-                <button className="btn-secondary px-4">
-                    <Filter size={20} />
-                </button>
+                <select
+                    className="input min-w-[160px]"
+                    value={statusFilter}
+                    onChange={e => { setStatusFilter(e.target.value); setPage(1); }}
+                >
+                    {statusOptions.map(status => (
+                        <option key={status} value={status}>{status}</option>
+                    ))}
+                </select>
+                <select
+                    className="input min-w-[180px]"
+                    value={botFilter}
+                    onChange={e => { setBotFilter(e.target.value); setPage(1); }}
+                >
+                    {botOptions.map(bot => (
+                        <option key={bot.id} value={bot.id}>{(bot as any).name || (bot as any).username || bot.id}</option>
+                    ))}
+                </select>
             </div>
 
             <div className="flex-1 overflow-hidden min-h-0 relative">
@@ -257,7 +303,7 @@ export const RequestList: React.FC = () => {
                                         const sourceLabel = getSourceLabel(r.payload);
                                         const telegramLabel = getTelegramLabel(r.payload, r.clientChatId);
                                         return (
-                                        <tr key={r.id} className={`group cursor-pointer ${isFresh ? 'bg-amber-500/5' : ''}`}>
+                                        <tr key={r.id} onClick={() => openDetails(r)} className={`group cursor-pointer ${isFresh ? 'bg-amber-500/5' : ''}`}>
                                             <td className="font-mono text-sm text-[var(--text-secondary)] hidden md:table-cell">{r.publicId}</td>
                                             <td>
                                                 <div className="font-bold text-base text-[var(--text-primary)]">{r.title}</div>
@@ -286,7 +332,7 @@ export const RequestList: React.FC = () => {
                                             <td className="text-[var(--text-secondary)] text-sm hidden lg:table-cell">{r.city || '—'}</td>
                                             <td className="hidden lg:table-cell">
                                                 <button
-                                                    onClick={() => openBroadcast(r)}
+                                                    onClick={(e) => { e.stopPropagation(); openBroadcast(r); }}
                                                     className="btn-secondary text-xs px-3 py-1.5 flex items-center gap-1"
                                                 >
                                                     <Send size={14} /> To Channel
@@ -295,7 +341,7 @@ export const RequestList: React.FC = () => {
                                             <td className="text-right">
                                                 <div className="flex items-center justify-end gap-2">
                                                     <button
-                                                        onClick={() => openBroadcast(r)}
+                                                        onClick={(e) => { e.stopPropagation(); openBroadcast(r); }}
                                                         className="btn-secondary text-[10px] px-2 py-1 lg:hidden"
                                                     >
                                                         <Send size={12} />
@@ -335,7 +381,7 @@ export const RequestList: React.FC = () => {
                                 </div>
                                 <div className="flex-1 overflow-y-auto p-4 space-y-4">
                                     {requests.filter(r => r.status === colStatus).map(r => (
-                                        <div key={r.id} className="panel p-5 cursor-pointer hover:border-gold-500/50 group relative hover:-translate-y-1 transition-transform">
+                                        <div key={r.id} onClick={() => openDetails(r)} className="panel p-5 cursor-pointer hover:border-gold-500/50 group relative hover:-translate-y-1 transition-transform">
                                             {(() => {
                                                 const sourceLabel = getSourceLabel(r.payload);
                                                 const telegramLabel = getTelegramLabel(r.payload, r.clientChatId);
@@ -445,6 +491,62 @@ export const RequestList: React.FC = () => {
                         </div>
                     </div>
                 </div>
+            )}
+
+            {detailRequest && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="panel w-full max-w-4xl p-6 animate-slide-up">
+                        <div className="flex justify-between items-center mb-4">
+                            <div>
+                                <h3 className="font-bold text-[var(--text-primary)] text-xl">{detailRequest.title}</h3>
+                                <div className="text-xs text-[var(--text-secondary)]">{detailRequest.publicId} • {detailRequest.status}</div>
+                            </div>
+                            <div className="flex gap-2">
+                                <button onClick={() => setShowCarPicker(true)} className="btn-secondary text-xs">Add From Inventory</button>
+                                <button onClick={() => { setDetailRequest(null); setShowCarPicker(false); }} className="btn-ghost text-xs">Close</button>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="panel p-4 bg-[var(--bg-input)]">
+                                <div className="text-xs text-[var(--text-secondary)] uppercase font-bold mb-2">Request Details</div>
+                                <div className="text-sm text-[var(--text-primary)]">Budget: {detailRequest.budgetMax ? `$${detailRequest.budgetMax.toLocaleString()}` : '—'}</div>
+                                <div className="text-sm text-[var(--text-primary)]">Year: {detailRequest.yearMin ? `${detailRequest.yearMin}+` : '—'}</div>
+                                <div className="text-sm text-[var(--text-primary)]">City: {detailRequest.city || '—'}</div>
+                                <div className="text-xs text-[var(--text-secondary)] mt-3">{detailRequest.description || 'No description.'}</div>
+                            </div>
+                            <div className="panel p-4 bg-[var(--bg-input)]">
+                                <div className="text-xs text-[var(--text-secondary)] uppercase font-bold mb-2">Variants</div>
+                                <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                                    {(detailRequest.variants || []).map(v => (
+                                        <div key={v.id} className="flex items-center gap-3 p-2 rounded-lg border border-[var(--border-color)] bg-[var(--bg-panel)]">
+                                            <div className="w-16 h-12 rounded overflow-hidden bg-[var(--bg-input)]">
+                                                <img src={v.thumbnail || 'https://via.placeholder.com/80'} className="w-full h-full object-cover" />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="text-sm font-bold text-[var(--text-primary)] truncate">{v.title}</div>
+                                                <div className="text-[10px] text-[var(--text-secondary)]">{v.year} • {v.price?.amount ? `$${v.price.amount}` : '—'}</div>
+                                            </div>
+                                            <span className="text-[10px] uppercase font-bold px-2 py-1 rounded bg-gold-500/10 text-gold-500 border border-gold-500/20">
+                                                {v.status}
+                                            </span>
+                                        </div>
+                                    ))}
+                                    {(detailRequest.variants || []).length === 0 && (
+                                        <div className="text-xs text-[var(--text-secondary)]">No variants yet.</div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {showCarPicker && (
+                <CarPicker
+                    onSelect={handleAddFromInventory}
+                    onClose={() => setShowCarPicker(false)}
+                />
             )}
 
             {broadcastReq && (

@@ -6,4 +6,5 @@ export interface TelegramDestination {
     identifier: string;
     tags: string[];
     verified: boolean;
+    botId?: string;
 }

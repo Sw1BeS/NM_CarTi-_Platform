@@ -10,7 +10,7 @@ import { botManager } from '../modules/Communication/bots/bot.service.js';
 import { searchAutoRia } from '../modules/Integrations/autoria.service.js';
 import { sendMetaEvent } from '../modules/Integrations/meta.service.js';
 import { importDraft } from '../modules/Inventory/inventory/inventory.service.js';
-import { mapLeadCreateInput, mapLeadOutput, mapLeadStatusFilter, mapLeadUpdateInput } from '../services/dto.js';
+import { mapLeadCreateInput, mapLeadOutput, mapLeadStatusFilter, mapLeadUpdateInput, mapRequestStatusFilter } from '../services/dto.js';
 import { previewTemplate, resolveTemplateBody, buildTemplateVariables, renderTemplateBody } from '../services/publication.service.js';
 import { logIntegrationEvent } from '../services/integrationEventLog.service.js';
 import { mapBotInput, mapBotOutput } from '../modules/Communication/bots/botDto.js';
@@ -57,6 +57,31 @@ const resolveCompanyId = async (requestedCompanyId?: string | null, userCompanyI
 
     logger.warn('[API] System workspace not found, falling back to ID literal "company_system"');
     return 'company_system';
+};
+
+const resolveDateRange = (range?: string, fromRaw?: string, toRaw?: string) => {
+    const from = fromRaw ? new Date(fromRaw) : undefined;
+    const to = toRaw ? new Date(toRaw) : undefined;
+    if (from && !Number.isNaN(from.getTime()) || to && !Number.isNaN(to.getTime())) {
+        return {
+            from: from && !Number.isNaN(from.getTime()) ? from : undefined,
+            to: to && !Number.isNaN(to.getTime()) ? to : undefined
+        };
+    }
+    const now = new Date();
+    const normalized = String(range || '').toLowerCase();
+    const days = normalized === '7d' ? 7 : normalized === '30d' ? 30 : normalized === '90d' ? 90 : null;
+    if (!days) return { from: undefined, to: undefined };
+    const start = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+    return { from: start, to: now };
+};
+
+const buildDateFilter = (from?: Date, to?: Date) => {
+    if (!from && !to) return undefined;
+    const range: any = {};
+    if (from) range.gte = from;
+    if (to) range.lte = to;
+    return range;
 };
 
 // --- Bot Management (CRUD) ---
@@ -844,6 +869,285 @@ router.get('/events', requireRole(['ADMIN', 'MANAGER']), async (req, res) => {
     }
 });
 
+// --- Dashboard Metrics ---
+router.get('/metrics/dashboard', requireRole(['OWNER', 'ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
+    try {
+        const user = (req as any).user || {};
+        const isSuperadmin = user.role === 'SUPER_ADMIN';
+        const userCompanyId = user.companyId || user.workspaceId;
+        const requestedCompanyId = typeof req.query.companyId === 'string' ? req.query.companyId : undefined;
+        const companyId = isSuperadmin ? requestedCompanyId : userCompanyId;
+        if (!companyId && !isSuperadmin) return errorResponse(res, 400, 'Company context required');
+
+        const botId = typeof req.query.botId === 'string' && req.query.botId !== 'ALL' ? req.query.botId : undefined;
+        const requestStatus = typeof req.query.requestStatus === 'string' ? req.query.requestStatus : undefined;
+        const { from, to } = resolveDateRange(String(req.query.range || ''), typeof req.query.from === 'string' ? req.query.from : undefined, typeof req.query.to === 'string' ? req.query.to : undefined);
+        const dateFilter = buildDateFilter(from, to);
+
+        const bots = companyId ? await prisma.botConfig.findMany({ where: { companyId }, select: { id: true } }) : [];
+        const botIds = bots.map(b => b.id);
+        if (botId && companyId && !botIds.includes(botId)) {
+            return errorResponse(res, 403, 'Forbidden');
+        }
+
+        const leadWhere: any = {};
+        if (companyId) leadWhere.companyId = companyId;
+        if (botId) leadWhere.botId = botId;
+        if (dateFilter) leadWhere.createdAt = dateFilter;
+
+        const requestWhere: any = {};
+        if (companyId) requestWhere.companyId = companyId;
+        if (dateFilter) requestWhere.createdAt = dateFilter;
+        if (requestStatus && requestStatus !== 'ALL') {
+            const mapped = mapRequestStatusFilter(requestStatus);
+            if (mapped) requestWhere.status = mapped;
+        }
+
+        const messageWhere: any = { direction: 'INCOMING' };
+        if (dateFilter) messageWhere.createdAt = dateFilter;
+        if (botId) messageWhere.botId = botId;
+        else if (companyId && botIds.length) messageWhere.botId = { in: botIds };
+        else if (companyId) messageWhere.bot = { companyId };
+
+        const campaignWhere: any = { status: 'RUNNING' };
+        if (dateFilter) campaignWhere.createdAt = dateFilter;
+        if (botId) campaignWhere.botId = botId;
+        else if (companyId && botIds.length) campaignWhere.botId = { in: botIds };
+
+        const draftWhere: any = {};
+        if (dateFilter) draftWhere.createdAt = dateFilter;
+        if (botId) draftWhere.botId = botId;
+        else if (companyId && botIds.length) draftWhere.botId = { in: botIds };
+
+        const [leadsTotal, leadsToday, leadsInProgress, leadsWon, leadSources, messagesCount, campaignsActive] = await Promise.all([
+            prisma.lead.count({ where: leadWhere }),
+            prisma.lead.count({
+                where: {
+                    ...(leadWhere || {}),
+                    createdAt: {
+                        gte: new Date(new Date().setHours(0, 0, 0, 0))
+                    }
+                }
+            }),
+            prisma.lead.count({ where: { ...leadWhere, status: { not: 'NEW' } } }),
+            prisma.lead.count({ where: { ...leadWhere, status: 'WON' } }),
+            prisma.lead.groupBy({
+                by: ['source'],
+                where: leadWhere,
+                _count: { _all: true }
+            }).catch(() => []),
+            prisma.botMessage.count({ where: messageWhere }),
+            prisma.campaign.count({ where: campaignWhere })
+        ]);
+
+        const requests = await prisma.b2bRequest.findMany({
+            where: requestWhere,
+            select: {
+                id: true,
+                status: true,
+                updatedAt: true,
+                createdAt: true,
+                _count: { select: { variants: true } }
+            }
+        });
+
+        const requestsProgress = requests.filter(r => !['WON', 'LOST', 'DRAFT'].includes(String(r.status))).length;
+        const requestsWithOffers = requests.filter(r => (r as any)._count?.variants > 0);
+        const offersFresh = requestsWithOffers.filter(r => {
+            const updatedAt = r.updatedAt || r.createdAt;
+            return Date.now() - new Date(updatedAt).getTime() < 1000 * 60 * 60 * 24;
+        }).length;
+
+        const inventoryWhere: any = {};
+        if (companyId) inventoryWhere.companyId = companyId;
+        const inventoryAgg = await prisma.carListing.aggregate({
+            where: inventoryWhere,
+            _count: { _all: true },
+            _sum: { price: true }
+        });
+
+        const draftsScheduled = await prisma.draft.count({
+            where: { ...draftWhere, status: 'SCHEDULED' }
+        });
+        const draftsPostedToday = await prisma.draft.count({
+            where: {
+                ...draftWhere,
+                status: 'POSTED',
+                postedAt: {
+                    gte: new Date(new Date().setHours(0, 0, 0, 0))
+                }
+            }
+        });
+
+        let partnerActivity: any[] = [];
+        if (isSuperadmin) {
+            const companyCounts = await prisma.b2bRequest.groupBy({
+                by: ['companyId'],
+                where: dateFilter ? { createdAt: dateFilter } : {},
+                _count: { _all: true }
+            });
+            const companyIds = companyCounts.map(c => c.companyId).filter(Boolean) as string[];
+            const companies = companyIds.length ? await prisma.workspace.findMany({ where: { id: { in: companyIds } }, select: { id: true, name: true } }) : [];
+            const nameMap = new Map(companies.map(c => [c.id, c.name || c.id]));
+            partnerActivity = companyCounts
+                .map(c => {
+                    const key = c.companyId || '';
+                    return { name: nameMap.get(key) || c.companyId || 'Unknown', value: c._count?._all || 0 };
+                })
+                .sort((a, b) => b.value - a.value)
+                .slice(0, 5);
+        }
+
+        let activity: any[] = [];
+        try {
+            const def = await prisma.entityDefinition.findFirst({ where: { slug: 'sys_activity', status: 'ACTIVE' }, select: { id: true } });
+            if (def?.id) {
+                const records = await prisma.entityRecord.findMany({ where: { entityId: def.id }, orderBy: { createdAt: 'desc' }, take: 10 });
+                activity = records.map((r: any) => ({ id: r.id, ...(r.data || {}), timestamp: r.data?.timestamp || r.createdAt }));
+            }
+        } catch {
+            activity = [];
+        }
+
+        res.json({
+            range: {
+                from: from ? from.toISOString() : null,
+                to: to ? to.toISOString() : null
+            },
+            stats: {
+                requestsNew: requests.length,
+                requestsProgress,
+                offersFresh,
+                requestsWithOffers: requestsWithOffers.length,
+                inventoryValue: inventoryAgg._sum.price || 0,
+                inventoryCount: inventoryAgg._count._all || 0,
+                inboxNew: messagesCount,
+                campaignsActive,
+                leadsToday,
+                draftsScheduled,
+                draftsPosted: draftsPostedToday
+            },
+            funnel: {
+                incoming: messagesCount,
+                leads: leadsTotal,
+                inProgress: leadsInProgress,
+                won: leadsWon
+            },
+            sources: (leadSources || []).map((s: any) => ({ name: s.source || 'Unknown', value: s._count?._all || 0 })),
+            partnerActivity,
+            activity
+        });
+    } catch (e: any) {
+        logger.error('[Metrics] Dashboard error:', e.message || e);
+        errorResponse(res, 500, 'Failed to load dashboard metrics');
+    }
+});
+
+// --- Telegram Metrics ---
+router.get('/metrics/telegram', requireRole(['OWNER', 'ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
+    try {
+        const user = (req as any).user || {};
+        const isSuperadmin = user.role === 'SUPER_ADMIN';
+        const userCompanyId = user.companyId || user.workspaceId;
+        const requestedCompanyId = typeof req.query.companyId === 'string' ? req.query.companyId : undefined;
+        const companyId = isSuperadmin ? requestedCompanyId : userCompanyId;
+        if (!companyId && !isSuperadmin) return errorResponse(res, 400, 'Company context required');
+
+        const botId = typeof req.query.botId === 'string' && req.query.botId !== 'ALL' ? req.query.botId : undefined;
+        const { from, to } = resolveDateRange(String(req.query.range || ''), typeof req.query.from === 'string' ? req.query.from : undefined, typeof req.query.to === 'string' ? req.query.to : undefined);
+        const dateFilter = buildDateFilter(from, to);
+
+        const where: any = { integration: 'TELEGRAM' };
+        if (companyId) where.companyId = companyId;
+        if (dateFilter) where.createdAt = dateFilter;
+        if (botId) {
+            where.meta = { path: ['botId'], equals: botId };
+        }
+
+        const grouped = await prisma.integrationEventLog.groupBy({
+            by: ['action', 'status'],
+            where,
+            _count: { _all: true }
+        });
+
+        const counts: Record<string, number> = {
+            sent: 0,
+            failed: 0,
+            received: 0
+        };
+
+        grouped.forEach(g => {
+            const count = g._count?._all || 0;
+            if (g.action === 'message.sent') counts.sent += count;
+            if (g.action === 'message.received') counts.received += count;
+            if (g.action === 'message.failed') counts.failed += count;
+        });
+
+        res.json({
+            range: { from: from ? from.toISOString() : null, to: to ? to.toISOString() : null },
+            counts
+        });
+    } catch (e: any) {
+        logger.error('[Metrics] Telegram error:', e.message || e);
+        errorResponse(res, 500, 'Failed to load telegram metrics');
+    }
+});
+
+// --- Parsing Jobs (Search/Parsing pipeline) ---
+router.post('/search/parse', requireRole(['OWNER', 'ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
+    try {
+        const url = typeof req.body?.url === 'string' ? req.body.url.trim() : '';
+        if (!url) return errorResponse(res, 400, 'url is required');
+
+        const user = (req as any).user || {};
+        const isSuperadmin = user.role === 'SUPER_ADMIN';
+        const userCompanyId = user.companyId || user.workspaceId;
+        const requestedCompanyId = typeof req.body?.companyId === 'string' ? req.body.companyId : undefined;
+        const companyId = isSuperadmin ? (requestedCompanyId || userCompanyId) : userCompanyId;
+        if (!companyId && !isSuperadmin) return errorResponse(res, 400, 'Company context required');
+
+        const job = await prisma.parsingJob.create({
+            data: {
+                url,
+                companyId: companyId || null,
+                status: 'PENDING'
+            }
+        });
+        res.json(job);
+    } catch (e: any) {
+        logger.error('[ParsingJob] Create error:', e.message || e);
+        errorResponse(res, 500, 'Failed to create parsing job');
+    }
+});
+
+router.get('/search/jobs', requireRole(['OWNER', 'ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
+    try {
+        const user = (req as any).user || {};
+        const isSuperadmin = user.role === 'SUPER_ADMIN';
+        const userCompanyId = user.companyId || user.workspaceId;
+        const requestedCompanyId = typeof req.query.companyId === 'string' ? req.query.companyId : undefined;
+        const companyId = isSuperadmin ? requestedCompanyId : userCompanyId;
+        if (!companyId && !isSuperadmin) return errorResponse(res, 400, 'Company context required');
+
+        const status = typeof req.query.status === 'string' ? req.query.status : undefined;
+        const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 50));
+
+        const where: any = {};
+        if (companyId) where.companyId = companyId;
+        if (status) where.status = status;
+
+        const jobs = await prisma.parsingJob.findMany({
+            where,
+            orderBy: { createdAt: 'desc' },
+            take: limit
+        });
+        res.json(jobs);
+    } catch (e: any) {
+        logger.error('[ParsingJob] Fetch error:', e.message || e);
+        errorResponse(res, 500, 'Failed to fetch parsing jobs');
+    }
+});
+
 // MessageLog timeline (Request-aware)
 router.get('/messages/logs', requireRole(['OWNER', 'ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
     try {
@@ -892,6 +1196,53 @@ router.get('/messages/logs', requireRole(['OWNER', 'ADMIN', 'MANAGER', 'OPERATOR
     } catch (e: any) {
         logger.error('[MessageLog] Fetch error:', e.message || e);
         errorResponse(res, 500, 'Failed to fetch message logs');
+    }
+});
+
+router.post('/messages/logs', requireRole(['OWNER', 'ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
+    try {
+        const payload = req.body || {};
+        const chatId = typeof payload.chatId === 'string' ? payload.chatId : undefined;
+        if (!chatId) return errorResponse(res, 400, 'chatId is required');
+
+        const user = (req as any).user || {};
+        const isSuperadmin = user.role === 'SUPER_ADMIN';
+        const userCompanyId = user.companyId || user.workspaceId;
+        const companyId = isSuperadmin ? (payload.companyId || userCompanyId) : userCompanyId;
+        if (!companyId && !isSuperadmin) return errorResponse(res, 400, 'Company context required');
+
+        if (payload.botId && companyId) {
+            const bot = await prisma.botConfig.findUnique({ where: { id: String(payload.botId) }, select: { companyId: true } });
+            if (!bot) return errorResponse(res, 404, 'Bot not found');
+            if (!isSuperadmin && bot.companyId !== companyId) return errorResponse(res, 403, 'Forbidden');
+        }
+
+        if (payload.requestId && companyId) {
+            const reqRow = await prisma.b2bRequest.findUnique({ where: { id: String(payload.requestId) }, select: { companyId: true } });
+            if (reqRow?.companyId && !isSuperadmin && reqRow.companyId !== companyId) return errorResponse(res, 403, 'Forbidden');
+        }
+
+        const direction = String(payload.direction || 'OUTGOING').toUpperCase();
+        if (!['INCOMING', 'OUTGOING'].includes(direction)) {
+            return errorResponse(res, 400, 'Invalid direction');
+        }
+
+        const created = await prisma.messageLog.create({
+            data: {
+                requestId: payload.requestId ? String(payload.requestId) : null,
+                variantId: payload.variantId ? String(payload.variantId) : null,
+                botId: payload.botId ? String(payload.botId) : null,
+                chatId: String(chatId),
+                direction,
+                text: payload.text ? String(payload.text) : null,
+                payload: payload.payload ?? null
+            }
+        });
+
+        res.json(created);
+    } catch (e: any) {
+        logger.error('[MessageLog] Create error:', e.message || e);
+        errorResponse(res, 500, 'Failed to create message log');
     }
 });
 
@@ -1501,7 +1852,7 @@ router.get('/destinations', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), async
             where: {
                 ...(companyId ? { bot: { companyId } } : {})
             },
-            select: { chatId: true, payload: true },
+            select: { chatId: true, payload: true, botId: true },
             orderBy: { createdAt: 'desc' },
             take: 500
         });
@@ -1517,7 +1868,8 @@ router.get('/destinations', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), async
                     name: bot.name ? `${bot.name} Channel` : 'Channel',
                     type: 'CHANNEL',
                     tags: ['bot-channel'],
-                    verified: true
+                    verified: true,
+                    botId: bot.id
                 });
             }
             if (bot.adminChatId) {
@@ -1528,7 +1880,8 @@ router.get('/destinations', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), async
                     name: bot.name ? `${bot.name} Admin` : 'Admin Chat',
                     type: 'USER',
                     tags: ['bot-admin'],
-                    verified: true
+                    verified: true,
+                    botId: bot.id
                 });
             }
         });
@@ -1556,7 +1909,8 @@ router.get('/destinations', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), async
                 name,
                 type,
                 tags: ['bot-user'],
-                verified: true
+                verified: true,
+                botId: row.botId
             });
         });
 
@@ -1588,7 +1942,8 @@ router.get('/destinations', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), async
                     name: data.name || data.title || String(identifier),
                     type,
                     tags: Array.isArray(data.tags) ? data.tags : [],
-                    verified: data.verified !== false
+                    verified: data.verified !== false,
+                    botId: data.botId
                 });
             });
         }
@@ -2039,18 +2394,35 @@ router.post('/content/publication-jobs', requireRole(['OWNER', 'ADMIN', 'MANAGER
 
         if (!payload.destination) return errorResponse(res, 400, 'destination is required');
 
-        const bot = payload.botId
-            ? await prisma.botConfig.findUnique({ where: { id: String(payload.botId) } })
-            : await prisma.botConfig.findFirst({
+        const destinationId = String(payload.destination);
+        let resolvedBot: any = null;
+
+        if (companyId) {
+            const dest = await prisma.telegramDestination.findFirst({
+                where: { companyId, tgId: destinationId, botId: { not: null } },
+                select: { botId: true }
+            });
+            if (dest?.botId) {
+                resolvedBot = await prisma.botConfig.findUnique({ where: { id: dest.botId } });
+            }
+        }
+
+        if (!resolvedBot) {
+            resolvedBot = await prisma.botConfig.findFirst({
                 where: {
                     isEnabled: true,
-                    ...(companyId ? { companyId } : {})
+                    ...(companyId ? { companyId } : {}),
+                    OR: [
+                        { channelId: destinationId },
+                        { adminChatId: destinationId }
+                    ]
                 },
                 orderBy: { createdAt: 'asc' }
             });
+        }
 
-        if (!bot?.token) return errorResponse(res, 400, 'Bot token not found');
-        if (companyId && !isSuperadmin && bot.companyId !== companyId) {
+        if (!resolvedBot?.token) return errorResponse(res, 400, 'Destination has no bot configured');
+        if (companyId && !isSuperadmin && resolvedBot.companyId !== companyId) {
             return errorResponse(res, 403, 'Forbidden');
         }
 
@@ -2079,7 +2451,7 @@ router.post('/content/publication-jobs', requireRole(['OWNER', 'ADMIN', 'MANAGER
                 url: resolvedMediaUrl,
                 status: 'SCHEDULED',
                 destination: payload.destination,
-                botId: bot.id,
+                botId: resolvedBot.id,
                 scheduledAt: scheduledAt || new Date(),
                 metadata: {
                     templateId: payload.templateId ?? null,
@@ -2094,7 +2466,7 @@ router.post('/content/publication-jobs', requireRole(['OWNER', 'ADMIN', 'MANAGER
                 companyId: companyId || null,
                 draftId: draft?.id,
                 templateId: payload.templateId ?? null,
-                botId: bot.id,
+                botId: resolvedBot.id,
                 title: resolvedTitle,
                 text,
                 mediaUrl: resolvedMediaUrl,
@@ -2112,9 +2484,9 @@ router.post('/content/publication-jobs', requireRole(['OWNER', 'ADMIN', 'MANAGER
         if (publishNow) {
             try {
                 const result = await integrationService.publishTelegramChannelPost({
-                    companyId: String(companyId || bot.companyId || ''),
-                    botToken: bot.token,
-                    botId: bot.id,
+                    companyId: String(companyId || resolvedBot.companyId || ''),
+                    botToken: resolvedBot.token,
+                    botId: resolvedBot.id,
                     destination: payload.destination,
                     text,
                     imageUrl: resolvedMediaUrl ?? undefined
@@ -2162,7 +2534,7 @@ router.post('/content/publication-jobs', requireRole(['OWNER', 'ADMIN', 'MANAGER
                             draftId: draft?.id,
                             channelId: payload.destination,
                             messageId: Number(messageId),
-                            botId: bot.id,
+                            botId: resolvedBot.id,
                             status: 'ACTIVE',
                             payload: publishResult
                         }
@@ -2323,6 +2695,72 @@ router.put('/leads/:id', requireRole(['SUPER_ADMIN', 'OWNER', 'ADMIN', 'MANAGER'
         const lead = await prisma.lead.update({ where: { id }, data: mapped.data });
         res.json(mapLeadOutput(lead));
     } catch (e) { logger.error(e); errorResponse(res, 500, 'Failed to update lead'); }
+});
+
+router.post('/leads/merge', requireRole(['SUPER_ADMIN', 'OWNER', 'ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
+    try {
+        const { primaryId, duplicateId } = req.body || {};
+        if (!primaryId || !duplicateId) return errorResponse(res, 400, 'primaryId and duplicateId are required');
+        if (primaryId === duplicateId) return errorResponse(res, 400, 'primaryId and duplicateId must differ');
+
+        const user = (req as any).user || {};
+        const isSuperadmin = user.role === 'SUPER_ADMIN';
+        const userCompanyId = user.companyId || user.workspaceId;
+
+        const [primary, duplicate] = await Promise.all([
+            prisma.lead.findUnique({ where: { id: String(primaryId) } }),
+            prisma.lead.findUnique({ where: { id: String(duplicateId) } })
+        ]);
+
+        if (!primary || !duplicate) return errorResponse(res, 404, 'Lead not found');
+        if (!isSuperadmin && userCompanyId) {
+            if (primary.companyId !== userCompanyId || duplicate.companyId !== userCompanyId) {
+                return errorResponse(res, 403, 'Forbidden');
+            }
+        }
+
+        const mergedPayload = {
+            ...(duplicate.payload as any || {}),
+            ...(primary.payload as any || {}),
+            mergedFrom: Array.from(new Set([...(primary.payload as any)?.mergedFrom || [], duplicate.id])),
+            mergedAt: new Date().toISOString()
+        };
+
+        const updated = await prisma.lead.update({
+            where: { id: primary.id },
+            data: {
+                clientName: primary.clientName || duplicate.clientName,
+                phone: primary.phone || duplicate.phone,
+                userTgId: primary.userTgId || duplicate.userTgId,
+                payload: mergedPayload
+            }
+        });
+
+        await prisma.lead.update({
+            where: { id: duplicate.id },
+            data: {
+                status: 'LOST',
+                payload: {
+                    ...(duplicate.payload as any || {}),
+                    mergedInto: primary.id,
+                    mergedAt: new Date().toISOString()
+                }
+            }
+        });
+
+        await prisma.leadActivity.create({
+            data: {
+                leadId: primary.id,
+                type: 'DUPLICATE_MERGED',
+                payload: { duplicateId: duplicate.id }
+            }
+        }).catch(() => null);
+
+        res.json(mapLeadOutput(updated));
+    } catch (e: any) {
+        logger.error('[Leads] Merge error:', e.message || e);
+        errorResponse(res, 500, 'Failed to merge leads');
+    }
 });
 
 router.delete('/leads/:id', requireRole(['SUPER_ADMIN', 'OWNER', 'ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {

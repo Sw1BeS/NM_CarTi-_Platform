@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { randomUUID } from 'crypto';
 // @ts-ignore
 import { prisma } from '../services/prisma.js';
 import { authenticateToken, requireRole } from '../middleware/auth.js';
@@ -240,6 +241,31 @@ router.post('/:slug/records', requireRole(editorRoles), async (req, res) => {
   const { data, errors } = validateAndNormalizeData(def.fields, inputData);
 
   if (errors.length) return bad(res, 400, 'Validation error', errors);
+
+  if (slug === 'partner_company' && data?.name) {
+    const name = String(data.name || '').trim();
+    const phone = data.phone ? String(data.phone).trim() : '';
+    const email = data.email ? String(data.email).trim() : '';
+    if (name && (phone || email)) {
+      const or: any[] = [];
+      if (phone) or.push({ data: { path: ['phone'], equals: phone } });
+      if (email) or.push({ data: { path: ['email'], equals: email } });
+      const existing = await prisma.entityRecord.findFirst({
+        where: {
+          entityId: def.id,
+          AND: [
+            { data: { path: ['name'], equals: name } },
+            { OR: or }
+          ]
+        }
+      });
+      if (existing) return bad(res, 409, 'Partner already exists');
+    }
+  }
+
+  if (['partner_company', 'partner_contact', 'partner_deal'].includes(slug)) {
+    if (!data.id) data.id = randomUUID();
+  }
 
   const created = await prisma.entityRecord.create({
     data: { entityId: def.id, data }

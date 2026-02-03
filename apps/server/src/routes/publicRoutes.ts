@@ -13,6 +13,21 @@ import { errorResponse } from '../utils/errorResponse.js';
 const router = Router();
 const showcaseService = new ShowcaseService();
 
+const requireInitData = async (initData: string | undefined, companyId?: string | null) => {
+  if (!initData) return { ok: false, message: 'initData is required' };
+  const init = initData;
+  const bots = await prisma.botConfig.findMany({
+    where: {
+      isEnabled: true,
+      ...(companyId ? { companyId } : {})
+    },
+    select: { token: true }
+  });
+  const verified = bots.some(bot => verifyTelegramInitData(init, bot.token));
+  if (!verified) return { ok: false, message: 'Invalid Telegram init data' };
+  return { ok: true };
+};
+
 // Public Inventory
 router.get('/:slug/inventory', async (req, res) => {
   try {
@@ -120,13 +135,9 @@ router.post('/:slug/requests', async (req, res) => {
     const workspace = await getWorkspaceBySlug(slug);
     if (!workspace) return errorResponse(res, 404, 'Company not found');
 
-    // Validate initData if present
     const { initData, ...payload } = req.body || {};
-    if (initData) {
-       // Optional: Enforce validation if strictly required.
-       // For now we allow open requests but log.
-       // logic to find bot token and verify would go here.
-    }
+    const initCheck = await requireInitData(initData, workspace.id);
+    if (!initCheck.ok) return errorResponse(res, 401, initCheck.message || 'Unauthorized');
 
     const { variants, ...raw } = payload;
     const createData: any = mapRequestInput(raw);
@@ -204,6 +215,10 @@ router.get('/:slug/request-status', async (req, res) => {
 
 router.post('/leads', async (req, res) => {
   try {
+    const { initData } = req.body || {};
+    const initCheck = await requireInitData(initData);
+    if (!initCheck.ok) return errorResponse(res, 401, initCheck.message || 'Unauthorized');
+
     const mapped = mapLeadCreateInput(req.body || {});
     if (mapped.error) return errorResponse(res, 400, mapped.error);
     const requestedBotId = (req.body || {}).botId ? String((req.body || {}).botId) : undefined;
@@ -238,6 +253,10 @@ router.post('/leads', async (req, res) => {
 
 router.post('/requests', async (req, res) => {
   try {
+    const { initData } = req.body || {};
+    const initCheck = await requireInitData(initData);
+    if (!initCheck.ok) return errorResponse(res, 401, initCheck.message || 'Unauthorized');
+
     const { variants, ...raw } = req.body || {};
     const createData: any = mapRequestInput(raw);
     if (!createData.title) {
@@ -262,6 +281,11 @@ router.post('/requests/:id/variants', async (req, res) => {
   const { id } = req.params;
   const variantData = mapVariantInput(req.body || {});
   try {
+    const { initData } = req.body || {};
+    const request = await prisma.b2bRequest.findUnique({ where: { id }, select: { companyId: true } });
+    const initCheck = await requireInitData(initData, request?.companyId);
+    if (!initCheck.ok) return errorResponse(res, 401, initCheck.message || 'Unauthorized');
+
     const variant = await prisma.requestVariant.create({
       data: {
         ...variantData,
@@ -413,6 +437,10 @@ router.get('/proposals/:id', async (req, res) => {
 
 router.post('/proposals/:id/view', async (req, res) => {
   try {
+    const { initData } = req.body || {};
+    const initCheck = await requireInitData(initData);
+    if (!initCheck.ok) return errorResponse(res, 401, initCheck.message || 'Unauthorized');
+
     const { id } = req.params;
     const record = await prisma.entityRecord.findFirst({
       where: { id, entity: { slug: 'b2b_proposal' } }
@@ -437,6 +465,10 @@ router.post('/proposals/:id/view', async (req, res) => {
 
 router.post('/proposals/:id/feedback', async (req, res) => {
   try {
+    const { initData } = req.body || {};
+    const initCheck = await requireInitData(initData);
+    if (!initCheck.ok) return errorResponse(res, 401, initCheck.message || 'Unauthorized');
+
     const { id } = req.params;
     const { variantId, type } = req.body || {};
     if (!variantId || !type) return errorResponse(res, 400, 'variantId and type are required');

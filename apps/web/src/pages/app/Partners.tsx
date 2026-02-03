@@ -44,7 +44,6 @@ export const PartnersPage = () => {
     const saveCompany = async () => {
         if (!companyForm.name.trim()) return showToast('Company name is required', 'error');
         await Data.saveEntity('partner_company', {
-            id: `partner_${Date.now()}`,
             ...companyForm,
             tags: companyForm.tags.split(',').map(t => t.trim()).filter(Boolean),
             createdAt: new Date().toISOString()
@@ -59,7 +58,6 @@ export const PartnersPage = () => {
         if (!selectedCompanyId) return;
         if (!contactForm.name.trim()) return showToast('Contact name is required', 'error');
         await Data.saveEntity('partner_contact', {
-            id: `contact_${Date.now()}`,
             companyId: selectedCompanyId,
             ...contactForm,
             createdAt: new Date().toISOString()
@@ -73,7 +71,6 @@ export const PartnersPage = () => {
     const saveDeal = async () => {
         if (!selectedCompanyId) return;
         await Data.saveEntity('partner_deal', {
-            id: `deal_${Date.now()}`,
             companyId: selectedCompanyId,
             status: dealForm.status,
             value: dealForm.value ? Number(dealForm.value) : undefined,

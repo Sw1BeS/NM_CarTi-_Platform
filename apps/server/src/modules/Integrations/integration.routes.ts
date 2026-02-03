@@ -97,6 +97,87 @@ router.get('/:type', requireRole(['OWNER', 'ADMIN']), async (req: any, res) => {
 });
 
 /**
+ * GET /api/integrations/:type/health
+ * Return (and optionally refresh) integration health
+ */
+router.get('/:type/health', requireRole(['OWNER', 'ADMIN']), async (req: any, res) => {
+    try {
+        const type = req.params.type.toUpperCase();
+        const integration = await integrationService.getByType(req.companyId, type);
+
+        if (!integration) {
+            return errorResponse(res, 404, 'Integration not found', 'INTEGRATION_NOT_FOUND');
+        }
+
+        const refresh = String(req.query.refresh || '').toLowerCase() === '1' || String(req.query.refresh || '').toLowerCase() === 'true';
+        let healthStatus = integration.healthStatus || 'UNKNOWN';
+        let healthMessage = integration.healthMessage || null;
+        let healthCheckedAt = integration.healthCheckedAt || null;
+
+        if (refresh && integration.config) {
+            try {
+                if (type === 'META_PIXEL') {
+                    const { testMetaConnection } = await import('./meta.service.js');
+                    const { pixelId, accessToken, testCode } = integration.config as any;
+                    if (!pixelId || !accessToken) throw new Error('pixelId and accessToken are required');
+                    await testMetaConnection(pixelId, accessToken, testCode);
+                } else if (type === 'SENDPULSE') {
+                    const { testSendPulseConnection } = await import('./sendpulse/sendpulse.service.js');
+                    const { apiUserId, apiSecret } = integration.config as any;
+                    if (!apiUserId || !apiSecret) throw new Error('apiUserId and apiSecret are required');
+                    await testSendPulseConnection(apiUserId, apiSecret);
+                } else if (type === 'WEBHOOK') {
+                    const { url } = integration.config as any;
+                    if (!url) throw new Error('url is required');
+                    const axios = (await import('axios')).default;
+                    await axios.head(url, { timeout: 5000 });
+                }
+
+                healthStatus = 'OK';
+                healthMessage = 'OK';
+                healthCheckedAt = new Date();
+                await prisma.integration.update({
+                    where: { id: integration.id },
+                    data: {
+                        healthStatus,
+                        healthMessage,
+                        healthCheckedAt,
+                        retryCount: 0,
+                        lastError: null
+                    }
+                });
+            } catch (e: any) {
+                healthStatus = 'ERROR';
+                healthMessage = e?.message || 'Health check failed';
+                healthCheckedAt = new Date();
+                await prisma.integration.update({
+                    where: { id: integration.id },
+                    data: {
+                        healthStatus,
+                        healthMessage,
+                        healthCheckedAt,
+                        retryCount: { increment: 1 },
+                        lastError: healthMessage
+                    }
+                });
+            }
+        }
+
+        res.json({
+            type,
+            isActive: integration.isActive,
+            status: healthStatus,
+            message: healthMessage,
+            checkedAt: healthCheckedAt,
+            retryCount: integration.retryCount || 0,
+            lastError: integration.lastError || undefined
+        });
+    } catch (e: any) {
+        return errorResponse(res, 500, e.message || 'Integration health error', 'INTEGRATION_HEALTH');
+    }
+});
+
+/**
  * PUT /api/integrations/:type
  * Create or update integration (ADMIN+ only)
  */

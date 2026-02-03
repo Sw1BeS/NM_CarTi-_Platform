@@ -1334,7 +1334,8 @@ export class ScenarioEngine {
               chatId: session.chatId,
               language: vars.language,
               publicId: generatePublicId(),
-              companyId: bot.companyId || null
+              companyId: bot.companyId || null,
+              botId: bot.id
             }
           });
           vars.requestId = request.publicId;

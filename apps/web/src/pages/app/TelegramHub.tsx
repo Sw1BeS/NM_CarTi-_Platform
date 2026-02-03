@@ -8,7 +8,7 @@ import { useSearchParams } from 'react-router-dom';
 
 // Modules
 import { MiniAppManager } from '../../modules/Telegram/MiniAppManager/index';
-import { MTProtoManager } from '../../modules/Telegram/components/MTProtoManager';
+import { MTProtoSources } from '../../modules/Telegram/MTProtoSources';
 import { AddBotModal, BotSettings } from './TelegramHub.components';
 import { CampaignManager } from '../../modules/Telegram/components/CampaignManager';
 import { AudienceManager } from '../../modules/Telegram/components/AudienceManager';
@@ -208,7 +208,7 @@ export const TelegramHub = () => {
                                 {activeTab === 'AUDIENCE' && <AudienceManager bot={selectedBot} />}
                                 {activeTab === 'MINIAPP' && <MiniAppManager botId={selectedBot.id} />}
                                 {activeTab === 'SHOWCASES' && <ShowcaseManager botId={selectedBot.id} />}
-                                {activeTab === 'MTPROTO' && <MTProtoManager bot={selectedBot} />}
+                                {activeTab === 'MTPROTO' && <MTProtoSources botId={selectedBot.id} />}
                                 {activeTab === 'REGISTRY' && <SourcesDestinationsRegistry />}
                                 {activeTab === 'SETTINGS' && <BotSettings bot={selectedBot} />}
                             </div>
