@@ -1,5 +1,6 @@
 
 import { ApiClient } from './apiClient';
+import { appendSuperadminCompanyParam, attachSuperadminCompany } from '../utils/superadminCompany';
 import { Lead } from '../types';
 
 export interface LeadsFilter {
@@ -27,7 +28,8 @@ export const LeadsService = {
         if (filter.source) query.append('source', filter.source);
         if (filter.search) query.append('search', filter.search);
 
-        const res = await ApiClient.get<LeadsResponse | Lead[]>(`leads?${query.toString()}`);
+        const queryString = appendSuperadminCompanyParam(query).toString();
+        const res = await ApiClient.get<LeadsResponse | Lead[]>(`leads${queryString ? `?${queryString}` : ''}`);
 
         // Backward compatibility: If API returns array (legacy or unit test mock), wrap it
         if (Array.isArray(res.data)) {
@@ -44,13 +46,13 @@ export const LeadsService = {
     },
 
     async createLead(lead: Partial<Lead>): Promise<Lead> {
-        const res = await ApiClient.post<Lead>('leads', lead);
+        const res = await ApiClient.post<Lead>('leads', attachSuperadminCompany(lead as any));
         if (!res.ok) throw new Error(res.message);
         return res.data as Lead;
     },
 
     async updateLead(id: string | number, lead: Partial<Lead>): Promise<Lead> {
-        const res = await ApiClient.put<Lead>(`leads/${id}`, lead);
+        const res = await ApiClient.put<Lead>(`leads/${id}`, attachSuperadminCompany(lead as any));
         if (!res.ok) throw new Error(res.message);
         return res.data as Lead;
     },

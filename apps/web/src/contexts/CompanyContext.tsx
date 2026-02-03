@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useAuth } from './AuthContext';
+import { useSuperAdminCompany } from './SuperAdminCompanyContext';
 import { ApiClient } from '../services/apiClient';
 
 interface Company {
@@ -29,6 +30,7 @@ const CompanyContext = createContext<CompanyContextType | undefined>(undefined);
 
 export const CompanyProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const { user } = useAuth();
+    const { companyId: selectedCompanyId } = useSuperAdminCompany();
     const [company, setCompany] = useState<Company | null>(null);
     const [loading, setLoading] = useState(true);
 
@@ -40,7 +42,10 @@ export const CompanyProvider: React.FC<{ children: ReactNode }> = ({ children })
         }
 
         try {
-            const data = await ApiClient.apiFetch('/companies/current');
+            const query = user.role === 'SUPER_ADMIN' && selectedCompanyId
+                ? `?companyId=${encodeURIComponent(selectedCompanyId)}`
+                : '';
+            const data = await ApiClient.apiFetch(`/companies/current${query}`);
             setCompany(data);
         } catch (e) {
             console.error('Failed to load company:', e);
@@ -51,7 +56,7 @@ export const CompanyProvider: React.FC<{ children: ReactNode }> = ({ children })
 
     useEffect(() => {
         loadCompany();
-    }, [user]);
+    }, [user, selectedCompanyId]);
 
     return (
         <CompanyContext.Provider value={{ company, loading, refreshCompany: loadCompany }}>

@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { User, UserRole, FeatureKey, SystemSettings } from '../../types';
 import { useLang } from '../../contexts/LanguageContext';
 import {
@@ -14,7 +15,6 @@ import { ApiClient } from '../../services/apiClient';
 import { TelegramAPI } from '../../services/telegram';
 import { getApiBase, setApiBase } from '../../services/apiConfig';
 import { UsersTab } from './settings/UsersTab';
-import { IntegrationsTab } from './settings/IntegrationsTab';
 import { SuperAdminTab, FeaturesTab, TelegramDiagnosticsTab } from './settings/SuperAdminTabs';
 import { IntegrationLogsTab } from './settings/IntegrationLogsTab';
 import { PageHeader } from '../../components/ui/PageHeader';
@@ -23,9 +23,25 @@ import { VersionSnapshots, ConfigSnapshot } from '../../services/versionSnapshot
 // Actually, VersionsTab was large. Let's keep it here for now or import everything if I extracted it. I missed extracting VersionsTab. I'll stub it or inline simplified version.
 
 export const SettingsPage = () => {
-    const [activeTab, setActiveTab] = useState<'USERS' | 'INTEGRATIONS' | 'TG' | 'LOGS' | 'FEATURES' | 'DICT' | 'BACKUP' | 'API' | 'VERSIONS' | 'SUPERADMIN' | 'GENERAL' | 'PARSER'>('USERS');
+    const [activeTab, setActiveTab] = useState<'USERS' | 'TG' | 'LOGS' | 'FEATURES' | 'DICT' | 'BACKUP' | 'API' | 'VERSIONS' | 'SUPERADMIN' | 'GENERAL' | 'PARSER'>('USERS');
     const { t } = useLang();
     const { user } = useAuth();
+    const [searchParams] = useSearchParams();
+    const navigate = useNavigate();
+
+    useEffect(() => {
+        const tab = searchParams.get('tab');
+        if (!tab) return;
+        const normalized = tab.toUpperCase();
+        if (normalized === 'INTEGRATIONS') {
+            navigate('/integrations');
+            return;
+        }
+        const allowed = ['USERS', 'TG', 'LOGS', 'FEATURES', 'DICT', 'BACKUP', 'API', 'VERSIONS', 'SUPERADMIN', 'GENERAL', 'PARSER'];
+        if (allowed.includes(normalized)) {
+            setActiveTab(normalized as any);
+        }
+    }, [searchParams, navigate]);
 
     return (
         <div className="space-y-8 max-w-7xl mx-auto h-[calc(100vh-120px)] flex flex-col">
@@ -40,7 +56,7 @@ export const SettingsPage = () => {
                             <NavButton active={activeTab === 'API'} onClick={() => setActiveTab('API')} icon={Server} label={t('settings.api')} />
                             <NavButton active={activeTab === 'TG'} onClick={() => setActiveTab('TG')} icon={Terminal} label={t('settings.logs')} />
                             <NavButton active={activeTab === 'LOGS'} onClick={() => setActiveTab('LOGS')} icon={History} label={t('settings.integration_logs')} />
-                            <NavButton active={activeTab === 'INTEGRATIONS'} onClick={() => setActiveTab('INTEGRATIONS')} icon={Layers} label={t('settings.integrations')} />
+                            <NavButton active={false} onClick={() => navigate('/integrations')} icon={Layers} label={t('settings.integrations')} />
                         </div>
                     </div>
                     <div>
@@ -67,10 +83,9 @@ export const SettingsPage = () => {
                     </div>
                 </div>
 
-                {/* Content */}
+                    {/* Content */}
                 <div className="flex-1 p-10 overflow-y-auto bg-[var(--bg-app)]/50">
                     {activeTab === 'USERS' && <UsersTab />}
-                    {activeTab === 'INTEGRATIONS' && <IntegrationsTab />}
                     {activeTab === 'TG' && <TelegramDiagnosticsTab />}
                     {activeTab === 'LOGS' && <IntegrationLogsTab />}
                     {activeTab === 'SUPERADMIN' && user?.role === 'SUPER_ADMIN' && <SuperAdminTab />}

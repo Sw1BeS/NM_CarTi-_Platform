@@ -3,6 +3,7 @@ import { DataAdapter } from './dataAdapter';
 import { ServerAdapter } from './serverAdapter';
 import { ApiClient } from './apiClient';
 import type { CarListing, CarSearchFilter, Scenario, DictionaryCollection } from '../types';
+import { appendSuperadminCompanyParam } from '../utils/superadminCompany';
 
 const serverAdapter = new ServerAdapter();
 
@@ -193,7 +194,8 @@ class DataService {
         if (filter.requestId) params.append('requestId', filter.requestId);
         if (filter.chatId) params.append('chatId', filter.chatId);
         if (filter.limit) params.append('limit', String(filter.limit));
-        const res = await ApiClient.get<any[]>(`messages/logs?${params.toString()}`);
+        const query = appendSuperadminCompanyParam(params).toString();
+        const res = await ApiClient.get<any[]>(`messages/logs${query ? `?${query}` : ''}`);
         if (!res.ok) return [];
         return Array.isArray(res.data) ? res.data : [];
     }

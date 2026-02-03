@@ -671,6 +671,21 @@ export const routeMessage = async (ctx: PipelineContext) => {
   const handledScenario = await ScenarioEngine.handleUpdate(ctx.bot as any, ctx.session, ctx.update);
   if (handledScenario) return true;
 
+  // If modern scenarios exist for this bot/company, do not fall back to legacy template flows
+  const companyId = (ctx as any).companyId || ctx.bot.companyId;
+  if (companyId) {
+    const hasScenarios = await prisma.scenario.findFirst({
+      where: {
+        companyId,
+        status: 'PUBLISHED',
+        isActive: true,
+        OR: [{ botId: ctx.bot.id }, { botId: null }]
+      },
+      select: { id: true }
+    });
+    if (hasScenarios) return true;
+  }
+
   const message = ctx.update?.message;
   const text = message?.text || '';
 

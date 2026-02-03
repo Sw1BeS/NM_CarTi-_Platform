@@ -1,4 +1,5 @@
 import { ApiClient } from './apiClient';
+import { appendSuperadminCompanyParam, attachSuperadminCompany } from '../utils/superadminCompany';
 
 export interface ContentTemplate {
     id: string;
@@ -41,13 +42,14 @@ export interface PublicationJob {
 
 export const PublicationService = {
     async listTemplates(): Promise<ContentTemplate[]> {
-        const res = await ApiClient.get<ContentTemplate[]>('content/templates');
+        const query = appendSuperadminCompanyParam(new URLSearchParams()).toString();
+        const res = await ApiClient.get<ContentTemplate[]>(`content/templates${query ? `?${query}` : ''}`);
         if (!res.ok) throw new Error(res.message);
         return res.data || [];
     },
 
     async createTemplate(payload: Partial<ContentTemplate>): Promise<ContentTemplate> {
-        const res = await ApiClient.post<ContentTemplate>('content/templates', payload);
+        const res = await ApiClient.post<ContentTemplate>('content/templates', attachSuperadminCompany(payload as any));
         if (!res.ok) throw new Error(res.message);
         return res.data as ContentTemplate;
     },
@@ -64,7 +66,7 @@ export const PublicationService = {
     },
 
     async previewTemplate(payload: { templateId?: string; template?: string; carId?: string; variables?: Record<string, any>; lang?: string }) {
-        const res = await ApiClient.post<{ text: string; variables: Record<string, any> }>('content/templates/preview', payload);
+        const res = await ApiClient.post<{ text: string; variables: Record<string, any> }>('content/templates/preview', attachSuperadminCompany(payload as any));
         if (!res.ok) throw new Error(res.message);
         return res.data as { text: string; variables: Record<string, any> };
     },
@@ -73,13 +75,14 @@ export const PublicationService = {
         const query = new URLSearchParams();
         if (params?.status) query.append('status', params.status);
         if (params?.limit) query.append('limit', String(params.limit));
-        const res = await ApiClient.get<PublicationJob[]>(`content/publication-jobs?${query.toString()}`);
+        const queryString = appendSuperadminCompanyParam(query).toString();
+        const res = await ApiClient.get<PublicationJob[]>(`content/publication-jobs${queryString ? `?${queryString}` : ''}`);
         if (!res.ok) throw new Error(res.message);
         return res.data || [];
     },
 
     async createJob(payload: any): Promise<PublicationJob> {
-        const res = await ApiClient.post<PublicationJob>('content/publication-jobs', payload);
+        const res = await ApiClient.post<PublicationJob>('content/publication-jobs', attachSuperadminCompany(payload as any));
         if (!res.ok) throw new Error(res.message);
         return res.data as PublicationJob;
     },

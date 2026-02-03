@@ -15,6 +15,7 @@ import { previewTemplate, resolveTemplateBody, buildTemplateVariables, renderTem
 import { logIntegrationEvent } from '../services/integrationEventLog.service.js';
 import { mapBotInput, mapBotOutput } from '../modules/Communication/bots/botDto.js';
 import { IntegrationService } from '../modules/Integrations/integration.service.js';
+import { SettingsService } from '../modules/Core/system/settings.service.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -2149,20 +2150,23 @@ router.delete('/leads/:id', requireRole(['SUPER_ADMIN', 'OWNER', 'ADMIN', 'MANAG
 
 
 router.get('/settings', requireRole(['ADMIN']), async (req, res) => {
-    const settings = await prisma.systemSettings.findFirst();
-    res.json(settings || {});
+    try {
+        res.set('X-Deprecated', 'Use /system/settings');
+        const settings = await SettingsService.getSettings(false);
+        res.json(settings || {});
+    } catch (e: any) {
+        errorResponse(res, 500, 'Failed to load settings');
+    }
 });
 
-router.post('/settings', requireRole(['ADMIN']), async (req, res) => { // Updated to POST for saveSettings
-    const { id, ...data } = req.body;
-    const count = await prisma.systemSettings.count();
-    if (count === 0) {
-        await prisma.systemSettings.create({ data });
-    } else {
-        const first = await prisma.systemSettings.findFirst();
-        await prisma.systemSettings.update({ where: { id: first!.id }, data });
+router.post('/settings', requireRole(['ADMIN']), async (req, res) => { // Legacy endpoint (deprecated)
+    try {
+        res.set('X-Deprecated', 'Use /system/settings');
+        await SettingsService.updateSettings(req.body || {});
+        res.json({ success: true });
+    } catch (e: any) {
+        errorResponse(res, 500, 'Failed to update settings');
     }
-    res.json({ success: true });
 });
 
 // --- Users (Relational) ---

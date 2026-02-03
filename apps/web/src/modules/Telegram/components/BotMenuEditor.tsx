@@ -87,7 +87,7 @@ export const BotMenuEditor = ({ scenarios, botId, standalone = false }: { scenar
                 { id: 'btn_buy', label: '🚗 Buy a Car', label_uk: '🚗 Купити авто', label_ru: '🚗 Купить авто', type: 'SCENARIO', value: ids.buy, row: 0, col: 0 },
                 { id: 'btn_sell', label: '💰 Sell My Car', label_uk: '💰 Продати авто', label_ru: '💰 Продать авто', type: 'SCENARIO', value: ids.sell, row: 0, col: 1 },
                 { id: 'btn_app', label: '📱 Open App', label_uk: '📱 Додаток', label_ru: '📱 Приложение', type: 'LINK', value: miniAppUrl, row: 1, col: 0 },
-                { id: 'btn_support', label: '📞 Support', label_uk: '📞 Підтримка', label_ru: '📞 Поддержка', type: 'SCENARIO', value: ids.support, row: 1, col: 1 },
+                { id: 'btn_support', label: '📞 Status / Support', label_uk: '📞 Статус / Підтримка', label_ru: '📞 Статус / Поддержка', type: 'SCENARIO', value: ids.support, row: 1, col: 1 },
                 { id: 'btn_lang', label: '🌐 Language', label_uk: '🌐 Мова', label_ru: '🌐 Язык', type: 'SCENARIO', value: ids.lang, row: 2, col: 0 }
             ]
         },
@@ -100,7 +100,7 @@ export const BotMenuEditor = ({ scenarios, botId, standalone = false }: { scenar
                 { id: 'btn_buy', label: '🚗 Buy', label_uk: '🚗 Купити', label_ru: '🚗 Купить', type: 'SCENARIO', value: ids.buy, row: 0, col: 0 },
                 { id: 'btn_sell', label: '💰 Sell', label_uk: '💰 Продати', label_ru: '💰 Продать', type: 'SCENARIO', value: ids.sell, row: 0, col: 1 },
                 { id: 'btn_app', label: '📱 Mini App', label_uk: '📱 Додаток', label_ru: '📱 Приложение', type: 'LINK', value: miniAppUrl, row: 1, col: 0 },
-                { id: 'btn_support', label: '☎️ Support', label_uk: '☎️ Підтримка', label_ru: '☎️ Поддержка', type: 'SCENARIO', value: ids.support, row: 1, col: 1 }
+                { id: 'btn_support', label: '☎️ Status / Support', label_uk: '☎️ Статус / Підтримка', label_ru: '☎️ Статус / Поддержка', type: 'SCENARIO', value: ids.support, row: 1, col: 1 }
             ]
         },
         {
@@ -110,7 +110,7 @@ export const BotMenuEditor = ({ scenarios, botId, standalone = false }: { scenar
             welcomeMessage: 'Welcome! Use the menu below:',
             buttons: [
                 { id: 'btn_app', label: '📱 Open App', label_uk: '📱 Додаток', label_ru: '📱 Приложение', type: 'LINK', value: miniAppUrl, row: 0, col: 0 },
-                { id: 'btn_support', label: '📞 Support', label_uk: '📞 Підтримка', label_ru: '📞 Поддержка', type: 'SCENARIO', value: ids.support, row: 0, col: 1 }
+                { id: 'btn_support', label: '📞 Status / Support', label_uk: '📞 Статус / Підтримка', label_ru: '📞 Статус / Поддержка', type: 'SCENARIO', value: ids.support, row: 0, col: 1 }
             ]
         }
     ]);

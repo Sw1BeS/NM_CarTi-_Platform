@@ -1,5 +1,6 @@
 
 import { ApiClient } from './apiClient';
+import { appendSuperadminCompanyParam, attachSuperadminCompany } from '../utils/superadminCompany';
 import { CarListing } from '../types';
 
 export interface InventoryFilter {
@@ -33,7 +34,8 @@ export const InventoryService = {
         if (filter.yearMin) query.append('yearMin', String(filter.yearMin));
         if (filter.yearMax) query.append('yearMax', String(filter.yearMax));
 
-        const res = await ApiClient.get<InventoryResponse>(`inventory?${query.toString()}`);
+        const queryString = appendSuperadminCompanyParam(query).toString();
+        const res = await ApiClient.get<InventoryResponse>(`inventory${queryString ? `?${queryString}` : ''}`);
 
         // Handle empty/fallback
         if (!res.ok) {
@@ -46,7 +48,7 @@ export const InventoryService = {
 
     async saveCar(car: Partial<CarListing>): Promise<CarListing> {
         // NOTE: Front uses canonicalId, backend uses id. Map for API.
-        const payload = { ...car, id: car.canonicalId };
+        const payload = attachSuperadminCompany({ ...car, id: car.canonicalId } as any) as any;
         const isUpdate = !!car.canonicalId && !car.canonicalId.startsWith('imp_') && !car.canonicalId.startsWith('temp_');
 
         const res = isUpdate

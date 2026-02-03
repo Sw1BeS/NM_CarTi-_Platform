@@ -6,6 +6,7 @@ import {
     TelegramMessage, TelegramDestination, CarListing, Company,
     SystemSettings, DictionaryCollection, SystemNotification, ActivityLog, BotSession, Proposal
 } from '../types';
+import { appendSuperadminCompanyParam, attachSuperadminCompany } from '../utils/superadminCompany';
 
 const SLUGS = {
     USER: 'sys_user',
@@ -51,6 +52,12 @@ export class ServerAdapter implements DataAdapter {
     private wrap(entity: any): any {
         const { _recordId, ...data } = entity;
         return data;
+    }
+
+    private buildQuery(params?: URLSearchParams) {
+        const finalParams = appendSuperadminCompanyParam(params ?? new URLSearchParams());
+        const query = finalParams.toString();
+        return query ? `?${query}` : '';
     }
 
     async getEntity<T>(slug: string, id: string): Promise<T | null> {
@@ -118,7 +125,7 @@ export class ServerAdapter implements DataAdapter {
 
     // --- REQUESTS (Relational) ---
     async getRequests() {
-        const res = await ApiClient.get<any>('requests');
+        const res = await ApiClient.get<any>(`requests${this.buildQuery()}`);
         if (!res.ok) return [];
         if (Array.isArray(res.data)) return res.data;
         return (res.data as any)?.items || [];
@@ -129,11 +136,12 @@ export class ServerAdapter implements DataAdapter {
         // Simplified: If it has an ID, try PUT, if fail, POST? Or just POST for new.
         // Local adapter generates 'req_...' IDs. We should strip those for creation on server?
         // Or if we trust the ID handling:
-        if (r.id && !r.id.startsWith('req_')) {
-            const res = await ApiClient.put<B2BRequest>(`requests/${r.id}`, r);
+        const payloadWithCompany = attachSuperadminCompany(r as any) as B2BRequest;
+        if (payloadWithCompany.id && !payloadWithCompany.id.startsWith('req_')) {
+            const res = await ApiClient.put<B2BRequest>(`requests/${payloadWithCompany.id}`, payloadWithCompany);
             if (res.ok) return res.data as B2BRequest;
         }
-        const { id, ...payload } = r; // Strip local ID
+        const { id, ...payload } = payloadWithCompany as any; // Strip local ID
         const res = await ApiClient.post<B2BRequest>('requests', payload);
         if (!res.ok) throw new Error(res.message);
         return res.data as B2BRequest;
@@ -144,17 +152,18 @@ export class ServerAdapter implements DataAdapter {
 
     // --- LEADS (Relational) ---
     async getLeads() {
-        const res = await ApiClient.get<any>('leads');
+        const res = await ApiClient.get<any>(`leads${this.buildQuery()}`);
         if (!res.ok) return [];
         if (Array.isArray(res.data)) return res.data;
         return res.data?.items || [];
     }
     async saveLead(l: Lead) {
-        if (l.id && !l.id.startsWith('lead_')) {
-            const res = await ApiClient.put<Lead>(`leads/${l.id}`, l);
+        const payloadWithCompany = attachSuperadminCompany(l as any) as Lead;
+        if (payloadWithCompany.id && !payloadWithCompany.id.startsWith('lead_')) {
+            const res = await ApiClient.put<Lead>(`leads/${payloadWithCompany.id}`, payloadWithCompany);
             if (res.ok) return res.data as Lead;
         }
-        const { id, ...payload } = l;
+        const { id, ...payload } = payloadWithCompany as any;
         const res = await ApiClient.post<Lead>('leads', payload);
         if (!res.ok) throw new Error(res.message);
         return res.data as Lead;
@@ -162,19 +171,20 @@ export class ServerAdapter implements DataAdapter {
 
     // --- BOTS (Relational) ---
     async getBots() {
-        const res = await ApiClient.get<Bot[]>('bots');
+        const res = await ApiClient.get<Bot[]>(`bots${this.buildQuery()}`);
         return res.ok ? res.data : [];
     }
     async saveBot(b: Bot) {
-        const hasPersistentId = b.id && !String(b.id).startsWith('bot_') && !String(b.id).startsWith('temp_');
+        const payloadWithCompany = attachSuperadminCompany(b as any) as Bot;
+        const hasPersistentId = payloadWithCompany.id && !String(payloadWithCompany.id).startsWith('bot_') && !String(payloadWithCompany.id).startsWith('temp_');
 
         if (hasPersistentId) {
-            const res = await ApiClient.put<Bot>(`bots/${b.id}`, b);
+            const res = await ApiClient.put<Bot>(`bots/${payloadWithCompany.id}`, payloadWithCompany);
             if (res.ok) return res.data as Bot;
             console.warn('[ServerAdapter] Bot update failed, falling back to create:', res.message);
         }
 
-        const { id, ...payload } = b as any;
+        const { id, ...payload } = payloadWithCompany as any;
         const res = await ApiClient.post<Bot>('bots', payload);
         if (!res.ok) throw new Error(res.message);
         return res.data as Bot;
@@ -199,12 +209,11 @@ export class ServerAdapter implements DataAdapter {
     async getScenarios(filter?: { botId?: string }) {
         const params = new URLSearchParams();
         if (filter?.botId) params.append('botId', filter.botId);
-        const query = params.toString();
-        const res = await ApiClient.get<Scenario[]>(`scenarios${query ? `?${query}` : ''}`);
+        const res = await ApiClient.get<Scenario[]>(`scenarios${this.buildQuery(params)}`);
         return res.ok ? res.data : [];
     }
     async saveScenario(s: Scenario) {
-        const payload = { ...s, keywords: s.keywords || [] };
+        const payload = attachSuperadminCompany({ ...s, keywords: s.keywords || [] } as any) as Scenario;
         const res = await ApiClient.post<Scenario>('scenarios', payload);
         if (!res.ok) throw new Error(res.message);
         return res.data as Scenario;
@@ -224,11 +233,11 @@ export class ServerAdapter implements DataAdapter {
 
 
     async getCampaigns() {
-        const res = await ApiClient.get<Campaign[]>('campaigns');
+        const res = await ApiClient.get<Campaign[]>(`campaigns${this.buildQuery()}`);
         return res.ok ? (res.data || []) : [];
     }
     async saveCampaign(c: Campaign) {
-        const res = await ApiClient.post<Campaign>('campaigns', c);
+        const res = await ApiClient.post<Campaign>('campaigns', attachSuperadminCompany(c as any));
         if (!res.ok) throw new Error(res.message || 'Campaign save failed');
         return res.data as Campaign;
     }
@@ -238,8 +247,8 @@ export class ServerAdapter implements DataAdapter {
         if (filter?.limit) params.append('limit', String(filter.limit));
         if (filter?.chatId) params.append('chatId', filter.chatId);
         if (filter?.botId) params.append('botId', filter.botId);
-        const query = params.toString();
-        const res = await ApiClient.get<TelegramMessage[]>(`messages?${query || 'limit=200'}`);
+        if (!params.has('limit')) params.append('limit', '200');
+        const res = await ApiClient.get<TelegramMessage[]>(`messages${this.buildQuery(params)}`);
         return res.ok ? (res.data || []) : [];
     }
     async saveMessage(m: TelegramMessage) {
@@ -250,16 +259,16 @@ export class ServerAdapter implements DataAdapter {
 
     // --- Inbox Macros & Notes ---
     async getMacros() {
-        const res = await ApiClient.get<any[]>('inbox/macros');
+        const res = await ApiClient.get<any[]>(`inbox/macros${this.buildQuery()}`);
         return res.ok ? (res.data || []) : [];
     }
     async createMacro(data: any) {
-        const res = await ApiClient.post<any>('inbox/macros', data);
+        const res = await ApiClient.post<any>('inbox/macros', attachSuperadminCompany(data));
         if (!res.ok) throw new Error(res.message);
         return res.data;
     }
     async updateMacro(id: string, data: any) {
-        const res = await ApiClient.put<any>(`inbox/macros/${id}`, data);
+        const res = await ApiClient.put<any>(`inbox/macros/${id}`, attachSuperadminCompany(data));
         if (!res.ok) throw new Error(res.message);
         return res.data;
     }
@@ -268,30 +277,35 @@ export class ServerAdapter implements DataAdapter {
         if (!res.ok) throw new Error(res.message);
     }
     async getChatNote(chatId: string) {
-        const res = await ApiClient.get<any>(`inbox/notes?chatId=${encodeURIComponent(chatId)}`);
+        const params = new URLSearchParams();
+        params.append('chatId', chatId);
+        const res = await ApiClient.get<any>(`inbox/notes${this.buildQuery(params)}`);
         return res.ok ? (res.data || null) : null;
     }
     async saveChatNote(data: { chatId: string; text?: string }) {
-        const res = await ApiClient.post<any>('inbox/notes', data);
+        const res = await ApiClient.post<any>('inbox/notes', attachSuperadminCompany(data as any));
         if (!res.ok) throw new Error(res.message);
         return res.data;
     }
 
     async getDestinations() {
-        const res = await ApiClient.get<TelegramDestination[]>('destinations');
+        const res = await ApiClient.get<TelegramDestination[]>(`destinations${this.buildQuery()}`);
         return res.ok ? (res.data || []) : [];
     }
     async saveDestination(d: TelegramDestination) { return this.saveEntity(SLUGS.DESTINATION, d); }
 
     async getInventory() {
-        const res = await ApiClient.get<any>('inventory?limit=1000&status=ALL');
+        const params = new URLSearchParams();
+        params.append('limit', '1000');
+        params.append('status', 'ALL');
+        const res = await ApiClient.get<any>(`inventory${this.buildQuery(params)}`);
         if (!res.ok) return [];
         if (Array.isArray(res.data)) return res.data;
         return res.data?.items || [];
     }
     async saveInventoryItem(i: CarListing) {
         const id = i.canonicalId || i.id;
-        const payload = { ...i, id };
+        const payload = attachSuperadminCompany({ ...i, id } as any) as any;
         if (id) {
             const res = await ApiClient.put<CarListing>(`inventory/${id}`, payload);
             if (!res.ok) throw new Error(res.message);
@@ -319,15 +333,12 @@ export class ServerAdapter implements DataAdapter {
             { id: 'nav_dash', labelKey: 'nav.dashboard', path: '/', iconName: 'LayoutDashboard', visible: true, order: 0, roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OPERATOR', 'USER', 'OWNER', 'DEALER'] },
             { id: 'nav_inbox', labelKey: 'nav.inbox', path: '/inbox', iconName: 'MessageCircle', visible: true, order: 1, roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OPERATOR', 'USER', 'OWNER', 'DEALER'] },
             { id: 'nav_req', labelKey: 'nav.requests', path: '/requests', iconName: 'FileText', visible: true, order: 2, roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OPERATOR', 'USER', 'OWNER', 'DEALER'] },
+            { id: 'nav_leads', labelKey: 'nav.leads', path: '/leads', iconName: 'Users', visible: true, order: 2.5, roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OPERATOR', 'OWNER'] },
             { id: 'nav_inv', labelKey: 'nav.inventory', path: '/inventory', iconName: 'Car', visible: true, order: 3, roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OPERATOR', 'USER', 'OWNER', 'DEALER'] },
             { id: 'nav_tele', labelKey: 'nav.telegram', path: '/telegram', iconName: 'Send', visible: true, order: 4, roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OPERATOR', 'USER', 'OWNER', 'DEALER'] },
             { id: 'nav_cal', labelKey: 'nav.calendar', path: '/calendar', iconName: 'Calendar', visible: true, order: 5, roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OPERATOR', 'USER', 'OWNER', 'DEALER'] },
             { id: 'nav_cont', labelKey: 'nav.content', path: '/content', iconName: 'Library', visible: true, order: 6, roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OPERATOR', 'USER', 'OWNER', 'DEALER'] },
             { id: 'nav_scen', labelKey: 'nav.scenarios', path: '/scenarios', iconName: 'Database', visible: true, order: 7, roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OPERATOR', 'USER', 'OWNER', 'DEALER'] },
-            // Integrations: Hidden for Release 1.0 (Only TG/MTProto active via Telegram Hub)
-            // { id: 'nav_integrations', labelKey: 'nav.integrations', path: '/integrations', iconName: 'Plug', visible: true, order: 8, roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OWNER'] },
-            // Company: Hidden for simplified flow
-            // { id: 'nav_company', labelKey: 'nav.company', path: '/company', iconName: 'Briefcase', visible: true, order: 9, roles: ['SUPER_ADMIN', 'ADMIN', 'OWNER'] },
             { id: 'nav_sets', labelKey: 'nav.settings', path: '/settings', iconName: 'Settings', visible: true, order: 99, roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OPERATOR', 'USER', 'OWNER', 'DEALER'] }
         ];
 
@@ -345,12 +356,14 @@ export class ServerAdapter implements DataAdapter {
         if (!settings.navigation) {
             settings.navigation = { primary: defaultNavigation };
         } else {
-            // Normalize: accept either array or object with primary[]
+            // Normalize: accept array, primary[], or legacy items[]
             const navigationArray = Array.isArray(settings.navigation)
                 ? settings.navigation
                 : Array.isArray((settings.navigation as any).primary)
                     ? (settings.navigation as any).primary
-                    : [];
+                    : Array.isArray((settings.navigation as any).items)
+                        ? (settings.navigation as any).items
+                        : [];
 
             // Merge in any missing required nav items to avoid hiding key modules
             const mergedNav = [...navigationArray];
@@ -436,11 +449,11 @@ export class ServerAdapter implements DataAdapter {
 
     // --- MTPROTO ---
     async getMTProtoConnectors() {
-        const res = await ApiClient.get<any[]>('integrations/mtproto/connectors');
+        const res = await ApiClient.get<any[]>(`integrations/mtproto/connectors${this.buildQuery()}`);
         return res.ok ? res.data : [];
     }
     async createMTProtoConnector(data: any) {
-        const res = await ApiClient.post('integrations/mtproto/connectors', data);
+        const res = await ApiClient.post('integrations/mtproto/connectors', attachSuperadminCompany(data));
         if (!res.ok) throw new Error(res.message);
         return res.data;
     }
@@ -448,28 +461,30 @@ export class ServerAdapter implements DataAdapter {
         await ApiClient.delete(`integrations/mtproto/connectors/${id}`);
     }
     async sendMTProtoCode(connectorId: string, phone: string) {
-        const res = await ApiClient.post('integrations/mtproto/auth/send-code', { connectorId, phone });
+        const res = await ApiClient.post('integrations/mtproto/auth/send-code', attachSuperadminCompany({ connectorId, phone } as any));
         if (!res.ok) throw new Error(res.message);
         return res.data;
     }
     async signInMTProto(data: any) {
-        const res = await ApiClient.post('integrations/mtproto/auth/sign-in', data);
+        const res = await ApiClient.post('integrations/mtproto/auth/sign-in', attachSuperadminCompany(data));
         if (!res.ok) throw new Error(res.message);
     }
 
     async getMTProtoChannels(connectorId: string) {
-        const res = await ApiClient.get<any[]>(`integrations/mtproto/${connectorId}/channels`);
+        const res = await ApiClient.get<any[]>(`integrations/mtproto/${connectorId}/channels${this.buildQuery()}`);
         return res.ok ? res.data : [];
     }
 
     async resolveMTProtoChannel(connectorId: string, query: string) {
-        const res = await ApiClient.get<any>(`integrations/mtproto/${connectorId}/resolve?query=${encodeURIComponent(query)}`);
+        const params = new URLSearchParams();
+        params.append('query', query);
+        const res = await ApiClient.get<any>(`integrations/mtproto/${connectorId}/resolve${this.buildQuery(params)}`);
         if (!res.ok) throw new Error(res.message);
         return res.data;
     }
 
     async addMTProtoChannel(connectorId: string, channel: any, importRules: any) {
-        const res = await ApiClient.post(`integrations/mtproto/${connectorId}/channels`, { channel, importRules });
+        const res = await ApiClient.post(`integrations/mtproto/${connectorId}/channels`, attachSuperadminCompany({ channel, importRules } as any));
         if (!res.ok) throw new Error(res.message);
         return res.data;
     }
@@ -480,7 +495,7 @@ export class ServerAdapter implements DataAdapter {
     }
 
     async syncMTProto(connectorId: string) {
-        const res = await ApiClient.post(`integrations/mtproto/${connectorId}/sync`, {});
+        const res = await ApiClient.post(`integrations/mtproto/${connectorId}/sync`, attachSuperadminCompany({} as any));
         if (!res.ok) throw new Error(res.message);
     }
 }

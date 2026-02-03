@@ -29,12 +29,19 @@ export class SettingsService {
 
         if (isPublic) {
             const nav = settings.navigation as any;
-            const hasNav = nav && nav.items && nav.items.length > 0;
+            const primary = Array.isArray(nav?.primary)
+                ? nav.primary
+                : Array.isArray(nav?.items)
+                    ? nav.items
+                    : Array.isArray(nav)
+                        ? nav
+                        : null;
+            const hasNav = Array.isArray(primary) && primary.length > 0;
 
             return {
                 branding: settings.branding || {},
                 modules: settings.modules || {},
-                navigation: hasNav ? settings.navigation : DEFAULT_NAVIGATION,
+                navigation: hasNav ? { primary } : DEFAULT_NAVIGATION,
                 features: settings.features || DEFAULT_FEATURES
             };
         }

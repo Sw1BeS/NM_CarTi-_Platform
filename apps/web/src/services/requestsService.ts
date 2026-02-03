@@ -1,5 +1,6 @@
 
 import { ApiClient } from './apiClient';
+import { appendSuperadminCompanyParam, attachSuperadminCompany } from '../utils/superadminCompany';
 import { B2BRequest, Variant } from '../types';
 
 export interface RequestsFilter {
@@ -25,7 +26,8 @@ export const RequestsService = {
         if (filter.status && filter.status !== 'ALL') query.append('status', filter.status);
         if (filter.search) query.append('search', filter.search);
 
-        const res = await ApiClient.get<RequestsResponse | B2BRequest[]>(`requests?${query.toString()}`);
+        const queryString = appendSuperadminCompanyParam(query).toString();
+        const res = await ApiClient.get<RequestsResponse | B2BRequest[]>(`requests${queryString ? `?${queryString}` : ''}`);
 
         if (!res.ok) {
             console.error(res.message);
@@ -41,13 +43,13 @@ export const RequestsService = {
     },
 
     async createRequest(req: Partial<B2BRequest>): Promise<B2BRequest> {
-        const res = await ApiClient.post<B2BRequest>('requests', req);
+        const res = await ApiClient.post<B2BRequest>('requests', attachSuperadminCompany(req as any));
         if (!res.ok) throw new Error(res.message);
         return res.data as B2BRequest;
     },
 
     async updateRequest(id: string, req: Partial<B2BRequest>): Promise<B2BRequest> {
-        const res = await ApiClient.put<B2BRequest>(`requests/${id}`, req);
+        const res = await ApiClient.put<B2BRequest>(`requests/${id}`, attachSuperadminCompany(req as any));
         if (!res.ok) throw new Error(res.message);
         return res.data as B2BRequest;
     },
@@ -58,25 +60,25 @@ export const RequestsService = {
     },
 
     async addVariant(requestId: string, variant: Partial<Variant>): Promise<Variant> {
-        const res = await ApiClient.post<Variant>(`requests/${requestId}/variants`, variant);
+        const res = await ApiClient.post<Variant>(`requests/${requestId}/variants`, attachSuperadminCompany(variant as any));
         if (!res.ok) throw new Error(res.message);
         return res.data as Variant;
     },
 
     async publishToChannel(requestId: string, payload: { botId?: string; channelId: string; text?: string; template?: string }) {
-        const res = await ApiClient.post(`requests/${requestId}/publish-channel`, payload);
+        const res = await ApiClient.post(`requests/${requestId}/publish-channel`, attachSuperadminCompany(payload as any));
         if (!res.ok) throw new Error(res.message);
         return res.data;
     },
 
     async updateChannelPost(requestId: string, payload: { channelId?: string; text: string }) {
-        const res = await ApiClient.put(`requests/${requestId}/channel-post`, payload);
+        const res = await ApiClient.put(`requests/${requestId}/channel-post`, attachSuperadminCompany(payload as any));
         if (!res.ok) throw new Error(res.message);
         return res.data;
     },
 
     async closeChannelPost(requestId: string, payload: { channelId?: string }) {
-        const res = await ApiClient.post(`requests/${requestId}/close-channel`, payload);
+        const res = await ApiClient.post(`requests/${requestId}/close-channel`, attachSuperadminCompany(payload as any));
         if (!res.ok) throw new Error(res.message);
         return res.data;
     }

@@ -383,7 +383,15 @@ export const InventoryPage = () => {
                                 <h4 className="text-xs font-bold text-[var(--text-secondary)] uppercase mb-2">Option A: Parse URL</h4>
                                 <div className="space-y-2">
                                     <input className="input" placeholder="https://..." value={importUrl} onChange={e => setImportUrl(e.target.value)} />
-                                    <p className="text-xs text-[var(--text-secondary)]">Support for AutoRia, OLX, Mobile.de (basic)</p>
+                                    <p className="text-xs text-[var(--text-secondary)]">
+                                        Support for AutoRia, OLX, Mobile.de (basic).
+                                        <button
+                                            onClick={() => { setImporting(false); navigate('/settings?tab=PARSER'); }}
+                                            className="ml-2 underline text-gold-500"
+                                        >
+                                            Parser profiles
+                                        </button>
+                                    </p>
                                 </div>
                             </div>
 

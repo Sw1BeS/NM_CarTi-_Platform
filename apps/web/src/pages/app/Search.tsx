@@ -310,6 +310,15 @@ export const SearchPage = () => {
                     </form>
                 )}
 
+                {mode === 'DIRECT' && (
+                    <div className="mt-2 text-xs text-[var(--text-secondary)]">
+                        Parser profiles are managed in Settings.
+                        <button onClick={() => navigate('/settings?tab=PARSER')} className="ml-2 underline text-gold-500">
+                            Open parser settings
+                        </button>
+                    </div>
+                )}
+
                 {/* Filters */}
                 {mode === 'GLOBAL' && (
                     <div className="mt-4 flex justify-between items-center text-sm">

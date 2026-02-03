@@ -1,4 +1,5 @@
 import { ApiClient } from './apiClient';
+import { appendSuperadminCompanyParam } from '../utils/superadminCompany';
 
 export interface IntegrationEventLog {
     id: string;
@@ -23,7 +24,8 @@ export const IntegrationLogsService = {
         if (params?.to) query.append('to', params.to);
         if (params?.limit) query.append('limit', String(params.limit));
 
-        const res = await ApiClient.get<IntegrationEventLog[]>(`integrations/logs?${query.toString()}`);
+        const queryString = appendSuperadminCompanyParam(query).toString();
+        const res = await ApiClient.get<IntegrationEventLog[]>(`integrations/logs${queryString ? `?${queryString}` : ''}`);
         if (!res.ok) throw new Error(res.message);
         return res.data || [];
     }

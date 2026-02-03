@@ -10,6 +10,8 @@ import { useLang } from '../contexts/LanguageContext';
 import { CommandPalette } from './CommandPalette';
 import { Data } from '../services/data';
 import { roleNav } from '../config/permissions';
+import { SuperadminApi, CompanySummary } from '../services/superadminApi';
+import { useSuperAdminCompany } from '../contexts/SuperAdminCompanyContext';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -38,6 +40,8 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { t, lang, setLang } = useLang();
+  const { companyId: selectedCompanyId, setCompanyId } = useSuperAdminCompany();
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isCmdOpen, setIsCmdOpen] = useState(false);
@@ -46,12 +50,15 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout }) => {
   const [showLang, setShowLang] = useState(false);
   const [navItems, setNavItems] = useState<NavigationItem[]>(roleNav((user?.role as any) || 'VIEWER'));
   const [features, setFeatures] = useState({});
+  const [companies, setCompanies] = useState<CompanySummary[]>([]);
+  const [loadingCompanies, setLoadingCompanies] = useState(false);
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
   const normalizeNav = (nav: any): NavigationItem[] => {
     if (Array.isArray(nav)) return nav as NavigationItem[];
     if (nav && Array.isArray((nav as any).primary)) return (nav as any).primary;
+    if (nav && Array.isArray((nav as any).items)) return (nav as any).items;
     return [];
   };
 
@@ -90,6 +97,26 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout }) => {
   }, [user?.role]);
 
   useEffect(() => {
+    if (!isSuperAdmin) return;
+    let active = true;
+    setLoadingCompanies(true);
+    SuperadminApi.listCompanies()
+      .then(list => {
+        if (!active) return;
+        setCompanies(list || []);
+      })
+      .catch(() => {
+        if (!active) return;
+        setCompanies([]);
+      })
+      .finally(() => {
+        if (!active) return;
+        setLoadingCompanies(false);
+      });
+    return () => { active = false; };
+  }, [isSuperAdmin]);
+
+  useEffect(() => {
     const down = (e: KeyboardEvent) => {
       if (e.key === 'k' && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
@@ -103,12 +130,17 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout }) => {
   if (!user) return <>{children}</>;
 
   const isActive = (path: string) => location.pathname === path;
+  const handleCompanyChange = (nextId: string) => {
+    if (nextId === (selectedCompanyId || '')) return;
+    setCompanyId(nextId || null);
+    window.location.reload();
+  };
 
   const visibleNavItems = (() => {
     const filtered = navItems.filter(item => {
       if (!item.visible) return false;
       // Explicitly hide Automations in favor of Scenarios
-      if (item.path === '/automations') return false;
+      if (item.path === '/automations' || item.path === '/scenarios') return false;
       return true;
     });
     // De-duplicate by path to avoid double items when backend nav merges
@@ -120,6 +152,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout }) => {
   })();
 
   const displayName = user.name || user.username || user.email || 'User';
+  const needsCompanySelection = isSuperAdmin && !selectedCompanyId && !location.pathname.startsWith('/superadmin');
 
   return (
     <div className="flex h-screen overflow-hidden bg-background text-foreground">
@@ -209,6 +242,23 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout }) => {
               </button>
             </div>
 
+            {isSuperAdmin && (
+              <div className="hidden md:flex items-center">
+                <select
+                  className="input h-10 text-sm min-w-[220px]"
+                  value={selectedCompanyId || ''}
+                  onChange={(e) => handleCompanyChange(e.target.value)}
+                >
+                  <option value="">{loadingCompanies ? 'Loading companies…' : 'Select company'}</option>
+                  {companies.map(company => (
+                    <option key={company.id} value={company.id}>
+                      {company.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             <div className="h-8 w-px bg-[var(--border-color)] mx-1"></div>
 
             {/* Language Switcher */}
@@ -287,7 +337,35 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout }) => {
 
         <main className="flex-1 overflow-y-auto p-8 transition-colors">
           <div className="max-w-7xl mx-auto w-full animate-fade-in pb-12">
-            {children}
+            {needsCompanySelection ? (
+              <div className="panel p-6 border border-amber-500/40 bg-amber-500/10 text-amber-100">
+                <div className="space-y-4">
+                  <div>
+                    <div className="text-sm font-bold uppercase tracking-wider">Company selection required</div>
+                    <div className="text-sm text-amber-200/90 mt-1">Select a company to view data and manage modules.</div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <select
+                      className="input h-10 text-sm min-w-[220px]"
+                      value={selectedCompanyId || ''}
+                      onChange={(e) => handleCompanyChange(e.target.value)}
+                    >
+                      <option value="">{loadingCompanies ? 'Loading companies…' : 'Select company'}</option>
+                      {companies.map(company => (
+                        <option key={company.id} value={company.id}>
+                          {company.name}
+                        </option>
+                      ))}
+                    </select>
+                    <button onClick={() => navigate('/superadmin/companies')} className="btn-secondary text-sm">
+                      Open Companies
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              children
+            )}
           </div>
         </main>
       </div>

@@ -2,6 +2,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { SystemApi } from '../services/systemApi';
 import { ApiClient } from '../services/apiClient';
+import { getSuperadminCompanyId } from '../utils/superadminCompany';
 import { SystemBranding } from '../types/system.types';
 
 interface ThemeContextType {
@@ -26,7 +27,9 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
             const token = typeof window !== 'undefined' ? localStorage.getItem('cartie_token') : null;
             if (token) {
-                const res = await ApiClient.get<any>('companies/current');
+                const selectedCompanyId = getSuperadminCompanyId();
+                const query = selectedCompanyId ? `?companyId=${encodeURIComponent(selectedCompanyId)}` : '';
+                const res = await ApiClient.get<any>(`companies/current${query}`);
                 if (res.ok && res.data) {
                     nextBranding = {
                         ...nextBranding,

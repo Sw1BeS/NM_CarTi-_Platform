@@ -9,8 +9,7 @@ const RequestList = React.lazy(() => import('./pages/app/Requests').then(m => ({
 const TelegramHub = React.lazy(() => import('./pages/app/TelegramHub').then(m => ({ default: m.TelegramHub })));
 const TelegramSources = React.lazy(() => import('./pages/app/TelegramSources').then(m => ({ default: m.TelegramSourcesPage })));
 const InboxPage = React.lazy(() => import('./pages/app/Inbox').then(m => ({ default: m.InboxPage })));
-const ScenarioBuilder = React.lazy(() => import('./pages/app/ScenarioBuilder').then(m => ({ default: m.ScenarioBuilder })));
-const AutomationBuilder = React.lazy(() => import('./pages/app/AutomationBuilder').then(m => ({ default: m.AutomationBuilder })));
+// ScenarioBuilder is rendered inside Telegram Hub; keep route-level redirect instead of direct route.
 const Leads = React.lazy(() => import('./pages/app/Leads').then(m => ({ default: m.Leads })));
 const Login = React.lazy(() => import('./pages/public/Login').then(m => ({ default: m.Login })));
 const SearchPage = React.lazy(() => import('./pages/app/Search').then(m => ({ default: m.SearchPage })));
@@ -49,7 +48,7 @@ import { LangProvider } from './contexts/LanguageContext';
 import { WorkerProvider } from './contexts/WorkerContext';
 import { ToastProvider } from './contexts/ToastContext';
 import { ThemeProvider } from './providers/ThemeProvider';
-import { Data } from './services/data';
+import { SuperAdminCompanyProvider } from './contexts/SuperAdminCompanyContext';
 import { canAccessRoute, firstAllowedRoute } from './config/permissions';
 
 const ProtectedRoute = ({ children, path }: React.PropsWithChildren<{ path: string }>) => {
@@ -68,7 +67,8 @@ export default function App() {
     <ThemeProvider>
       <LangProvider>
         <AuthProvider>
-          <CompanyProvider>
+          <SuperAdminCompanyProvider>
+            <CompanyProvider>
             <ToastProvider>
               <WorkerProvider>
                 <BrowserRouter>
@@ -90,8 +90,7 @@ export default function App() {
 
                       <Route path="/telegram" element={<ProtectedRoute path="/telegram"><TelegramHub /></ProtectedRoute>} />
                       <Route path="/telegram/sources" element={<ProtectedRoute path="/telegram"><TelegramSources /></ProtectedRoute>} />
-                      <Route path="/scenarios" element={<ProtectedRoute path="/scenarios"><ScenarioBuilder /></ProtectedRoute>} />
-                      {/* <Route path="/automations" element={<ProtectedRoute path="/automations"><AutomationBuilder /></ProtectedRoute>} /> */}
+                      <Route path="/scenarios" element={<ProtectedRoute path="/scenarios"><Navigate to="/telegram?tab=FLOWS" replace /></ProtectedRoute>} />
                       <Route path="/leads" element={<ProtectedRoute path="/leads"><Leads /></ProtectedRoute>} />
                       <Route path="/search" element={<ProtectedRoute path="/search"><SearchPage /></ProtectedRoute>} />
                       <Route path="/inventory" element={<ProtectedRoute path="/inventory"><InventoryPage /></ProtectedRoute>} />
@@ -118,7 +117,8 @@ export default function App() {
                 </BrowserRouter>
               </WorkerProvider>
             </ToastProvider>
-          </CompanyProvider>
+            </CompanyProvider>
+          </SuperAdminCompanyProvider>
         </AuthProvider>
       </LangProvider>
     </ThemeProvider>
