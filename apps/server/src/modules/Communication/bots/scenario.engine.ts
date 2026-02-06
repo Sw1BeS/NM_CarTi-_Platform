@@ -1156,7 +1156,7 @@ export class ScenarioEngine {
       payload: { scenarioId: scenario.id }
     });
 
-    const nodes = Array.isArray(scenario.nodes) ? (scenario.nodes as ScenarioNode[]) : [];
+    const nodes = Array.isArray(scenario.nodes) ? (scenario.nodes as unknown as ScenarioNode[]) : [];
     const entryId = scenario.entryNodeId || (nodes.find((n: any) => n.type === 'START')?.id || nodes[0]?.id);
 
     if (entryId) {
