@@ -273,12 +273,18 @@ const notifyRequestAdmin = async (bot: BotRuntime, request: any) => {
   await sendMessage(bot, bot.adminChatId, text, keyboard);
 };
 
-const sendChoices = async (bot: BotRuntime, chatId: string, text: string, choices: any[], lang: string) => {
+const sendChoices = async (bot: BotRuntime, chatId: string, text: string, choices: any[], lang: string, hasBack = false) => {
   const inline_keyboard = (choices || []).map(choice => {
     const label = (lang === 'UK' && choice.label_uk) ? choice.label_uk :
       (lang === 'RU' && choice.label_ru) ? choice.label_ru : choice.label;
     return [{ text: label || choice.label, callback_data: `SCN:CHOICE:${choice.value}` }];
   });
+
+  if (hasBack) {
+    const backTxt = lang === 'UK' ? '⬅️ Назад' : lang === 'RU' ? '⬅️ Назад' : '⬅️ Back';
+    inline_keyboard.push([{ text: backTxt, callback_data: 'CMD:BACK' }]);
+  }
+
   return sendMessage(bot, chatId, text, { inline_keyboard });
 };
 
@@ -1243,7 +1249,7 @@ export class ScenarioEngine {
         break;
 
       case 'QUESTION_CHOICE':
-        await sendChoices(bot, session.chatId, text, node.content?.choices || [], lang);
+        await sendChoices(bot, session.chatId, text, node.content?.choices || [], lang, history.length > 0);
         await ScenarioEngine.persistSession(session, vars, history);
         break;
 

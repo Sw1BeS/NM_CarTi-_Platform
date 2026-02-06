@@ -5,7 +5,7 @@ import { ScenarioEngine } from '../../bots/scenario.engine.js';
 import { telegramOutbox } from '../messaging/outbox/telegramOutbox.js';
 import { parseCallbackData } from '../core/utils/callbackUtils.js';
 import { button, resolveLang, t } from '../core/utils/telegramText.js';
-import { finalizeB2BRequest, finalizeCatalogSell, finalizeClientLead } from './routeMessage.js';
+import { finalizeB2BRequest, finalizeCatalogSell, finalizeClientLead, handleDynamicMenu } from './routeMessage.js';
 
 const updateSession = async (ctx: PipelineContext, state: string, variables: Record<string, any>) => {
   if (!ctx.session) return;
@@ -46,6 +46,13 @@ export const routeCallback = async (ctx: PipelineContext) => {
   const parsed = parseCallbackData(data);
   const lang = resolveLang(ctx);
   const vars = (ctx.session.variables as any) || {};
+
+  if (data.startsWith('set_lang:')) {
+    const selectedLang = data.split(':')[1];
+    await updateSession(ctx, 'DYN_MENU', { ...vars, language: selectedLang, lang: selectedLang });
+    await handleDynamicMenu(ctx, '/menu');
+    return true;
+  }
 
   if (parsed.ok && parsed.action) {
     switch (parsed.action) {

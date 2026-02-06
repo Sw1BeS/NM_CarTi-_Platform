@@ -665,7 +665,7 @@ const handleB2B = async (ctx: PipelineContext, text: string) => {
   return false;
 };
 
-const handleDynamicMenu = async (ctx: PipelineContext, text: string) => {
+export const handleDynamicMenu = async (ctx: PipelineContext, text: string) => {
   if (!ctx.bot || !ctx.session) return false;
 
   const config = ctx.bot.config as any;
@@ -681,6 +681,19 @@ const handleDynamicMenu = async (ctx: PipelineContext, text: string) => {
 
   // 1. Show Menu
   if (isMenu) {
+    // LANGUAGE CHECK - Bootstrap Flow
+    const sessionVars = (ctx.session.variables as any) || {};
+    if (!sessionVars.language && !sessionVars.lang) {
+      await sendMessage(ctx, 'Please select your language / Оберіть мову:', {
+        inline_keyboard: [
+          [{ text: '🇺🇦 Українська', callback_data: 'set_lang:UK' }],
+          [{ text: '🇺🇸 English', callback_data: 'set_lang:EN' }],
+          [{ text: '🇷🇺 Русский', callback_data: 'set_lang:RU' }]
+        ]
+      });
+      return true;
+    }
+
     const welcome = menuConfig.welcomeMessage || t(lang, 'clientMenu', { bot: ctx.bot.name || 'Bot' });
 
     // Group buttons into rows
