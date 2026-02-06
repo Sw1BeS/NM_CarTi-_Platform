@@ -1305,6 +1305,26 @@ export class ScenarioEngine {
 
       case 'DELAY': {
         const ms = parseInt(String(node.content?.conditionValue || '1000'), 10);
+
+        // Long delays (> 10 sec) are handled by Scheduler
+        if (ms > 10000) {
+          await ScenarioEngine.persistSession(session, vars, history);
+          await prisma.scheduledJob.create({
+            data: {
+              type: 'SCENARIO_RESUME',
+              runAt: new Date(Date.now() + ms),
+              status: 'PENDING',
+              payload: {
+                botId: bot.id,
+                chatId: session.chatId,
+                scenarioId: scenario.id,
+                nodeId: node.nextNodeId
+              }
+            }
+          });
+          return;
+        }
+
         await sendChatAction(bot, session.chatId, 'typing');
         await new Promise(r => setTimeout(r, ms));
         if (node.nextNodeId) await this.executeNode(bot, session, vars, history, scenario, node.nextNodeId, isBack, depth + 1);

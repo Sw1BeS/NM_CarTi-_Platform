@@ -337,25 +337,41 @@ export class MTProtoService {
             sourceChatId: string;
             sourceMessageId: number;
             channelSourceId?: string | null;
+            mediaPolicy?: 'refs_only' | 'download' | 'first_only';
         }
     ): Promise<{ mediaUrls: string[]; mediaItems: MediaItem[] }> {
         try {
             const isPhoto = !!(msg.photo || msg.media?.photo || msg.media?.className === 'MessageMediaPhoto');
-            if (!msg.media || !isPhoto) {
-                await logIntegrationEvent({
-                    companyId: context.companyId,
-                    integration: 'TELEGRAM_MTPROTO',
-                    entityId: context.channelSourceId || undefined,
-                    action: 'media_skipped',
-                    status: 'WARN',
-                    message: 'MEDIA_UNSUPPORTED',
-                    meta: {
-                        sourceChatId: context.sourceChatId,
-                        sourceMessageId: context.sourceMessageId
-                    }
-                });
+            if (!msg.media || (!isPhoto && !msg.media.document)) {
                 return { mediaUrls: [], mediaItems: [] };
             }
+
+            // check policy
+            const policy = context.mediaPolicy || 'download';
+
+            if (policy === 'refs_only') {
+                // Return metadata without downloading
+                const item = {
+                    url: undefined, // No public URL
+                    previewUrl: undefined,
+                    source: 'MTPROTO',
+                    tgFileId: msg.media?.photo?.id?.toString() || msg.media?.document?.id?.toString(),
+                    tgMeta: {
+                        messageId: msg.id,
+                        groupedId: msg.groupedId?.toString(),
+                        accessHash: msg.media?.photo?.accessHash?.toString() || msg.media?.document?.accessHash?.toString(),
+                        fileReference: msg.media?.photo?.fileReference?.toString('base64') || msg.media?.document?.fileReference?.toString('base64')
+                    }
+                };
+                return { mediaUrls: [], mediaItems: [item] };
+            }
+
+            if (!isPhoto) {
+                // For now, only download photos if policy is download. 
+                // Documents/Videos might be too large.
+                return { mediaUrls: [], mediaItems: [] };
+            }
+
             const sizeCandidates = [
                 msg.media?.document?.size,
                 msg.media?.photo?.sizes?.map((s: any) => s?.size || 0),
@@ -570,7 +586,8 @@ export class MTProtoService {
                     companyId: source.connector?.companyId,
                     sourceChatId: source.channelId,
                     sourceMessageId: msg.id,
-                    channelSourceId: source.id
+                    channelSourceId: source.id,
+                    mediaPolicy: (source.importRules as any)?.mediaPolicy
                 });
 
                 await processParsedMessage({

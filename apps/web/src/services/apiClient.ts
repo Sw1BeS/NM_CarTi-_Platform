@@ -34,7 +34,10 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
     console.debug(`[API] ${options.method || 'GET'} ${url}`);
 
     try {
-        const response = await fetch(url, { ...options, headers });
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000);
+        const response = await fetch(url, { ...options, headers, signal: controller.signal });
+        clearTimeout(timeoutId);
 
         let data;
         const contentType = response.headers.get('content-type');

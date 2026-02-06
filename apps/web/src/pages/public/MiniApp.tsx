@@ -225,68 +225,56 @@ export const MiniApp = () => {
             const rawSlug = slug || startParam || 'system';
             const resolvedSlug = normalizeSlug(rawSlug) || 'system';
 
-            // 3. Load Bot Configuration matched by showcase slug
-            let bots: Bot[] = [];
+            // 3. Load Mini App Configuration
             try {
-                bots = await getPublicBots();
-            } catch (e) {
-                console.error('Failed to load public bots for MiniApp', e);
-            }
-            if (!bots || bots.length === 0) {
-                setInitError(`Mini App configuration not found. No public bots available for slug "${resolvedSlug}".`);
-                setConfig(buildFallbackConfig(resolvedSlug));
-                setCars([]);
-                return;
-            }
-            const matchedBot = bots.find(b => {
-                const byShowcase = (b.defaultShowcaseSlug || '').toLowerCase();
-                const byUsername = (b.username || '').toLowerCase().replace(/^@/, '');
-                const target = resolvedSlug.toLowerCase();
-                return byShowcase === target || byUsername === target;
-            });
-            const fallbackBot = bots.find(b => b.active) || bots[0];
-            const bot = matchedBot || fallbackBot || null;
-            const effectiveSlug = (resolvedSlug === 'system' || !resolvedSlug)
-                ? (bot?.defaultShowcaseSlug || 'catalog')
-                : resolvedSlug;
-            setTargetSlug(effectiveSlug);
-            await loadFavorites(effectiveSlug, {
-                tgUserId: resolvedUser?.id ? String(resolvedUser.id) : undefined,
-                visitorId
-            });
-            if (bot) {
-                setActiveBot(bot);
-                setConfig(bot.miniAppConfig || buildFallbackConfig(effectiveSlug));
-            } else {
-                // No bot configured; still render with fallback to avoid blank screen
-                setConfig(buildFallbackConfig(effectiveSlug));
-            }
+                // Determine effective slug first
+                const rawSlug = slug || startParam || 'system';
+                const resolvedSlug = normalizeSlug(rawSlug) || 'system';
 
-            // 4. Load Data
-            try {
-                // Try Showcase API first
-                try {
-                    const res = await getShowcaseInventory(effectiveSlug);
-                    setCars(res.items);
-                } catch (e) {
-                    // Fallback to legacy public inventory if showcase not found
-                    console.warn(`Showcase '${effectiveSlug}' not found, falling back to legacy`, e);
-                    const res = await import('../../services/publicApi').then(m => m.getPublicInventory(effectiveSlug));
-                    setCars(res.items);
+                // Fetch config from new endpoint
+                // We need to import getMiniAppConfig first, but I can add it to imports later or assume it's there
+                const { getMiniAppConfig } = await import('../../services/miniappApi');
+                const conf = await getMiniAppConfig(resolvedSlug);
+
+                // Update state
+                setTargetSlug(conf.publicSlug || resolvedSlug);
+
+                // If we got config for specific bot, use it
+                if (conf.miniapp) {
+                    setConfig(conf.miniapp);
+                } else {
+                    // Fallback local config if empty
+                    setConfig(buildFallbackConfig(conf.publicSlug));
                 }
+
+                // Also set active bot if needed (we don't have full bot object but we have props)
+                if (conf.botId && conf.botUsername) {
+                    setActiveBot({
+                        id: conf.botId,
+                        username: conf.botUsername,
+                        defaultShowcaseSlug: conf.publicSlug,
+                        miniAppConfig: conf.miniapp
+                    } as Bot);
+                }
+
+                // Load favorites
+                await loadFavorites(conf.publicSlug, {
+                    tgUserId: resolvedUser?.id ? String(resolvedUser.id) : undefined,
+                    visitorId
+                });
+
             } catch (e) {
-                console.error("Failed to load inventory for Mini App", e);
+                console.error('Mini App init failed', e);
+                const reason = e instanceof Error ? e.message : String(e);
+                // If it's 404/System error, show fallback
+                setInitError(`Failed to load app configuration. ${reason}. Check slug.`);
+                const fallbackSlug = slug || 'system';
+                setTargetSlug(fallbackSlug);
+                setConfig(buildFallbackConfig(fallbackSlug));
+                setCars([]);
             }
         };
-        load().catch((e) => {
-            console.error('Mini App init failed', e);
-            const reason = e instanceof Error ? e.message : String(e);
-            setInitError(`Failed to initialize Mini App. ${reason ? `Reason: ${reason}. ` : ''}Check base URL, slug, and bot config.`);
-            const fallbackSlug = slug || 'system';
-            setTargetSlug(fallbackSlug);
-            setConfig(buildFallbackConfig(fallbackSlug));
-            setCars([]);
-        });
+        load();
     }, [slug]);
 
     if (!config) return <div className="h-screen flex items-center justify-center text-white bg-black">Loading App...</div>;

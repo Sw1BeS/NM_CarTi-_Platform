@@ -81,3 +81,19 @@ export async function getMiniAppRequestStatus(params: { slug: string; requestId?
     skipAuth: true
   });
 }
+
+export type MiniAppConfigResponse = {
+  companyId: string;
+  botId: string;
+  publicSlug: string;
+  miniapp?: any;
+  botUsername?: string;
+  appName?: string;
+};
+
+export async function getMiniAppConfig(slug: string): Promise<MiniAppConfigResponse> {
+  return await apiFetch(`/miniapp/config?slug=${slug}`, {
+    method: 'GET',
+    skipAuth: true
+  });
+}

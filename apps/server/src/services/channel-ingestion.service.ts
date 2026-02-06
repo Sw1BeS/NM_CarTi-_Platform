@@ -46,74 +46,20 @@ export type MediaItem = {
     tgMeta?: Record<string, string | number | null>;
 };
 
+import { normalizeCurrency, normalizeNumber, parseCarData } from './enhanced-parsing.utils.js';
+
 const carRepo = new CarRepository(prisma);
 const draftRepo = new DraftRepository(prisma);
 
 const isNonEmptyString = (value?: string | null) => !!value && value.trim().length > 0;
-
 const isMeaningfulNumber = (value?: number | null) => typeof value === 'number' && value > 0;
-
 const isMeaningfulYear = (value?: number | null) =>
     typeof value === 'number' && value >= 1900 && value <= new Date().getFullYear() + 1;
-
 const isRealUrl = (value?: string | null) => typeof value === 'string' && /^https?:\/\//.test(value);
 
-const normalizeNumberString = (raw: string) => {
-    const cleaned = raw.replace(/\s/g, '');
-    if (/^\d{1,3}([.,]\d{3})+$/.test(cleaned)) {
-        return cleaned.replace(/[.,]/g, '');
-    }
-    return cleaned.replace(/,/g, '');
-};
+// Legacy helpers removed in favor of enhanced-parsing.utils.ts
+// parsePriceFromText replaced
 
-const detectCurrency = (text: string) => {
-    if (!text) return undefined;
-    const lower = text.toLowerCase();
-    const hits = new Set<string>();
-
-    if (/(uah|грн|₴)/i.test(lower)) hits.add('UAH');
-    if (/(eur|€)/i.test(lower)) hits.add('EUR');
-    if (/(usd|\\$|дол|бакс)/i.test(lower)) hits.add('USD');
-
-    if (hits.size === 1) return Array.from(hits)[0];
-    return undefined;
-};
-
-const parsePriceFromText = (text: string): { amount?: number; currency?: string } => {
-    const labeled = text.match(/(?:price|цена|стоимость|💰)\s*[:\-]?\s*([\d\s.,]+)\s*(k|к|тыс|тис)?\s*(\$|€|₴|USD|EUR|UAH)?/i);
-    const symbolFirst = text.match(/(\$|€|₴|USD|EUR|UAH)\s*([\d\s.,]+)\s*(k|к|тыс|тис)?/i);
-    const symbolLast = text.match(/([\d\s.,]+)\s*(k|к|тыс|тис)?\s*(\$|€|₴|USD|EUR|UAH)/i);
-
-    let rawNum: string | undefined;
-    let rawCurr: string | undefined;
-    let suffix: string | undefined;
-
-    if (labeled) {
-        rawNum = labeled[1];
-        suffix = labeled[2];
-        rawCurr = labeled[3];
-    } else if (symbolFirst) {
-        rawCurr = symbolFirst[1];
-        rawNum = symbolFirst[2];
-        suffix = symbolFirst[3];
-    } else if (symbolLast) {
-        rawNum = symbolLast[1];
-        suffix = symbolLast[2];
-        rawCurr = symbolLast[3];
-    }
-
-    if (!rawNum) return {};
-    const normalized = normalizeNumberString(rawNum);
-    let amount = Number.parseFloat(normalized);
-    if (!Number.isFinite(amount)) return {};
-
-    if (suffix && /k|к|тыс|тис/i.test(suffix)) {
-        amount = amount * 1000;
-    }
-
-    const currency = rawCurr ? detectCurrency(rawCurr) : detectCurrency(text);
-    return { amount, currency };
-};
 
 const normalizeMediaItem = (item: MediaItem): Prisma.InputJsonObject => {
     const normalized: Record<string, Prisma.InputJsonValue> = {};
@@ -432,68 +378,35 @@ export class ChannelIngestionService {
     private extractCarData(text: string): CarData | null {
         if (!text) return null;
 
-        const data: CarData = {
-            title: '',
-            currency: 'USD',
-            description: text
-        };
+        const specs = parseCarData(text);
+        const description = text;
 
+        let title = '';
         const brandModelMatch = text.match(/(BMW|Mercedes|Audi|VW|Volkswagen|Toyota|Lexus|Nissan|Hyundai|Kia|Porsche)\s*([A-Z0-9\-\s]+)/i);
+
+        let brand = specs.brand;
+        let model = specs.model;
+
         if (brandModelMatch) {
-            data.brand = brandModelMatch[1];
-            data.model = brandModelMatch[2].trim();
-            data.title = `${data.brand} ${data.model}`;
+            brand = brandModelMatch[1];
+            model = brandModelMatch[2].trim();
+            title = `${brand} ${model}`;
+        } else {
+            title = `Car ${specs.year || ''} ${specs.price ? specs.price + (specs.currency || '') : ''}`.trim() || 'Unknown Car';
         }
 
-        const yearMatch = text.match(/(\d{4})\s*(год|г|year|yr)?/i);
-        if (yearMatch) {
-            const year = parseInt(yearMatch[1]);
-            if (year >= 1990 && year <= new Date().getFullYear() + 1) {
-                data.year = year;
-            }
-        }
-
-        const parsedPrice = parsePriceFromText(text);
-        if (parsedPrice.amount) {
-            data.price = Math.round(parsedPrice.amount);
-        }
-        if (parsedPrice.currency) {
-            data.currency = parsedPrice.currency;
-        }
-
-        const mileageMatch = text.match(/(\d+[\s,]?\d*)\s*(k|к|тыс|тис)?\s*(км|km|miles|mi)/i);
-        if (mileageMatch) {
-            let mileageStr = mileageMatch[1].replace(/[\s,]/g, '');
-            let mileage = parseInt(mileageStr);
-
-            if (mileageMatch[2]) {
-                mileage = mileage * 1000;
-            }
-            data.mileage = mileage;
-        }
-
-        const locationMatch = text.match(/(Kyiv|Київ|Киев|Lviv|Львів|Львов|Odesa|Одесса|Dnipro|Днепр)/i);
-        if (locationMatch) {
-            data.location = locationMatch[1];
-        }
-
-        const specs: Record<string, unknown> = {};
-        if (text.match(/diesel|дизель/i)) specs.fuel = 'diesel';
-        else if (text.match(/petrol|бензин|gasoline/i)) specs.fuel = 'petrol';
-        else if (text.match(/electric|електро|электро/i)) specs.fuel = 'electric';
-
-        if (text.match(/automatic|автомат/i)) specs.transmission = 'automatic';
-        else if (text.match(/manual|механика/i)) specs.transmission = 'manual';
-
-        if (Object.keys(specs).length > 0) {
-            data.specs = specs;
-        }
-
-        if (!data.title) {
-            data.title = text.slice(0, 100).trim();
-        }
-
-        return data;
+        return {
+            title,
+            price: specs.price,
+            currency: specs.currency || 'USD',
+            year: specs.year,
+            mileage: specs.mileage,
+            location: specs.location, // enhanced-parsing doesn't extract location yet, but consistent with interface
+            brand,
+            model,
+            specs,
+            description
+        };
     }
 
     private applyImportRules(carData: CarData, rules: any) {

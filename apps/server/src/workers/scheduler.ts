@@ -41,7 +41,17 @@ export const startScheduler = () => {
         }
     });
 
-    logger.info('⏰ Scheduler: Started. Jobs: [sync_telegram_channels, mtproto_import_jobs, parsing_jobs]');
+    // Process Scheduled Jobs (Reminders, Delays, etc)
+    cron.schedule('* * * * *', async () => {
+        logger.info('⏰ Scheduler: Starting Job [scheduled_jobs]');
+        try {
+            await processScheduledJobs();
+        } catch (e) {
+            logger.error('⏰ Scheduler: Job [scheduled_jobs] Failed', e);
+        }
+    });
+
+    logger.info('⏰ Scheduler: Started. Jobs: [sync_telegram_channels, mtproto_import_jobs, parsing_jobs, scheduled_jobs]');
 };
 
 async function syncAllChannels() {
@@ -96,6 +106,107 @@ async function syncAllChannels() {
                 }
             });
             // Don't throw, allow other sources to sync
+        }
+    }
+}
+
+
+async function processScheduledJobs() {
+    const now = new Date();
+    const jobs = await prisma.scheduledJob.findMany({
+        where: {
+            status: 'PENDING',
+            runAt: { lte: now }
+        },
+        take: 50 // batch size
+    });
+
+    if (jobs.length === 0) return;
+    logger.info(`⏰ Scheduler: Found ${jobs.length} due jobs.`);
+
+    for (const job of jobs) {
+        try {
+            await prisma.scheduledJob.update({
+                where: { id: job.id },
+                data: { status: 'PROCESSING' }
+            });
+
+            // Handle Job Type
+            // For now, we only support specific types or generic 'DELAY'
+            // We can emit event or handle logic here
+            // If it's a generic delay for scenario, maybe we need ScenarioEngine?
+            // User requirement: "Сценарный нод DELAY или SCHEDULE_REMINDER: создаёт ScheduledJob, который потом отправит сообщение пользователю/админу"
+            // So logic should happen here or dispatch.
+
+            // Dispatch to Platform Events?
+            // e.g. platformEvents.emit('scheduled.job.due', job);
+
+            if (job.type === 'SCENARIO_RESUME') {
+                const { botId, chatId, scenarioId, nodeId } = job.payload as any;
+                const bot = await prisma.botConfig.findUnique({ where: { id: botId } });
+                const session = await prisma.botSession.findFirst({ where: { botId, chatId } });
+
+                if (bot && session && scenarioId && nodeId) {
+                    const { ScenarioEngine } = await import('../modules/Communication/bots/scenario.engine.js');
+                    const scenario = await prisma.scenario.findUnique({ where: { id: scenarioId } });
+
+                    if (scenario) {
+                        const botRuntime: any = {
+                            id: bot.id,
+                            token: bot.token,
+                            companyId: bot.companyId,
+                            config: bot.config,
+                            adminChatId: bot.adminChatId,
+                            channelId: bot.channelId
+                        };
+
+                        await ScenarioEngine.executeNode(
+                            botRuntime,
+                            session,
+                            session.variables as Record<string, any>,
+                            session.history as string[],
+                            scenario as any,
+                            nodeId
+                        );
+                    }
+                }
+            }
+
+            // Or simple placeholder implementation for Reminder
+            if (job.type === 'REMINDER' || job.type === 'DELAY') {
+                // Logic to send message?
+                // payload: { botId, chatId, message }
+                const p = job.payload as Record<string, any>;
+                if (p && p.botId && p.chatId && p.message) {
+                    const bot = await prisma.botConfig.findUnique({ where: { id: p.botId } });
+                    if (bot) {
+                        const { telegramOutbox } = await import('../modules/Communication/telegram/messaging/outbox/telegramOutbox.js');
+                        await telegramOutbox.sendMessage({
+                            botId: bot.id,
+                            token: bot.token,
+                            chatId: p.chatId,
+                            text: p.message,
+                            companyId: bot.companyId
+                        });
+                    }
+                }
+            }
+
+            await prisma.scheduledJob.update({
+                where: { id: job.id },
+                data: { status: 'COMPLETED' }
+            });
+
+        } catch (e: any) {
+            console.error(`Failed to process job ${job.id}`, e);
+            await prisma.scheduledJob.update({
+                where: { id: job.id },
+                data: {
+                    status: 'FAILED',
+                    lastError: e.message,
+                    attempts: { increment: 1 }
+                }
+            });
         }
     }
 }

@@ -1,10 +1,19 @@
 import crypto from 'crypto';
 
-export const verifyTelegramInitData = (initData: string, botToken: string): boolean => {
+export const verifyTelegramInitData = (initData: string, botToken: string, maxAgeSeconds = 900): boolean => {
   if (!initData || !botToken) return false;
   const params = new URLSearchParams(initData);
   const hash = params.get('hash');
   if (!hash) return false;
+
+  const authDate = params.get('auth_date');
+  if (authDate && maxAgeSeconds > 0) {
+    const authTimestamp = parseInt(authDate, 10);
+    const nowTimestamp = Math.floor(Date.now() / 1000);
+    if (nowTimestamp - authTimestamp > maxAgeSeconds) {
+      return false;
+    }
+  }
 
   params.delete('hash');
   const dataCheckString = Array.from(params.entries())

@@ -763,6 +763,22 @@ model MessageLog {
   @@index([chatId])
 }
 
+model ScheduledJob {
+  id        String   @id @default(cuid())
+  type      String
+  status    String   @default("PENDING") // PENDING, PROCESSING, COMPLETED, FAILED
+  runAt     DateTime
+  payload   Json?    @db.JsonB
+  
+  attempts  Int      @default(0)
+  lastError String?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, runAt])
+}
+
 model PartnerCompany {
   id        String     @id @default(cuid())
   name      String

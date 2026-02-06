@@ -113,11 +113,17 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(clientBuildPath, 'index.html'));
 });
 
+import { initEventHandlers } from './services/event-handlers.js';
+
+// ...
 // Start Server
 const startServer = async () => {
   try {
     await prisma.$connect();
     logger.info('Database connected');
+
+    // Initialize Platform Event Handlers
+    initEventHandlers();
 
     // Seed default admin if not exists
     await seedAdmin();

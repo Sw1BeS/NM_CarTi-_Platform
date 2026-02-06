@@ -4,6 +4,7 @@ import { ShowcaseService } from '../modules/Marketing/showcase/showcase.service.
 import { generatePublicId, mapInventoryOutput, mapRequestInput, mapRequestOutput } from './dto.js';
 import { createOrMergeLead } from '../modules/Communication/telegram/core/leadService.js';
 import { resolvePublicSlug, type PublicSlugResolution } from './publicSlug.service.js';
+import { platformEvents, EVENTS } from './platform-events.js';
 
 export type MiniAppIdentity = {
   tgUserId?: string;
@@ -217,6 +218,7 @@ export class MiniAppService {
     const payload = {
       ...payloadFromInput,
       source: 'miniapp',
+      phone: phone || undefined,
       tracking,
       telegram,
       request: {
@@ -277,6 +279,15 @@ export class MiniAppService {
       }
     });
 
+    platformEvents.emit(EVENTS.MINIAPP_REQUEST_CREATED, {
+      requestId: request.id,
+      companyId,
+      botId,
+      phone,
+      telegramUserId: tgUserId,
+      payload: request.payload
+    });
+
     return mapRequestOutput(request);
   }
 
@@ -307,6 +318,12 @@ export class MiniAppService {
           equals: phone
         }
       });
+      or.push({
+        payload: {
+          path: ['request', 'phone'],
+          equals: phone
+        }
+      });
     }
 
     if (or.length) {
@@ -326,6 +343,33 @@ export class MiniAppService {
       status: request.status,
       title: request.title,
       createdAt: request.createdAt
+    };
+  }
+
+  async getConfig(slug: string) {
+    const resolved = await resolvePublicSlug(slug);
+    const companyId = resolved.companyId;
+
+    if (!companyId) throw new Error('Company not found');
+
+    const { botId } = await resolveBotForSlug(slug, companyId, resolved);
+
+    let botConfig;
+    if (botId) {
+      botConfig = await prisma.botConfig.findUnique({
+        where: { id: botId, companyId } // validation
+      });
+    }
+
+    // Default showcase slug from company if not found on bot?
+    // For now, minimal safe config
+    return {
+      companyId,
+      botId,
+      publicSlug: slug,
+      miniapp: botConfig?.config ? (botConfig.config as Record<string, any>)?.miniAppConfig : undefined,
+      botUsername: (botConfig?.config as Record<string, any>)?.username,
+      appName: (botConfig?.config as Record<string, any>)?.name
     };
   }
 }

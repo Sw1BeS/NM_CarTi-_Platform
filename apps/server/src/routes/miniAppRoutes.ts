@@ -30,9 +30,24 @@ const resolveCompanyIdBySlug = async (slug?: string | null) => {
   return resolved.companyId || null;
 };
 
-const requireInitData = async (initData: string | undefined, companyId?: string | null) => {
+const requireInitData = async (initData: string | undefined, companyId?: string | null, botId?: string | null) => {
   if (!initData) return { ok: false, message: 'initData is required' };
   const init = initData;
+
+  if (botId) {
+    const bot = await prisma.botConfig.findUnique({
+      where: { id: botId, isEnabled: true },
+      select: { token: true }
+    });
+    if (bot) {
+      if (verifyTelegramInitData(init, bot.token)) return { ok: true };
+      return { ok: false, message: 'Invalid Telegram init data' };
+    }
+    // If specific bot not found/disabled, fail or fall back?
+    // Fail secure.
+    return { ok: false, message: 'Bot not found or disabled' };
+  }
+
   const bots = await prisma.botConfig.findMany({
     where: {
       isEnabled: true,
@@ -44,6 +59,21 @@ const requireInitData = async (initData: string | undefined, companyId?: string 
   if (!verified) return { ok: false, message: 'Invalid Telegram init data' };
   return { ok: true };
 };
+
+router.get('/config', async (req, res) => {
+  try {
+    const slug = readString(req.query.slug);
+    if (!slug) return errorResponse(res, 400, 'slug is required');
+
+    const config = await miniAppService.getConfig(slug);
+    res.json({ ok: true, config });
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'Failed to load config';
+    // If company not found, it throws "Company not found", return 404/400
+    if (message === 'Company not found') return errorResponse(res, 404, message);
+    errorResponse(res, 500, message);
+  }
+});
 
 router.get('/favorites', async (req, res) => {
   try {
@@ -74,8 +104,16 @@ router.post('/favorites/:carListingId', async (req, res) => {
     const visitorId = readString(body.visitorId);
 
     const listing = await prisma.carListing.findUnique({ where: { id: carListingId }, select: { companyId: true } });
-    const companyId = listing?.companyId || (await resolveCompanyIdBySlug(slug)) || null;
-    const initCheck = await requireInitData(initData, companyId);
+
+    let resolvedConfig;
+    try {
+      if (slug) resolvedConfig = await miniAppService.getConfig(slug);
+    } catch { }
+
+    const companyId = listing?.companyId || resolvedConfig?.companyId || null;
+    const botId = resolvedConfig?.botId;
+
+    const initCheck = await requireInitData(initData, companyId, botId);
     if (!initCheck.ok) return errorResponse(res, 401, initCheck.message || 'Unauthorized');
 
     if (!tgUserId && !visitorId) return errorResponse(res, 400, 'tgUserId or visitorId is required');
@@ -95,8 +133,15 @@ router.post('/requests', async (req, res) => {
     const initData = readString(body.initData);
 
     if (!slug) return errorResponse(res, 400, 'slug is required');
-    const companyId = await resolveCompanyIdBySlug(slug);
-    const initCheck = await requireInitData(initData, companyId);
+
+    let config;
+    try {
+      config = await miniAppService.getConfig(slug);
+    } catch (e: unknown) {
+      return errorResponse(res, 404, 'Company not found');
+    }
+
+    const initCheck = await requireInitData(initData, config.companyId, config.botId);
     if (!initCheck.ok) return errorResponse(res, 401, initCheck.message || 'Unauthorized');
 
     const request = await miniAppService.createRequest({
