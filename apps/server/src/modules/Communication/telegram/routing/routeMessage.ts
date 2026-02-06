@@ -665,14 +665,158 @@ const handleB2B = async (ctx: PipelineContext, text: string) => {
   return false;
 };
 
+const handleDynamicMenu = async (ctx: PipelineContext, text: string) => {
+  if (!ctx.bot || !ctx.session) return false;
+
+  const config = ctx.bot.config as any;
+  const menuConfig = config?.menuConfig;
+  const buttons = Array.isArray(menuConfig?.buttons) ? menuConfig.buttons : [];
+
+  // If no dynamic configuration, skip
+  if (!buttons.length) return false;
+
+  const lang = resolveLang(ctx);
+  // Commands that trigger the menu display
+  const isMenu = isCommand(text, ['/start', '/menu', 'menu', 'reset', 'start']);
+
+  // 1. Show Menu
+  if (isMenu) {
+    const welcome = menuConfig.welcomeMessage || t(lang, 'clientMenu', { bot: ctx.bot.name || 'Bot' });
+
+    // Group buttons into rows
+    const rows: any[][] = [];
+    // Sort by row/col just in case, though frontend usually saves them ordered? 
+    // Better to trust the row/col properties.
+    const sorted = [...buttons].sort((a, b) => (a.row - b.row) || (a.col - b.col));
+
+    for (const btn of sorted) {
+      if (!rows[btn.row]) rows[btn.row] = [];
+
+      const label = btn[`label_${lang}`] || btn.label || 'Button';
+
+      if (btn.type === 'WEB_APP') {
+        rows[btn.row].push({ text: label, web_app: { url: btn.value } });
+      } else if (btn.type === 'LINK') {
+        // Links are usually inline buttons, but in a keyboard they fail. 
+        // We will simple show text for now or maybe this is intended for inline?
+        // The Hub UI seems to build a persistent keyboard (ReplyKeyboardMarkup).
+        // ReplyKeyboard buttons cannot be links. They are just text triggers.
+        // So for LINK/WEB_APP types in ReplyKeyboard:
+        // WEB_APP is supported.
+        // LINK is NOT supported directly in ReplyKeyboardMarkup (must be Inline).
+        // If the user configured a LINK button in a persistent menu, we can't render it as a link button.
+        // We render it as text, and when clicked, we send the link?
+        rows[btn.row].push({ text: label });
+      } else {
+        rows[btn.row].push({ text: label });
+      }
+    }
+
+    // Fill gaps if strictly row-based array
+    const keyboard = rows.filter(r => Array.isArray(r) && r.length > 0);
+
+    await sendMessage(ctx, welcome, {
+      keyboard,
+      resize_keyboard: true
+    });
+
+    // Reset flow state
+    await updateSession(ctx, 'DYN_MENU', { ...((ctx.session.variables as any) || {}), currentFlow: undefined });
+    return true;
+  }
+
+  // 2. Handle Button Clicks (Text Match)
+  // Find button that matches the text
+  const matchedBtn = buttons.find((btn: any) => {
+    const label = btn.label || '';
+    const labelUk = btn.label_uk || '';
+    const labelRu = btn.label_ru || '';
+    return isCommand(text, [label, labelUk, labelRu].filter(Boolean));
+  });
+
+  if (matchedBtn) {
+    if (matchedBtn.type === 'SCENARIO') {
+      const scenarioId = matchedBtn.value;
+      if (scenarioId) {
+        // Check if scenario exists and force run it
+        // We can delegate to ScenarioEngine or just trigger it by forcing the session/context
+        // Easier: Let the ScenarioEngine pick it up? 
+        // ScenarioEngine.handleUpdate usually checks for trigger commands.
+        // But here we have an ID.
+
+        // We can try to load the scenario and run its first node?
+        // Or easier: update the session to point to the scenario entry?
+
+        // Let's use the ScenarioEngine if possible.
+        // ScenarioEngine doesn't seem to expose "runById".
+
+        // Hack/Workaround: If we know the scenario trigger command, we can pretend the user sent it?
+        // But we have the ID.
+
+        // Let's look for the scenario by ID
+        const scenario = await prisma.scenario.findUnique({ where: { id: scenarioId } });
+        if (scenario && scenario.isActive) {
+          // We need to trigger the engine.
+          // We can manually call 'ScenarioEngine.startScenario(ctx, scenario)' if it was exposed.
+          // It's not imported here.
+
+          // Let's check ScenarioEngine availability.
+          return await ScenarioEngine.startScenario(ctx.bot, ctx.session, scenarioId, ctx.update);
+        }
+      }
+    }
+
+    if (matchedBtn.type === 'TEXT') {
+      await sendMessage(ctx, matchedBtn.value || 'Hello!');
+      return true;
+    }
+
+    if (matchedBtn.type === 'LINK') {
+      await sendMessage(ctx, `🔗 ${matchedBtn.value}`);
+      return true;
+    }
+
+    // WEB_APP usually opens on client side, but we might receive data if specific event?
+    // If it's just a text click, we do nothing or re-open menu.
+    return true;
+  }
+
+  // If we are in DYN_MENU state and text didn't match anything, 
+  // we could fallback to other logic, OR show the menu again if it looks like navigation?
+
+  return false;
+};
+
 export const routeMessage = async (ctx: PipelineContext) => {
   if (!ctx.bot || !ctx.session) return false;
 
+  // 1. Prioritize Scenarios (Triggers)
   const handledScenario = await ScenarioEngine.handleUpdate(ctx.bot as any, ctx.session, ctx.update);
   if (handledScenario) return true;
 
+  const message = ctx.update?.message;
+  const text = message?.text || '';
+
+  // 2. Dynamic Menu Logic (Prioritized over legacy templates)
+  const isDynamicHandled = await handleDynamicMenu(ctx, text);
+  if (isDynamicHandled) return true;
+
+  // 3. Legacy Templates (Fallback)
   // If modern scenarios exist for this bot/company, do not fall back to legacy template flows
+  // (Logic preserved from original file)
   const companyId = (ctx as any).companyId || ctx.bot.companyId;
+  /* 
+   NOTE: We relaxed this check slightly. If handleDynamicMenu returned false, 
+   it means user is not interacting with the menu. 
+   We still want to allow legacy templates if they are active?
+   BUT: If the user has a "Dynamic Menu", they likely don't want "CLIENT_LEAD" hardcoded behavior 
+   interfering (e.g. asking for name immediately if not matched).
+   
+   However, we should still allow the "Legacy" flows to run if the user hasn't fully migrated.
+   The implementation plan says: "If present, delegate".
+   We did checks at top.
+  */
+
   if (companyId) {
     const hasScenarios = await prisma.scenario.findFirst({
       where: {
@@ -685,9 +829,6 @@ export const routeMessage = async (ctx: PipelineContext) => {
     });
     if (hasScenarios) return true;
   }
-
-  const message = ctx.update?.message;
-  const text = message?.text || '';
 
   if (ctx.bot.template === 'CLIENT_LEAD') return handleClientLead(ctx, text);
   if (ctx.bot.template === 'CATALOG') return handleCatalog(ctx, text);

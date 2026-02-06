@@ -1122,6 +1122,51 @@ export class ScenarioEngine {
     return true;
   }
 
+  static async startScenario(bot: BotRuntime, session: any, scenarioId: string, update?: any): Promise<boolean> {
+    const scenario = await prisma.scenario.findUnique({ where: { id: scenarioId } });
+    if (!scenario || !scenario.isActive) {
+      // Optional: log warning
+      return false;
+    }
+
+    const vars: Record<string, any> = (session.variables && typeof session.variables === 'object' && !Array.isArray(session.variables))
+      ? { ...session.variables }
+      : {};
+    const history: string[] = []; // Reset history on start
+
+    vars.__activeScenarioId = scenario.id;
+    vars.__currentNodeId = null;
+    vars.__tempResults = [];
+
+    // Extract user info if available in update
+    const fromUser = update?.message?.from || update?.callback_query?.from;
+    if (fromUser) {
+      if (fromUser.id) vars.__telegramUserId = String(fromUser.id);
+      if (fromUser.username) vars.__telegramUsername = fromUser.username;
+      if (fromUser.first_name) vars.__telegramFirstName = fromUser.first_name;
+      if (fromUser.last_name) vars.__telegramLastName = fromUser.last_name;
+    }
+
+    await emitPlatformEvent({
+      companyId: bot.companyId || null,
+      botId: bot.id,
+      eventType: 'scenario.started',
+      userId: vars.__telegramUserId || session.chatId,
+      chatId: session.chatId,
+      payload: { scenarioId: scenario.id }
+    });
+
+    const nodes = Array.isArray(scenario.nodes) ? (scenario.nodes as ScenarioNode[]) : [];
+    const entryId = scenario.entryNodeId || (nodes.find((n: any) => n.type === 'START')?.id || nodes[0]?.id);
+
+    if (entryId) {
+      await this.executeNode(bot, session, vars, history, scenario as any, entryId);
+    }
+
+    await this.persistSession(session, vars, history);
+    return true;
+  }
+
   static async executeNode(bot: BotRuntime, session: any, vars: Record<string, any>, history: string[], scenario: ScenarioRecord, nodeId: string, isBack = false, depth = 0) {
     if (depth > 25) {
       logger.warn(`[ScenarioEngine] Infinite loop detected for scenario ${scenario.id}, node ${nodeId}`);
