@@ -767,6 +767,32 @@ export class ScenarioEngine {
           await saveSession();
           await sendMessage(bot, chatId, '✅ Надіслали менеджеру! Дякуємо.');
 
+          // TASK E: Send variant to REQUESTER (chatId from B2bRequest)
+          const request = await prisma.b2bRequest.findUnique({ where: { id: requestId } });
+          const requesterChatId = request?.chatId;
+
+          if (requesterChatId) {
+            // Build variant card WITHOUT contact (privacy)
+            const specsWithoutContact = variant.specs ? { ...(variant.specs as any), contact: undefined } : {};
+            const variantCardForRequester = renderVariantCard({
+              ...variant,
+              specs: specsWithoutContact
+            } as any);
+
+            await sendMessage(bot, requesterChatId,
+              `🚗 Новий варіант для вашого запиту "${request.title}":\n\n${variantCardForRequester}`,
+              {
+                inline_keyboard: [
+                  [
+                    { text: '✅ Підходить', callback_data: `B2BVAR:${variant.id}:FIT` },
+                    { text: '❌ Не підходить', callback_data: `B2BVAR:${variant.id}:NO` }
+                  ]
+                ]
+              }
+            );
+          }
+
+          // Original admin notification (now includes contact for manager)
           if (bot.adminChatId) {
             const caption = `📨 Новий варіант по запиту ${requestId}\n${summaryCard({ specs: { vin: flow.vin, note: flow.details } })}`;
             if (Array.isArray(vars.dealer_photos) && vars.dealer_photos.length) {
@@ -800,10 +826,133 @@ export class ScenarioEngine {
       if (handledDealer) return true;
     }
 
+    // TASK D: Self-Setup Commands (/setup_admin, /setup_channel)
+    if (input === '/setup_admin') {
+      if (!bot.companyId) {
+        await sendMessage(bot, chatId, 'Bot is not assigned to a company. Cannot setup admin.');
+        return true;
+      }
+
+      // Set current chat as adminChatId
+      await prisma.botConfig.update({
+        where: { id: bot.id },
+        data: { adminChatId: chatId }
+      });
+
+      await sendMessage(bot, chatId, `✅ Admin chat налаштовано!\n\nID: ${chatId}\n\nТепер сюди будуть приходити сповіщення про Fit варіанти.`);
+      return true;
+    }
+
+    if (input === '/setup_channel') {
+      const forwardedFrom = update.message?.forward_from_chat;
+
+      if (!forwardedFrom) {
+        await sendMessage(bot, chatId,
+          '📢 Налаштування каналу\n\n' +
+          '1️⃣ Переадресуйте будь-яке повідомлення з вашого цільового каналу сюди\n' +
+          '2️⃣ Бот автоматично визначить ID каналу та збереже\n\n' +
+          '⚠️ Переконайтесь, що бот є адміністратором каналу!'
+        );
+        return true;
+      }
+
+      const forwardedChannelId = String(forwardedFrom.id);
+      const forwardedChannelTitle = forwardedFrom.title || 'Unknown';
+
+      await prisma.botConfig.update({
+        where: { id: bot.id },
+        data: { channelId: forwardedChannelId }
+      });
+
+      await sendMessage(bot, chatId,
+        `✅ Канал налаштовано!\n\n` +
+        `📢 ${forwardedChannelTitle}\n` +
+        `🆔 ${forwardedChannelId}\n\n` +
+        `Тепер запити будуть автоматично публікуватись у цей канал.`
+      );
+      return true;
+    }
+
     // CALLBACK QUERIES
     if (update.callback_query) {
       await answerCallback(bot, update.callback_query.id);
       const cbData = update.callback_query.data || '';
+
+      // TASK E: Variant Review Flow (B2BVAR:variantId:FIT/NO)
+      if (cbData.startsWith('B2BVAR:')) {
+        const parts = cbData.split(':');
+        if (parts.length >= 3) {
+          const variantId = parts[1];
+          const action = parts[2]; // FIT or NO
+
+          const variant = await prisma.requestVariant.findUnique({
+            where: { id: variantId },
+            include: { request: true }
+          });
+
+          if (!variant) {
+            await sendMessage(bot, chatId, 'Варіант не знайдено.');
+            return true;
+          }
+
+          if (action === 'FIT') {
+            // Update variant status
+            await prisma.requestVariant.update({
+              where: { id: variantId },
+              data: { status: 'APPROVED' }
+            });
+
+            // Edit requester message
+            const msg = update.callback_query.message;
+            if (msg) {
+              await telegramOutbox.editMessageText({
+                botId: bot.id,
+                token: bot.token,
+                chatId: String(msg.chat.id),
+                messageId: msg.message_id,
+                text: `${msg.text || msg.caption || ''}\n\n✅ СХВАЛЕНО`,
+                companyId: bot.companyId || null
+              }).catch(() => null);
+            }
+
+            // Send to admin WITH contact
+            if (bot.adminChatId) {
+              const variantCard = renderVariantCard(variant as any);
+              const dealerContact = (variant.specs as any)?.contact || 'N/A';
+
+              await sendMessage(bot, bot.adminChatId,
+                `✅ Заявка схвалена!\n\n${variantCard}\n\n📞 Контакт дилера: ${dealerContact}\n\n🔗 Запит: ${variant.request?.title || variant.requestId}`
+              );
+            }
+
+            await sendMessage(bot, chatId, '✅ Ви схвалили варіант. Менеджер отримав контакт дилера.');
+          } else if (action === 'NO') {
+            // Update variant status
+            await prisma.requestVariant.update({
+              where: { id: variantId },
+              data: { status: 'REJECTED' }
+            });
+
+            // Edit requester message
+            const msg = update.callback_query.message;
+            if (msg) {
+              await telegramOutbox.editMessageText({
+                botId: bot.id,
+                token: bot.token,
+                chatId: String(msg.chat.id),
+                messageId: msg.message_id,
+                text: `${msg.text || msg.caption || ''}\n\n❌ НЕ ПІДХОДИТЬ`,
+                companyId: bot.companyId || null
+              }).catch(() => null);
+            }
+
+            await sendMessage(bot, chatId, 'Варіант відхилено.');
+          }
+
+          return true;
+        }
+      }
+
       if (cbData.startsWith('VARIANT:')) {
         const [, variantId, action] = cbData.split(':');
         if (variantId && action) {
@@ -941,6 +1090,14 @@ export class ScenarioEngine {
       }
 
       await saveSession();
+
+      // TASK C: Immediate Dealer Flow (skip menu if request payload)
+      const parsedPayload = payloadText ? parseStartPayload(payloadText) : null;
+      if (parsedPayload && parsedPayload.type === 'request' && vars.dealer_state === 'INIT') {
+        // Immediately start dealer flow - ask for contact
+        await handleDealerFlow();
+        return true;
+      }
 
       await sendMainMenu(deepLinkMsg || '👋 Welcome!');
       return true;

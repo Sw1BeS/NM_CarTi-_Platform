@@ -1008,10 +1008,103 @@ export const finalizeB2BRequest = async (ctx: PipelineContext) => {
 
   await sendMessage(ctx, t(lang, 'b2bSent'));
 
+  // AUTO-POST TO CHANNEL (Task B)
+  const channelId = ctx.bot.channelId;
+
+  if (channelId) {
+    try {
+      // Fetch bot username if not in config
+      let botUsername = (ctx.bot.config as any)?.botUsername || (ctx.bot.config as any)?.username;
+
+      if (!botUsername) {
+        // Auto-fetch via getMe
+        const getMeResp = await fetch(`https://api.telegram.org/bot${ctx.bot.token}/getMe`);
+        const getMeData = await getMeResp.json();
+        if (getMeData.ok && getMeData.result?.username) {
+          botUsername = getMeData.result.username;
+
+          // Store in config for reuse
+          await prisma.botConfig.update({
+            where: { id: ctx.bot.id },
+            data: {
+              config: {
+                ...(ctx.bot.config as any || {}),
+                botUsername,
+                username: botUsername
+              } as any
+            }
+          });
+        }
+      }
+
+      if (!botUsername) {
+        throw new Error('Unable to fetch bot username');
+      }
+
+      // Generate deep-link with new Telegram-safe format: request_{publicId}
+      const deeplink = `https://t.me/${botUsername}?start=request_${request.publicId || request.id}`;
+
+      // Build structured message
+      const requestCard = renderRequestCard(request);
+      const channelMessage = `📝 Пошук авто\n\n${requestCard}`;
+
+      // Send to channel with "Є авто ✅" button
+      const sent: any = await telegramOutbox.sendMessage({
+        botId: ctx.bot.id,
+        token: ctx.bot.token,
+        chatId: String(channelId),
+        text: channelMessage,
+        replyMarkup: {
+          inline_keyboard: [[
+            { text: 'Є авто ✅', url: deeplink }
+          ]]
+        },
+        companyId: ctx.companyId
+      });
+
+      // Create ChannelPost record for tracking
+      if (sent?.message_id) {
+        await prisma.channelPost.create({
+          data: {
+            requestId: request.id,
+            botId: ctx.bot.id,
+            channelId: String(channelId),
+            messageId: sent.message_id,
+            status: 'ACTIVE',
+            payload: {
+              deeplink,
+              publicId: request.publicId,
+              postedAt: new Date().toISOString()
+            }
+          }
+        });
+      }
+    } catch (err: any) {
+      // Log error but don't block flow
+      console.error('[finalizeB2BRequest] Channel post failed:', err.message);
+
+      // Notify requester about issue
+      await sendMessage(ctx,
+        `⚠️ Запит створено, але не опубліковано у канал. Зверніться до адміністратора.`,
+        undefined,
+        ctx.chatId
+      );
+    }
+  } else {
+    // No channel configured - warn user and suggest /setup_channel
+    await sendMessage(ctx,
+      `⚠️ Канал не налаштовано. Запит створено, але не опубліковано.\n\n` +
+      `Адміністратор може налаштувати канал командою /setup_channel у боті.`,
+      undefined,
+      ctx.chatId
+    );
+  }
+
+  // Notify admin (existing logic)
   const managerChatId = (ctx.bot.config as any)?.b2bManagerChatId || ctx.bot.adminChatId;
   if (managerChatId) {
     const requestCard = renderRequestCard(request);
-    const botUsername = (ctx.bot.config as any)?.username;
+    const botUsername = (ctx.bot.config as any)?.botUsername || (ctx.bot.config as any)?.username;
     const link = botUsername ? generateRequestLink(botUsername, request.publicId || request.id) : '';
     const header = `📝 New B2B request ${request.publicId || request.id}`;
     const msg = link ? `${header}\n${requestCard}\n\n🔗 ${link}` : `${header}\n${requestCard}`;
