@@ -672,10 +672,11 @@ export const InventoryPage = () => {
                                     Import CSV
                                 </button>
                             ) : (
+                                <>
                                 <button
                                     className="btn-primary"
                                     disabled={!parserEnabled}
-                                onClick={async () => {
+                                    onClick={async () => {
                                     if (!parserEnabled) {
                                         showToast('URL parser is disabled in this build', 'error');
                                         return;
@@ -728,15 +729,16 @@ export const InventoryPage = () => {
                                     } catch (e: any) {
                                         showToast(e.message || 'Parse failed', 'error');
                                     }
-                                }}
-                            >
-                                Import
-                            </button>
-                            {!parserEnabled && (
-                                <div className="mt-2 text-xs text-orange-400">
-                                    URL parsing is disabled for this release.
-                                </div>
-                            )}
+                                    }}
+                                >
+                                    Import
+                                </button>
+                                {!parserEnabled && (
+                                    <div className="mt-2 text-xs text-orange-400">
+                                        URL parsing is disabled for this release.
+                                    </div>
+                                )}
+                                </>
                         </div>
                     </div>
                 </div>
