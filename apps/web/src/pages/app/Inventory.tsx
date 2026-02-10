@@ -737,7 +737,6 @@ export const InventoryPage = () => {
                                     URL parsing is disabled for this release.
                                 </div>
                             )}
-                            )}
                         </div>
                     </div>
                 </div>
