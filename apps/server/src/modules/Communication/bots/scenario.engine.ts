@@ -387,6 +387,7 @@ export class ScenarioEngine {
     const startPayloadRaw = messageTextRaw.startsWith('/start') ? messageTextRaw.split(' ')[1] : '';
     const hasStartPayload = !!(startPayloadRaw && parseStartPayload(startPayloadRaw));
     const isDealerFlow = vars.role === 'DEALER' || vars.dealer_invite_id || vars.ref_request_id;
+    const saveSession = async () => ScenarioEngine.persistSession(session, vars, history);
 
     // Manager Actions
     if (inputRaw.startsWith('REQ:')) {
@@ -466,7 +467,6 @@ export class ScenarioEngine {
       });
     };
 
-    const saveSession = async () => ScenarioEngine.persistSession(session, vars, history);
 
     const sendMainMenu = async (textOverride?: string) => {
       const buttons = buildMainMenuButtons(bot, lang);
