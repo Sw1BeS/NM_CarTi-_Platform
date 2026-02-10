@@ -29,3 +29,22 @@ This directory is the canonical documentation set for the Cartie platform.
 ├── .env.example
 └── fix.sql
 ```
+
+## Run
+📌 Local dev (Node)
+🔘 Server: `cd apps/server && npm install && npm run dev`
+🔘 Web: `cd apps/web && npm install && npm run dev`
+📌 Production (Docker)
+🔘 Compose file: `infra/docker-compose.cartie2.prod.yml`
+🔘 Deploy wrapper: `infra/deploy_prod.sh`
+🔘 Migrations: `docker compose -f infra/docker-compose.cartie2.prod.yml exec server npx prisma migrate deploy`
+
+## Configs
+📌 Root env: `.env` (local), `env/prod.env` (production)
+📌 Infra env: `infra/.env`, `infra/Caddyfile`
+📌 Web env: `apps/web/.env.production`, `apps/web/.env.production.example`
+
+## Workers
+📌 Content publishing worker: `apps/server/src/workers/content.runner.ts` (`npm run worker:content`)
+📌 MTProto import: `apps/server/src/modules/Integrations/mtproto/mtproto.import.worker.ts`
+📌 Jobs/cron: `apps/server/src/workers` + `apps/server/src/modules/Integrations`

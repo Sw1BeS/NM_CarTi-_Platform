@@ -35,6 +35,12 @@ infra/*.bak.*
 **/*.bak.*
 infra.bak.*
 **/infra.bak.*
+**/backups/
+**/backup/
+**/*_backup*
+**/*.backup
+**/tmp/
+**/dumps/
 
 # Local/Auto-generated files
 _backup_root/
