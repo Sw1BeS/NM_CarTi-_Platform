@@ -254,7 +254,7 @@ const sendContactRequest = async (bot: BotRuntime, chatId: string, text: string)
 
 const notifyRequestAdmin = async (bot: BotRuntime, request: any) => {
   if (!bot.adminChatId) return;
-  const text = `📄 Новий запит\n${renderRequestCard(request)}`;
+  const text = `📄 Новий запит\n${renderRequestCard(request, { includeContact: true })}`;
   const keyboard = {
     inline_keyboard: [
       [{ text: '🔍 Znayty Variant', callback_data: `REQ:${request.id}:FIND` }],
@@ -626,7 +626,8 @@ export class ScenarioEngine {
           price: flow.price,
           currency: flow.currency || 'USD',
           year: flow.year,
-          specs: { vin: flow.vin, note: flow.details },
+          mileage: flow.mileage,
+          specs: { vin: flow.vin, note: flow.details, fuel: flow.fuel, condition: flow.condition },
           contact: flow.contact,
           companyName: flow.companyName,
           location: flow.city,
@@ -661,13 +662,27 @@ export class ScenarioEngine {
           flow.companyName = vars.__telegramUsername ? `@${vars.__telegramUsername}` : (fallbackName || undefined);
         }
         vars.dealer_flow = flow;
-        vars.dealer_state = 'AWAIT_PHOTOS';
+        vars.dealer_state = 'AWAIT_TITLE';
         await saveSession();
-        await sendMessage(bot, chatId, 'Дякую! Надішли фото авто (можна кілька). Після фото перейдемо до деталей.');
+        await sendMessage(bot, chatId, 'Дякую! Яка марка/модель авто? (короткий заголовок)');
         return true;
       }
       if (dealerState === 'AWAIT_CONTACT' && messageTextRaw) {
         await sendMessage(bot, chatId, 'Надішли контакт кнопкою, щоб продовжити.');
+        return true;
+      }
+
+      if (dealerState === 'AWAIT_TITLE' && messageTextRaw) {
+        const title = messageTextRaw.trim();
+        if (title.length < 2) {
+          await sendMessage(bot, chatId, 'Вкажи коротко марку/модель (мінімум 2 символи).');
+          return true;
+        }
+        flow.title = title;
+        vars.dealer_flow = flow;
+        vars.dealer_state = 'AWAIT_PHOTOS';
+        await saveSession();
+        await sendMessage(bot, chatId, 'Надішли фото авто (можна кілька). Після фото перейдемо до деталей.');
         return true;
       }
 
@@ -700,6 +715,47 @@ export class ScenarioEngine {
       if (dealerState === 'AWAIT_YEAR' && messageTextRaw) {
         const yr = parseInt(messageTextRaw.replace(/[^\d]/g, ''), 10);
         if (yr && yr > 1900 && yr < 2050) flow.year = yr;
+        vars.dealer_flow = flow;
+        vars.dealer_state = 'AWAIT_MILEAGE';
+        await saveSession();
+        await sendMessage(bot, chatId, 'Пробіг? (напр., 120 тис км або "skip")');
+        return true;
+      }
+
+      if (dealerState === 'AWAIT_MILEAGE' && messageTextRaw) {
+        const raw = messageTextRaw.trim();
+        if (raw.toLowerCase() !== 'skip') {
+          const nums = raw.match(/\d{2,}/g);
+          if (nums && nums.length) {
+            let val = parseInt(nums[0], 10);
+            if (raw.toLowerCase().includes('к') || raw.toLowerCase().includes('k') || raw.toLowerCase().includes('тис')) {
+              val *= 1000;
+            } else if (val < 1000) {
+              val *= 1000;
+            }
+            flow.mileage = val;
+          }
+        }
+        vars.dealer_flow = flow;
+        vars.dealer_state = 'AWAIT_FUEL';
+        await saveSession();
+        await sendMessage(bot, chatId, 'Тип пального? (бензин/дизель/гібрид або "skip")');
+        return true;
+      }
+
+      if (dealerState === 'AWAIT_FUEL' && messageTextRaw) {
+        const raw = messageTextRaw.trim();
+        if (raw.toLowerCase() !== 'skip') flow.fuel = raw;
+        vars.dealer_flow = flow;
+        vars.dealer_state = 'AWAIT_CONDITION';
+        await saveSession();
+        await sendMessage(bot, chatId, 'Технічний стан? (наприклад, "гарний/після ТО" або "skip")');
+        return true;
+      }
+
+      if (dealerState === 'AWAIT_CONDITION' && messageTextRaw) {
+        const raw = messageTextRaw.trim();
+        if (raw.toLowerCase() !== 'skip') flow.condition = raw;
         vars.dealer_flow = flow;
         vars.dealer_state = 'AWAIT_VIN';
         await saveSession();
@@ -777,12 +833,12 @@ export class ScenarioEngine {
             ? vars.dealer_photos.map((p: string) => ({ tgFileId: p, source: 'TELEGRAM_BOT' }))
             : [];
           const mapped = mapVariantInput({
-            title: flow.details?.split('\n')[0]?.slice(0, 120) || 'Пропозиція',
+            title: flow.title || flow.details?.split('\n')[0]?.slice(0, 120) || 'Пропозиція',
             url: flow.url,
             sourceUrl: flow.url,
             source: 'DEALER',
             status: 'SUBMITTED',
-            specs: { note: flow.details, vin: flow.vin },
+            specs: { note: flow.details, vin: flow.vin, fuel: flow.fuel, condition: flow.condition },
             companyName: flow.companyName,
             contact: flow.contact,
             mediaUrls: [],
@@ -790,6 +846,7 @@ export class ScenarioEngine {
             statusHistory: [{ status: 'SUBMITTED', at: new Date().toISOString(), by: userId || chatId }],
             year: flow.year,
             price: flow.price ? { amount: flow.price, currency: flow.currency } : undefined,
+            mileage: flow.mileage,
             thumbnail: (vars.dealer_photos || [])[0]
           });
 
@@ -813,6 +870,9 @@ export class ScenarioEngine {
                 price: flow.price,
                 currency: flow.currency,
                 year: flow.year,
+                mileage: flow.mileage,
+                fuel: flow.fuel,
+                condition: flow.condition,
                 vin: flow.vin,
                 url: flow.url
               }

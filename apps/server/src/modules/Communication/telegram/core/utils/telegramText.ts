@@ -173,15 +173,30 @@ const TEXT: Record<string, Record<Lang, string>> = {
     UK: 'Бюджет USD? (напр., 20000-35000 або "skip")',
     RU: 'Бюджет USD? (например, 20000-35000 или "skip")'
   },
-  b2bAskCity: {
-    EN: 'City? (or "skip")',
-    UK: 'Місто? (або "skip")',
-    RU: 'Город? (или "skip")'
+  b2bAskMileage: {
+    EN: 'Desired mileage? (e.g., 80-150k km or "skip")',
+    UK: 'Бажаний пробіг? (напр., 80-150 тис. км або "skip")',
+    RU: 'Желаемый пробег? (например, 80-150 тыс. км или "skip")'
+  },
+  b2bAskFuel: {
+    EN: 'Fuel type? (petrol/diesel/hybrid or "skip")',
+    UK: 'Тип пального? (бензин/дизель/гібрид або "skip")',
+    RU: 'Тип топлива? (бензин/дизель/гибрид или "skip")'
   },
   b2bAskDesc: {
-    EN: 'Additional requirements (color, trim, etc).',
-    UK: 'Додаткові вимоги (колір, комплектація, інше).',
-    RU: 'Доп. требования (цвет, комплектация, другое).'
+    EN: 'Additional requirements / comment (color, trim, etc).',
+    UK: 'Додаткові вимоги / коментар (колір, комплектація, інше).',
+    RU: 'Доп. требования / комментарий (цвет, комплектация, другое).'
+  },
+  b2bAskContact: {
+    EN: 'Share your contact or type a phone number:',
+    UK: 'Поділіться контактом або введіть номер:',
+    RU: 'Поделитесь контактом или введите номер:'
+  },
+  b2bAskCompany: {
+    EN: 'Company name? (or "skip")',
+    UK: 'Назва компанії? (або "skip")',
+    RU: 'Название компании? (или "skip")'
   },
   b2bConfirm: {
     EN: 'Confirm the request:',

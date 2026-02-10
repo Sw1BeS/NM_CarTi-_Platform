@@ -1,26 +1,61 @@
 import { VariantStatus, RequestStatus } from '@prisma/client';
 
+const formatMileage = (value: number) => {
+  if (!Number.isFinite(value)) return '';
+  if (value >= 1000) return `${Math.round(value / 1000)}k km`;
+  return `${value} km`;
+};
+
+const truncateText = (value?: string, max = 220) => {
+  if (!value) return '';
+  const clean = String(value).trim();
+  if (clean.length <= max) return clean;
+  return `${clean.slice(0, max)}…`;
+};
+
 export const renderVariantCard = (variant: any, opts: { includeContact?: boolean } = {}) => {
   const priceObj = variant.price && typeof variant.price === 'object' ? variant.price : { amount: variant.price };
   const price = priceObj?.amount ? Number(priceObj.amount) : 0;
   const currency = priceObj?.currency || variant.currency || 'USD';
   const companyName = variant.companyName || variant.company || variant.specs?.companyName;
   const contact = variant.contact || variant.specs?.contact;
+  const fuel = variant.specs?.fuel;
+  const condition = variant.specs?.condition;
+  const note = truncateText(variant.specs?.note);
   const parts = [
     `🚗 <b>${(variant.title || 'Варіант').toUpperCase()}</b>`,
     price ? `💰 ${price.toLocaleString()} ${currency}` : null,
     variant.year ? `📅 ${variant.year}` : null,
-    variant.mileage ? `🛣 ${Math.round(variant.mileage / 1000)}k km` : null,
+    variant.mileage ? `🛣 ${formatMileage(variant.mileage)}` : null,
+    fuel ? `⛽ ${fuel}` : null,
+    condition ? `🛠 ${condition}` : null,
     variant.location ? `📍 ${variant.location}` : null,
     variant.specs?.vin ? `🔑 VIN: ${variant.specs.vin}` : null,
     variant.sourceUrl ? `🔗 ${variant.sourceUrl}` : null,
+    note ? `📝 ${note}` : null,
     opts.includeContact && companyName ? `🏢 ${companyName}` : null,
     opts.includeContact && contact ? `📞 ${contact}` : null
   ].filter(Boolean);
   return parts.join('\n');
 };
 
-export const renderRequestCard = (req: any) => {
+export const renderRequestCard = (req: any, opts: { includeContact?: boolean } = {}) => {
+  const payload = req?.payload || {};
+  const payloadReq = payload?.request || {};
+  const companyName = req?.companyName || payload?.companyName || payloadReq?.companyName;
+  const contact = req?.contact || payload?.contact || payloadReq?.contact || payloadReq?.phone || payload?.phone;
+
+  const mileageMin = payloadReq?.mileageMin ?? payload?.mileageMin;
+  const mileageMax = payloadReq?.mileageMax ?? payload?.mileageMax;
+  const mileageText = payloadReq?.mileageText ?? payload?.mileageText;
+  const fuel = payloadReq?.fuel ?? payload?.fuel;
+
+  const mileagePart = mileageText
+    ? `🛣 ${mileageText}`
+    : (mileageMin || mileageMax)
+      ? `🛣 ${formatMileage(mileageMin || mileageMax)}${mileageMax && mileageMin && mileageMax !== mileageMin ? ` - ${formatMileage(mileageMax)}` : ''}`
+      : null;
+
   const budgetPart = req.budgetMin || req.budgetMax
     ? `💰 ${req.budgetMin ? req.budgetMin.toLocaleString() : '0'} - ${req.budgetMax ? req.budgetMax.toLocaleString() : '∞'} ${req.currency || 'USD'}`
     : null;
@@ -28,8 +63,12 @@ export const renderRequestCard = (req: any) => {
     `📄 <b>${req.title || 'Запит'}</b>`,
     budgetPart,
     req.yearMin ? `📅 ${req.yearMin}+` : null,
+    mileagePart,
+    fuel ? `⛽ ${fuel}` : null,
     req.city ? `📍 ${req.city}` : null,
     req.description ? `📝 ${req.description}` : null,
+    opts.includeContact && companyName ? `🏢 ${companyName}` : null,
+    opts.includeContact && contact ? `📞 ${contact}` : null,
     req.publicId ? `ID: ${req.publicId}` : null
   ].filter(Boolean);
   return parts.join('\n');

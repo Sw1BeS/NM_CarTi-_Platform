@@ -77,8 +77,8 @@ export const routeCallback = async (ctx: PipelineContext) => {
         await finalizeB2BRequest(ctx);
         return true;
       case 'b2b_req_back':
-        await updateSession(ctx, 'B2B_REQ_DESC', vars);
-        await sendMessage(ctx, t(lang, 'b2bAskDesc'));
+        await updateSession(ctx, 'B2B_REQ_COMPANY', vars);
+        await sendMessage(ctx, t(lang, 'b2bAskCompany'));
         return true;
       default:
         break;

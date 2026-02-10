@@ -33,6 +33,21 @@ const parsePrice = (input: string) => {
   return { min, max };
 };
 
+const parseMileage = (input: string) => {
+  const raw = input.toLowerCase();
+  const nums = (raw.match(/\d{2,}/g) || []).map(v => Number(v));
+  if (!nums.length) return { min: undefined, max: undefined };
+  let min = nums[0];
+  let max = nums.length > 1 ? nums[1] : nums[0];
+  const usesThousands = raw.includes('k') || raw.includes('к') || raw.includes('тыс') || raw.includes('тис');
+  if (usesThousands || (min < 1000 && max < 1000)) {
+    min *= 1000;
+    max *= 1000;
+  }
+  if (min > max) [min, max] = [max, min];
+  return { min, max };
+};
+
 const formatPrice = (price?: number | null, currency?: string | null) => {
   if (!price) return '';
   const curr = currency || 'USD';
@@ -539,6 +554,7 @@ const handleCatalog = async (ctx: PipelineContext, text: string) => {
 const handleB2B = async (ctx: PipelineContext, text: string) => {
   if (!ctx.bot || !ctx.session) return false;
   const lang = resolveLang(ctx);
+  const message = ctx.update?.message;
   const state = ctx.session.state || 'B2B_MENU';
   const vars = (ctx.session.variables as any) || {};
   const flow = vars.b2bFlow || {};
@@ -612,18 +628,35 @@ const handleB2B = async (ctx: PipelineContext, text: string) => {
       flow.budgetMin = range.min;
       flow.budgetMax = range.max;
     }
-    await updateSession(ctx, 'B2B_REQ_CITY', { ...vars, b2bFlow: flow });
-    await sendMessage(ctx, t(lang, 'b2bAskCity'));
+    await updateSession(ctx, 'B2B_REQ_MILEAGE', { ...vars, b2bFlow: flow });
+    await sendMessage(ctx, t(lang, 'b2bAskMileage'));
     return true;
   }
 
-  if (state === 'B2B_REQ_CITY') {
+  if (state === 'B2B_REQ_MILEAGE') {
     if (isBack) {
       await updateSession(ctx, 'B2B_REQ_BUDGET', { ...vars, b2bFlow: flow });
       await sendMessage(ctx, t(lang, 'b2bAskBudget'));
       return true;
     }
-    if (!isSkip) flow.city = await normalizeCity(text, { companyId: ctx.companyId });
+    if (!isSkip) {
+      const range = parseMileage(text);
+      flow.mileageMin = range.min;
+      flow.mileageMax = range.max;
+      flow.mileageText = text.trim();
+    }
+    await updateSession(ctx, 'B2B_REQ_FUEL', { ...vars, b2bFlow: flow });
+    await sendMessage(ctx, t(lang, 'b2bAskFuel'));
+    return true;
+  }
+
+  if (state === 'B2B_REQ_FUEL') {
+    if (isBack) {
+      await updateSession(ctx, 'B2B_REQ_MILEAGE', { ...vars, b2bFlow: flow });
+      await sendMessage(ctx, t(lang, 'b2bAskMileage'));
+      return true;
+    }
+    if (!isSkip) flow.fuel = text.trim();
     await updateSession(ctx, 'B2B_REQ_DESC', { ...vars, b2bFlow: flow });
     await sendMessage(ctx, t(lang, 'b2bAskDesc'));
     return true;
@@ -631,18 +664,64 @@ const handleB2B = async (ctx: PipelineContext, text: string) => {
 
   if (state === 'B2B_REQ_DESC') {
     if (isBack) {
-      await updateSession(ctx, 'B2B_REQ_CITY', { ...vars, b2bFlow: flow });
-      await sendMessage(ctx, t(lang, 'b2bAskCity'));
+      await updateSession(ctx, 'B2B_REQ_FUEL', { ...vars, b2bFlow: flow });
+      await sendMessage(ctx, t(lang, 'b2bAskFuel'));
       return true;
     }
     flow.description = text;
+    await updateSession(ctx, 'B2B_REQ_CONTACT', { ...vars, b2bFlow: flow });
+    await sendMessage(ctx, t(lang, 'b2bAskContact'), {
+      keyboard: [[{ text: button(lang, 'common.contact'), request_contact: true }], [{ text: button(lang, 'common.back') }]],
+      resize_keyboard: true
+    });
+    return true;
+  }
+
+  if (state === 'B2B_REQ_CONTACT') {
+    if (isBack) {
+      await updateSession(ctx, 'B2B_REQ_DESC', { ...vars, b2bFlow: flow });
+      await sendMessage(ctx, t(lang, 'b2bAskDesc'));
+      return true;
+    }
+    const phoneRaw = message?.contact?.phone_number || text;
+    const normalized = normalizePhone(phoneRaw || undefined);
+    const contact = normalized || (phoneRaw ? String(phoneRaw).trim() : '');
+    if (!contact) {
+      await sendMessage(ctx, t(lang, 'invalidPhone'));
+      return true;
+    }
+    flow.contact = contact;
+    await updateSession(ctx, 'B2B_REQ_COMPANY', { ...vars, b2bFlow: flow });
+    await sendMessage(ctx, t(lang, 'b2bAskCompany'));
+    return true;
+  }
+
+  if (state === 'B2B_REQ_COMPANY') {
+    if (isBack) {
+      await updateSession(ctx, 'B2B_REQ_CONTACT', { ...vars, b2bFlow: flow });
+      await sendMessage(ctx, t(lang, 'b2bAskContact'), {
+        keyboard: [[{ text: button(lang, 'common.contact'), request_contact: true }], [{ text: button(lang, 'common.back') }]],
+        resize_keyboard: true
+      });
+      return true;
+    }
+    if (!isSkip && text.trim().length < 2) {
+      await sendMessage(ctx, t(lang, 'invalidName'));
+      return true;
+    }
+    const fallbackName = [message?.from?.first_name, message?.from?.last_name].filter(Boolean).join(' ').trim();
+    const fallbackCompany = message?.from?.username ? `@${message.from.username}` : (fallbackName || undefined);
+    flow.companyName = isSkip ? (fallbackCompany || flow.companyName) : text.trim();
     await updateSession(ctx, 'B2B_REQ_CONFIRM', { ...vars, b2bFlow: flow });
     const summary = [
       `🚗 ${flow.title}`,
       flow.yearMin ? `📅 ${flow.yearMin}${flow.yearMax ? `-${flow.yearMax}` : ''}` : undefined,
       flow.budgetMax ? `💰 до ${flow.budgetMax}` : undefined,
-      flow.city ? `📍 ${flow.city}` : undefined,
-      flow.description ? `📝 ${flow.description}` : undefined
+      flow.mileageMin || flow.mileageMax ? `🛣 ${flow.mileageText || flow.mileageMax || flow.mileageMin}` : undefined,
+      flow.fuel ? `⛽ ${flow.fuel}` : undefined,
+      flow.description ? `📝 ${flow.description}` : undefined,
+      flow.companyName ? `🏢 ${flow.companyName}` : undefined,
+      flow.contact ? `📞 ${flow.contact}` : undefined
     ].filter(Boolean).join('\n');
     await sendConfirm(ctx, lang, `${t(lang, 'b2bConfirm')}\n\n${summary}`, 'b2b_req_send', 'b2b_req_back');
     return true;
@@ -650,8 +729,8 @@ const handleB2B = async (ctx: PipelineContext, text: string) => {
 
   if (state === 'B2B_REQ_CONFIRM') {
     if (isBack) {
-      await updateSession(ctx, 'B2B_REQ_DESC', { ...vars, b2bFlow: flow });
-      await sendMessage(ctx, t(lang, 'b2bAskDesc'));
+      await updateSession(ctx, 'B2B_REQ_COMPANY', { ...vars, b2bFlow: flow });
+      await sendMessage(ctx, t(lang, 'b2bAskCompany'));
       return true;
     }
     if (isCancel) {
@@ -985,18 +1064,33 @@ export const finalizeB2BRequest = async (ctx: PipelineContext) => {
   const vars = (ctx.session.variables as any) || {};
   const flow = vars.b2bFlow || {};
 
+  const payload = {
+    source: 'telegram_b2b',
+    contact: flow.contact || undefined,
+    companyName: flow.companyName || undefined,
+    request: {
+      mileageMin: flow.mileageMin ?? undefined,
+      mileageMax: flow.mileageMax ?? undefined,
+      mileageText: flow.mileageText ?? undefined,
+      fuel: flow.fuel || undefined,
+      comment: flow.description || undefined,
+      contact: flow.contact || undefined,
+      companyName: flow.companyName || undefined
+    }
+  };
+
   const mapped = mapRequestInput({
     title: flow.title || 'Request',
     yearMin: flow.yearMin,
     yearMax: flow.yearMax,
     budgetMin: flow.budgetMin,
     budgetMax: flow.budgetMax,
-    city: flow.city,
     description: flow.description,
     status: 'COLLECTING_VARIANTS',
     language: lang,
     clientChatId: ctx.chatId,
-    source: 'TELEGRAM'
+    source: 'TELEGRAM',
+    payload
   });
 
   const request = await prisma.b2bRequest.create({
@@ -1115,7 +1209,7 @@ export const finalizeB2BRequest = async (ctx: PipelineContext) => {
   // Notify admin (existing logic)
   const managerChatId = (ctx.bot.config as any)?.b2bManagerChatId || ctx.bot.adminChatId;
   if (managerChatId) {
-    const requestCard = renderRequestCard(request);
+    const requestCard = renderRequestCard(request, { includeContact: true });
     const botUsername = (ctx.bot.config as any)?.botUsername || (ctx.bot.config as any)?.username;
     const link = botUsername ? generateRequestLink(botUsername, request.publicId || request.id) : '';
     const header = `📝 New B2B request ${request.publicId || request.id}`;
