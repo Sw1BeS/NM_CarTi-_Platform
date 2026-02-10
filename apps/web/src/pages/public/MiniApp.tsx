@@ -77,6 +77,7 @@ const MiniAppContent = () => {
     const [isPreview, setIsPreview] = useState(false);
     const [initData, setInitData] = useState<string | undefined>(undefined);
     const [initError, setInitError] = useState<string | null>(null);
+    const [configWarning, setConfigWarning] = useState<string | null>(null);
     const [visitorId] = useState(() => {
         try {
             const existing = localStorage.getItem('miniapp_visitor_id');
@@ -221,6 +222,7 @@ const MiniAppContent = () => {
         const load = async () => {
         const requestId = Math.random().toString(36).substring(7);
         console.log(`[MiniApp] Init started. RequestId: ${requestId}, Slug: ${slug}`);
+        setConfigWarning(null);
 
         // 1. Initialize Telegram Web App & Extract start_param
         const tg = (window as any).Telegram?.WebApp;
@@ -293,6 +295,7 @@ const MiniAppContent = () => {
                 setConfig(conf.miniapp);
             } else {
                 console.warn(`[MiniApp] Config missing 'miniapp' payload. Using fallback.`);
+                setConfigWarning('Mini App config is empty. Using default layout.');
                 // Fallback local config if empty
                 setConfig(buildFallbackConfig(conf.publicSlug));
             }
@@ -1191,6 +1194,12 @@ return (
         {isPreview && (
             <div className="bg-orange-500/20 text-orange-400 text-[10px] uppercase font-bold text-center py-1 border-b border-orange-500/30 flex items-center justify-center gap-2">
                 <AlertTriangle size={10} /> Preview Mode (No Telegram Bridge)
+            </div>
+        )}
+
+        {configWarning && (
+            <div className="bg-yellow-500/15 text-yellow-300 text-[10px] uppercase font-bold text-center py-1 border-b border-yellow-500/30">
+                {configWarning}
             </div>
         )}
 

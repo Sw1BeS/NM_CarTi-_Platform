@@ -4,6 +4,7 @@ import { errorResponse } from '../utils/errorResponse.js';
 import { verifyTelegramInitData } from '../modules/Communication/telegram/core/telegramAuth.js';
 import { resolvePublicSlug } from '../services/publicSlug.service.js';
 import { prisma } from '../services/prisma.js';
+import { logger } from '../utils/logger.js';
 
 const router = Router();
 
@@ -64,6 +65,12 @@ router.get('/config', async (req, res) => {
   try {
     const slug = readString(req.query.slug);
     if (!slug) return errorResponse(res, 400, 'slug is required');
+
+    logger.info('[MiniApp] config request', {
+      slug,
+      ip: req.ip,
+      ua: req.get('user-agent')
+    });
 
     const config = await miniAppService.getConfig(slug);
     res.json({ ok: true, ...config });
