@@ -370,7 +370,7 @@ router.get('/requests', async (req, res) => {
     ]);
 
     res.json({
-      items: requests.map(mapRequestOutput),
+      items: requests.map(request => mapRequestOutput(request)),
       total,
       page,
       limit,
@@ -413,7 +413,7 @@ router.get('/proposals/:id', async (req, res) => {
           const allowed = Array.isArray(proposalData.variantIds) ? proposalData.variantIds : [];
           variants = (request.variants || [])
             .filter(v => allowed.length === 0 || allowed.includes(v.id))
-            .map(mapVariantOutput);
+            .map(variantItem => mapVariantOutput(variantItem));
         }
       }
       return res.json({ ok: true, proposal: proposalData, variants });
