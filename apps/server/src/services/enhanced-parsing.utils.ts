@@ -6,7 +6,7 @@ export const PATTERNS = {
     YEAR: /\b(19|20)\d{2}(?:p|р|г|y|\.|s)?\b/i,
 
     // Mileage: 100k km, 100 тыс км, 100000km, 100т.км
-    MILEAGE: /([\d\s.,]+)(?:k|t|т|к|тыс|тис)?\s*(?:km|км|mil|mi|мил)/i,
+    MILEAGE: /([\d\s.,]+)(?:k|t|т|к|тыс|тис)?\s*(?:km|км|miles?|mi|мил)(?![a-zа-я])/i,
 
     // VIN: 17 chars, no I/O/Q
     VIN: /\b[A-HJ-NPR-Z0-9]{17}\b/i,
@@ -16,7 +16,7 @@ export const PATTERNS = {
 };
 
 export const CURRENCY_MAP: Record<string, string> = {
-    '$': 'USD', 'usd': 'USD', 'дол': 'USD', 'bucks': 'USD',
+    '$': 'USD', 'usd': 'USD', 'дол': 'USD', 'bucks': 'USD', 'у.е': 'USD',
     '€': 'EUR', 'eur': 'EUR', 'евро': 'EUR',
     '₴': 'UAH', 'uah': 'UAH', 'грн': 'UAH'
 };
@@ -64,40 +64,48 @@ export const normalizeNumber = (raw: string): number => {
 };
 
 export const parseCarData = (text: string) => {
-    const lines = text.split('\n');
+    const lines = text.split('\n').map(line => line.trim()).filter(Boolean);
     const specs: Record<string, any> = {};
 
-    // Extraction
-    const priceMatch = text.match(PATTERNS.PRICE);
-    const yearMatch = text.match(PATTERNS.YEAR);
-    const vinMatch = text.match(PATTERNS.VIN);
-    const mileageMatch = text.match(PATTERNS.MILEAGE);
-    const engineMatch = text.match(PATTERNS.ENGINE);
+    // Extraction (line-by-line to avoid cross-line contamination)
+    for (const line of lines) {
+        if (!specs.price) {
+            const priceMatch = line.match(PATTERNS.PRICE);
+            if (priceMatch) {
+                const valStr = priceMatch[1] || priceMatch[0];
+                // clean currency symbols to get number
+                const numStr = valStr.replace(/[$€£₴]|usd|eur|uah|грн|дол/gi, '');
+                specs.price = normalizeNumber(numStr);
+                specs.currency = normalizeCurrency(valStr.replace(/[\d\s.,]/g, '') || line);
+            }
+        }
 
-    if (priceMatch) {
-        const valStr = priceMatch[1] || priceMatch[0];
-        // clean currency symbols to get number
-        const numStr = valStr.replace(/[$€£₴usd eur uah грн дол a-zа-я]/gi, '');
-        specs.price = normalizeNumber(numStr);
-        specs.currency = normalizeCurrency(valStr.replace(/[\d\s.,]/g, '') || text); // try regex match or context
-    }
+        if (!specs.year) {
+            const yearMatch = line.match(PATTERNS.YEAR);
+            if (yearMatch) {
+                const yStr = yearMatch[0]?.match(/\d{4}/)?.[0] || yearMatch[0];
+                const y = parseInt(yStr, 10);
+                if (y > 1900 && y < 2030) specs.year = y;
+            }
+        }
 
-    if (yearMatch) {
-        const y = parseInt(yearMatch[1] || yearMatch[0], 10);
-        if (y > 1900 && y < 2030) specs.year = y;
-    }
+        if (!specs.vin) {
+            const vinMatch = line.match(PATTERNS.VIN);
+            if (vinMatch) specs.vin = vinMatch[0].toUpperCase();
+        }
 
-    if (vinMatch) {
-        specs.vin = vinMatch[0].toUpperCase();
-    }
+        if (!specs.mileage) {
+            const mileageMatch = line.match(PATTERNS.MILEAGE);
+            if (mileageMatch) {
+                const m = normalizeNumber(mileageMatch[1]);
+                specs.mileage = m < 1000 ? m * 1000 : m;
+            }
+        }
 
-    if (mileageMatch) {
-        const m = normalizeNumber(mileageMatch[1]);
-        specs.mileage = m < 1000 ? m * 1000 : m; // heuristic: if < 1000 likely it means 'thousands' implicitly or just mistake, but usually 100k -> 100000
-    }
-
-    if (engineMatch) {
-        specs.engine = engineMatch[0].trim();
+        if (!specs.engine) {
+            const engineMatch = line.match(PATTERNS.ENGINE);
+            if (engineMatch) specs.engine = engineMatch[0].trim();
+        }
     }
 
     return specs;

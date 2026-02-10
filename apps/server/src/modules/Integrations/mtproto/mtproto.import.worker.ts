@@ -124,7 +124,8 @@ export class MTProtoImportWorker {
                         companyId: source.connector?.companyId,
                         sourceChatId: source.channelId,
                         sourceMessageId: msg.id,
-                        channelSourceId: source.id
+                        channelSourceId: source.id,
+                        mediaPolicy: mode === 'DRAFT_ONLY' ? 'refs_only' : 'download'
                     });
                     const message = {
                         chatId: source.channelId,
