@@ -3,14 +3,15 @@
 ## B2B Flow E2E
 📌 How to reproduce
 🔘 In bot: create a new request (Запит)
-🔘 Verify bot posts structured request to channel with unique ID and “Є авто” button
-🔘 Another dealer presses “Є авто”, submits offer with photos
+🔘 Fill required fields (brand/model, year, budget, mileage, fuel, comment, contact, company)
+🔘 Verify bot posts structured request to channel with unique ID and “Є авто” button (no contacts)
+🔘 Another dealer presses “Є авто”, submits offer with photos + fields
 🔘 Author receives offer without contacts
 🔘 Author taps “Підходить”
-🔘 Admin receives offer with contacts + company
+🔘 Admin receives offer with contact + company
 
 📌 Expected logs
-🔘 Bot logs request creation and message send success
+🔘 Request created and channel post sent
 🔘 Admin message delivered with contact fields
 
 ## Mini App
@@ -38,5 +39,12 @@
 🔘 Run content worker
 
 📌 Expected logs
-🔘 `[ContentWorker] ✅ Successfully published job ...`
+🔘 `[ContentWorker] Published post ...`
 🔘 Telegram post shows image (absolute URL resolved)
+
+## Parser UI (disabled)
+📌 How to reproduce
+🔘 Set `VITE_PARSER_ENABLED=false` and load UI
+
+📌 Expected result
+🔘 Parser tab hidden/disabled with a clear message

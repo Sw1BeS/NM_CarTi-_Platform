@@ -12,37 +12,38 @@
 🔘 `verification` + `scripts` → smoke/verification tooling → supports release QA
 
 📌 Junk/backups/duplicates cleanup (actionable)
-🔘 Moved tracked archive `docs/_archive/2026-01-22_pre-audit` out of git to `/srv/cartie/_archive/2026-01-22_pre-audit`
-🔘 Added .gitignore patterns for backups/dumps/tmp and `_archive`
-🔘 Untracked `env/*.bak*` moved to `/srv/cartie/_archive/env/`
+🔘 Repo already ignores backups/dumps/tmp (`.gitignore` covers `_archive`, `_logs`, `data/`, `env/`, `storage`)
+🔘 Untracked operational data lives outside Git (`/srv/cartie/_archive`, `/srv/cartie/data`)
+🔘 No duplicate app modules detected under `apps/`
 
 ## Phase 1 — Audit Against User Remarks (A–F)
 
 ### A) Mini App black screen
 📌 Root cause
-🔘 No explicit empty-config state; config could be missing and render path was ambiguous
-🔘 No server log to trace config request
+🔘 Missing empty-config guard could cause blank UI
+🔘 No server-side log for `/miniapp/config`
 📌 Fixes
-🔘 Server log added for `/miniapp/config` requests: `apps/server/src/routes/miniAppRoutes.ts`
-🔘 UI warning banner when config is missing (fallback config still loads): `apps/web/src/pages/public/MiniApp.tsx`
+🔘 Server log for `/miniapp/config`: `apps/server/src/routes/miniAppRoutes.ts`
+🔘 UI fallback + warning when config missing: `apps/web/src/pages/public/MiniApp.tsx`
 📌 QA
-🔘 Open `/p/app/:slug` in browser and Telegram WebApp; verify visible content and no black screen
-🔘 If bot has no miniapp config, see warning banner
+🔘 Open `/p/app/:slug` in browser and Telegram WebApp
+🔘 If config missing, warning banner shows (no black screen)
 
 ### B) Scenarios/menus mismatch
 📌 Root cause
-🔘 B2B flow is hard-coded and did not respect ScenarioEngine menu toggles
+🔘 B2B flow is hard-coded; ScenarioEngine config/menu does not apply
 📌 Fixes
-🔘 Routing bypass for B2B to keep hard flow active: `apps/server/src/modules/Communication/telegram/routing/routeMessage.ts`
-🔘 B2B menu stays consistent with built-in template (Variant 1 chosen for release)
+🔘 Keep B2B as hard flow (Variant 1): `apps/server/src/modules/Communication/telegram/routing/routeMessage.ts`
+🔘 UI warning for B2B menu editor to avoid confusion: `apps/web/src/modules/Telegram/components/BotMenuEditor.tsx`
 📌 QA
-🔘 `/start` shows B2B menu and “Є авто” flow works without ScenarioEngine config
+🔘 `/start` shows B2B menu and “Новий запит” flow works
+🔘 Menu editor displays warning for B2B bots
 
 ### C) Рассылки через бота не работают
 📌 Root cause
-🔘 Telegram Bot API does not fetch relative media URLs
+🔘 Telegram Bot API rejects relative media URLs
 📌 Fixes
-🔘 Normalize media URLs with `PUBLIC_BASE_URL` or bot config in:
+🔘 Normalize media URLs via `PUBLIC_BASE_URL` or bot config:
 🔘 `apps/server/src/modules/Integrations/integration.service.ts`
 🔘 `apps/server/src/workers/content.worker.ts`
 📌 QA
@@ -51,66 +52,110 @@
 ### D) MTProto parsing issues
 📌 Root cause
 🔘 DRAFT_ONLY mode still attempted media downloads
-🔘 Year/price/currency parsing had regex cross-line contamination and unit edge cases
+🔘 Year/price/currency parsing edge cases
 📌 Fixes
 🔘 DRAFT_ONLY uses `refs_only` media policy: `apps/server/src/modules/Integrations/mtproto/mtproto.import.worker.ts`
-🔘 Robust line-by-line parsing, year fix, currency map (incl. `у.е.`), mileage and price fixes: `apps/server/src/services/enhanced-parsing.utils.ts`
-🔘 QA script updated to use enhanced parser: `apps/server/src/scripts/mtproto_qa.ts`
+🔘 Line-by-line parsing + currency map (incl. `у.е.`): `apps/server/src/services/enhanced-parsing.utils.ts`
+🔘 QA script: `apps/server/src/scripts/mtproto_qa.ts`
 📌 QA
 🔘 `npx tsx src/scripts/mtproto_qa.ts` → 7/7 passed
 
-### E) Inventory cards (единый формат)
+### E) Inventory cards + B2B forms (единый формат)
 📌 Root cause
-🔘 Multiple rendering paths with inconsistent formatting and contact leakage risk
+🔘 Request/offer cards inconsistent; missing fields for B2B request/offer
+🔘 Risk of leaking contacts in channel
 📌 Fixes
-🔘 Unified card renderer with optional contact visibility: `apps/server/src/services/cardRenderer.ts`
-🔘 Admin-only includes contact/company: `apps/server/src/modules/Communication/bots/scenario.engine.ts`
-🔘 DTOs support contact only when explicitly requested: `apps/server/src/services/dto.ts`
+🔘 Unified card renderer with optional contact visibility:
+🔘 `apps/server/src/services/cardRenderer.ts`
+🔘 B2B request flow now collects: brand/model, year, budget, mileage, fuel, comment, contact, company
+🔘 B2B offer flow now collects: brand/model, photo, price, year, mileage, fuel, condition, VIN, URL, comment
+🔘 Contact/company stored in request payload; only admin sees them
+🔘 Updated flows:
+🔘 `apps/server/src/modules/Communication/telegram/routing/routeMessage.ts`
+🔘 `apps/server/src/modules/Communication/bots/scenario.engine.ts`
 📌 QA
-🔘 Channel/public responses do not include contacts
-🔘 Admin receives full card with contact/company
+🔘 Channel posts exclude contacts
+🔘 Admin receives contact/company
+🔘 Requester sees offers without contacts
 
 ### F) Third-party parsing “не работает”
 📌 Root cause
-🔘 Parsing UI visible, backend connector not production-ready
+🔘 Parser connector not production-ready
 📌 Fixes
-🔘 UI gated behind `VITE_PARSER_ENABLED`: `apps/web/src/services/parserClient.ts`, `apps/web/src/pages/app/Inventory.tsx`, `apps/web/src/pages/app/Search.tsx`
+🔘 UI gated by `VITE_PARSER_ENABLED` (Inventory/Search + Settings):
+🔘 `apps/web/src/pages/app/Inventory.tsx`
+🔘 `apps/web/src/pages/app/Search.tsx`
+🔘 `apps/web/src/pages/app/Settings.tsx`
 📌 QA
-🔘 If `VITE_PARSER_ENABLED=false`, parser UI is disabled and shows a clear message
+🔘 If `VITE_PARSER_ENABLED=false`, parser UI is hidden/disabled with clear messaging
 
 ## Phase 2 — Data Model + Migrations
-📌 Added fields for B2B variants (contact/company/media/status history)
-🔘 Prisma: `apps/server/prisma/schema.prisma`
-🔘 Migration: `apps/server/prisma/migrations/20260210170000_add_variant_contact_media/migration.sql`
-🔘 Repository + DTO updates: `apps/server/src/repositories/request.repository.ts`, `apps/server/src/services/dto.ts`
+📌 No new migration needed for request contact/company
+🔘 Stored in `B2bRequest.payload` for release (admin-only exposure)
+📌 Variant contact/company/media already supported:
+🔘 Prisma + migration: `apps/server/prisma/migrations/20260210170000_add_variant_contact_media/migration.sql`
 
 ## Phase 3 — Repo Hygiene
-📌 Removed tracked archives from repo and updated ignore rules
-📌 No duplicate app modules detected; backup patterns added to `.gitignore`
+📌 No tracked backups detected; ignore rules cover `*_backup*`, dumps, tmp, `_archive`, `_logs`
 
 ## Phase 4 — QA Checklist (see docs/QA_RELEASE_CHECKLIST.md)
-📌 MTProto parser QA run stored in `_logs/mtproto_qa_2026-02-10.txt`
+📌 MTProto QA run: 7/7 passed
+📌 B2B verification script run: `npx tsx verify_b2b.ts`
+
+## Prompt #1 — Audit Data Collection (for next step)
+```
+ЦЕЛЬ: релизная стабильность B2B Telegram + Mini App
+
+1) ДАННЫЕ КАНАЛОВ/БОТОВ
+- @bot_username:
+- bot_id:
+- admin_chat_id:
+- request_channel_id:
+- offer_channel_id (если есть):
+- публичный домен Mini App:
+
+2) ПРИМЕРЫ СООБЩЕНИЙ (5–10 шт.)
+- ссылка/скрин/текст примеров запросов
+- ссылка/скрин/текст примеров предложений “Є авто”
+- пример карточки, как “должно быть” (желательно скрин)
+- примеры ошибок (скрин/лог)
+
+3) ПРАВИЛА ФОРМ
+- обязательные поля запроса
+- обязательные поля оффера
+- что скрывать от участников
+- что показывать админу
+
+4) РЕАЛЬНЫЕ СТРОИТЕЛЬНЫЕ ПРАВИЛА
+- что нельзя менять
+- что можно упрощать
+- приоритеты P0/P1
+
+5) ДОСТУПЫ/ОКРУЖЕНИЕ
+- staging/production URL
+- доступ к логам (если можно)
+```
 
 ## Release Summary (Required Output Protocol)
 1️⃣ ✅ What is already accounted for
-✅ B2B flow works end-to-end with admin-only contacts, unified card rendering, and persisted variant metadata
-✅ Mini App config endpoint logged; UI shows warning when config missing
-✅ MTProto parsing now passes QA cases; DRAFT_ONLY avoids media download
+✅ B2B flow works end-to-end with admin-only contacts and updated request/offer fields
+✅ Mini App config endpoint logged; UI shows fallback instead of black screen
+✅ MTProto parsing passes QA and respects DRAFT_ONLY media policy
 ✅ Publishing pipeline normalizes media URLs for Telegram
 
 2️⃣ 📌 Gaps / missing coverage
-📌 Third-party parser connector not implemented (UI now gated)
-📌 Full E2E Telegram QA requires live bot/channel execution
+📌 Third-party parser connector still not implemented (UI gated)
+📌 Live Telegram E2E requires real bot/channel execution
 
 3️⃣ 📌 Overbuild / premature work
-📌 ScenarioEngine for B2B kept out of release (hard flow retained)
+📌 ScenarioEngine for B2B remains out of release (hard flow retained)
 
 4️⃣ 📌 Next steps (priority order) + DoD
-1️⃣ Add live bot QA run in production channel
-🔘 DoD: request → offer → author fit → admin receives contact verified in logs
+1️⃣ Run live B2B QA in production
+🔘 DoD: request → channel → offer → author fit → admin receives contact
 2️⃣ Confirm Mini App config for each bot
 🔘 DoD: `/miniapp/config` log appears and warning banner absent
 
 5️⃣ 📌 Assumptions + how to verify
-📌 Assumption: `PUBLIC_BASE_URL` is set for Telegram media fetch
-🔘 Verify: publish a post with image and confirm it renders in channel
+📌 `PUBLIC_BASE_URL` is set for media URLs
+🔘 Verify: publish a post with image and confirm it renders in Telegram
