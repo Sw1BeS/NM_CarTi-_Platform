@@ -672,7 +672,7 @@ export const InventoryPage = () => {
                                     Import CSV
                                 </button>
                             ) : (
-                                <>
+                                <div className="flex flex-col items-start">
                                 <button
                                     className="btn-primary"
                                     disabled={!parserEnabled}
@@ -738,7 +738,7 @@ export const InventoryPage = () => {
                                         URL parsing is disabled for this release.
                                     </div>
                                 )}
-                                </>
+                                </div>
                         </div>
                     </div>
                 </div>
