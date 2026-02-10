@@ -217,7 +217,8 @@ const MiniAppContent = () => {
     const meta = import.meta as { env?: { VITE_BUILD_ID?: string; MODE?: string } };
     const buildVersion = meta.env?.VITE_BUILD_ID || meta.env?.MODE || 'dev';
 
-    const load = async () => {
+    useEffect(() => {
+        const load = async () => {
         const requestId = Math.random().toString(36).substring(7);
         console.log(`[MiniApp] Init started. RequestId: ${requestId}, Slug: ${slug}`);
 
@@ -323,9 +324,9 @@ const MiniAppContent = () => {
             setConfig(buildFallbackConfig(fallbackSlug));
             setCars([]); // clear cars
         }
-    };
-    load();
-}, [slug]);
+        };
+        load();
+    }, [slug]);
 
 if (initError) {
     return (
@@ -354,18 +355,7 @@ if (!config) {
         </div>
     );
 }
-if (initError) {
-    return (
-        <div className="h-screen flex items-center justify-center text-white bg-black px-6 text-center">
-            <div>
-                <div className="text-xl font-bold mb-2">Mini App Error</div>
-                <div className="text-white/70 text-sm">{initError}</div>
-            </div>
-        </div>
-    );
-}
-
-const primaryColor = config.primaryColor || '#D4AF37';
+    const primaryColor = config.primaryColor || '#D4AF37';
 const navItems = (config.navItems && config.navItems.length > 0)
     ? config.navItems
     : [
