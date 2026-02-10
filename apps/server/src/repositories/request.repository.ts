@@ -53,13 +53,23 @@ export class RequestRepository extends BaseRepository<B2bRequest> {
         mileage?: number;
         sourceUrl?: string;
         thumbnail?: string;
+        mediaUrls?: string[];
+        mediaItems?: any;
+        companyName?: string;
+        contact?: string;
+        specs?: any;
+        statusHistory?: any;
+        status?: string;
     }): Promise<any> {
+        const nextStatus = data.status || 'SUBMITTED';
+        const nextHistory = data.statusHistory || [{ status: nextStatus, at: new Date().toISOString(), by: 'system' }];
         return this.prisma.requestVariant.create({
             data: {
                 id: generateULID(),
                 requestId,
                 ...data,
-                status: 'SUBMITTED'
+                status: nextStatus as any,
+                statusHistory: nextHistory
             }
         });
     }

@@ -8,6 +8,28 @@ import axios from 'axios';
 import { telegramOutbox } from '../Communication/telegram/messaging/outbox/telegramOutbox.js';
 import { logger } from '../../utils/logger.js';
 
+const normalizePublicBase = (value?: string | null) => {
+    if (!value) return undefined;
+    return value.endsWith('/') ? value.slice(0, -1) : value;
+};
+
+const normalizeMediaUrl = async (url?: string, botId?: string | null) => {
+    if (!url) return undefined;
+    if (/^https?:\/\//i.test(url)) return url;
+    // Likely Telegram file_id (no slashes/dots)
+    if (!url.includes('/') && !url.includes('.')) return url;
+
+    let base = normalizePublicBase(process.env.PUBLIC_BASE_URL);
+    if (botId) {
+        const bot = await prisma.botConfig.findUnique({ where: { id: botId }, select: { config: true } });
+        const botBase = normalizePublicBase((bot?.config as any)?.publicBaseUrl);
+        if (botBase) base = botBase;
+    }
+    if (!base) return url;
+    const path = url.startsWith('/') ? url : `/${url}`;
+    return `${base}${path}`;
+};
+
 export class IntegrationService {
     /**
      * Get all integrations for company
@@ -284,12 +306,13 @@ export class IntegrationService {
 
         try {
             if (!botId) throw new Error('botId is required for outbox logging');
+            const normalizedImage = await normalizeMediaUrl(imageUrl, botId);
             const result = imageUrl
                 ? await telegramOutbox.sendPhoto({
                     botId,
                     token: botToken,
                     chatId: destination,
-                    photo: imageUrl,
+                    photo: normalizedImage || imageUrl,
                     caption: text,
                     replyMarkup: keyboard,
                     companyId: companyId || null

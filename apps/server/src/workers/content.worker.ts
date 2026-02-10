@@ -23,6 +23,22 @@ interface ScheduledPost {
 let isRunning = false;
 let cronTask: cron.ScheduledTask | null = null;
 
+const normalizePublicBase = (value?: string | null) => {
+    if (!value) return undefined;
+    return value.endsWith('/') ? value.slice(0, -1) : value;
+};
+
+const normalizeMediaUrl = (url?: string, bot?: any) => {
+    if (!url) return undefined;
+    if (/^https?:\/\//i.test(url)) return url;
+    // Likely Telegram file_id (no slashes/dots)
+    if (!url.includes('/') && !url.includes('.')) return url;
+    const base = normalizePublicBase((bot?.config as any)?.publicBaseUrl || process.env.PUBLIC_BASE_URL);
+    if (!base) return url;
+    const path = url.startsWith('/') ? url : `/${url}`;
+    return `${base}${path}`;
+};
+
 /**
  * Send post to Telegram channel
  */
@@ -122,7 +138,7 @@ async function processPublicationJobs(): Promise<boolean> {
 
                 const draft = job.draft || (job.draftId ? await prisma.draft.findUnique({ where: { id: job.draftId } }) : null);
                 const text = job.text || draft?.description || draft?.title || '';
-                const imageUrl = job.mediaUrl || draft?.url || undefined;
+                const imageUrl = normalizeMediaUrl(job.mediaUrl || draft?.url || undefined, bot);
 
                 if (!text || !job.destination) {
                     const errMsg = 'Missing text or destination';

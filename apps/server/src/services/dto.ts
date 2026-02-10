@@ -196,12 +196,21 @@ export const mapVariantInput = (input: any) => {
   if ('mileage' in input) data.mileage = toNumber(input.mileage);
   if ('location' in input) data.location = NormalizationService.normalizeCity(input.location);
   if ('thumbnail' in input) data.thumbnail = input.thumbnail;
+  if ('mediaUrls' in input) data.mediaUrls = Array.isArray(input.mediaUrls) ? input.mediaUrls.filter(Boolean) : [];
+  if ('mediaItems' in input) data.mediaItems = input.mediaItems ?? null;
+  if ('companyName' in input) data.companyName = toString(input.companyName);
+  if ('contact' in input) data.contact = toString(input.contact);
   if ('specs' in input) data.specs = input.specs ?? null;
+  if ('statusHistory' in input) data.statusHistory = input.statusHistory ?? null;
+  if (!('statusHistory' in input)) {
+    const initialStatus = data.status || DbVariantStatus.SUBMITTED;
+    data.statusHistory = [{ status: initialStatus, at: new Date().toISOString(), by: 'system' }];
+  }
 
   return data;
 };
 
-export const mapVariantOutput = (variant: any) => {
+export const mapVariantOutput = (variant: any, opts: { includeContact?: boolean } = {}) => {
   const amount = toNumber(variant.price) ?? 0;
   const currency = variant.currency || DEFAULT_CURRENCY;
   return {
@@ -215,9 +224,13 @@ export const mapVariantOutput = (variant: any) => {
     mileage: variant.mileage ?? 0,
     location: variant.location ?? '',
     thumbnail: variant.thumbnail ?? '',
+    mediaUrls: variant.mediaUrls ?? [],
+    mediaItems: variant.mediaItems ?? [],
+    ...(opts.includeContact ? { companyName: variant.companyName ?? '', contact: variant.contact ?? '' } : {}),
     specs: variant.specs ?? {},
     url: variant.sourceUrl ?? undefined,
     sourceUrl: variant.sourceUrl ?? undefined,
+    statusHistory: variant.statusHistory ?? [],
     createdAt: variant.createdAt,
     updatedAt: variant.updatedAt
   };
@@ -271,7 +284,7 @@ export const mapRequestInput = (input: any) => {
   return data;
 };
 
-export const mapRequestOutput = (request: any) => ({
+export const mapRequestOutput = (request: any, opts: { includeContact?: boolean } = {}) => ({
   id: request.id,
   publicId: request.publicId || request.id,
   title: request.title,
@@ -292,7 +305,7 @@ export const mapRequestOutput = (request: any) => ({
   payload: request.payload ?? undefined,
   createdAt: request.createdAt,
   updatedAt: request.updatedAt,
-  variants: (request.variants || []).map(mapVariantOutput)
+  variants: (request.variants || []).map((variant: any) => mapVariantOutput(variant, opts))
 });
 
 export type InventoryInput = {

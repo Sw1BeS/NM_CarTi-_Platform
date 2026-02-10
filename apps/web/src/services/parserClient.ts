@@ -10,6 +10,10 @@ const computeConfidence = (variables: Record<string, any>) => {
 };
 
 export const parseListingFromUrl = async (url: string) => {
+  const parserEnabled = (import.meta as any)?.env?.VITE_PARSER_ENABLED === 'true';
+  if (!parserEnabled) {
+    throw new Error('Parser is disabled in this build');
+  }
   const res = await ApiClient.post<any>('parser/preview', { url });
   if (!res.ok) throw new Error(res.message || 'Parse failed');
 

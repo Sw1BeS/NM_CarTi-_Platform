@@ -803,15 +803,27 @@ export const handleDynamicMenu = async (ctx: PipelineContext, text: string) => {
 export const routeMessage = async (ctx: PipelineContext) => {
   if (!ctx.bot || !ctx.session) return false;
 
+  const sessionVars = (ctx.session.variables as any) || {};
+  const isB2BTemplate = ctx.bot.template === 'B2B';
+  const hasActiveScenario = !!sessionVars.__activeScenarioId;
+  const isDealerFlow = sessionVars.role === 'DEALER'
+    || !!sessionVars.dealer_state
+    || !!sessionVars.dealer_invite_id
+    || !!sessionVars.ref_request_id;
+
   // 1. Prioritize Scenarios (Triggers)
-  const handledScenario = await ScenarioEngine.handleUpdate(ctx.bot as any, ctx.session, ctx.update);
-  if (handledScenario) return true;
+  // For B2B template, skip scenario routing unless we're already inside a scenario
+  // or handling dealer flow to avoid menu/flow mismatch.
+  if (!isB2BTemplate || hasActiveScenario || isDealerFlow) {
+    const handledScenario = await ScenarioEngine.handleUpdate(ctx.bot as any, ctx.session, ctx.update);
+    if (handledScenario) return true;
+  }
 
   const message = ctx.update?.message;
   const text = message?.text || '';
 
   // 2. Dynamic Menu Logic (Prioritized over legacy templates)
-  const isDynamicHandled = await handleDynamicMenu(ctx, text);
+  const isDynamicHandled = isB2BTemplate ? false : await handleDynamicMenu(ctx, text);
   if (isDynamicHandled) return true;
 
   // 3. Legacy Templates (Fallback)
@@ -830,7 +842,7 @@ export const routeMessage = async (ctx: PipelineContext) => {
    We did checks at top.
   */
 
-  if (companyId) {
+  if (companyId && !isB2BTemplate) {
     const hasScenarios = await prisma.scenario.findFirst({
       where: {
         companyId,

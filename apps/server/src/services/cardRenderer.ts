@@ -1,9 +1,11 @@
 import { VariantStatus, RequestStatus } from '@prisma/client';
 
-export const renderVariantCard = (variant: any) => {
+export const renderVariantCard = (variant: any, opts: { includeContact?: boolean } = {}) => {
   const priceObj = variant.price && typeof variant.price === 'object' ? variant.price : { amount: variant.price };
   const price = priceObj?.amount ? Number(priceObj.amount) : 0;
   const currency = priceObj?.currency || variant.currency || 'USD';
+  const companyName = variant.companyName || variant.company || variant.specs?.companyName;
+  const contact = variant.contact || variant.specs?.contact;
   const parts = [
     `🚗 <b>${(variant.title || 'Варіант').toUpperCase()}</b>`,
     price ? `💰 ${price.toLocaleString()} ${currency}` : null,
@@ -11,7 +13,9 @@ export const renderVariantCard = (variant: any) => {
     variant.mileage ? `🛣 ${Math.round(variant.mileage / 1000)}k km` : null,
     variant.location ? `📍 ${variant.location}` : null,
     variant.specs?.vin ? `🔑 VIN: ${variant.specs.vin}` : null,
-    variant.sourceUrl ? `🔗 ${variant.sourceUrl}` : null
+    variant.sourceUrl ? `🔗 ${variant.sourceUrl}` : null,
+    opts.includeContact && companyName ? `🏢 ${companyName}` : null,
+    opts.includeContact && contact ? `📞 ${contact}` : null
   ].filter(Boolean);
   return parts.join('\n');
 };
@@ -81,4 +85,3 @@ export const managerActionsKeyboard = (variantId: string) => ({
     ]
   ]
 });
-

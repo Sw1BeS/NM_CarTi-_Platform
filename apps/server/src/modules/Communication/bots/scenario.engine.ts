@@ -17,6 +17,7 @@ import {
   generateOfferLink,
   createDeepLinkKeyboard
 } from '../../../utils/deeplink.utils.js';
+import { mapVariantInput } from '../../../services/dto.js';
 import { logger } from '../../../utils/logger.js';
 // @ts-ignore
 import { searchAutoRia } from '../../Integrations/autoria.service.js';
@@ -97,15 +98,6 @@ const normalizeRequestType = (value: any) => {
   const raw = String(value || '').toUpperCase();
   return raw === 'SELL' ? 'SELL' : 'BUY';
 };
-
-const mapVariantInput = (vars: any) => ({
-  price: Number(vars.price) || 0,
-  currency: vars.currency || 'USD',
-  year: Number(vars.year) || 0,
-  mileage: Number(vars.mileage) || 0,
-  description: vars.description,
-  title: vars.title || 'Offer'
-});
 
 const mapRequestOutput = (req: any) => ({
   ...req,
@@ -466,6 +458,11 @@ export class ScenarioEngine {
         payload
       });
     };
+    const buildStatusHistory = (variant: any, nextStatus: string) => {
+      const history = Array.isArray(variant?.statusHistory) ? [...variant.statusHistory] : [];
+      history.push({ status: nextStatus, at: new Date().toISOString(), by: userId || chatId });
+      return history;
+    };
 
 
     const sendMainMenu = async (textOverride?: string) => {
@@ -623,20 +620,22 @@ export class ScenarioEngine {
       const requestId = await ScenarioEngine.resolveRequestId(vars);
       const flow = vars.dealer_flow || {};
 
-      const summaryCard = (override?: any) => {
+      const summaryCard = (override?: any, opts?: { includeContact?: boolean }) => {
         const variantData = {
           title: flow.title || flow.details || 'Пропозиція',
           price: flow.price,
           currency: flow.currency || 'USD',
           year: flow.year,
           specs: { vin: flow.vin, note: flow.details },
+          contact: flow.contact,
+          companyName: flow.companyName,
           location: flow.city,
           sourceUrl: flow.url,
           thumbnail: (vars.dealer_photos || [])[0],
           ...(override || {})
         };
         const photoCount = (vars.dealer_photos || []).length || 0;
-        return `${renderVariantCard(variantData)}\n🖼 Фото: ${photoCount}`;
+        return `${renderVariantCard(variantData, opts)}\n🖼 Фото: ${photoCount}`;
       };
 
       if (dealerState === 'INIT') {
@@ -657,6 +656,10 @@ export class ScenarioEngine {
 
       if (dealerState === 'AWAIT_CONTACT' && update.message?.contact) {
         flow.contact = update.message.contact.phone_number;
+        if (!flow.companyName) {
+          const fallbackName = [vars.__telegramFirstName, vars.__telegramLastName].filter(Boolean).join(' ').trim();
+          flow.companyName = vars.__telegramUsername ? `@${vars.__telegramUsername}` : (fallbackName || undefined);
+        }
         vars.dealer_flow = flow;
         vars.dealer_state = 'AWAIT_PHOTOS';
         await saveSession();
@@ -770,6 +773,9 @@ export class ScenarioEngine {
             }
           }
 
+          const mediaItems = Array.isArray(vars.dealer_photos)
+            ? vars.dealer_photos.map((p: string) => ({ tgFileId: p, source: 'TELEGRAM_BOT' }))
+            : [];
           const mapped = mapVariantInput({
             title: flow.details?.split('\n')[0]?.slice(0, 120) || 'Пропозиція',
             url: flow.url,
@@ -777,6 +783,11 @@ export class ScenarioEngine {
             source: 'DEALER',
             status: 'SUBMITTED',
             specs: { note: flow.details, vin: flow.vin },
+            companyName: flow.companyName,
+            contact: flow.contact,
+            mediaUrls: [],
+            mediaItems,
+            statusHistory: [{ status: 'SUBMITTED', at: new Date().toISOString(), by: userId || chatId }],
             year: flow.year,
             price: flow.price ? { amount: flow.price, currency: flow.currency } : undefined,
             thumbnail: (vars.dealer_photos || [])[0]
@@ -840,7 +851,7 @@ export class ScenarioEngine {
 
           // Original admin notification (now includes contact for manager)
           if (bot.adminChatId) {
-            const caption = `📨 Новий варіант по запиту ${requestId}\n${summaryCard({ specs: { vin: flow.vin, note: flow.details } })}`;
+            const caption = `📨 Новий варіант по запиту ${requestId}\n${summaryCard({ specs: { vin: flow.vin, note: flow.details } }, { includeContact: true })}`;
             if (Array.isArray(vars.dealer_photos) && vars.dealer_photos.length) {
               await telegramOutbox.sendMediaGroup({
                 botId: bot.id,
@@ -945,7 +956,7 @@ export class ScenarioEngine {
             // Update variant status
             await prisma.requestVariant.update({
               where: { id: variantId },
-              data: { status: 'APPROVED' }
+              data: { status: 'APPROVED', statusHistory: buildStatusHistory(variant, 'APPROVED') }
             });
 
             // Edit requester message
@@ -963,11 +974,10 @@ export class ScenarioEngine {
 
             // Send to admin WITH contact
             if (bot.adminChatId) {
-              const variantCard = renderVariantCard(variant as any);
-              const dealerContact = (variant.specs as any)?.contact || 'N/A';
+              const variantCard = renderVariantCard(variant as any, { includeContact: true });
 
               await sendMessage(bot, bot.adminChatId,
-                `✅ Заявка схвалена!\n\n${variantCard}\n\n📞 Контакт дилера: ${dealerContact}\n\n🔗 Запит: ${variant.request?.title || variant.requestId}`
+                `✅ Заявка схвалена!\n\n${variantCard}\n\n🔗 Запит: ${variant.request?.title || variant.requestId}`
               );
             }
 
@@ -976,7 +986,7 @@ export class ScenarioEngine {
             // Update variant status
             await prisma.requestVariant.update({
               where: { id: variantId },
-              data: { status: 'REJECTED' }
+              data: { status: 'REJECTED', statusHistory: buildStatusHistory(variant, 'REJECTED') }
             });
 
             // Edit requester message
@@ -1008,7 +1018,10 @@ export class ScenarioEngine {
             if (action === 'APPROVE') nextStatus = 'APPROVED';
             if (action === 'REJECT') nextStatus = 'REJECTED';
             if (action === 'SEND_TO_CLIENT') nextStatus = 'SENT_TO_CLIENT';
-            await prisma.requestVariant.update({ where: { id: variantId }, data: { status: nextStatus } });
+            await prisma.requestVariant.update({
+              where: { id: variantId },
+              data: { status: nextStatus, statusHistory: buildStatusHistory(target, nextStatus) }
+            });
             await prisma.messageLog.create({
               data: {
                 requestId: target.requestId,
@@ -1989,11 +2002,14 @@ export class ScenarioEngine {
       mileage: car.mileage,
       location: car.location,
       thumbnail: car.thumbnail,
+      mediaUrls: car.mediaUrls || [],
+      mediaItems: car.mediaItems || [],
       url: car.sourceUrl,
       sourceUrl: car.sourceUrl,
       source: car.source,
       specs: car.specs,
-      status: 'PENDING'
+      status: 'PENDING',
+      statusHistory: [{ status: 'PENDING', at: new Date().toISOString(), by: chatId }]
     });
 
     await prisma.requestVariant.create({

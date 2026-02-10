@@ -14,6 +14,7 @@ export const SearchPage = () => {
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
     const { showToast } = useToast();
+    const parserEnabled = (import.meta as any)?.env?.VITE_PARSER_ENABLED === 'true';
     const [mode, setMode] = useState<'GLOBAL' | 'DIRECT'>('GLOBAL');
     const [query, setQuery] = useState('');
     const [directUrl, setDirectUrl] = useState('');
@@ -40,6 +41,12 @@ export const SearchPage = () => {
     const [selectedReqId, setSelectedReqId] = useState<string>('');
     const [importedIds, setImportedIds] = useState<Set<number>>(new Set());
     const [previewItem, setPreviewItem] = useState<{ item: Partial<Variant> & { description?: string }, idx: number } | null>(null);
+
+    useEffect(() => {
+        if (!parserEnabled && mode === 'DIRECT') {
+            setMode('GLOBAL');
+        }
+    }, [parserEnabled, mode]);
 
     useEffect(() => {
         // Load Requests via RequestsService (API)
@@ -294,12 +301,18 @@ export const SearchPage = () => {
                     >
                         <Globe size={16} /> Global Search
                     </button>
-                    <button
-                        onClick={() => { setMode('DIRECT'); setResults([]); setDirectUrl(''); setErrorMsg(''); setParsePreview(null); }}
-                        className={`pb-3 px-2 text-sm font-medium transition-colors flex items-center gap-2 ${mode === 'DIRECT' ? 'border-b-2 border-gold-500 text-gold-500' : 'text-[var(--text-secondary)]'}`}
-                    >
-                        <LinkIcon size={16} /> Direct URL Parser
-                    </button>
+                    {parserEnabled ? (
+                        <button
+                            onClick={() => { setMode('DIRECT'); setResults([]); setDirectUrl(''); setErrorMsg(''); setParsePreview(null); }}
+                            className={`pb-3 px-2 text-sm font-medium transition-colors flex items-center gap-2 ${mode === 'DIRECT' ? 'border-b-2 border-gold-500 text-gold-500' : 'text-[var(--text-secondary)]'}`}
+                        >
+                            <LinkIcon size={16} /> Direct URL Parser
+                        </button>
+                    ) : (
+                        <div className="pb-3 px-2 text-xs text-[var(--text-secondary)]">
+                            Direct URL parser is disabled
+                        </div>
+                    )}
                 </div>
                 <button
                     onClick={() => setDebugMode(!debugMode)}

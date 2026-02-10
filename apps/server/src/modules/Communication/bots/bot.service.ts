@@ -555,6 +555,7 @@ class BotInstance {
                             title: flow.description,
                             status: 'PENDING',
                             source: 'TELEGRAM_BOT',
+                            statusHistory: [{ status: 'PENDING', at: new Date().toISOString(), by: chatId }],
                             // authorId removed as it doesn't exist in schema
                         }
                     });

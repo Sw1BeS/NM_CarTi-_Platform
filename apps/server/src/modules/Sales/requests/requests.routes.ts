@@ -66,7 +66,7 @@ router.get('/', authenticateToken, async (req, res) => {
         });
 
         res.json({
-            items: items.map(mapRequestOutput),
+            items: items.map((req) => mapRequestOutput(req, { includeContact: true })),
             total,
             page,
             limit,
@@ -111,7 +111,7 @@ router.post('/', authenticateToken, requireRole(['OWNER', 'ADMIN', 'MANAGER', 'O
                 }, { requestId: request.publicId }).catch(logger.error);
             });
         }
-        res.json(mapRequestOutput(request));
+        res.json(mapRequestOutput(request, { includeContact: true }));
     } catch (e: any) {
         errorResponse(res, 500, e.message);
     }
@@ -145,7 +145,7 @@ router.put('/:id', authenticateToken, requireRole(['OWNER', 'ADMIN', 'MANAGER', 
             });
         }
 
-        res.json(mapRequestOutput(request));
+        res.json(mapRequestOutput(request, { includeContact: true }));
     } catch (e: any) {
         logger.error(e);
         errorResponse(res, 500, 'Failed to update request');
@@ -170,7 +170,7 @@ router.post('/:id/link-lead', authenticateToken, requireRole(['OWNER', 'ADMIN', 
         }
 
         const updated = await requestRepo.updateRequest(id, { leadId: String(leadId) } as any);
-        res.json(mapRequestOutput(updated));
+        res.json(mapRequestOutput(updated, { includeContact: true }));
     } catch (e: any) {
         logger.error(e);
         errorResponse(res, 500, 'Failed to link lead');
@@ -195,7 +195,7 @@ router.post('/:id/link-chat', authenticateToken, requireRole(['OWNER', 'ADMIN', 
         }
 
         const updated = await requestRepo.updateRequest(id, { chatId: String(chatId) } as any);
-        res.json(mapRequestOutput(updated));
+        res.json(mapRequestOutput(updated, { includeContact: true }));
     } catch (e: any) {
         logger.error(e);
         errorResponse(res, 500, 'Failed to link chat');
@@ -239,7 +239,7 @@ router.post('/:id/variants', authenticateToken, requireRole(['OWNER', 'ADMIN', '
         }
 
         const variant = await requestRepo.addVariant(id, variantData);
-        res.json(mapVariantOutput(variant));
+        res.json(mapVariantOutput(variant, { includeContact: true }));
     } catch (e: any) {
         errorResponse(res, 500, 'Failed to add variant');
     }
@@ -285,14 +285,17 @@ router.post('/:id/variants/from-inventory', authenticateToken, requireRole(['OWN
                 mileage: car.mileage,
                 location: car.location,
                 thumbnail: car.thumbnail,
+                mediaUrls: car.mediaUrls || [],
+                mediaItems: car.mediaItems || [],
                 specs: {
                     ...(car.specs as any || {}),
                     carId: car.id
-                }
+                },
+                statusHistory: [{ status: 'SUBMITTED', at: new Date().toISOString(), by: (req as any).user?.id || 'system' }]
             }
         })));
 
-        res.json(created.map(mapVariantOutput));
+        res.json(created.map((variant) => mapVariantOutput(variant, { includeContact: true })));
     } catch (e: any) {
         logger.error(e);
         errorResponse(res, 500, 'Failed to add variants');

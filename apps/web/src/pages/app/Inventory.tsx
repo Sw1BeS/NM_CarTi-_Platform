@@ -56,6 +56,7 @@ export const InventoryPage = () => {
 
     const { showToast } = useToast();
     const navigate = useNavigate();
+    const parserEnabled = (import.meta as any)?.env?.VITE_PARSER_ENABLED === 'true';
 
     const getCarImages = (car: CarListing) => {
         const itemUrls = (car.mediaItems || [])
@@ -673,7 +674,12 @@ export const InventoryPage = () => {
                             ) : (
                                 <button
                                     className="btn-primary"
+                                    disabled={!parserEnabled}
                                 onClick={async () => {
+                                    if (!parserEnabled) {
+                                        showToast('URL parser is disabled in this build', 'error');
+                                        return;
+                                    }
                                     if (!importUrl.trim()) return showToast('URL required', 'error');
                                     try {
                                         const parsed = await parseListingFromUrl(importUrl.trim());
@@ -726,6 +732,11 @@ export const InventoryPage = () => {
                             >
                                 Import
                             </button>
+                            {!parserEnabled && (
+                                <div className="mt-2 text-xs text-orange-400">
+                                    URL parsing is disabled for this release.
+                                </div>
+                            )}
                             )}
                         </div>
                     </div>

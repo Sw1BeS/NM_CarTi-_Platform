@@ -35,7 +35,7 @@ export interface CarCard {
     location: string;
     thumbnail: string;
     mediaUrls?: string[];
-    mediaItems?: Array<{ url?: string; previewUrl?: string; tgMeta?: any; source?: string }>;
+    mediaItems?: Array<{ url?: string; previewUrl?: string; tgFileId?: string; tgMeta?: any; source?: string }>;
     specs: {
         engine?: string;
         transmission?: string;
@@ -53,6 +53,9 @@ export interface Variant extends Omit<CarCard, 'status'> {
     id: string;
     requestId: string;
     status: VariantStatus;
+    companyName?: string;
+    contact?: string;
+    statusHistory?: Array<{ status: string; at: string; by?: string }>;
     fitScore?: number;
     managerNotes?: string;
     contentStatus?: 'NONE' | 'DRAFT' | 'PUBLISHED';

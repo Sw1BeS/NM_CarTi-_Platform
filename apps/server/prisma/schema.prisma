@@ -384,7 +384,12 @@ model RequestVariant {
   mileage   Int?
   location  String?
   thumbnail String?
+  mediaUrls String[] @default([])
+  mediaItems Json?   @db.JsonB
+  companyName String?
+  contact   String?
   specs     Json?
+  statusHistory Json? @db.JsonB
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
