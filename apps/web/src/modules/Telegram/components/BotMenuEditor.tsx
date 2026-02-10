@@ -55,6 +55,7 @@ export const BotMenuEditor = ({ scenarios, botId, standalone = false }: { scenar
 
     if (!bot) return <div className="p-10 text-center text-gray-400">No active bots found.</div>;
     const menuConfig = normalizeMenuConfig(bot.menuConfig);
+    const isB2B = bot.template === 'B2B';
 
     const normalizeTrigger = (value?: string) => (value || '').trim().toLowerCase().replace(/^\//, '');
 
@@ -342,6 +343,11 @@ export const BotMenuEditor = ({ scenarios, botId, standalone = false }: { scenar
                         </button>
                     </div>
                 </div>
+                {isB2B && (
+                    <div className="mb-6 rounded-xl border border-amber-400/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+                        B2B bots use a built-in hard flow. Menu settings here do not affect the live B2B menu.
+                    </div>
+                )}
 
                 {/* Templates */}
                 <div className="mb-8">

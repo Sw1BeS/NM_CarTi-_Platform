@@ -28,6 +28,7 @@ export const SettingsPage = () => {
     const { user } = useAuth();
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
+    const parserEnabled = (import.meta as any)?.env?.VITE_PARSER_ENABLED === 'true';
 
     useEffect(() => {
         const tab = searchParams.get('tab');
@@ -37,7 +38,8 @@ export const SettingsPage = () => {
             navigate('/integrations');
             return;
         }
-        const allowed = ['USERS', 'TG', 'LOGS', 'FEATURES', 'DICT', 'BACKUP', 'API', 'VERSIONS', 'SUPERADMIN', 'GENERAL', 'PARSER'];
+        const allowed = ['USERS', 'TG', 'LOGS', 'FEATURES', 'DICT', 'BACKUP', 'API', 'VERSIONS', 'SUPERADMIN', 'GENERAL'];
+        if (parserEnabled) allowed.push('PARSER');
         if (allowed.includes(normalized)) {
             setActiveTab(normalized as any);
         }
@@ -78,7 +80,9 @@ export const SettingsPage = () => {
                             <NavButton active={activeTab === 'BACKUP'} onClick={() => setActiveTab('BACKUP')} icon={HardDrive} label={t('settings.backup')} />
                             <NavButton active={activeTab === 'VERSIONS'} onClick={() => setActiveTab('VERSIONS')} icon={History} label={t('settings.versions')} />
                             <NavButton active={activeTab === 'DICT'} onClick={() => setActiveTab('DICT')} icon={Book} label={t('settings.dict')} />
-                            <NavButton active={activeTab === 'PARSER'} onClick={() => setActiveTab('PARSER')} icon={Database} label="Parser" />
+                            {parserEnabled && (
+                                <NavButton active={activeTab === 'PARSER'} onClick={() => setActiveTab('PARSER')} icon={Database} label="Parser" />
+                            )}
                         </div>
                     </div>
                 </div>
@@ -96,7 +100,7 @@ export const SettingsPage = () => {
                     {activeTab === 'BACKUP' && <BackupTab />}
                     {activeTab === 'API' && <ApiConnectionTab />}
                     {activeTab === 'VERSIONS' && <VersionsTab />}
-                    {activeTab === 'PARSER' && <ParserTab />}
+                    {activeTab === 'PARSER' && parserEnabled && <ParserTab />}
                 </div>
             </div>
         </div>
@@ -122,8 +126,17 @@ const ParserTab = () => {
     const [preview, setPreview] = useState<any | null>(null);
     const [mapping, setMapping] = useState<Record<string, string>>({});
     const [loading, setLoading] = useState(false);
+    const parserEnabled = (import.meta as any)?.env?.VITE_PARSER_ENABLED === 'true';
 
     const fieldOptions = ['title', 'description', 'price', 'currency', 'mileage', 'year', 'vin', 'location', 'images', 'url', 'custom'];
+
+    if (!parserEnabled) {
+        return (
+            <div className="panel p-6 text-sm text-[var(--text-secondary)]">
+                URL parsing is disabled for this release.
+            </div>
+        );
+    }
 
     const handlePreview = async () => {
         if (!url.trim()) return;
