@@ -1207,11 +1207,15 @@ return (
             <div className="fixed inset-0 bg-black z-[100] flex flex-col">
                 {(() => {
                     const lightboxImages = getCarImages(lightboxCar);
+                    const hasMultiple = lightboxImages.length > 1;
                     return (
                         <>
                             <div className="p-4 flex justify-between items-center">
                                 <h3 className="text-white font-bold truncate">{lightboxCar.title}</h3>
-                                <button onClick={() => setLightboxCar(null)} className="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center">
+                                <button
+                                    onClick={() => setLightboxCar(null)}
+                                    className="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center"
+                                >
                                     <X size={20} className="text-white" />
                                 </button>
                             </div>
@@ -1220,31 +1224,34 @@ return (
                                     src={lightboxImages[lightboxImageIndex] || lightboxCar.thumbnail || PLACEHOLDER_IMAGE}
                                     className="max-w-full max-h-full object-contain"
                                 />
-                                {lightboxImages.length > 1 && (
+                                {hasMultiple && (
                                     <>
                                         {lightboxImageIndex > 0 && (
                                             <button
                                                 onClick={() => setLightboxImageIndex(lightboxImageIndex - 1)}
                                                 className="absolute left-4 w-12 h-12 bg-black/50 backdrop-blur rounded-full flex items-center justify-center"
                                             >
-                                                {lightboxImageIndex < lightboxImages.length - 1 && (
-                                                    <button
-                                                        onClick={() => setLightboxImageIndex(lightboxImageIndex + 1)}
-                                                        className="absolute right-4 w-12 h-12 bg-black/50 backdrop-blur rounded-full flex items-center justify-center"
-                                                    >
-                                                        <ChevronRightIcon size={24} className="text-white" />
-                                                    </button>
-                                                )}
-                                                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/50 backdrop-blur px-3 py-1 rounded-full text-xs text-white">
-                                                    {lightboxImageIndex + 1} / {lightboxImages.length}
-                                                </div>
-                                            </>
-                                        );
-                            })()}
-                                    </div>
+                                                <ChevronLeft size={24} className="text-white" />
+                                            </button>
+                                        )}
+                                        {lightboxImageIndex < lightboxImages.length - 1 && (
+                                            <button
+                                                onClick={() => setLightboxImageIndex(lightboxImageIndex + 1)}
+                                                className="absolute right-4 w-12 h-12 bg-black/50 backdrop-blur rounded-full flex items-center justify-center"
+                                            >
+                                                <ChevronRightIcon size={24} className="text-white" />
+                                            </button>
+                                        )}
+                                        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/50 backdrop-blur px-3 py-1 rounded-full text-xs text-white">
+                                            {lightboxImageIndex + 1} / {lightboxImages.length}
+                                        </div>
+                                    </>
+                                )}
                             </div>
-                )}
-                        </div >
+                        </>
+                    );
+                })()}
+            </div>
         )}
 
                 {/* Bottom Navigation */}
