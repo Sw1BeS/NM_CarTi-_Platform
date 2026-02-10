@@ -66,7 +66,7 @@ router.get('/config', async (req, res) => {
     if (!slug) return errorResponse(res, 400, 'slug is required');
 
     const config = await miniAppService.getConfig(slug);
-    res.json({ ok: true, config });
+    res.json({ ok: true, ...config });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : 'Failed to load config';
     // If company not found, it throws "Company not found", return 404/400

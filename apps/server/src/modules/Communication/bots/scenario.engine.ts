@@ -394,6 +394,52 @@ export class ScenarioEngine {
       return true;
     }
 
+    // P0-1: Self-setup Configs
+    if (input === '/setup_admin') {
+      await prisma.botConfig.update({
+        where: { id: bot.id },
+        data: { adminChatId: chatId }
+      });
+      // Update local bot instance to reflect change immediately if it's being used downstream
+      bot.adminChatId = chatId;
+      await sendMessage(bot, chatId, `✅ Admin chat configured: ${chatId}`);
+      return true;
+    }
+
+    if (input === '/setup_channel') {
+      vars.setup_mode = 'CHANNEL';
+      await saveSession();
+      await sendMessage(bot, chatId, '📢 Перешліть будь-яке повідомлення з каналу, який треба підключити.');
+      return true;
+    }
+
+    if (vars.setup_mode === 'CHANNEL') {
+      if (update.message?.forward_from_chat) {
+        const channelId = String(update.message.forward_from_chat.id);
+        const channelTitle = update.message.forward_from_chat.title || 'Channel';
+
+        await prisma.botConfig.update({
+          where: { id: bot.id },
+          data: { channelId }
+        });
+        // Update local bot instance
+        bot.channelId = channelId;
+
+        delete vars.setup_mode;
+        await saveSession();
+        await sendMessage(bot, chatId, `✅ Channel configured: ${channelTitle} (${channelId})`);
+        return true;
+      } else if (input === '/cancel' || input === 'cancel') {
+        delete vars.setup_mode;
+        await saveSession();
+        await sendMessage(bot, chatId, '❌ Налаштування скасовано.');
+        return true;
+      } else {
+        await sendMessage(bot, chatId, '⚠️ Це не переслане повідомлення з каналу. Спробуйте ще раз або напишіть /cancel.');
+        return true;
+      }
+    }
+
     const scenarios: ScenarioRecord[] = bot.companyId
       ? await prisma.scenario.findMany({
         where: {
