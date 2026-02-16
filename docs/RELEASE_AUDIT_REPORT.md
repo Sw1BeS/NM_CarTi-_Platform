@@ -22,6 +22,7 @@
 📌 Root causes
 🔘 Browser preview executed write actions (`favorites`, `requests`) without Telegram `initData` and got `401`
 🔘 Invalid Prisma lookup contracts in MiniApp bot resolution (`findUnique` with non-unique filters)
+🔘 Hook-order violation in MiniApp component caused runtime crash in lead bot (`Minified React error #310`)
 
 📌 Fixes
 🔘 Preview mode made safe/read-only in MiniApp client: no write calls without Telegram context
@@ -29,6 +30,7 @@
 🔘 Robust miniapp config parsing wrapper on client
 🔘 Server-side MiniApp request logging added for config/favorites/requests
 🔘 Prisma lookups corrected to valid contracts (`findFirst` for multi-filter checks)
+🔘 Reordered hooks/conditional returns in `MiniApp.tsx` so hooks are always called consistently
 
 📌 Changed files
 🔘 `apps/web/src/pages/public/MiniApp.tsx`
@@ -43,9 +45,14 @@
 📌 Fixes
 🔘 Explicit B2B runtime block added in Requests UI (visibility + operational counters)
 🔘 Existing menu editor warning retained for B2B bots
+🔘 Bot creation/settings now support two explicit templates: `CLIENT_LEAD` and `B2B`
+🔘 Added default menu + MiniApp presets per template for fast setup
 
 📌 Changed files
 🔘 `apps/web/src/pages/app/Requests.tsx`
+🔘 `apps/web/src/pages/app/TelegramHub.components.tsx`
+🔘 `apps/web/src/services/defaults.ts`
+🔘 `apps/web/src/types/bot.types.ts`
 
 ### C) Bot publications with media
 📌 Root cause
@@ -113,12 +120,13 @@
 🔘 `npm --prefix apps/web run build` ✅
 🔘 `npm --prefix apps/server run prisma:generate` ✅
 🔘 `npm --prefix apps/server test -- src/__tests__/enhanced-parsing.utils.test.ts src/modules/Integrations/mtproto/mtproto.service.test.ts` ✅
+🔘 `npm --prefix apps/server test` ✅ (29/29 passed after test fixes)
 
-📌 Full server test suite status
-🔘 `npm --prefix apps/server test` ❌ (pre-existing unrelated failures in legacy tests/mocks)
-🔘 Failing suites observed:
-☑️ `src/modules/Communication/telegram/core/leadIdentity.test.ts`
-☑️ `src/services/channel-ingestion.service.test.ts`
+📌 Deployment logic verification
+🔘 `infra/deploy_prod.sh` kept as single source of truth
+🔘 `infra/deploy_infra2.sh` and `infra/deploy_manual.sh` now delegate to canonical script
+🔘 Flags added: `BRANCH`, `SKIP_PULL`, `RUN_SEED`, `ALLOW_DIRTY`
+🔘 Production smoke passed (health + Telegram webhook verify)
 
 ## Release Protocol Summary
 1️⃣ ✅ What is already accounted for
@@ -129,11 +137,14 @@
 ✅ MTProto parsing improved for `у.е.` and thousand separators
 ✅ Requester privacy fixed for dealer contact/company leakage
 ✅ ScheduledJob migration drift closed with migration + runtime guard
+✅ MiniApp lead-bot crash (`#310`) fixed
+✅ Template presets prepared for both bot types (Lead/B2B)
+✅ Deploy entrypoints unified to remove infra script drift
 
 2️⃣ 📌 Gaps / missing coverage
 📌 Live production E2E (real bot/channel chats) still requires operator run-through
-📌 Legacy unrelated unit test failures remain in repository test baseline
 📌 Third-party parser remains feature-gated (not promoted to production feature)
+📌 Production currently has one configured bot (`CLIENT_LEAD`); second bot (`B2B`) still needs real token + channel IDs
 
 3️⃣ 📌 Overbuild / premature work
 📌 No full ScenarioEngine migration for B2B in this release

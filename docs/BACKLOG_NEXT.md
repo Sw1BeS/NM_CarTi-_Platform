@@ -22,5 +22,8 @@
 🔘 Add release smoke script that checks miniapp config + scheduler health + publication endpoint
 
 📌 P2 — Test debt cleanup
-🔘 Fix existing unstable legacy tests (`leadIdentity`, `channel-ingestion` mocks)
 🔘 Expand integration tests for live B2B flow and MiniApp Telegram context
+
+📌 P1 — Second bot provisioning (operational)
+🔘 Add real B2B bot token + channel/admin IDs in production (current prod has one active lead bot)
+🔘 Run template bootstrap (B2B preset + webhook/menu publish) and verify two-bot runtime split

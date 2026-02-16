@@ -1,5 +1,16 @@
 # QA RELEASE CHECKLIST — CarTié / CarDealer Lviv (2026-02-16)
 
+## 0) Bot Templates Readiness
+📌 Steps
+🔘 Open Telegram Hub → Add/Edit bot
+🔘 Verify template selector has `Lead Bot` and `B2B Network`
+🔘 For each template, verify default menu + MiniApp config is generated
+
+📌 Expected results
+🔘 Lead template has client lead menu/actions
+🔘 B2B template has B2B-oriented menu/actions
+🔘 Saved bot keeps selected template in bot settings
+
 ## 1) B2B Flow E2E
 📌 Steps
 🔘 In bot, create request via `📝 Новий запит`
@@ -28,6 +39,7 @@
 📌 Expected behavior
 🔘 Telegram context: write actions succeed
 🔘 Browser preview: write actions are blocked by UI notice (no crash/black screen)
+🔘 No `Minified React error #310` in lead-bot miniapp
 
 📌 Expected logs
 🔘 `[MiniApp] config request`
