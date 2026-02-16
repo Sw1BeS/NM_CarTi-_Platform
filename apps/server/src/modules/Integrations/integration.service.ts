@@ -13,11 +13,14 @@ const normalizePublicBase = (value?: string | null) => {
     return value.endsWith('/') ? value.slice(0, -1) : value;
 };
 
+const looksLikeTelegramFileId = (value: string) => {
+    return !value.includes('/') && !value.includes('.') && value.length >= 8;
+};
+
 const normalizeMediaUrl = async (url?: string, botId?: string | null) => {
     if (!url) return undefined;
     if (/^https?:\/\//i.test(url)) return url;
-    // Likely Telegram file_id (no slashes/dots)
-    if (!url.includes('/') && !url.includes('.')) return url;
+    if (looksLikeTelegramFileId(url)) return url;
 
     let base = normalizePublicBase(process.env.PUBLIC_BASE_URL);
     if (botId) {
@@ -25,7 +28,7 @@ const normalizeMediaUrl = async (url?: string, botId?: string | null) => {
         const botBase = normalizePublicBase((bot?.config as any)?.publicBaseUrl);
         if (botBase) base = botBase;
     }
-    if (!base) return url;
+    if (!base) return undefined;
     const path = url.startsWith('/') ? url : `/${url}`;
     return `${base}${path}`;
 };
@@ -307,12 +310,15 @@ export class IntegrationService {
         try {
             if (!botId) throw new Error('botId is required for outbox logging');
             const normalizedImage = await normalizeMediaUrl(imageUrl, botId);
-            const result = imageUrl
+            if (imageUrl && !normalizedImage) {
+                throw new Error('Media URL is relative and PUBLIC_BASE_URL/publicBaseUrl is not configured');
+            }
+            const result = normalizedImage
                 ? await telegramOutbox.sendPhoto({
                     botId,
                     token: botToken,
                     chatId: destination,
-                    photo: normalizedImage || imageUrl,
+                    photo: normalizedImage,
                     caption: text,
                     replyMarkup: keyboard,
                     companyId: companyId || null

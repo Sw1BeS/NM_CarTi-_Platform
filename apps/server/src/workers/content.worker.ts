@@ -28,13 +28,16 @@ const normalizePublicBase = (value?: string | null) => {
     return value.endsWith('/') ? value.slice(0, -1) : value;
 };
 
+const looksLikeTelegramFileId = (value: string) => {
+    return !value.includes('/') && !value.includes('.') && value.length >= 8;
+};
+
 const normalizeMediaUrl = (url?: string, bot?: any) => {
     if (!url) return undefined;
     if (/^https?:\/\//i.test(url)) return url;
-    // Likely Telegram file_id (no slashes/dots)
-    if (!url.includes('/') && !url.includes('.')) return url;
+    if (looksLikeTelegramFileId(url)) return url;
     const base = normalizePublicBase((bot?.config as any)?.publicBaseUrl || process.env.PUBLIC_BASE_URL);
-    if (!base) return url;
+    if (!base) return undefined;
     const path = url.startsWith('/') ? url : `/${url}`;
     return `${base}${path}`;
 };
@@ -138,10 +141,29 @@ async function processPublicationJobs(): Promise<boolean> {
 
                 const draft = job.draft || (job.draftId ? await prisma.draft.findUnique({ where: { id: job.draftId } }) : null);
                 const text = job.text || draft?.description || draft?.title || '';
-                const imageUrl = normalizeMediaUrl(job.mediaUrl || draft?.url || undefined, bot);
+                const rawMediaUrl = job.mediaUrl || draft?.url || undefined;
+                const imageUrl = normalizeMediaUrl(rawMediaUrl, bot);
 
                 if (!text || !job.destination) {
                     const errMsg = 'Missing text or destination';
+                    logger.error(`[ContentWorker] ${errMsg} for job ${job.id}`);
+                    await prisma.publicationJob.update({
+                        where: { id: job.id },
+                        data: { status: 'FAILED', lastError: errMsg }
+                    });
+                    await prisma.publicationResult.create({
+                        data: { jobId: job.id, status: 'FAILED', error: errMsg }
+                    });
+                    if (job.draftId) {
+                        await prisma.draft.update({
+                            where: { id: job.draftId },
+                            data: { status: 'FAILED', metadata: { error: errMsg } }
+                        });
+                    }
+                    continue;
+                }
+                if (rawMediaUrl && !imageUrl) {
+                    const errMsg = 'Media URL is relative and PUBLIC_BASE_URL/publicBaseUrl is not configured';
                     logger.error(`[ContentWorker] ${errMsg} for job ${job.id}`);
                     await prisma.publicationJob.update({
                         where: { id: job.id },

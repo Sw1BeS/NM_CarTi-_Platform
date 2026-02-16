@@ -7,6 +7,13 @@ import { logIntegrationEvent } from '../services/integrationEventLog.service.js'
 import { logger } from '../utils/logger.js';
 
 const prisma = new PrismaClient();
+let scheduledJobsTableAvailable = true;
+
+const isMissingScheduledJobsTable = (error: any) => {
+    return error?.code === 'P2021'
+        && typeof error?.meta?.table === 'string'
+        && String(error.meta.table).includes('ScheduledJob');
+};
 
 export const startScheduler = () => {
     logger.info('⏰ Scheduler: Initializing...');
@@ -112,14 +119,25 @@ async function syncAllChannels() {
 
 
 async function processScheduledJobs() {
+    if (!scheduledJobsTableAvailable) return;
     const now = new Date();
-    const jobs = await prisma.scheduledJob.findMany({
-        where: {
-            status: 'PENDING',
-            runAt: { lte: now }
-        },
-        take: 50 // batch size
-    });
+    let jobs: any[] = [];
+    try {
+        jobs = await prisma.scheduledJob.findMany({
+            where: {
+                status: 'PENDING',
+                runAt: { lte: now }
+            },
+            take: 50 // batch size
+        });
+    } catch (e: any) {
+        if (isMissingScheduledJobsTable(e)) {
+            scheduledJobsTableAvailable = false;
+            logger.warn('⏰ Scheduler: ScheduledJob table is missing, scheduled_jobs task disabled until migration is applied.');
+            return;
+        }
+        throw e;
+    }
 
     if (jobs.length === 0) return;
     logger.info(`⏰ Scheduler: Found ${jobs.length} due jobs.`);
