@@ -23,7 +23,7 @@ compose_from_labels() {
 }
 
 main() {
-  local compose log
+  local compose log build_sha build_time running_sha
   compose="$(compose_from_labels || true)"
   if [ -z "${compose:-}" ]; then
     compose="$COMPOSE_FALLBACK"
@@ -51,17 +51,29 @@ main() {
     echo "[DEPLOY] ff-only merge origin/$BRANCH"
     git merge --ff-only "origin/$BRANCH"
 
+    build_sha="$(git rev-parse HEAD 2>/dev/null || echo dev)"
+    build_time="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    export BUILD_SHA="$build_sha" BUILD_TIME="$build_time"
+    echo "[DEPLOY] build_sha=$BUILD_SHA"
+    echo "[DEPLOY] build_time=$BUILD_TIME"
+
     echo
     echo "[DEPLOY] compose config -q"
     docker compose -p "$PROJECT" -f "$compose" config -q
 
     echo
     echo "[DEPLOY] build api+web"
-    docker compose -p "$PROJECT" -f "$compose" build api web
+    BUILD_SHA="$BUILD_SHA" BUILD_TIME="$BUILD_TIME" \
+      docker compose -p "$PROJECT" -f "$compose" build api web
 
     echo
     echo "[DEPLOY] up -d --force-recreate --remove-orphans"
-    docker compose -p "$PROJECT" -f "$compose" up -d --force-recreate --remove-orphans
+    BUILD_SHA="$BUILD_SHA" BUILD_TIME="$BUILD_TIME" \
+      docker compose -p "$PROJECT" -f "$compose" up -d --force-recreate --remove-orphans
+
+    echo
+    echo "[DEPLOY] run prisma migrations"
+    docker exec "${PROJECT}-api-1" npm run prisma:migrate
 
     echo
     echo "[DEPLOY] prune builds"
@@ -96,6 +108,14 @@ main() {
     else
          echo "❌ WEB Proxy Health Failed"
          exit 1
+    fi
+
+    running_sha="$(docker exec "${PROJECT}-api-1" sh -lc 'cat /app/server/BUILD_SHA 2>/dev/null || true' | tr -d '\r\n')"
+    if [ "$running_sha" = "$BUILD_SHA" ]; then
+      echo "✅ BUILD_SHA verified in running container"
+    else
+      echo "❌ BUILD_SHA mismatch: expected=$BUILD_SHA actual=${running_sha:-<empty>}"
+      exit 1
     fi
      
     # Optional: Public check (warning only)
