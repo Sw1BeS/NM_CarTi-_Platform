@@ -2,130 +2,20 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DEFAULT_REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+REPO_DIR="${REPO_DIR:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 
-REPO_DIR="${REPO_DIR:-$DEFAULT_REPO_DIR}"
-PROJECT="${PROJECT:-infra2}"
+# Canonical deployment path: delegate to deploy_prod.sh to avoid script drift.
 BRANCH="${BRANCH:-main}"
+ALLOW_DIRTY="${ALLOW_DIRTY:-0}"
+SKIP_PULL="${SKIP_PULL:-0}"
+RUN_SEED="${RUN_SEED:-1}"
 
-# Use label-derived compose if available; fallback to repo prod compose
-COMPOSE_FALLBACK="${COMPOSE_FALLBACK:-$REPO_DIR/infra/docker-compose.cartie2.prod.yml}"
+echo "[DEPLOY] delegating to infra/deploy_prod.sh (branch=$BRANCH, skip_pull=$SKIP_PULL, run_seed=$RUN_SEED)"
 
-ts_utc() { date -u +%Y-%m-%dT%H:%M:%SZ; }
-die() { echo "[DEPLOY] ERROR: $*" >&2; exit 2; }
-
-compose_from_labels() {
-  local cid
-  cid="$(docker ps -q --filter "name=${PROJECT}-web-1" | head -n1 || true)"
-  if [ -n "${cid:-}" ]; then
-    docker inspect "$cid" --format '{{ index .Config.Labels "com.docker.compose.project.config_files" }}' 2>/dev/null || true
-  fi
-}
-
-main() {
-  local compose log build_sha build_time running_sha
-  compose="$(compose_from_labels || true)"
-  if [ -z "${compose:-}" ]; then
-    compose="$COMPOSE_FALLBACK"
-  fi
-  [ -f "$compose" ] || die "COMPOSE file not found: $compose"
-
-  mkdir -p /srv/cartie/_logs
-  log="/srv/cartie/_logs/infra2_deploy_$(date -u +%Y-%m-%d_%H%M%S).log"
-
-  {
-    echo "[DEPLOY] ts=$(ts_utc)"
-    echo "[DEPLOY] repo=$REPO_DIR branch=$BRANCH project=$PROJECT"
-    echo "[DEPLOY] compose=$compose"
-    echo
-
-    cd "$REPO_DIR" || die "missing repo dir: $REPO_DIR"
-
-    if [ -n "$(git status --porcelain || true)" ]; then
-      die "repo has uncommitted changes (git status not clean). abort."
-    fi
-
-    echo "[DEPLOY] git fetch origin $BRANCH"
-    git fetch origin "$BRANCH"
-
-    echo "[DEPLOY] ff-only merge origin/$BRANCH"
-    git merge --ff-only "origin/$BRANCH"
-
-    build_sha="$(git rev-parse HEAD 2>/dev/null || echo dev)"
-    build_time="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-    export BUILD_SHA="$build_sha" BUILD_TIME="$build_time"
-    echo "[DEPLOY] build_sha=$BUILD_SHA"
-    echo "[DEPLOY] build_time=$BUILD_TIME"
-
-    echo
-    echo "[DEPLOY] compose config -q"
-    docker compose -p "$PROJECT" -f "$compose" config -q
-
-    echo
-    echo "[DEPLOY] build api+web"
-    BUILD_SHA="$BUILD_SHA" BUILD_TIME="$BUILD_TIME" \
-      docker compose -p "$PROJECT" -f "$compose" build api web
-
-    echo
-    echo "[DEPLOY] up -d --force-recreate --remove-orphans"
-    BUILD_SHA="$BUILD_SHA" BUILD_TIME="$BUILD_TIME" \
-      docker compose -p "$PROJECT" -f "$compose" up -d --force-recreate --remove-orphans
-
-    echo
-    echo "[DEPLOY] run prisma migrations"
-    docker exec "${PROJECT}-api-1" npm run prisma:migrate
-
-    echo
-    echo "[DEPLOY] prune builds"
-    docker image prune -f --filter "label!=keep"
-
-    echo
-    echo "[DEPLOY] Detailed Health Verification"
-
-    # Verify Containers
-    for service in "web" "api" "db"; do
-      container_name="${PROJECT}-${service}-1"
-      if [ "$(docker inspect -f '{{.State.Status}}' "$container_name" 2>/dev/null)" != "running" ]; then
-        echo "❌ Container $container_name is NOT running!"
-        docker logs "$container_name" --tail 10
-        exit 1
-      else
-        echo "✅ Container $container_name is running."
-      fi
-    done
-
-    # Verify Endpoints
-    echo "[DEPLOY] Checking HTTP Endpoints..."
-    if curl -fsS --retry 5 --retry-delay 2 --retry-connrefused -o /dev/null "http://127.0.0.1:3002/health"; then
-        echo "✅ API Internal Health (3002) OK"
-    else
-        echo "❌ API Internal Health Failed"
-        exit 1
-    fi
-
-    if curl -fsS --retry 5 --retry-delay 2 --retry-connrefused -o /dev/null "http://127.0.0.1:8082/api/health"; then
-         echo "✅ WEB Proxy Health (8082) OK"
-    else
-         echo "❌ WEB Proxy Health Failed"
-         exit 1
-    fi
-
-    running_sha="$(docker exec "${PROJECT}-api-1" sh -lc 'cat /app/server/BUILD_SHA 2>/dev/null || true' | tr -d '\r\n')"
-    if [ "$running_sha" = "$BUILD_SHA" ]; then
-      echo "✅ BUILD_SHA verified in running container"
-    else
-      echo "❌ BUILD_SHA mismatch: expected=$BUILD_SHA actual=${running_sha:-<empty>}"
-      exit 1
-    fi
-     
-    # Optional: Public check (warning only)
-    curl -fsS -o /dev/null -w "PUBLIC /api/health => %{http_code}\n" https://cartie2.umanoff-analytics.space/api/health || echo "⚠️ Public health check failed (DNS/SSL issue?)"
-
-    echo
-    echo "[DEPLOY] OK"
-  } | tee -a "$log"
-
-  echo "[DEPLOY] log => $log"
-}
-
-main "$@"
+exec env \
+  REPO_DIR="$REPO_DIR" \
+  BRANCH="$BRANCH" \
+  ALLOW_DIRTY="$ALLOW_DIRTY" \
+  SKIP_PULL="$SKIP_PULL" \
+  RUN_SEED="$RUN_SEED" \
+  bash "$SCRIPT_DIR/deploy_prod.sh"

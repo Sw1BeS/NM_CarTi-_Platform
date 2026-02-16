@@ -16,6 +16,9 @@ LOG_DIR="/srv/cartie/_logs"
 TS=$(date -u +%Y-%m-%d_%H%M%S)
 LOG_FILE="$LOG_DIR/deploy_${TS}.log"
 ALLOW_DIRTY="${ALLOW_DIRTY:-0}"
+BRANCH="${BRANCH:-main}"
+SKIP_PULL="${SKIP_PULL:-0}"
+RUN_SEED="${RUN_SEED:-1}"
 
 # Ensure log directory exists before the first log() call (set -e safe).
 mkdir -p "$LOG_DIR"
@@ -86,14 +89,19 @@ cleanup_and_restart() {
 # STEP 2: Pull Latest Code (optional)
 # ========================================
 pull_code() {
+  if [ "$SKIP_PULL" = "1" ]; then
+    warn "SKIP_PULL=1, skipping git fetch/merge."
+    return
+  fi
+
   log "Pulling latest code..."
   
   if git remote get-url origin &>/dev/null; then
-    log "Fetching origin/main..."
-    git fetch origin main || warn "Git fetch failed (offline?)"
+    log "Fetching origin/$BRANCH..."
+    git fetch origin "$BRANCH" || warn "Git fetch failed (offline?)"
     
-    log "Merging origin/main (fast-forward only)..."
-    git merge --ff-only origin/main || warn "Cannot fast-forward (manual merge needed?)"
+    log "Merging origin/$BRANCH (fast-forward only)..."
+    git merge --ff-only "origin/$BRANCH" || warn "Cannot fast-forward (manual merge needed?)"
   else
     warn "No git remote 'origin' found. Skipping pull."
   fi
@@ -160,6 +168,11 @@ run_migrations() {
 # STEP 6: Seed Production Data
 # ========================================
 seed_data() {
+  if [ "$RUN_SEED" != "1" ]; then
+    warn "RUN_SEED=$RUN_SEED, skipping seed step."
+    return
+  fi
+
   log "Seeding production data..."
   
   local api_container="${PROJECT}-api-1"
@@ -293,6 +306,9 @@ main() {
   log "CARTIE PRODUCTION DEPLOYMENT"
   log "Timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
   log "Project: $PROJECT"
+  log "Branch: $BRANCH"
+  log "SKIP_PULL: $SKIP_PULL"
+  log "RUN_SEED: $RUN_SEED"
   log "Compose: $COMPOSE_FILE"
   log "Log: $LOG_FILE"
   log "========================================="
