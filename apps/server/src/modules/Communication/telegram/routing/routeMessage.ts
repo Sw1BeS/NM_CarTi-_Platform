@@ -24,6 +24,30 @@ const parseRange = (input: string) => {
   return { min, max };
 };
 
+const normalizeShortYear = (value: number, pivotYear?: number) => {
+  if (value >= 1000) return value;
+  if (typeof pivotYear === 'number' && pivotYear >= 1000) {
+    const century = Math.floor(pivotYear / 100) * 100;
+    return century + value;
+  }
+  return value <= 30 ? 2000 + value : 1900 + value;
+};
+
+const parseYearRange = (input: string) => {
+  const nums = (input.match(/\d{2,4}/g) || []).slice(0, 2).map(v => Number(v));
+  if (!nums.length) return { min: undefined, max: undefined };
+  if (nums.length === 1) {
+    const year = normalizeShortYear(nums[0]);
+    return year >= 1900 && year <= 2100 ? { min: year, max: year } : { min: undefined, max: undefined };
+  }
+  const first = normalizeShortYear(nums[0], nums[1] >= 1000 ? nums[1] : undefined);
+  const second = normalizeShortYear(nums[1], nums[0] >= 1000 ? nums[0] : first);
+  const candidates = [first, second].filter(v => v >= 1900 && v <= 2100);
+  if (!candidates.length) return { min: undefined, max: undefined };
+  if (candidates.length === 1) return { min: candidates[0], max: candidates[0] };
+  return { min: Math.min(candidates[0], candidates[1]), max: Math.max(candidates[0], candidates[1]) };
+};
+
 const parsePrice = (input: string) => {
   const nums = (input.match(/\d{2,}/g) || []).map(v => Number(v));
   if (!nums.length) return { min: undefined, max: undefined };
@@ -382,7 +406,7 @@ const handleCatalog = async (ctx: PipelineContext, text: string) => {
       return true;
     }
     if (!isSkip) {
-      const range = parseRange(text);
+      const range = parseYearRange(text);
       flow.yearMin = range.min;
       flow.yearMax = range.max;
     }
@@ -608,7 +632,7 @@ const handleB2B = async (ctx: PipelineContext, text: string) => {
       return true;
     }
     if (!isSkip) {
-      const range = parseRange(text);
+      const range = parseYearRange(text);
       flow.yearMin = range.min;
       flow.yearMax = range.max;
     }

@@ -1,6 +1,6 @@
 export const PATTERNS = {
     // Price: $10000, 10 000 $, 10.000 eur, 10k usd
-    PRICE: /((?:\$|€|£|₴)\s*[\d\s.,]+(?:k|к|тыс|тис)?|[\d\s.,]+(?:k|к|тыс|тис)?\s*(?:\$|€|£|₴|usd|eur|uah|грн|дол))/i,
+    PRICE: /((?:\$|€|£|₴)\s*[\d\s.,]+(?:k|к|тыс|тис)?|[\d\s.,]+(?:k|к|тыс|тис)?\s*(?:\$|€|£|₴|usd|eur|uah|грн|дол|у\.?е\.?|уе))/i,
 
     // Year: 2018, 2018p, 2018р, 2018 г.в.
     YEAR: /\b(19|20)\d{2}(?:p|р|г|y|\.|s)?\b/i,
@@ -16,7 +16,7 @@ export const PATTERNS = {
 };
 
 export const CURRENCY_MAP: Record<string, string> = {
-    '$': 'USD', 'usd': 'USD', 'дол': 'USD', 'bucks': 'USD', 'у.е': 'USD',
+    '$': 'USD', 'usd': 'USD', 'дол': 'USD', 'bucks': 'USD', 'у.е': 'USD', 'у е': 'USD', 'уе': 'USD',
     '€': 'EUR', 'eur': 'EUR', 'евро': 'EUR',
     '₴': 'UAH', 'uah': 'UAH', 'грн': 'UAH'
 };
@@ -45,7 +45,11 @@ export const normalizeNumber = (raw: string): number => {
     // Strip non-numeric/non-dot/non-comma
     clean = clean.replace(/[^0-9.,]/g, '');
 
-    if (clean.includes(',')) {
+    if (/^\d{1,3}(\.\d{3})+$/.test(clean)) {
+        clean = clean.replace(/\./g, '');
+    } else if (/^\d{1,3}(,\d{3})+$/.test(clean)) {
+        clean = clean.replace(/,/g, '');
+    } else if (clean.includes(',')) {
         if (clean.includes('.')) {
             // mixed (10,000.50 or 10.000,50) - complex, let's assume standard US 10,000.50
             clean = clean.replace(/,/g, '');
@@ -74,7 +78,7 @@ export const parseCarData = (text: string) => {
             if (priceMatch) {
                 const valStr = priceMatch[1] || priceMatch[0];
                 // clean currency symbols to get number
-                const numStr = valStr.replace(/[$€£₴]|usd|eur|uah|грн|дол/gi, '');
+                const numStr = valStr.replace(/[$€£₴]|usd|eur|uah|грн|дол|у\.?е\.?|уе/gi, '');
                 specs.price = normalizeNumber(numStr);
                 specs.currency = normalizeCurrency(valStr.replace(/[\d\s.,]/g, '') || line);
             }
