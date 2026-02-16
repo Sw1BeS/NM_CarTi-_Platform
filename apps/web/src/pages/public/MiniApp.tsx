@@ -335,34 +335,6 @@ const MiniAppContent = () => {
         };
         load();
     }, [slug]);
-
-if (initError) {
-    return (
-        <div className="h-screen flex items-center justify-center text-white bg-black px-6 text-center">
-            <div>
-                <div className="text-xl font-bold mb-2">Mini App Error</div>
-                <div className="text-white/70 text-sm">{initError}</div>
-                <button
-                    onClick={() => window.location.reload()}
-                    className="mt-4 px-4 py-2 bg-white/10 rounded-lg text-sm hover:bg-white/20 transition-colors"
-                >
-                    Retry
-                </button>
-            </div>
-        </div>
-    );
-}
-
-if (!config) {
-    return (
-        <div className="h-screen flex items-center justify-center text-white bg-black">
-            <div className="flex flex-col items-center gap-2">
-                <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                <div className="text-white/50 text-sm">Loading App...</div>
-            </div>
-        </div>
-    );
-}
     const primaryColor = config.primaryColor || '#D4AF37';
 const navItems = (config.navItems && config.navItems.length > 0)
     ? config.navItems
@@ -471,6 +443,34 @@ useEffect(() => {
     const debounce = setTimeout(fetchCars, 500);
     return () => clearTimeout(debounce);
 }, [search, filters, tab, targetSlug]); // Re-fetch on filter change
+
+if (initError) {
+    return (
+        <div className="h-screen flex items-center justify-center text-white bg-black px-6 text-center">
+            <div>
+                <div className="text-xl font-bold mb-2">Mini App Error</div>
+                <div className="text-white/70 text-sm">{initError}</div>
+                <button
+                    onClick={() => window.location.reload()}
+                    className="mt-4 px-4 py-2 bg-white/10 rounded-lg text-sm hover:bg-white/20 transition-colors"
+                >
+                    Retry
+                </button>
+            </div>
+        </div>
+    );
+}
+
+if (!config) {
+    return (
+        <div className="h-screen flex items-center justify-center text-white bg-black">
+            <div className="flex flex-col items-center gap-2">
+                <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <div className="text-white/50 text-sm">Loading App...</div>
+            </div>
+        </div>
+    );
+}
 
 const applyFiltersAndSort = () => {
     let filtered = cars;
