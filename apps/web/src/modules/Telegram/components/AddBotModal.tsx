@@ -3,8 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Data } from '../../../services/data';
 import { ApiClient } from '../../../services/apiClient';
 import { useToast } from '../../../contexts/ToastContext';
-import { DEFAULT_MENU_CONFIG, DEFAULT_MINI_APP_CONFIG } from '../../../services/defaults';
-import { X } from 'lucide-react';
+import { buildDefaultBotMenuConfig, buildDefaultMiniAppConfig } from '../../../services/defaults';
 
 export const AddBotModal = ({ onClose }: any) => {
     const [name, setName] = useState('');
@@ -15,6 +14,7 @@ export const AddBotModal = ({ onClose }: any) => {
     const [companyBaseUrl, setCompanyBaseUrl] = useState(import.meta.env.VITE_API_URL || window.location.origin.replace(/\/$/, ''));
     const [publicBaseUrl, setPublicBaseUrl] = useState('');
     const [mode, setMode] = useState<'polling' | 'webhook'>('polling');
+    const [template, setTemplate] = useState<'CLIENT_LEAD' | 'B2B'>('CLIENT_LEAD');
     const [showAdvanced, setShowAdvanced] = useState(false);
     const [saving, setSaving] = useState(false);
     const { showToast } = useToast();
@@ -43,21 +43,15 @@ export const AddBotModal = ({ onClose }: any) => {
             // We can resolve final URL after backend returns username, but for initial config we use a placeholder or derived
             const miniAppUrl = buildMiniAppUrl(baseUrl, tempSlug); // This will need dynamic update if slug changes
 
-            const menuConfig = {
-                ...DEFAULT_MENU_CONFIG,
-                buttons: DEFAULT_MENU_CONFIG.buttons.map(btn =>
-                    (btn.type === 'LINK' || btn.type === 'WEB_APP') && btn.value === '{{MINI_APP_URL}}'
-                        ? { ...btn, value: miniAppUrl }
-                        : btn
-                )
-            };
-            const miniAppConfig = { ...DEFAULT_MINI_APP_CONFIG, url: miniAppUrl, showcaseSlug: tempSlug };
+            const menuConfig = buildDefaultBotMenuConfig(template, miniAppUrl);
+            const miniAppConfig = buildDefaultMiniAppConfig(template, miniAppUrl, tempSlug);
 
             const bot = await Data.saveBot({
                 name: name.trim(), // Can be empty now
                 username: tempSlug, // Backend will override if auto-fetched
                 token: token.trim(),
                 role: 'CLIENT',
+                template,
                 active: true,
                 defaultShowcaseSlug: tempSlug,
                 channelId: channelId || undefined,
@@ -112,6 +106,13 @@ export const AddBotModal = ({ onClose }: any) => {
                             <select className="input" value={mode} onChange={e => setMode(e.target.value as any)}>
                                 <option value="polling">Polling</option>
                                 <option value="webhook">Webhook</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="text-xs font-bold text-[var(--text-secondary)] uppercase block mb-1">Template</label>
+                            <select className="input" value={template} onChange={e => setTemplate(e.target.value as 'CLIENT_LEAD' | 'B2B')}>
+                                <option value="CLIENT_LEAD">Lead Bot</option>
+                                <option value="B2B">B2B Network</option>
                             </select>
                         </div>
                     </div>

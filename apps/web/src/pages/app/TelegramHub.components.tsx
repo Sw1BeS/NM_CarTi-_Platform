@@ -5,7 +5,7 @@ import { TelegramAPI } from '../../services/telegram';
 import { ShowcaseService } from '../../services/showcaseService';
 import { useToast } from '../../contexts/ToastContext';
 import { Bot, Showcase } from '../../types';
-import { DEFAULT_MENU_CONFIG, DEFAULT_MINI_APP_CONFIG } from '../../services/defaults';
+import { buildDefaultBotMenuConfig, buildDefaultMiniAppConfig } from '../../services/defaults';
 import { AlertTriangle, Activity, Globe, Terminal } from 'lucide-react';
 
 const stripTrailingSlash = (s: string) => s.replace(/\/+$/, '');
@@ -44,6 +44,7 @@ export const AddBotModal = ({ onClose }: { onClose: () => void }) => {
     const [companyBaseUrl, setCompanyBaseUrl] = useState(envUrl || window.location.origin.replace(/\/$/, ''));
     const [publicBaseUrl, setPublicBaseUrl] = useState('');
     const [mode, setMode] = useState<'polling' | 'webhook'>('polling');
+    const [template, setTemplate] = useState<'CLIENT_LEAD' | 'B2B'>('CLIENT_LEAD');
     const [saving, setSaving] = useState(false);
     const { showToast } = useToast();
     const effectiveBaseUrl = (publicBaseUrl || companyBaseUrl || window.location.origin).replace(/\/$/, '');
@@ -72,21 +73,15 @@ export const AddBotModal = ({ onClose }: { onClose: () => void }) => {
             const slug = detectedSlug || fallbackSlug;
             const miniAppUrl = buildMiniAppUrl(base, slug);
 
-            const menuConfig = {
-                ...DEFAULT_MENU_CONFIG,
-                buttons: DEFAULT_MENU_CONFIG.buttons.map(btn =>
-                    (btn.type === 'LINK' || btn.type === 'WEB_APP') && btn.value === '{{MINI_APP_URL}}'
-                        ? { ...btn, value: miniAppUrl }
-                        : btn
-                )
-            };
-            const miniAppConfig = { ...DEFAULT_MINI_APP_CONFIG, url: miniAppUrl, showcaseSlug: slug };
+            const menuConfig = buildDefaultBotMenuConfig(template, miniAppUrl);
+            const miniAppConfig = buildDefaultMiniAppConfig(template, miniAppUrl, slug);
 
             const bot = await Data.saveBot({
                 name: name.trim() || fallbackName, // Backend will likely overwrite this with real TG name
                 username: slug, // Backend will overwrite
                 token: token.trim(),
                 role: 'CLIENT',
+                template,
                 active: true,
                 defaultShowcaseSlug: slug,
                 channelId: channelId || undefined,
@@ -144,19 +139,26 @@ export const AddBotModal = ({ onClose }: { onClose: () => void }) => {
                             </select>
                         </div>
                         <div>
-                            <label className="text-xs font-bold text-[var(--text-secondary)] uppercase block mb-1">Public Base URL (HTTPS)</label>
-                            <input className="input" placeholder={companyBaseUrl || 'https://your.domain'} value={publicBaseUrl} onChange={e => setPublicBaseUrl(e.target.value)} />
-                            {!publicBaseUrl && (
-                                <div className="text-[10px] text-[var(--text-secondary)] mt-1 flex items-center gap-1">
-                                    Using company base URL by default.
-                                </div>
-                            )}
-                            {effectiveBaseUrl.includes('localhost') && (
-                                <div className="text-[10px] text-amber-500 mt-1 flex items-center gap-1">
-                                    <AlertTriangle size={10} /> Localhost won't work for Telegram Webhooks/Mini Apps
-                                </div>
-                            )}
+                            <label className="text-xs font-bold text-[var(--text-secondary)] uppercase block mb-1">Template</label>
+                            <select className="input" value={template} onChange={e => setTemplate(e.target.value as 'CLIENT_LEAD' | 'B2B')}>
+                                <option value="CLIENT_LEAD">Lead Bot</option>
+                                <option value="B2B">B2B Network</option>
+                            </select>
                         </div>
+                    </div>
+                    <div>
+                        <label className="text-xs font-bold text-[var(--text-secondary)] uppercase block mb-1">Public Base URL (HTTPS)</label>
+                        <input className="input" placeholder={companyBaseUrl || 'https://your.domain'} value={publicBaseUrl} onChange={e => setPublicBaseUrl(e.target.value)} />
+                        {!publicBaseUrl && (
+                            <div className="text-[10px] text-[var(--text-secondary)] mt-1 flex items-center gap-1">
+                                Using company base URL by default.
+                            </div>
+                        )}
+                        {effectiveBaseUrl.includes('localhost') && (
+                            <div className="text-[10px] text-amber-500 mt-1 flex items-center gap-1">
+                                <AlertTriangle size={10} /> Localhost won't work for Telegram Webhooks/Mini Apps
+                            </div>
+                        )}
                     </div>
 
                     <div className="flex justify-end gap-3 mt-6">
@@ -206,16 +208,19 @@ export const BotSettings = ({ bot }: { bot: Bot }) => {
         const { base, detectedSlug } = resolveBaseUrl(baseCandidate);
         const slug = detectedSlug || fallbackSlug;
         const miniAppUrl = buildMiniAppUrl(base, slug);
+        const template = ((draft as any).template === 'B2B' ? 'B2B' : 'CLIENT_LEAD') as 'CLIENT_LEAD' | 'B2B';
+        const defaultMenu = buildDefaultBotMenuConfig(template, miniAppUrl);
+        const defaultMini = buildDefaultMiniAppConfig(template, miniAppUrl, slug);
         const menuConfig = {
-            ...(draft.menuConfig || DEFAULT_MENU_CONFIG),
-            buttons: (draft.menuConfig?.buttons || DEFAULT_MENU_CONFIG.buttons).map(btn =>
+            ...(draft.menuConfig || defaultMenu),
+            buttons: (draft.menuConfig?.buttons || defaultMenu.buttons).map(btn =>
                 (btn.type === 'LINK' || btn.type === 'WEB_APP') && btn.value === '{{MINI_APP_URL}}'
                     ? { ...btn, value: miniAppUrl }
                     : btn
             )
         };
         const miniAppConfig = {
-            ...(draft.miniAppConfig || DEFAULT_MINI_APP_CONFIG),
+            ...(draft.miniAppConfig || defaultMini),
             url: miniAppUrl,
             showcaseSlug: slug
         };
@@ -329,6 +334,18 @@ export const BotSettings = ({ bot }: { bot: Bot }) => {
                 <div>
                     <label className="text-xs font-bold text-[var(--text-secondary)] uppercase mb-2 block">API Token</label>
                     <input className="input font-mono text-sm" type="password" value={form.token} onChange={e => setForm({ ...form, token: e.target.value })} />
+                </div>
+                <div>
+                    <label className="text-xs font-bold text-[var(--text-secondary)] uppercase mb-2 block">Bot Template</label>
+                    <select
+                        className="input w-full"
+                        value={((form as any).template || 'CLIENT_LEAD')}
+                        onChange={e => setForm({ ...form, template: e.target.value } as any)}
+                    >
+                        <option value="CLIENT_LEAD">Lead Bot</option>
+                        <option value="B2B">B2B Network</option>
+                    </select>
+                    <div className="text-[10px] text-[var(--text-secondary)] mt-1">B2B template uses hard-flow routing for dealer requests.</div>
                 </div>
                 <div className="grid grid-cols-2 gap-6">
                     <div>

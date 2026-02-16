@@ -8,6 +8,7 @@ export interface Bot {
     username: string;
     token: string;
     role: 'CLIENT' | 'CHANNEL' | 'BOTH';
+    template?: 'CLIENT_LEAD' | 'B2B' | 'CATALOG' | string;
     active: boolean;
     publicBaseUrl?: string;
     autoSync?: boolean;
@@ -18,6 +19,7 @@ export interface Bot {
         welcomeMessage?: string;
     };
     miniAppConfig?: MiniAppConfig;
+    adminChatId?: string;
     adminChannelId?: string;
     channelId?: string;
     processedUpdateIds?: number[];
