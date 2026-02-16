@@ -227,11 +227,16 @@ export const BotSettings = ({ bot }: { bot: Bot }) => {
         return { ...draft, publicBaseUrl: hasOverride ? base : undefined, menuConfig, miniAppConfig, defaultShowcaseSlug: slug };
     };
 
-    const save = async () => {
+    const save = async (options?: { forcePreset?: boolean; applyPreset?: boolean; successMessage?: string }) => {
         const normalized = normalizeMiniAppConfig(form);
-        await Data.saveBot(normalized);
-        setForm(normalized);
-        showToast("Settings Saved");
+        const payload = {
+            ...normalized,
+            applyPreset: options?.applyPreset ?? true,
+            forcePreset: options?.forcePreset ?? false
+        } as any;
+        const saved = await Data.saveBot(payload);
+        setForm(saved as any);
+        showToast(options?.successMessage || "Settings Saved");
     };
 
     const handleSyncMenu = async () => {
@@ -346,6 +351,15 @@ export const BotSettings = ({ bot }: { bot: Bot }) => {
                         <option value="B2B">B2B Network</option>
                     </select>
                     <div className="text-[10px] text-[var(--text-secondary)] mt-1">B2B template uses hard-flow routing for dealer requests.</div>
+                    <div className="mt-2 text-[10px] flex items-center gap-2">
+                        <span className="text-[var(--text-secondary)]">Preset status:</span>
+                        <span className={`font-bold ${form.presetStatus === 'ready' ? 'text-green-500' : form.presetStatus === 'partial' ? 'text-yellow-500' : 'text-red-500'}`}>
+                            {form.presetStatus || 'missing'}
+                        </span>
+                        {form.presetVersion && (
+                            <span className="text-[var(--text-secondary)]">v{form.presetVersion}</span>
+                        )}
+                    </div>
                 </div>
                 <div className="grid grid-cols-2 gap-6">
                     <div>
@@ -394,7 +408,15 @@ export const BotSettings = ({ bot }: { bot: Bot }) => {
                     </button>
                 </div>
                 <div className="flex justify-end">
-                    <button onClick={save} className="btn-primary px-6">Save Changes</button>
+                    <div className="flex gap-2">
+                        <button
+                            onClick={() => save({ forcePreset: true, applyPreset: true, successMessage: 'Template preset reapplied' })}
+                            className="btn-secondary px-4"
+                        >
+                            Reapply Preset
+                        </button>
+                        <button onClick={() => save({ applyPreset: true })} className="btn-primary px-6">Save Changes</button>
+                    </div>
                 </div>
             </div>
 
@@ -424,13 +446,13 @@ export const BotSettings = ({ bot }: { bot: Bot }) => {
 
                     <button onClick={() => {
                         form.lastUpdateId = 0;
-                        save();
+                        save({ applyPreset: false });
                         showToast("Offset Reset to 0");
                     }} className="btn-secondary text-xs py-1.5">Reset Offset</button>
 
                     <button onClick={() => {
                         form.processedUpdateIds = [];
-                        save();
+                        save({ applyPreset: false });
                         showToast("Dedupe Buffer Cleared");
                     }} className="btn-secondary text-xs py-1.5">Clear Buffer</button>
 

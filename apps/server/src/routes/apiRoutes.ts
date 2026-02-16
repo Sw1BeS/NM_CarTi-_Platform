@@ -14,6 +14,7 @@ import { mapLeadCreateInput, mapLeadOutput, mapLeadStatusFilter, mapLeadUpdateIn
 import { previewTemplate, resolveTemplateBody, buildTemplateVariables, renderTemplateBody } from '../services/publication.service.js';
 import { logIntegrationEvent } from '../services/integrationEventLog.service.js';
 import { mapBotInput, mapBotOutput } from '../modules/Communication/bots/botDto.js';
+import { applyTemplatePreset, getTemplatePresetStatus, TEMPLATE_PRESET_VERSION } from '../services/templatePreset.service.js';
 import { IntegrationService } from '../modules/Integrations/integration.service.js';
 import { SettingsService } from '../modules/Core/system/settings.service.js';
 import fs from 'fs';
@@ -98,12 +99,35 @@ router.get('/bots', requireRole(['OWNER', 'ADMIN', 'MANAGER']), async (req, res)
         where: companyId ? { companyId } : {},
         orderBy: { id: 'asc' }
     });
-    res.json(bots.map(mapBotOutput));
+    const mapped = await Promise.all(
+        bots.map(async (bot) => {
+            const output = mapBotOutput(bot) as any;
+            const config = (bot.config || {}) as Record<string, any>;
+            try {
+                const presetStatus = await getTemplatePresetStatus({
+                    template: bot.template,
+                    companyId: bot.companyId,
+                    config: config as any,
+                    channelId: bot.channelId,
+                    adminChatId: bot.adminChatId
+                });
+                output.presetStatus = presetStatus;
+                output.presetVersion = config.presetVersion || TEMPLATE_PRESET_VERSION;
+            } catch {
+                output.presetStatus = config.presetStatus || 'missing';
+                output.presetVersion = config.presetVersion || TEMPLATE_PRESET_VERSION;
+            }
+            return output;
+        })
+    );
+    res.json(mapped);
 });
 
 router.post('/bots', requireRole(['OWNER', 'ADMIN']), async (req, res) => {
     const { data } = mapBotInput(req.body || {});
     if (!data.token) return errorResponse(res, 400, 'Token is required');
+    const applyPreset = req.body?.applyPreset !== false;
+    const forcePreset = req.body?.forcePreset === true;
 
     // MIGRATION: Sanitize optional fields
     const cleanChannelId = data.channelId && String(data.channelId).trim() !== '' ? String(data.channelId).trim() : null;
@@ -210,6 +234,27 @@ router.post('/bots', requireRole(['OWNER', 'ADMIN']), async (req, res) => {
             logger.warn('Failed to fetch menu info', menuErr);
         }
 
+        const presetInputConfig = {
+            ...(data.config || {}),
+            botUsername,
+            autoDiscovered: true,
+            defaultShowcaseSlug: finalSlug,
+            miniAppConfig: finalMiniAppConfig,
+            menuConfig: finalMenuConfig
+        } as Record<string, any>;
+
+        const presetApplied = await applyTemplatePreset({
+            template: data.template || 'CLIENT_LEAD',
+            companyId,
+            config: presetInputConfig,
+            defaultShowcaseSlug: finalSlug,
+            fallbackName: botName,
+            applyPreset,
+            forcePreset,
+            channelId: cleanChannelId,
+            adminChatId: cleanAdminChatId
+        });
+
         const newBot = await prisma.botConfig.create({
             data: {
                 ...data,
@@ -219,14 +264,7 @@ router.post('/bots', requireRole(['OWNER', 'ADMIN']), async (req, res) => {
                 channelId: cleanChannelId,
                 adminChatId: cleanAdminChatId,
                 isEnabled: data.isEnabled ?? true,
-                config: {
-                    ...(data.config || {}),
-                    botUsername,
-                    autoDiscovered: true,
-                    defaultShowcaseSlug: finalSlug,
-                    miniAppConfig: finalMiniAppConfig,
-                    menuConfig: finalMenuConfig
-                }
+                config: presetApplied.config
             }
         });
 
@@ -237,6 +275,10 @@ router.post('/bots', requireRole(['OWNER', 'ADMIN']), async (req, res) => {
         const output = mapBotOutput(newBot);
         // @ts-ignore
         output.botUsername = botUsername;
+        // @ts-ignore
+        output.presetStatus = presetApplied.presetStatus;
+        // @ts-ignore
+        output.presetVersion = presetApplied.presetVersion;
 
         res.json(output);
     } catch (e) {
@@ -257,28 +299,53 @@ router.put('/bots/:id', requireRole(['OWNER', 'ADMIN']), async (req, res) => {
         return errorResponse(res, 403, 'Forbidden');
     }
     const { data } = mapBotInput(req.body || {}, existing.config);
+    const applyPreset = req.body?.applyPreset !== false;
+    const forcePreset = req.body?.forcePreset === true;
     if ('token' in data && !data.token) return errorResponse(res, 400, 'Token is required');
     if (!isSuperadmin) delete data.companyId;
 
-    // Sanitize optional fields
-    const cleanChannelId = data.channelId && String(data.channelId).trim() !== '' ? String(data.channelId).trim() : null;
-    const cleanAdminChatId = data.adminChatId && String(data.adminChatId).trim() !== '' ? String(data.adminChatId).trim() : null;
+    // Sanitize optional fields (preserve existing values when field is not provided)
+    const hasChannelIdField = Object.prototype.hasOwnProperty.call(data, 'channelId');
+    const hasAdminChatIdField = Object.prototype.hasOwnProperty.call(data, 'adminChatId');
+    const cleanChannelId = hasChannelIdField
+        ? (data.channelId && String(data.channelId).trim() !== '' ? String(data.channelId).trim() : null)
+        : undefined;
+    const cleanAdminChatId = hasAdminChatIdField
+        ? (data.adminChatId && String(data.adminChatId).trim() !== '' ? String(data.adminChatId).trim() : null)
+        : undefined;
 
     try {
+        const template = data.template || existing.template;
+        const presetApplied = await applyTemplatePreset({
+            template,
+            companyId: existing.companyId,
+            config: (data.config || existing.config || {}) as any,
+            defaultShowcaseSlug: (data.config as any)?.defaultShowcaseSlug || (existing.config as any)?.defaultShowcaseSlug,
+            fallbackName: data.name || existing.name,
+            applyPreset,
+            forcePreset,
+            channelId: cleanChannelId !== undefined ? cleanChannelId : existing.channelId,
+            adminChatId: cleanAdminChatId !== undefined ? cleanAdminChatId : existing.adminChatId
+        });
+
         const updated = await prisma.botConfig.update({
             where: { id },
             data: {
                 ...data,
                 ...(data.token ? { token: data.token.trim() } : {}),
-                channelId: cleanChannelId,
-                adminChatId: cleanAdminChatId
+                ...(cleanChannelId !== undefined ? { channelId: cleanChannelId } : {}),
+                ...(cleanAdminChatId !== undefined ? { adminChatId: cleanAdminChatId } : {}),
+                config: presetApplied.config
             }
         });
 
         // Fire and forget
         botManager.restartBot(id).catch(e => logger.error("Async Bot Update Failed:", e));
 
-        res.json(mapBotOutput(updated));
+        const output = mapBotOutput(updated) as any;
+        output.presetStatus = presetApplied.presetStatus;
+        output.presetVersion = presetApplied.presetVersion;
+        res.json(output);
     } catch (e) {
         logger.error("Update Bot Error:", e);
         errorResponse(res, 500, 'Failed to update bot');

@@ -90,6 +90,8 @@ export const mapBotOutput = (bot: any) => {
     webhookUrl: config.webhookUrl,
     adminChannelId: bot.adminChatId,
     channelId: bot.channelId,
-    template: bot.template
+    template: bot.template,
+    presetStatus: config.presetStatus,
+    presetVersion: config.presetVersion
   };
 };
