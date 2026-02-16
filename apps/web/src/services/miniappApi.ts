@@ -89,6 +89,15 @@ export type MiniAppConfigResponse = {
   miniapp?: any;
   botUsername?: string;
   appName?: string;
+  modeHints?: {
+    previewReadOnly?: boolean;
+    requiresInitDataForWrites?: boolean;
+  };
+  diagnostics?: {
+    presetStatus?: string;
+    presetVersion?: string;
+    buildSha?: string;
+  };
 };
 
 export async function getMiniAppConfig(slug: string): Promise<MiniAppConfigResponse> {

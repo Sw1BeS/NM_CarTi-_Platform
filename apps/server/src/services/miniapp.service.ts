@@ -363,13 +363,23 @@ export class MiniAppService {
 
     // Default showcase slug from company if not found on bot?
     // For now, minimal safe config
+    const buildSha = (process.env.BUILD_SHA || 'dev').slice(0, 12);
     return {
       companyId,
       botId,
       publicSlug: resolved.slug || slug,
       miniapp: botConfig?.config ? (botConfig.config as Record<string, any>)?.miniAppConfig : undefined,
       botUsername: (botConfig?.config as Record<string, any>)?.username,
-      appName: (botConfig?.config as Record<string, any>)?.name
+      appName: (botConfig?.config as Record<string, any>)?.name,
+      modeHints: {
+        previewReadOnly: true,
+        requiresInitDataForWrites: true
+      },
+      diagnostics: {
+        presetStatus: (botConfig?.config as Record<string, any>)?.presetStatus,
+        presetVersion: (botConfig?.config as Record<string, any>)?.presetVersion,
+        buildSha
+      }
     };
   }
 }

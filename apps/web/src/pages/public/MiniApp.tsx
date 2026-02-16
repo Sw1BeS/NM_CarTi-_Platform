@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { Bot, MiniAppConfig, CarListing } from '../../types';
 import { getPublicBots, getShowcaseInventory } from '../../services/publicApi';
-import { createMiniAppRequest, getMiniAppFavorites, getMiniAppRequestStatus, toggleMiniAppFavorite, type MiniAppTrackingMeta } from '../../services/miniappApi';
+import { createMiniAppRequest, getMiniAppConfig, getMiniAppFavorites, getMiniAppRequestStatus, toggleMiniAppFavorite, type MiniAppTrackingMeta } from '../../services/miniappApi';
 import {
     Search, LayoutGrid, User, Plus, Filter, ArrowRight, DollarSign,
     MessageSquare, Zap, List as ListIcon, Star, Phone, Home, Heart, ClipboardList,
@@ -78,6 +78,7 @@ const MiniAppContent = () => {
     const [initData, setInitData] = useState<string | undefined>(undefined);
     const [initError, setInitError] = useState<string | null>(null);
     const [configWarning, setConfigWarning] = useState<string | null>(null);
+    const [isConfigLoading, setIsConfigLoading] = useState(true);
     const [visitorId] = useState(() => {
         try {
             const existing = localStorage.getItem('miniapp_visitor_id');
@@ -225,6 +226,8 @@ const MiniAppContent = () => {
 
     useEffect(() => {
         const load = async () => {
+        setIsConfigLoading(true);
+        setInitError(null);
         const requestId = Math.random().toString(36).substring(7);
         console.log(`[MiniApp] Init started. RequestId: ${requestId}, Slug: ${slug}`);
         setConfigWarning(null);
@@ -282,9 +285,6 @@ const MiniAppContent = () => {
         // 3. Load Mini App Configuration
         try {
             console.log(`[MiniApp] Fetching config for slug: ${resolvedSlug}`);
-            // Fetch config from new endpoint
-            // We need to import getMiniAppConfig first, but I can add it to imports later or assume it's there
-            const { getMiniAppConfig } = await import('../../services/miniappApi');
             const conf = await getMiniAppConfig(resolvedSlug);
             console.log(`[MiniApp] Config loaded:`, conf);
 
@@ -325,24 +325,18 @@ const MiniAppContent = () => {
         } catch (e) {
             console.error('MiniApp init failed', e);
             const reason = e instanceof Error ? e.message : String(e);
-            // If it's 404/System error, show fallback
-            setInitError(`Failed to load app configuration. ${reason}. Check slug.`);
+            setInitError(`Failed to load app configuration. ${reason}.`);
+            setConfigWarning('Config unavailable. Using fallback layout in read-only mode.');
             const fallbackSlug = slug || 'system';
             setTargetSlug(fallbackSlug);
             setConfig(buildFallbackConfig(fallbackSlug));
             setCars([]); // clear cars
+        } finally {
+            setIsConfigLoading(false);
         }
         };
         load();
     }, [slug]);
-    const primaryColor = config.primaryColor || '#D4AF37';
-const navItems = (config.navItems && config.navItems.length > 0)
-    ? config.navItems
-    : [
-        { id: 'nav_home', label: 'Home', icon: 'Home', actionType: 'VIEW', value: 'HOME' },
-        { id: 'nav_stock', label: 'Stock', icon: 'LayoutGrid', actionType: 'VIEW', value: 'INVENTORY' },
-        { id: 'nav_saved', label: 'Saved', icon: 'Heart', actionType: 'VIEW', value: 'FAVORITES' }
-    ];
 
 const handleAction = (act: MiniAppConfig['actions'][number]) => {
     const tg = (window as any).Telegram?.WebApp;
@@ -444,12 +438,23 @@ useEffect(() => {
     return () => clearTimeout(debounce);
 }, [search, filters, tab, targetSlug]); // Re-fetch on filter change
 
-if (initError) {
+if (isConfigLoading && !config) {
+    return (
+        <div className="h-screen flex items-center justify-center text-white bg-black">
+            <div className="flex flex-col items-center gap-2">
+                <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <div className="text-white/50 text-sm">Loading App...</div>
+            </div>
+        </div>
+    );
+}
+
+if (!config) {
     return (
         <div className="h-screen flex items-center justify-center text-white bg-black px-6 text-center">
             <div>
-                <div className="text-xl font-bold mb-2">Mini App Error</div>
-                <div className="text-white/70 text-sm">{initError}</div>
+                <div className="text-xl font-bold mb-2">Mini App Unavailable</div>
+                <div className="text-white/70 text-sm">{initError || 'No configuration found for this app.'}</div>
                 <button
                     onClick={() => window.location.reload()}
                     className="mt-4 px-4 py-2 bg-white/10 rounded-lg text-sm hover:bg-white/20 transition-colors"
@@ -461,16 +466,14 @@ if (initError) {
     );
 }
 
-if (!config) {
-    return (
-        <div className="h-screen flex items-center justify-center text-white bg-black">
-            <div className="flex flex-col items-center gap-2">
-                <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                <div className="text-white/50 text-sm">Loading App...</div>
-            </div>
-        </div>
-    );
-}
+const primaryColor = config.primaryColor || '#D4AF37';
+const navItems = (config.navItems && config.navItems.length > 0)
+    ? config.navItems
+    : [
+        { id: 'nav_home', label: 'Home', icon: 'Home', actionType: 'VIEW', value: 'HOME' },
+        { id: 'nav_stock', label: 'Stock', icon: 'LayoutGrid', actionType: 'VIEW', value: 'INVENTORY' },
+        { id: 'nav_saved', label: 'Saved', icon: 'Heart', actionType: 'VIEW', value: 'FAVORITES' }
+    ];
 
 const applyFiltersAndSort = () => {
     let filtered = cars;
