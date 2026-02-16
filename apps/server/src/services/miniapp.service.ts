@@ -356,8 +356,8 @@ export class MiniAppService {
 
     let botConfig;
     if (botId) {
-      botConfig = await prisma.botConfig.findUnique({
-        where: { id: botId, companyId } // validation
+      botConfig = await prisma.botConfig.findFirst({
+        where: { id: botId, companyId }
       });
     }
 
@@ -366,7 +366,7 @@ export class MiniAppService {
     return {
       companyId,
       botId,
-      publicSlug: slug,
+      publicSlug: resolved.slug || slug,
       miniapp: botConfig?.config ? (botConfig.config as Record<string, any>)?.miniAppConfig : undefined,
       botUsername: (botConfig?.config as Record<string, any>)?.username,
       appName: (botConfig?.config as Record<string, any>)?.name

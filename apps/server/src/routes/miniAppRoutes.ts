@@ -36,7 +36,7 @@ const requireInitData = async (initData: string | undefined, companyId?: string 
   const init = initData;
 
   if (botId) {
-    const bot = await prisma.botConfig.findUnique({
+    const bot = await prisma.botConfig.findFirst({
       where: { id: botId, isEnabled: true },
       select: { token: true }
     });
@@ -65,8 +65,10 @@ router.get('/config', async (req, res) => {
   try {
     const slug = readString(req.query.slug);
     if (!slug) return errorResponse(res, 400, 'slug is required');
+    const requestId = readString(req.get('x-request-id')) || `miniapp_${Date.now().toString(36)}`;
 
     logger.info('[MiniApp] config request', {
+      requestId,
       slug,
       ip: req.ip,
       ua: req.get('user-agent')
@@ -119,6 +121,18 @@ router.post('/favorites/:carListingId', async (req, res) => {
 
     const companyId = listing?.companyId || resolvedConfig?.companyId || null;
     const botId = resolvedConfig?.botId;
+    const requestId = readString(req.get('x-request-id')) || `miniapp_${Date.now().toString(36)}`;
+
+    logger.info('[MiniApp] favorite toggle request', {
+      requestId,
+      slug: slug || null,
+      carListingId,
+      tgUserId: tgUserId || null,
+      hasVisitorId: Boolean(visitorId),
+      hasInitData: Boolean(initData),
+      companyId,
+      botId: botId || null
+    });
 
     const initCheck = await requireInitData(initData, companyId, botId);
     if (!initCheck.ok) return errorResponse(res, 401, initCheck.message || 'Unauthorized');
@@ -138,6 +152,7 @@ router.post('/requests', async (req, res) => {
     const body = (req.body || {}) as Record<string, unknown>;
     const slug = readString(body.slug);
     const initData = readString(body.initData);
+    const requestId = readString(req.get('x-request-id')) || `miniapp_${Date.now().toString(36)}`;
 
     if (!slug) return errorResponse(res, 400, 'slug is required');
 
@@ -150,6 +165,16 @@ router.post('/requests', async (req, res) => {
 
     const initCheck = await requireInitData(initData, config.companyId, config.botId);
     if (!initCheck.ok) return errorResponse(res, 401, initCheck.message || 'Unauthorized');
+
+    logger.info('[MiniApp] request create', {
+      requestId,
+      slug,
+      companyId: config.companyId,
+      botId: config.botId || null,
+      hasInitData: Boolean(initData),
+      hasPhone: Boolean(readString(body.phone)),
+      hasCarListingId: Boolean(readString(body.carListingId))
+    });
 
     const request = await miniAppService.createRequest({
       slug,

@@ -119,6 +119,7 @@ const MiniAppContent = () => {
     const [statusResult, setStatusResult] = useState<any>(null);
     const [trackingMeta, setTrackingMeta] = useState<MiniAppTrackingMeta>({});
     const [reqComment, setReqComment] = useState('');
+    const hasTelegramInit = Boolean(initData);
 
     const normalizeSlug = (value?: string | null) => {
         if (!value) return '';
@@ -157,6 +158,10 @@ const MiniAppContent = () => {
     const toggleFavorite = async (car: CarListing) => {
         const id = getCarId(car);
         if (!id) return;
+        if (!hasTelegramInit) {
+            setConfigWarning('Favorites are available only inside Telegram Mini App.');
+            return;
+        }
         const identity = {
             tgUserId: tgUser?.id ? String(tgUser.id) : undefined,
             visitorId
@@ -962,6 +967,11 @@ const handleNextStep = async () => {
     } else {
         const tg = (window as any).Telegram?.WebApp;
 
+        if (!hasTelegramInit) {
+            setConfigWarning('Request submission is available only inside Telegram Mini App.');
+            return;
+        }
+
         // Use Direct API call for reliability
         try {
             const slug = targetSlug || 'system';
@@ -1067,6 +1077,11 @@ const renderRequest = () => (
                             <p className="text-xs text-white/50 text-center px-4">
                                 By submitting, you agree to be contacted by our concierge team via this chat.
                             </p>
+                            {!hasTelegramInit && (
+                                <div className="text-xs text-yellow-300 bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-3 text-center">
+                                    Open this page from Telegram to submit your request.
+                                </div>
+                            )}
                         </div>
                     )}
 
@@ -1077,7 +1092,7 @@ const renderRequest = () => (
                             className="w-full py-4 rounded-xl font-bold text-black flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-50 disabled:scale-100 shadow-lg"
                             style={{ backgroundColor: primaryColor }}
                         >
-                            {reqStep === 1 ? 'Continue' : 'Submit Request'} <ArrowRight size={18} />
+                            {reqStep === 1 ? 'Continue' : (hasTelegramInit ? 'Submit Request' : 'Open in Telegram to Submit')} <ArrowRight size={18} />
                         </button>
                     </div>
                 </div>

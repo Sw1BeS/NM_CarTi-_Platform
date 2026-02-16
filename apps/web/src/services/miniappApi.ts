@@ -92,8 +92,12 @@ export type MiniAppConfigResponse = {
 };
 
 export async function getMiniAppConfig(slug: string): Promise<MiniAppConfigResponse> {
-  return await apiFetch(`/miniapp/config?slug=${slug}`, {
+  const response = await apiFetch(`/miniapp/config?slug=${slug}`, {
     method: 'GET',
     skipAuth: true
   });
+  if (response && typeof response === 'object' && 'config' in response && response.config) {
+    return response.config as MiniAppConfigResponse;
+  }
+  return response as MiniAppConfigResponse;
 }
