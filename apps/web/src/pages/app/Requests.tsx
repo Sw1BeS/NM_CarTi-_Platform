@@ -227,6 +227,9 @@ export const RequestList: React.FC = () => {
 
     const statusOptions = ['ALL', ...Object.values(RequestStatus)];
     const botOptions = [{ id: 'ALL', name: 'All Bots' }, ...bots];
+    const b2bRuntimeRequests = requests.filter(r => getSourceLabel(r.payload) === 'telegram_b2b');
+    const awaitingOffers = b2bRuntimeRequests.filter(r => r.status === RequestStatus.COLLECTING_VARIANTS).length;
+    const readyForAdmin = b2bRuntimeRequests.filter(r => r.status === RequestStatus.CONTACT_SHARED || r.status === RequestStatus.SHORTLIST).length;
 
     return (
         <div className="space-y-8 h-[calc(100vh-140px)] flex flex-col">
@@ -274,6 +277,28 @@ export const RequestList: React.FC = () => {
                         <option key={bot.id} value={bot.id}>{(bot as any).name || (bot as any).username || bot.id}</option>
                     ))}
                 </select>
+            </div>
+
+            <div className="panel p-4 shrink-0 border border-gold-500/20 bg-gold-500/5">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                        <div className="text-xs uppercase tracking-wider font-bold text-gold-500">B2B Runtime</div>
+                        <div className="text-sm text-[var(--text-secondary)]">
+                            B2B bot uses hard-flow runtime. Scenario/menu editor is informative, not source of truth for this flow.
+                        </div>
+                    </div>
+                    <div className="flex gap-2 text-xs">
+                        <span className="px-2 py-1 rounded border border-[var(--border-color)] text-[var(--text-secondary)]">
+                            Requests: {b2bRuntimeRequests.length}
+                        </span>
+                        <span className="px-2 py-1 rounded border border-[var(--border-color)] text-[var(--text-secondary)]">
+                            Awaiting offers: {awaitingOffers}
+                        </span>
+                        <span className="px-2 py-1 rounded border border-[var(--border-color)] text-[var(--text-secondary)]">
+                            Routed to admin: {readyForAdmin}
+                        </span>
+                    </div>
+                </div>
             </div>
 
             <div className="flex-1 overflow-hidden min-h-0 relative">

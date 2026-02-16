@@ -889,10 +889,12 @@ export class ScenarioEngine {
           const requesterChatId = request?.chatId;
 
           if (requesterChatId) {
-            // Build variant card WITHOUT contact (privacy)
-            const specsWithoutContact = variant.specs ? { ...(variant.specs as any), contact: undefined } : {};
+            // Build variant card WITHOUT dealer identity (privacy)
+            const specsWithoutContact = variant.specs ? { ...(variant.specs as any), contact: undefined, companyName: undefined } : {};
             const variantCardForRequester = renderVariantCard({
               ...variant,
+              contact: undefined,
+              companyName: undefined,
               specs: specsWithoutContact
             } as any);
 
