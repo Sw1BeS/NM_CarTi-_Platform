@@ -4,6 +4,7 @@ This directory is the canonical documentation set for the Cartie platform.
 
 ## Index
 - docs/README.md
+- docs/RELEASE_BASELINE.md
 - docs/ARCHITECTURE.md
 - docs/AUDIT.md
 - docs/PLAN.md
@@ -42,6 +43,19 @@ This directory is the canonical documentation set for the Cartie platform.
 🔘 `bash infra/deploy_prod.sh` (default: pull main + migrate + seed + health)
 🔘 `SKIP_PULL=1 ALLOW_DIRTY=1 bash infra/deploy_manual.sh` (local/manual deploy)
 🔘 `RUN_SEED=0 bash infra/deploy_prod.sh` (skip seed for hotfix rollout)
+
+## Quick Runbook: Connect New Bot By Template
+📌 Goal: new bot is ready immediately after connection (menu/scenario/miniapp preset)
+1. Open `Telegram Hub` → `Connect Bot`
+2. Choose template: `Lead Bot` or `B2B Network`
+3. Fill token + optional `channelId`/`adminChatId`
+4. Save bot (default `applyPreset=true`)
+5. Optional recovery: `Bot Settings` → `Reapply Preset`
+
+📌 Expected result
+🔘 `CLIENT_LEAD`: buy/sell/support/lang scenarios are ensured and menu buttons are linked
+🔘 `B2B`: hard-flow menu (`/request`, `/menu`) + B2B miniapp preset are ensured
+🔘 Bot response includes `presetStatus` (`ready|partial|missing`) and `presetVersion`
 
 ## Configs
 📌 Root env: `.env` (local), `env/prod.env` (production)

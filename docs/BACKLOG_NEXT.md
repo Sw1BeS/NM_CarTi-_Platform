@@ -27,3 +27,6 @@
 📌 P1 — Second bot provisioning (operational)
 🔘 Add real B2B bot token + channel/admin IDs in production (current prod has one active lead bot)
 🔘 Run template bootstrap (B2B preset + webhook/menu publish) and verify two-bot runtime split
+
+📌 P2 — Documentation cleanup
+🔘 Mark old audit/plan docs as `obsolete` and keep one canonical release doc chain (`RELEASE_BASELINE` → `RELEASE_AUDIT_REPORT` → `QA_RELEASE_CHECKLIST`)

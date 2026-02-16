@@ -232,6 +232,33 @@ health_checks() {
 }
 
 # ========================================
+# STEP 7.1: Verify Asset Routing / Cache Safety
+# ========================================
+verify_asset_routing() {
+  log "Verifying web asset routing (anti-stale)..."
+
+  local index_html
+  index_html="$(curl -fsS http://127.0.0.1:8082/)" || die "Failed to load web index page"
+
+  local index_js
+  index_js="$(printf "%s" "$index_html" | grep -o 'assets/index-[^\" ]*\.js' | head -n1 || true)"
+  [ -n "$index_js" ] || die "Could not detect index asset from HTML"
+
+  local index_headers
+  index_headers="$(curl -sSI "http://127.0.0.1:8082/${index_js}")" || die "Failed to fetch index asset headers"
+  echo "$index_headers" | grep -qi "content-type:.*javascript" || die "Index asset content-type is not javascript"
+
+  # Missing assets must not fall back to index.html (should be 404)
+  local missing_code
+  missing_code="$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:8082/assets/__missing_asset__.js")"
+  if [ "$missing_code" = "200" ]; then
+    die "Missing asset is returning 200 (SPA fallback misconfigured)"
+  fi
+
+  log "✅ Asset routing verified"
+}
+
+# ========================================
 # STEP 7.25: Verify Running Build Metadata
 # ========================================
 verify_build_metadata() {
@@ -321,6 +348,7 @@ main() {
   run_migrations
   seed_data
   health_checks
+  verify_asset_routing
   verify_build_metadata
   telegram_smoke_check
   cleanup_docker

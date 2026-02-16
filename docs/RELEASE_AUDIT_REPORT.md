@@ -1,7 +1,7 @@
-# RELEASE AUDIT REPORT — CarTié / CarDealer Lviv (2026-02-16)
+# RELEASE AUDIT REPORT — CarTié / CarDealer Lviv (2026-02-16, rev2)
 
 ## Scope
-📌 End-to-end release hardening for B2B Telegram runtime, Mini App stability, MTProto parsing quality, publication pipeline, and scheduler migration drift.
+📌 End-to-end release hardening for B2B Telegram runtime, Mini App stability, MTProto parsing quality, publication pipeline, scheduler migration drift, and deterministic bot template presets.
 
 ## Phase 0 — Repo Map + Hygiene Snapshot
 📌 Repo map (module → responsibility → intersections)
@@ -18,6 +18,29 @@
 
 ## Phase 1 — Audit Against A–F
 
+### NEW) Template presets and scenario auto-binding (P0/P1)
+📌 Root cause
+🔘 Bot templates existed in UI but server-side auto-binding was incomplete and non-deterministic for new bots.
+
+📌 Fixes
+🔘 Added `TemplatePresetService` to apply presets on bot create/update (non-breaking)
+🔘 Added additive API controls:
+☑️ `applyPreset` (default `true`)
+☑️ `forcePreset` (default `false`)
+🔘 `CLIENT_LEAD` preset now ensures company scenarios (`buy/sell/status/lang`) and links menu buttons to actual scenario IDs
+🔘 `B2B` preset now ensures hard-flow menu commands + B2B miniapp defaults
+🔘 Added additive status fields in bot responses:
+☑️ `presetStatus: ready|partial|missing`
+☑️ `presetVersion`
+🔘 Added "Reapply Preset" action in Telegram Hub bot settings UI
+
+📌 Changed files
+🔘 `apps/server/src/services/templatePreset.service.ts`
+🔘 `apps/server/src/routes/apiRoutes.ts`
+🔘 `apps/server/src/modules/Communication/bots/botDto.ts`
+🔘 `apps/web/src/pages/app/TelegramHub.components.tsx`
+🔘 `apps/web/src/types/bot.types.ts`
+
 ### A) Mini App black screen/errors
 📌 Root causes
 🔘 Browser preview executed write actions (`favorites`, `requests`) without Telegram `initData` and got `401`
@@ -31,6 +54,9 @@
 🔘 Server-side MiniApp request logging added for config/favorites/requests
 🔘 Prisma lookups corrected to valid contracts (`findFirst` for multi-filter checks)
 🔘 Reordered hooks/conditional returns in `MiniApp.tsx` so hooks are always called consistently
+🔘 Removed dynamic import race for config API call; now static import path
+🔘 Added deterministic `isConfigLoading` flow and explicit unavailable state
+🔘 Added fallback warning behavior instead of silent failure
 
 📌 Changed files
 🔘 `apps/web/src/pages/public/MiniApp.tsx`
@@ -113,6 +139,7 @@
 📌 Completed in this cycle
 🔘 Verified tracked tree for backup/dump artifacts: none found
 🔘 Kept cleanup policy in `.gitignore` unchanged (already adequate)
+🔘 Added release snapshot doc: `docs/RELEASE_BASELINE.md`
 
 ## Phase 4 — QA and Verification
 📌 Executed checks
@@ -120,12 +147,13 @@
 🔘 `npm --prefix apps/web run build` ✅
 🔘 `npm --prefix apps/server run prisma:generate` ✅
 🔘 `npm --prefix apps/server test -- src/__tests__/enhanced-parsing.utils.test.ts src/modules/Integrations/mtproto/mtproto.service.test.ts` ✅
-🔘 `npm --prefix apps/server test` ✅ (29/29 passed after test fixes)
+🔘 `npm --prefix apps/server test` ✅ (31/31 passed)
 
 📌 Deployment logic verification
 🔘 `infra/deploy_prod.sh` kept as single source of truth
 🔘 `infra/deploy_infra2.sh` and `infra/deploy_manual.sh` now delegate to canonical script
 🔘 Flags added: `BRANCH`, `SKIP_PULL`, `RUN_SEED`, `ALLOW_DIRTY`
+🔘 Added anti-stale asset routing check to deploy script (`/assets/*` missing file must not return `200`)
 🔘 Production smoke passed (health + Telegram webhook verify)
 
 ## Release Protocol Summary

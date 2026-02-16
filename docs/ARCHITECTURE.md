@@ -9,6 +9,18 @@
 
 Cartie is a multi-tenant B2B automotive platform with Telegram integration for lead generation, inventory management, and dealer collaboration.
 
+### Release Notes (2026-02-16)
+📌 Added server-side template preset orchestration:
+🔘 `apps/server/src/services/templatePreset.service.ts`
+🔘 Presets are applied on `POST /api/bots` and `PUT /api/bots/:id` (`applyPreset`, `forcePreset`)
+🔘 `GET /api/bots` now returns additive `presetStatus` and `presetVersion`
+
+📌 Added MiniApp config diagnostics (backward-compatible):
+🔘 `GET /api/miniapp/config` includes `modeHints` + `diagnostics`
+
+📌 Infra anti-stale web checks:
+🔘 deploy step validates assets are served as assets (no SPA fallback for missing chunks)
+
 ### Tech Stack
 
 | Layer       | Technology                              |
@@ -56,6 +68,12 @@ modules/
 └── Sales/                 # B2B requests, variants, channel posts
     └── requests/          → B2bRequest CRUD, RequestVariant, ChannelPost
 ```
+
+### Backend Services (Release Additions)
+📌 `templatePreset.service.ts`
+🔘 Ensures template defaults for `CLIENT_LEAD` / `B2B`
+🔘 Idempotent scenario ensure for lead bot (`buy`, `sell`, `status`, `lang`)
+🔘 Preset readiness scoring (`ready|partial|missing`)
 
 **Total Routes**: 11 (auth, companies, system, templates, superadmin, bot, telegram, integration, mtproto, inventory, requests)
 
