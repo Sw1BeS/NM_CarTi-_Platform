@@ -36,8 +36,12 @@ This directory is the canonical documentation set for the Cartie platform.
 🔘 Web: `cd apps/web && npm install && npm run dev`
 📌 Production (Docker)
 🔘 Compose file: `infra/docker-compose.cartie2.prod.yml`
-🔘 Deploy wrapper: `infra/deploy_prod.sh`
-🔘 Migrations: `docker compose -f infra/docker-compose.cartie2.prod.yml exec server npx prisma migrate deploy`
+🔘 Canonical deploy script: `infra/deploy_prod.sh`
+🔘 Compatibility wrappers: `infra/deploy_infra2.sh`, `infra/deploy_manual.sh` (both delegate to `deploy_prod.sh`)
+🔘 Common deploy modes:
+🔘 `bash infra/deploy_prod.sh` (default: pull main + migrate + seed + health)
+🔘 `SKIP_PULL=1 ALLOW_DIRTY=1 bash infra/deploy_manual.sh` (local/manual deploy)
+🔘 `RUN_SEED=0 bash infra/deploy_prod.sh` (skip seed for hotfix rollout)
 
 ## Configs
 📌 Root env: `.env` (local), `env/prod.env` (production)

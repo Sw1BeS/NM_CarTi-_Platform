@@ -183,8 +183,9 @@ modules/
 
 **Files**:
 - `docker-compose.cartie2.prod.yml`: Defines 3 services (db, api, web)
-- `deploy_prod.sh` (**NEW**, idempotent): Cleanup → Build → Migrate → Seed → Health checks
-- `deploy_infra2.sh` (OLD): Fast-forward-only git pull + compose up
+- `deploy_prod.sh` (canonical): Build metadata → pull (optional) → build/up → migrate → seed (optional) → health → telegram smoke
+- `deploy_infra2.sh`: Wrapper that delegates to `deploy_prod.sh`
+- `deploy_manual.sh`: Wrapper for manual mode (`ALLOW_DIRTY=1`, `SKIP_PULL=1`)
 - `Dockerfile.api`, `Dockerfile.web`: Build images
 - `Caddyfile`: Reverse proxy (web:8080 → api:3001)
 
@@ -197,14 +198,15 @@ modules/
 
 ### Deployment Flow (`deploy_prod.sh`)
 
-1. **Cleanup**: Stop/remove all `infra*`, `cartie*`, `prod*` containers and networks
-2. **Pull**: `git merge --ff-only origin/main`
-3. **Build**: `docker compose build api web`
-4. **Start**: `docker compose up -d`
+1. **Preflight**: Validate repo/compose and compute `BUILD_SHA` + `BUILD_TIME`
+2. **Pull (optional)**: `git fetch` + `merge --ff-only origin/$BRANCH` (skip with `SKIP_PULL=1`)
+3. **Build**: `docker compose build api web` with build metadata args
+4. **Start**: `docker compose up -d --build --remove-orphans`
 5. **Migrate**: `docker exec infra2-api-1 npm run prisma:migrate`
-6. **Seed**: `docker exec infra2-api-1 npm run seed` (idempotent)
-7. **Health**: Curl `/health` endpoints
-8. **Prune**: `docker image prune`
+6. **Seed (optional)**: `docker exec infra2-api-1 npm run seed` (skip with `RUN_SEED=0`)
+7. **Health**: API/WEB/local/public health checks + running `BUILD_SHA` verification
+8. **Smoke**: `infra/prod_verify.sh` Telegram webhook smoke check
+9. **Prune**: `docker image prune`
 
 **Idempotency**: Can run multiple times without manual cleanup.
 
