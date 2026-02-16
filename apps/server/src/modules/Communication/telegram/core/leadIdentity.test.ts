@@ -1,31 +1,32 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { createOrMergeLead } from './leadService.js';
 import { LeadStatus } from '@prisma/client';
 
-// Mocks
-const mockLeadRepo = {
-    findDuplicate: vi.fn(),
-    createLead: vi.fn(),
-    updatePayload: vi.fn()
-};
-const mockRequestRepo = {
-    createRequest: vi.fn()
-};
-const mockPrisma = {
-    botConfig: {
-        findUnique: vi.fn()
+// Mocks (hoisted because vi.mock factory is hoisted)
+const { mockLeadRepo, mockRequestRepo, mockPrisma } = vi.hoisted(() => ({
+    mockLeadRepo: {
+        findDuplicate: vi.fn(),
+        createLead: vi.fn(),
+        updatePayload: vi.fn()
     },
-    leadActivity: {
-        create: vi.fn()
+    mockRequestRepo: {
+        createRequest: vi.fn()
     },
-    lead: {
-        update: vi.fn()
-    },
-    systemSettings: {
-        findFirst: vi.fn().mockResolvedValue(null)
+    mockPrisma: {
+        botConfig: {
+            findUnique: vi.fn()
+        },
+        leadActivity: {
+            create: vi.fn()
+        },
+        lead: {
+            update: vi.fn()
+        },
+        systemSettings: {
+            findFirst: vi.fn().mockResolvedValue(null)
+        }
     }
-};
+}));
 
 // Mock modules
 vi.mock('../../../../services/prisma.js', () => ({
@@ -42,7 +43,7 @@ vi.mock('./events/eventEmitter.js', () => ({
 }));
 
 vi.mock('../../../../services/integrationEventLog.service.js', () => ({
-    logIntegrationEvent: vi.fn()
+    logIntegrationEvent: () => Promise.resolve(undefined)
 }));
 
 vi.mock('../../../Inventory/normalization/normalizePhone.js', () => ({
@@ -61,9 +62,12 @@ describe('P0-1 Lead Identity Fix', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         mockPrisma.botConfig.findUnique.mockResolvedValue({ companyId: 'comp_123' });
+        mockPrisma.leadActivity.create.mockResolvedValue({ id: 'act_1' });
+        mockPrisma.lead.update.mockResolvedValue({ id: 'lead_existing', payload: {} });
     });
 
     it('should persist telegramName and telegramUsername in payload when creating new lead', async () => {
+        const { createOrMergeLead } = await import('./leadService.js');
         mockLeadRepo.findDuplicate.mockResolvedValue(null);
         mockLeadRepo.createLead.mockResolvedValue({ id: 'lead_1', payload: {} });
 
@@ -89,6 +93,7 @@ describe('P0-1 Lead Identity Fix', () => {
     });
 
     it('should fallback to telegramUsername if no name provided', async () => {
+        const { createOrMergeLead } = await import('./leadService.js');
         mockLeadRepo.findDuplicate.mockResolvedValue(null);
         mockLeadRepo.createLead.mockResolvedValue({ id: 'lead_1', payload: {} });
 
@@ -107,6 +112,7 @@ describe('P0-1 Lead Identity Fix', () => {
     });
 
     it('should merge missing tg fields into existing lead', async () => {
+        const { createOrMergeLead } = await import('./leadService.js');
         // Setup existing lead without TG fields
         const existingLead = {
             id: 'lead_existing',

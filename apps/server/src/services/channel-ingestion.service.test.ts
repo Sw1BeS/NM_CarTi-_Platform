@@ -16,6 +16,7 @@ vi.mock('../services/prisma.js', () => ({
 vi.mock('../repositories/car.repository.js', () => ({
   CarRepository: class {
     createFromChannelMessage = vi.fn();
+    updateCar = vi.fn();
     constructor() {
       state.lastCarRepo = this;
     }
@@ -39,6 +40,7 @@ beforeEach(() => {
   (prisma.draft.findFirst as any).mockReset();
   (prisma.mTProtoConnector.findUnique as any).mockReset();
   if (state.lastCarRepo) state.lastCarRepo.createFromChannelMessage.mockReset();
+  if (state.lastCarRepo) state.lastCarRepo.updateCar.mockReset();
   if (state.lastDraftRepo) state.lastDraftRepo.create.mockReset();
 });
 
@@ -63,7 +65,7 @@ describe('ChannelIngestionService', () => {
     });
 
     expect(result.created).toBe(false);
-    expect(result.reason).toBe('DUPLICATE');
+    expect(result.reason).toBe('MERGED');
     expect(state.lastCarRepo.createFromChannelMessage).not.toHaveBeenCalled();
   });
 });
