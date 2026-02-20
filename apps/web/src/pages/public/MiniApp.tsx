@@ -524,11 +524,7 @@ const sendLeadPayload = (payload: Record<string, unknown>) => {
 };
 
 const detectLang = () => {
-    const tg = (window as any).Telegram?.WebApp;
-    const raw = tg?.initDataUnsafe?.user?.language_code?.toUpperCase() || 'EN';
-    if (raw.startsWith('UK') || raw.startsWith('UA')) return 'UK';
-    if (raw.startsWith('RU')) return 'RU';
-    return 'EN';
+    return 'UK';
 };
 
 const handleCarInterest = (car: CarListing) => {

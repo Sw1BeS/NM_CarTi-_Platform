@@ -12,7 +12,7 @@ export const PublicRequest = () => {
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState(false);
     const [isTWA, setIsTWA] = useState(false);
-    const [lang, setLang] = useState<Language>('EN');
+    const [lang, setLang] = useState<Language>('UK');
     
     const [data, setData] = useState({
         brand: '',
@@ -34,11 +34,7 @@ export const PublicRequest = () => {
             tg.ready();
             tg.expand();
             
-            // Detect Language
-            const userLang = (tg.initDataUnsafe?.user?.language_code || 'en').toUpperCase();
-            if (userLang === 'UK' || userLang === 'UA') setLang('UK');
-            else if (userLang === 'RU') setLang('RU');
-            else setLang('EN');
+            setLang('UK');
             
             // Auto-fill user data
             if (tg.initDataUnsafe?.user) {
@@ -68,14 +64,14 @@ export const PublicRequest = () => {
         if (!tg) return;
 
         if (success) {
-            tg.MainButton.text = "CLOSE";
+            tg.MainButton.text = "ЗАКРИТИ";
             tg.MainButton.show();
             tg.MainButton.onClick(() => tg.close());
             return;
         }
 
         if (step === 1) {
-            tg.MainButton.text = lang === 'UK' ? "ДАЛІ" : lang === 'RU' ? "ДАЛЕЕ" : "NEXT STEP";
+            tg.MainButton.text = "ДАЛІ";
             if (data.brand) {
                 tg.MainButton.show();
                 tg.MainButton.enable();
@@ -85,7 +81,7 @@ export const PublicRequest = () => {
             tg.MainButton.offClick(handleSubmit); 
             tg.MainButton.onClick(() => setStep(2));
         } else if (step === 2) {
-            tg.MainButton.text = lang === 'UK' ? "НАДІСЛАТИ" : lang === 'RU' ? "ОТПРАВИТЬ" : "SUBMIT REQUEST";
+            tg.MainButton.text = "НАДІСЛАТИ";
             tg.MainButton.show();
             if (data.name && data.phone) {
                 tg.MainButton.enable();
@@ -167,7 +163,7 @@ export const PublicRequest = () => {
                     
                     {!isTWA && (
                         <button onClick={() => window.location.reload()} className="text-gold-500 font-bold hover:underline text-sm">
-                            Submit another request
+                            Надіслати ще один запит
                         </button>
                     )}
                 </div>
@@ -198,7 +194,7 @@ export const PublicRequest = () => {
                 {!isTWA && (
                     <div className="text-center mb-8">
                         <h1 className="text-3xl font-bold text-[var(--text-primary)] tracking-tight">CarTié<span className="text-gold-500">.</span></h1>
-                        <p className="text-[var(--text-secondary)] mt-2 text-sm uppercase tracking-widest">Premium Car Concierge</p>
+                        <p className="text-[var(--text-secondary)] mt-2 text-sm uppercase tracking-widest">Преміальний автоконсьєрж</p>
                     </div>
                 )}
 

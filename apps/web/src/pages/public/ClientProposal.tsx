@@ -13,16 +13,12 @@ export const ClientProposal = () => {
     const [variants, setVariants] = useState<Variant[]>([]);
     const [loading, setLoading] = useState(true);
     const [feedbackSent, setFeedbackSent] = useState<Record<string, string>>({});
-    const [lang, setLang] = useState<Language>('EN');
+    const [lang, setLang] = useState<Language>('UK');
 
     const t = (key: string) => TRANSLATIONS[lang][key] || key;
 
     useEffect(() => {
-        // Detect language from URL param ?lang=UK
-        const l = searchParams.get('lang')?.toUpperCase();
-        if (l === 'UK' || l === 'UA') setLang('UK');
-        else if (l === 'RU') setLang('RU');
-        else setLang('EN');
+        setLang('UK');
 
         if (!id) return;
         
@@ -59,7 +55,7 @@ export const ClientProposal = () => {
 
     if (loading) return <div className="min-h-screen flex items-center justify-center bg-gray-50"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div></div>;
 
-    if (!proposal) return <div className="min-h-screen flex items-center justify-center bg-gray-50 text-gray-500">Proposal not found or expired.</div>;
+    if (!proposal) return <div className="min-h-screen flex items-center justify-center bg-gray-50 text-gray-500">Пропозицію не знайдено або її строк дії завершився.</div>;
 
     return (
         <div className="min-h-screen bg-gray-50 pb-20 font-sans">
@@ -119,13 +115,13 @@ export const ClientProposal = () => {
             </div>
 
             <div className="p-6 text-center">
-                <p className="text-xs text-gray-400 mb-4">Have questions?</p>
+                <p className="text-xs text-gray-400 mb-4">Маєте запитання?</p>
                 <div className="flex justify-center gap-3">
                     <button className="bg-green-100 text-green-700 px-4 py-2 rounded-full text-xs font-bold flex items-center gap-2">
                         <MessageCircle size={14}/> WhatsApp
                     </button>
                     <button className="bg-blue-100 text-blue-700 px-4 py-2 rounded-full text-xs font-bold flex items-center gap-2">
-                        <Phone size={14}/> Call Agent
+                        <Phone size={14}/> Зателефонувати менеджеру
                     </button>
                 </div>
                 <div className="mt-8 text-xs text-gray-300">
