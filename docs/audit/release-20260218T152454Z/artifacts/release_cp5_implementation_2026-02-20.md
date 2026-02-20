@@ -1,8 +1,8 @@
 # CP5 Implementation Release (2026-02-20)
 
 - Branch: `main`
-- Commit: `e0fd87b1790081acad7b547363a80225cb91e300`
-- Deploy timestamp (UTC): `2026-02-20T14:35:05Z`
+- Runtime commit deployed: `e93f5fed24fd34cbe79343bfade4ff66ca9aecf0`
+- Deploy timestamp (UTC): `2026-02-20T14:37:42Z`
 
 ## Gates
 - `npm --prefix apps/server test` — PASS
@@ -16,13 +16,15 @@
 - Command:
   - `BRANCH=main SKIP_PULL=0 RUN_SEED=1 SYNC_PRESETS=1 ALLOW_DIRTY=0 infra/deploy_prod.sh`
 - Result: SUCCESS
-- Deploy log:
+- Deploy logs:
   - `docs/audit/release-20260218T152454Z/artifacts/deploy_2026-02-20_143505.log`
+  - `docs/audit/release-20260218T152454Z/artifacts/deploy_2026-02-20_143742.log`
 
 ## Post-deploy verify
 - `infra/prod_verify.sh` — PASS
-- Verify log:
+- Verify logs:
   - `docs/audit/release-20260218T152454Z/artifacts/prod_verify_2026-02-20_post_impl.txt`
+  - `docs/audit/release-20260218T152454Z/artifacts/prod_verify_2026-02-20_post_docs_commit.txt`
 
 ## Rollback pointer
 - Previous baseline tag: `release-baseline-20260220`
