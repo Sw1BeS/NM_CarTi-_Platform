@@ -1208,16 +1208,21 @@ export const handleDynamicMenu = async (ctx: PipelineContext, text: string) => {
 export const routeMessage = async (ctx: PipelineContext) => {
   if (!ctx.bot || !ctx.session) return false;
 
-  const handledScenario = await ScenarioEngine.handleUpdate(ctx.bot as any, ctx.session, ctx.update).catch((error) => {
-    logger.error('[TelegramRoute] ScenarioEngine error', {
-      botId: ctx.bot?.id,
-      template: ctx.bot?.template,
-      chatId: ctx.chatId,
-      error: error instanceof Error ? error.message : String(error)
+  const isB2BTemplate = ctx.bot.template === 'B2B';
+  const legacyB2BFallbackEnabled = String(process.env.TELEGRAM_B2B_LEGACY_FALLBACK || 'false').toLowerCase() === 'true';
+
+  if (!(isB2BTemplate && legacyB2BFallbackEnabled)) {
+    const handledScenario = await ScenarioEngine.handleUpdate(ctx.bot as any, ctx.session, ctx.update).catch((error) => {
+      logger.error('[TelegramRoute] ScenarioEngine error', {
+        botId: ctx.bot?.id,
+        template: ctx.bot?.template,
+        chatId: ctx.chatId,
+        error: error instanceof Error ? error.message : String(error)
+      });
+      return false;
     });
-    return false;
-  });
-  if (handledScenario) return true;
+    if (handledScenario) return true;
+  }
 
   const message = ctx.update?.message;
   const text = message?.text || '';
@@ -1237,9 +1242,6 @@ export const routeMessage = async (ctx: PipelineContext) => {
       return true;
     }
   }
-
-  const isB2BTemplate = ctx.bot.template === 'B2B';
-  const legacyB2BFallbackEnabled = String(process.env.TELEGRAM_B2B_LEGACY_FALLBACK || 'false').toLowerCase() === 'true';
 
   // 2. Dynamic Menu Logic (Prioritized over legacy templates)
   const isDynamicHandled = await handleDynamicMenu(ctx, text);

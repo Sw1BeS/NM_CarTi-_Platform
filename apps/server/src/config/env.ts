@@ -26,6 +26,7 @@ const envSchema = z.object({
     FF_B2B_WHITELIST_ENFORCED: z.string().optional(),
     FF_B2B_FIT_QUEUE_V2: z.string().optional(),
     FF_MINIAPP_B2B_CABINET: z.string().optional(),
+    TELEGRAM_B2B_LEGACY_FALLBACK: z.string().optional(),
     TELEGRAM_INITDATA_MAX_AGE_SECONDS: intWithDefault(900),
     BOT_A_DAILY_LEAD_LIMIT: intWithDefault(5, 1),
     BOT_STEP_RATE_LIMIT_PER_MIN: intWithDefault(30, 1),
@@ -45,6 +46,7 @@ export interface ValidatedEnv {
     FF_B2B_WHITELIST_ENFORCED?: string;
     FF_B2B_FIT_QUEUE_V2?: string;
     FF_MINIAPP_B2B_CABINET?: string;
+    TELEGRAM_B2B_LEGACY_FALLBACK?: string;
     TELEGRAM_INITDATA_MAX_AGE_SECONDS: number;
     BOT_A_DAILY_LEAD_LIMIT: number;
     BOT_STEP_RATE_LIMIT_PER_MIN: number;
