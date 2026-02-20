@@ -1,0 +1,18 @@
+Smoke Read
+Base URL: http://127.0.0.1:3002
+Auth: no token (401/403 treated as expected)
+PASS  health (GET /health) -> 200
+PASS  system settings (public) (GET /api/system/settings/public) -> 200
+PASS  public bots (GET /api/public/bots) -> 200
+PASS  public requests (GET /api/public/requests?page=1&limit=1) -> 200
+PASS  templates marketplace (public) (GET /api/templates/marketplace) -> 200
+AUTH  bots (protected) (GET /api/bots) -> 401
+AUTH  scenarios (protected) (GET /api/scenarios) -> 401
+AUTH  leads (protected) (GET /api/leads) -> 401
+AUTH  requests (protected) (GET /api/requests) -> 401
+AUTH  inventory (protected) (GET /api/inventory?page=1&limit=1) -> 401
+AUTH  company current (protected) (GET /api/companies/current) -> 401
+AUTH  templates installed (protected) (GET /api/templates/installed/list) -> 401
+AUTH  integrations (protected) (GET /api/integrations) -> 401
+AUTH  entity meta (protected) (GET /api/entities/meta) -> 401
+Summary: PASS=5 AUTH=9 FAIL=0

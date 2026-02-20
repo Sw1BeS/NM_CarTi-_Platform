@@ -1,6 +1,6 @@
 import { prisma } from '../../../../../services/prisma.js';
 import { sendChatAction, sendMessage, sendPhoto } from '../adapters/telegram.adapter.js';
-import { formatCarCaption } from '../runtime/helpers.js';
+import { renderCarCardForBot } from '../../../../../services/carCardRenderer.v2.js';
 import { createCarCardKeyboard } from './b2b.actions.js';
 import type { BotRuntime, ScenarioNode } from '../types.js';
 
@@ -66,7 +66,12 @@ export const executeGalleryNode = async ({
   const temp = Array.isArray(vars.__tempResults) ? vars.__tempResults : [];
 
   for (const car of temp.slice(0, 5)) {
-    const caption = formatCarCaption(car, lang);
+    const caption = await renderCarCardForBot({
+      car,
+      lang,
+      companyId: bot.companyId || null,
+      botId: bot.id
+    });
     const keyboard = createCarCardKeyboard(car, lang);
     if (car.thumbnail) {
       await sendPhoto(bot, session.chatId, car.thumbnail, caption, keyboard);

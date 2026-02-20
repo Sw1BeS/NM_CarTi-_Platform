@@ -63,11 +63,31 @@ export const handleCallbackQuery = async ({
       if (action === 'FIT') {
         await prisma.requestVariant.update({
           where: { id: variantId },
-          data: { status: 'APPROVED', statusHistory: buildStatusHistory(variant, 'APPROVED') }
+          data: {
+            status: 'APPROVED',
+            requesterDecision: 'FIT',
+            fitQueueStatus: 'NEW',
+            requesterDecisionAt: new Date(),
+            fitQueuedAt: new Date(),
+            statusHistory: buildStatusHistory(variant, 'APPROVED')
+          }
         });
         await prisma.b2bRequest.update({
           where: { id: variant.requestId },
           data: { status: 'CONTACT_SHARED' }
+        }).catch(() => null);
+
+        await prisma.integrationEventLog.create({
+          data: {
+            companyId: bot.companyId || null,
+            integration: 'telegram',
+            action: 'variant.fit_marked',
+            status: 'SUCCESS',
+            entityType: 'request_variant',
+            entityId: variant.id,
+            idempotencyKey: `variant.fit_marked:${variant.id}`,
+            message: 'Variant marked FIT by requester'
+          }
         }).catch(() => null);
 
         const msg = update.callback_query.message;
@@ -95,8 +115,26 @@ export const handleCallbackQuery = async ({
       } else if (action === 'NO') {
         await prisma.requestVariant.update({
           where: { id: variantId },
-          data: { status: 'REJECTED', statusHistory: buildStatusHistory(variant, 'REJECTED') }
+          data: {
+            status: 'REJECTED',
+            requesterDecision: 'NOT_FIT',
+            requesterDecisionAt: new Date(),
+            statusHistory: buildStatusHistory(variant, 'REJECTED')
+          }
         });
+
+        await prisma.integrationEventLog.create({
+          data: {
+            companyId: bot.companyId || null,
+            integration: 'telegram',
+            action: 'variant.not_fit_marked',
+            status: 'SUCCESS',
+            entityType: 'request_variant',
+            entityId: variant.id,
+            idempotencyKey: `variant.not_fit_marked:${variant.id}`,
+            message: 'Variant marked NOT_FIT by requester'
+          }
+        }).catch(() => null);
 
         const msg = update.callback_query.message;
         if (msg) {

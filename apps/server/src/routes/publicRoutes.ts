@@ -10,6 +10,7 @@ import { ShowcaseService } from '../modules/Marketing/showcase/showcase.service.
 import { logger } from '../utils/logger.js';
 import { errorResponse } from '../utils/errorResponse.js';
 import { resolvePublicSlug } from '../services/publicSlug.service.js';
+import { getEnvInt } from '../services/featureFlags.js';
 
 const router = Router();
 const showcaseService = new ShowcaseService();
@@ -17,6 +18,7 @@ const showcaseService = new ShowcaseService();
 const requireInitData = async (initData: string | undefined, companyId?: string | null) => {
   if (!initData) return { ok: false, message: 'initData is required' };
   const init = initData;
+  const maxAgeSeconds = Math.max(60, getEnvInt('TELEGRAM_INITDATA_MAX_AGE_SECONDS', 900));
   const bots = await prisma.botConfig.findMany({
     where: {
       isEnabled: true,
@@ -24,7 +26,7 @@ const requireInitData = async (initData: string | undefined, companyId?: string 
     },
     select: { token: true }
   });
-  const verified = bots.some(bot => verifyTelegramInitData(init, bot.token));
+  const verified = bots.some(bot => verifyTelegramInitData(init, bot.token, maxAgeSeconds));
   if (!verified) return { ok: false, message: 'Invalid Telegram init data' };
   return { ok: true };
 };
@@ -303,13 +305,14 @@ router.post('/requests/:id/variants', async (req, res) => {
 router.post('/dealer/session', async (req, res) => {
   const { initData } = req.body || {};
   if (!initData) return errorResponse(res, 400, 'initData is required');
+  const maxAgeSeconds = Math.max(60, getEnvInt('TELEGRAM_INITDATA_MAX_AGE_SECONDS', 900));
 
   const bots = await prisma.botConfig.findMany({
     where: { isEnabled: true },
     select: { token: true }
   });
 
-  const verified = bots.some(bot => verifyTelegramInitData(initData, bot.token));
+  const verified = bots.some(bot => verifyTelegramInitData(initData, bot.token, maxAgeSeconds));
   if (!verified) return errorResponse(res, 401, 'Invalid Telegram init data');
 
   const tgUser = parseTelegramUser(initData);

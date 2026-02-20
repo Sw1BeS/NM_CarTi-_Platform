@@ -6,6 +6,7 @@ import { telegramOutbox } from '../../../telegram/messaging/outbox/telegramOutbo
 import { sendMessage } from '../adapters/telegram.adapter.js';
 import { hasContactInfo } from '../runtime/helpers.js';
 import { resolveRequestId } from './session.actions.js';
+import { getEnvInt } from '../../../../../services/featureFlags.js';
 import type { BotRuntime } from '../types.js';
 
 interface DealerFlowContext {
@@ -112,7 +113,16 @@ export const handleDealerFlow = async ({
   if (dealerState === 'AWAIT_PHOTOS') {
     if (update.message?.photo) {
       const photo = update.message.photo[update.message.photo.length - 1];
+      const maxBytes = Math.max(1024, getEnvInt('BOT_MEDIA_MAX_PHOTO_BYTES', 10 * 1024 * 1024));
+      if (photo?.file_size && Number(photo.file_size) > maxBytes) {
+        await sendMessage(bot, chatId, 'Файл занадто великий. Надішліть фото меншого розміру.');
+        return true;
+      }
       const list = Array.isArray(vars.dealer_photos) ? vars.dealer_photos : [];
+      if (list.length >= 10) {
+        await sendMessage(bot, chatId, 'Дозволено максимум 10 фото для одного варіанту.');
+        return true;
+      }
       list.push(photo.file_id);
       vars.dealer_photos = list.slice(0, 10);
       vars.dealer_state = 'AWAIT_PRICE';

@@ -1,5 +1,5 @@
 import { prisma } from '../../../../../services/prisma.js';
-import { renderCarListingCard } from '../../../../../services/cardRenderer.js';
+import { renderCarCardForBot } from '../../../../../services/carCardRenderer.v2.js';
 import {
   createDeepLinkKeyboard,
   generateOfferLink,
@@ -97,7 +97,12 @@ export const executeChannelPostNode = async ({
     || (node.content?.scheduledAtVar ? vars[node.content.scheduledAtVar] : undefined);
 
   const fallbackCar = Array.isArray(vars.__tempResults) ? vars.__tempResults[0] : null;
-  const postText = text || (fallbackCar ? renderCarListingCard(fallbackCar, lang) : '');
+  const postText = text || (fallbackCar ? await renderCarCardForBot({
+    car: fallbackCar,
+    lang,
+    companyId: bot.companyId || null,
+    botId: bot.id
+  }) : '');
 
   if (!destination || !postText) {
     await sendMessage(bot, session.chatId, '⚠️ Channel post missing destination or text.');

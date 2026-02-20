@@ -1,0 +1,10 @@
+--- Cartie Basic Smoke ---
+API_BASE_URL=http://127.0.0.1:3002
+WEB_BASE_URL=http://127.0.0.1:8082
+PUBLIC_SLUG=system
+PASS  api-health -> 200 (http://127.0.0.1:3002/health)
+PASS  miniapp-config -> 200 (http://127.0.0.1:3002/api/miniapp/config?slug=system)
+PASS  showcase-inventory -> 200 (http://127.0.0.1:3002/api/showcase/public/system/inventory)
+PASS  web-root -> 200 (http://127.0.0.1:8082/)
+PASS  protected-auth-required -> 401 (http://127.0.0.1:3002/api/requests)
+--- Summary: PASS=5 FAIL=0 ---

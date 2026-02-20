@@ -22,6 +22,9 @@ export enum VariantStatus {
     SENT_TO_CLIENT = 'SENT_TO_CLIENT'
 }
 
+export type RequesterDecision = 'PENDING' | 'FIT' | 'NOT_FIT';
+export type FitQueueStatus = 'NEW' | 'IN_PROGRESS' | 'AGREED' | 'MEETING_SCHEDULED' | 'CLOSED';
+
 export interface CarCard {
     id?: string;
     canonicalId: string;
@@ -60,6 +63,12 @@ export interface Variant extends Omit<CarCard, 'status'> {
     status: VariantStatus;
     companyName?: string;
     contact?: string;
+    requesterDecision?: RequesterDecision;
+    fitQueueStatus?: FitQueueStatus;
+    requesterDecisionAt?: string;
+    fitQueuedAt?: string;
+    fitClosedAt?: string;
+    sellerPartnerId?: string;
     statusHistory?: Array<{ status: string; at: string; by?: string }>;
     fitScore?: number;
     managerNotes?: string;
@@ -114,6 +123,8 @@ export interface B2BRequest {
     status: RequestStatus;
     leadId?: string;
     botId?: string;
+    requesterPartnerId?: string;
+    channelPostUrl?: string;
     createdAt: string;
     updatedAt?: string;
     variants: Variant[];

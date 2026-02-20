@@ -56,6 +56,26 @@ enum VariantStatus {
   SENT_TO_CLIENT
 }
 
+enum RequesterDecision {
+  PENDING
+  FIT
+  NOT_FIT
+}
+
+enum FitQueueStatus {
+  NEW
+  IN_PROGRESS
+  AGREED
+  MEETING_SCHEDULED
+  CLOSED
+}
+
+enum AccessRequestStatus {
+  NEW
+  APPROVED
+  REJECTED
+}
+
 enum DraftSource {
   EXTENSION
   MANUAL
@@ -228,6 +248,8 @@ model BotConfig {
   messages        BotMessage[]
   showcases       Showcase[]       @relation("BotShowcases")
   scenarios       Scenario[]
+  quotaUsages     QuotaUsage[]
+  accessRequests  B2bAccessRequest[]
 
   @@index([companyId])
 }
@@ -351,6 +373,9 @@ model B2bRequest {
   lead          Lead?   @relation(fields: [leadId], references: [id], onDelete: SetNull)
   botId         String?
   bot           BotConfig? @relation(fields: [botId], references: [id], onDelete: SetNull)
+  requesterPartnerId String?
+  requesterPartner   PartnerCompany? @relation("RequesterPartnerRequests", fields: [requesterPartnerId], references: [id], onDelete: SetNull)
+  channelPostUrl     String?
 
   variants     RequestVariant[]
   channelPosts ChannelPost[]
@@ -366,6 +391,7 @@ model B2bRequest {
   @@index([leadId])
   @@index([botId])
   @@index([companyId, botId, createdAt])
+  @@index([requesterPartnerId])
 }
 
 model RequestVariant {
@@ -390,6 +416,13 @@ model RequestVariant {
   contact   String?
   specs     Json?
   statusHistory Json? @db.JsonB
+  requesterDecision   RequesterDecision @default(PENDING)
+  fitQueueStatus      FitQueueStatus?
+  requesterDecisionAt DateTime?
+  fitQueuedAt         DateTime?
+  fitClosedAt         DateTime?
+  sellerPartnerId     String?
+  sellerPartner       PartnerCompany? @relation("SellerPartnerVariants", fields: [sellerPartnerId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -397,6 +430,9 @@ model RequestVariant {
   messageLogs MessageLog[]
 
   @@index([requestId])
+  @@index([requesterDecision])
+  @@index([fitQueueStatus])
+  @@index([sellerPartnerId])
 }
 
 model Draft {
@@ -512,6 +548,7 @@ model IntegrationEventLog {
   message     String?
   meta        Json?    @map("payloadMeta") @db.JsonB
   traceId     String?
+  idempotencyKey String? @unique
 
   createdAt DateTime @default(now())
 
@@ -522,6 +559,60 @@ model IntegrationEventLog {
   @@index([entityId])
   @@index([entityType])
   @@index([traceId])
+}
+
+model QuotaUsage {
+  id        String     @id @default(cuid())
+  companyId String?
+  workspace Workspace? @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  botId     String?
+  bot       BotConfig? @relation(fields: [botId], references: [id], onDelete: SetNull)
+  tgUserId  String
+  scope     String
+  periodKey String
+  used      Int        @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, botId, tgUserId, scope, periodKey])
+  @@index([companyId])
+  @@index([botId])
+  @@index([scope, periodKey])
+}
+
+model B2bAccessRequest {
+  id        String              @id @default(cuid())
+  companyId String?
+  workspace Workspace?          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  botId     String?
+  bot       BotConfig?          @relation(fields: [botId], references: [id], onDelete: SetNull)
+  tgUserId  String
+  username  String?
+  fullName  String?
+  status    AccessRequestStatus @default(NEW)
+  reason    String?
+  createdAt DateTime            @default(now())
+  reviewedAt DateTime?
+  reviewedBy String?
+
+  @@index([companyId])
+  @@index([botId])
+  @@index([tgUserId])
+  @@index([status])
+  @@index([companyId, status, createdAt])
+}
+
+model PublicSequence {
+  id        String   @id @default(cuid())
+  scope     String
+  year      Int
+  lastValue Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([scope, year])
+  @@index([scope])
 }
 
 model ParsingJob {
@@ -794,6 +885,8 @@ model PartnerCompany {
   workspace Workspace? @relation(fields: [companyId], references: [id], onDelete: SetNull)
 
   users     PartnerUser[]
+  requesterRequests B2bRequest[]    @relation("RequesterPartnerRequests")
+  sellerVariants   RequestVariant[] @relation("SellerPartnerVariants")
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
 }
@@ -1040,6 +1133,8 @@ model Workspace {
   telegramDestinations TelegramDestination[]
   telegramImportJobs   TelegramImportJob[]
   integrationEventLogs IntegrationEventLog[]
+  quotaUsages          QuotaUsage[]
+  b2bAccessRequests    B2bAccessRequest[]
   chatMacros           ChatMacro[]
   chatNotes            ChatNote[]
   parsingJobs          ParsingJob[]

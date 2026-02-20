@@ -1,6 +1,6 @@
 import { prisma } from '../../../../../services/prisma.js';
 import { mapVariantInput } from '../../../../../services/dto.js';
-import { renderCarListingCard } from '../../../../../services/cardRenderer.js';
+import { renderCarCardForBot } from '../../../../../services/carCardRenderer.v2.js';
 import { createDeepLinkKeyboard, generateRequestLink } from '../../../../../utils/deeplink.utils.js';
 // @ts-ignore
 import { createOrMergeLead } from '../../../telegram/core/leadService.js';
@@ -193,7 +193,12 @@ export const handleManagerRequestAction = async (
     }
 
     for (const car of results.slice(0, 3)) {
-      const caption = renderCarListingCard(car, 'UK');
+      const caption = await renderCarCardForBot({
+        car,
+        lang: 'UK',
+        companyId: bot.companyId || null,
+        botId: bot.id
+      });
       const keyboard = createCarCardKeyboard(car, 'UK');
       if (car.thumbnail) {
         await sendPhoto(bot, chatId, car.thumbnail, caption, keyboard);

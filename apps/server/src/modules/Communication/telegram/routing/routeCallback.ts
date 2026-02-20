@@ -6,6 +6,7 @@ import { telegramOutbox } from '../messaging/outbox/telegramOutbox.js';
 import { parseCallbackData } from '../core/utils/callbackUtils.js';
 import { button, resolveLang, t } from '../core/utils/telegramText.js';
 import { finalizeB2BRequest, finalizeCatalogSell, finalizeClientLead, handleDynamicMenu } from './routeMessage.js';
+import { b2bWhitelistService } from '../../../../services/b2bWhitelist.service.js';
 
 const updateSession = async (ctx: PipelineContext, state: string, variables: Record<string, any>) => {
   if (!ctx.session) return;
@@ -19,12 +20,14 @@ const updateSession = async (ctx: PipelineContext, state: string, variables: Rec
   });
 };
 
-const sendMessage = async (ctx: PipelineContext, text: string, replyMarkup?: any) => {
-  if (!ctx.bot || !ctx.chatId) return;
+const sendMessage = async (ctx: PipelineContext, text: string, replyMarkup?: any, targetChatId?: string) => {
+  if (!ctx.bot) return;
+  const chatId = targetChatId || ctx.chatId;
+  if (!chatId) return;
   await telegramOutbox.sendMessage({
     botId: ctx.bot.id,
     token: ctx.bot.token,
-    chatId: ctx.chatId,
+    chatId,
     text,
     replyMarkup,
     companyId: ctx.companyId,
@@ -80,6 +83,37 @@ export const routeCallback = async (ctx: PipelineContext) => {
         await updateSession(ctx, 'B2B_REQ_COMPANY', vars);
         await sendMessage(ctx, t(lang, 'b2bAskCompany'));
         return true;
+      case 'b2b_access_request': {
+        const from = cb.from;
+        const fullName = [from?.first_name, from?.last_name].filter(Boolean).join(' ').trim() || undefined;
+        const result = await b2bWhitelistService.ensureAccess({
+          tgUserId: String(from?.id || ctx.userId || ctx.chatId || ''),
+          username: from?.username || null,
+          fullName: fullName || null
+        }, {
+          companyId: ctx.companyId || null,
+          botId: ctx.bot.id
+        }, 'telegram_callback_request_access');
+
+        if (result.allowed) {
+          await sendMessage(ctx, '✅ Доступ вже активний. Скористайтесь меню для створення запиту.');
+        } else {
+          await sendMessage(ctx, '✅ Запит на доступ надіслано адміну. Очікуйте підтвердження.');
+          if (ctx.bot.adminChatId) {
+          await sendMessage(
+              ctx,
+              `🔐 Новий запит на доступ B2B\n` +
+              `ID: ${result.accessRequest?.id}\n` +
+              `tgUserId: ${from?.id || ctx.userId}\n` +
+              `username: ${from?.username ? `@${from.username}` : '—'}\n` +
+              `name: ${fullName || '—'}`,
+              undefined,
+              String(ctx.bot.adminChatId)
+            );
+          }
+        }
+        return true;
+      }
       default:
         break;
     }

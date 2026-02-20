@@ -1,5 +1,7 @@
 import { prisma } from './prisma.js';
 import { renderCarListingCard } from './cardRenderer.js';
+import { DEFAULT_V2_CARD_SETTINGS } from './cardSettings.resolver.js';
+import { isCarCardV2Enabled, renderCarCardV2 } from './carCardRenderer.v2.js';
 
 const cleanTag = (value: string) => value.replace(/[^a-zA-Z0-9]/g, '');
 const toStringSafe = (value: any) => (value === null || value === undefined ? '' : String(value));
@@ -36,9 +38,12 @@ export const buildCarVariables = (car: any, lang: string = 'UK') => {
   const priceObj = car.price && typeof car.price === 'object' ? car.price : { amount: car.price, currency: car.currency };
   const amount = priceObj?.amount ? Number(priceObj.amount) : 0;
   const currency = priceObj?.currency || car.currency || 'USD';
+  const carCard = isCarCardV2Enabled()
+    ? renderCarCardV2(car, DEFAULT_V2_CARD_SETTINGS)
+    : renderCarListingCard(car, lang);
 
   return {
-    car: renderCarListingCard(car, lang),
+    car: carCard,
     title: rawTitle,
     brand,
     model,

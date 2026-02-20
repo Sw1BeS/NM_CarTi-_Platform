@@ -203,6 +203,20 @@ export const mapVariantInput = (input: any) => {
   if ('contact' in input) data.contact = toString(input.contact);
   if ('specs' in input) data.specs = input.specs ?? null;
   if ('statusHistory' in input) data.statusHistory = input.statusHistory ?? null;
+  if ('requesterDecision' in input) {
+    const decision = String(input.requesterDecision || '').toUpperCase();
+    if (['PENDING', 'FIT', 'NOT_FIT'].includes(decision)) data.requesterDecision = decision;
+  }
+  if ('fitQueueStatus' in input) {
+    const fitQueueStatus = String(input.fitQueueStatus || '').toUpperCase();
+    if (['NEW', 'IN_PROGRESS', 'AGREED', 'MEETING_SCHEDULED', 'CLOSED'].includes(fitQueueStatus)) {
+      data.fitQueueStatus = fitQueueStatus;
+    }
+  }
+  if ('requesterDecisionAt' in input) data.requesterDecisionAt = input.requesterDecisionAt || null;
+  if ('fitQueuedAt' in input) data.fitQueuedAt = input.fitQueuedAt || null;
+  if ('fitClosedAt' in input) data.fitClosedAt = input.fitClosedAt || null;
+  if ('sellerPartnerId' in input) data.sellerPartnerId = toString(input.sellerPartnerId) || null;
   if (!('statusHistory' in input)) {
     const initialStatus = data.status || DbVariantStatus.SUBMITTED;
     data.statusHistory = [{ status: initialStatus, at: new Date().toISOString(), by: 'system' }];
@@ -232,6 +246,12 @@ export const mapVariantOutput = (variant: any, opts: { includeContact?: boolean 
     url: variant.sourceUrl ?? undefined,
     sourceUrl: variant.sourceUrl ?? undefined,
     statusHistory: variant.statusHistory ?? [],
+    requesterDecision: variant.requesterDecision ?? 'PENDING',
+    fitQueueStatus: variant.fitQueueStatus ?? undefined,
+    requesterDecisionAt: variant.requesterDecisionAt ?? undefined,
+    fitQueuedAt: variant.fitQueuedAt ?? undefined,
+    fitClosedAt: variant.fitClosedAt ?? undefined,
+    sellerPartnerId: variant.sellerPartnerId ?? undefined,
     createdAt: variant.createdAt,
     updatedAt: variant.updatedAt
   };
@@ -276,6 +296,13 @@ export const mapRequestInput = (input: any) => {
     const botId = toString(input.botId);
     if (botId) data.botId = botId;
   }
+  if ('requesterPartnerId' in input) {
+    const requesterPartnerId = toString(input.requesterPartnerId);
+    if (requesterPartnerId) data.requesterPartnerId = requesterPartnerId;
+  }
+  if ('channelPostUrl' in input) {
+    data.channelPostUrl = toString(input.channelPostUrl) || null;
+  }
   if ('internalNote' in input || 'internalNotes' in input || 'notes' in input) {
     data.internalNotes = input.internalNote ?? input.internalNotes ?? input.notes ?? null;
   }
@@ -300,6 +327,8 @@ export const mapRequestOutput = (request: any, opts: { includeContact?: boolean 
   priority: request.priority ?? 'NORMAL',
   leadId: request.leadId ?? undefined,
   botId: request.botId ?? undefined,
+  requesterPartnerId: request.requesterPartnerId ?? undefined,
+  channelPostUrl: request.channelPostUrl ?? undefined,
   assigneeId: request.assignedTo ?? undefined,
   internalNote: request.internalNotes ?? undefined,
   clientChatId: request.chatId ?? undefined,

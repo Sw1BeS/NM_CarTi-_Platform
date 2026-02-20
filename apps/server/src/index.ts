@@ -15,6 +15,7 @@ import templateRoutes from './modules/Core/templates/template.routes.js';
 import integrationRoutes from './modules/Integrations/integration.routes.js';
 import superadminRoutes from './modules/Core/superadmin/superadmin.routes.js';
 import qaRoutes from './routes/qaRoutes.js';
+import b2bV2Routes from './routes/b2bV2.routes.js';
 import telegramRoutes from './modules/Communication/telegram/core/telegram.routes.js';
 import systemRoutes from './modules/Core/system/system.routes.js';
 import { whatsAppRouter } from './modules/Integrations/whatsapp/whatsapp.service.js';
@@ -88,6 +89,7 @@ app.use('/api/templates', templateRoutes); // Stage C: Marketplace
 app.use('/api/integrations', integrationRoutes); // Stage C: Integrations
 app.use('/api/superadmin', superadminRoutes); // Stage C: System admin
 app.use('/api/qa', qaRoutes);
+app.use('/api/b2b', b2bV2Routes);
 
 // Health Check (Robust)
 app.get('/health', checkHealth);
@@ -109,6 +111,7 @@ apiV2Router.use('/templates', templateRoutes);
 apiV2Router.use('/integrations', integrationRoutes);
 apiV2Router.use('/superadmin', superadminRoutes);
 apiV2Router.use('/qa', qaRoutes);
+apiV2Router.use('/b2b', b2bV2Routes);
 apiV2Router.use('/telegram', telegramRoutes);
 apiV2Router.use('/', apiRoutes);
 app.use('/api/v2', apiV2Router);

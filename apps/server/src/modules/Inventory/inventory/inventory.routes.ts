@@ -7,9 +7,85 @@ import { mapInventoryInput, mapInventoryOutput } from '../../../services/dto.js'
 import { CarRepository } from '../../../repositories/index.js';
 import { errorResponse } from '../../../utils/errorResponse.js';
 import { logger } from '../../../utils/logger.js';
+import { telegramOutbox } from '../../Communication/telegram/messaging/outbox/telegramOutbox.js';
+import { renderCarCardForBot } from '../../../services/carCardRenderer.v2.js';
 
 const router = Router();
 const carRepo = new CarRepository(prisma);
+
+const resolveBot = async (companyId: string | null, botId?: string) => {
+    if (botId) {
+        const bot = await prisma.botConfig.findUnique({ where: { id: botId } });
+        if (!bot?.token) return null;
+        if (companyId && bot.companyId !== companyId) return null;
+        return bot;
+    }
+
+    return prisma.botConfig.findFirst({
+        where: {
+            ...(companyId ? { companyId } : {}),
+            isEnabled: true
+        },
+        orderBy: { createdAt: 'asc' }
+    });
+};
+
+const collectCarPhotos = (car: any) => {
+    const raw = [car.thumbnail, ...(Array.isArray(car.mediaUrls) ? car.mediaUrls : [])]
+        .map(v => String(v || '').trim())
+        .filter(Boolean);
+    return Array.from(new Set(raw)).slice(0, 10);
+};
+
+const sendCarCard = async (params: {
+    bot: any;
+    car: any;
+    destination: string;
+    companyId?: string | null;
+    showcaseSlug?: string;
+}) => {
+    const caption = await renderCarCardForBot({
+        car: params.car,
+        companyId: params.companyId || null,
+        botId: params.bot.id,
+        showcaseSlug: params.showcaseSlug
+    });
+
+    const photos = collectCarPhotos(params.car);
+    if (photos.length > 1) {
+        return telegramOutbox.sendMediaGroup({
+            botId: params.bot.id,
+            token: params.bot.token,
+            chatId: params.destination,
+            media: photos.map((url, index) => ({
+                type: 'photo',
+                media: url,
+                caption: index === 0 ? caption : undefined,
+                parse_mode: 'HTML'
+            })),
+            companyId: params.companyId || null
+        });
+    }
+
+    if (photos.length === 1) {
+        return telegramOutbox.sendPhoto({
+            botId: params.bot.id,
+            token: params.bot.token,
+            chatId: params.destination,
+            photo: photos[0],
+            caption,
+            companyId: params.companyId || null
+        });
+    }
+
+    return telegramOutbox.sendMessage({
+        botId: params.bot.id,
+        token: params.bot.token,
+        chatId: params.destination,
+        text: caption,
+        companyId: params.companyId || null
+    });
+};
 
 // --- Inventory (CarListing) ---
 
@@ -166,6 +242,96 @@ router.put('/:id', requireRole(['ADMIN', 'MANAGER']), async (req, res) => {
     } catch (e: any) {
         logger.error('[Inventory PUT Error]:', e);
         errorResponse(res, 500, `Failed to update car: ${e.message}`);
+    }
+});
+
+router.post('/:carId/send-telegram', requireRole(['ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
+    try {
+        const { carId } = req.params;
+        const user = (req as any).user || {};
+        const isSuperadmin = user.role === 'SUPER_ADMIN';
+        const userCompanyId = user.companyId || user.workspaceId;
+        if (!isSuperadmin && !userCompanyId) return errorResponse(res, 400, 'Company context required', 'COMPANY_REQUIRED');
+
+        const car = await carRepo.findById(carId);
+        if (!car) return errorResponse(res, 404, 'Car not found');
+        if (!isSuperadmin) {
+            if (car.companyId && car.companyId !== userCompanyId) return errorResponse(res, 403, 'Forbidden');
+            if (!car.companyId) return errorResponse(res, 403, 'Forbidden');
+        }
+
+        const chatId = String((req.body || {}).chatId || '').trim();
+        if (!chatId) return errorResponse(res, 400, 'chatId is required', 'INVALID_INPUT');
+
+        const bot = await resolveBot(car.companyId || userCompanyId || null, typeof (req.body || {}).botId === 'string' ? (req.body || {}).botId : undefined);
+        if (!bot?.token) return errorResponse(res, 400, 'Bot not found', 'BOT_NOT_FOUND');
+
+        const sent = await sendCarCard({
+            bot,
+            car,
+            destination: chatId,
+            companyId: bot.companyId,
+            showcaseSlug: typeof (req.body || {}).showcaseSlug === 'string' ? (req.body || {}).showcaseSlug : undefined
+        });
+
+        return res.json({ ok: true, sent });
+    } catch (e: any) {
+        logger.error('[Inventory send-telegram Error]:', e);
+        return errorResponse(res, 500, e?.message || 'Failed to send car card');
+    }
+});
+
+router.post('/:carId/publish-telegram', requireRole(['ADMIN', 'MANAGER']), async (req, res) => {
+    try {
+        const { carId } = req.params;
+        const user = (req as any).user || {};
+        const isSuperadmin = user.role === 'SUPER_ADMIN';
+        const userCompanyId = user.companyId || user.workspaceId;
+        if (!isSuperadmin && !userCompanyId) return errorResponse(res, 400, 'Company context required', 'COMPANY_REQUIRED');
+
+        const car = await carRepo.findById(carId);
+        if (!car) return errorResponse(res, 404, 'Car not found');
+        if (!isSuperadmin) {
+            if (car.companyId && car.companyId !== userCompanyId) return errorResponse(res, 403, 'Forbidden');
+            if (!car.companyId) return errorResponse(res, 403, 'Forbidden');
+        }
+
+        const bot = await resolveBot(car.companyId || userCompanyId || null, typeof (req.body || {}).botId === 'string' ? (req.body || {}).botId : undefined);
+        if (!bot?.token) return errorResponse(res, 400, 'Bot not found', 'BOT_NOT_FOUND');
+
+        const channelId = String((req.body || {}).channelId || bot.channelId || '').trim();
+        if (!channelId) return errorResponse(res, 400, 'channelId is required', 'INVALID_INPUT');
+
+        const sent: any = await sendCarCard({
+            bot,
+            car,
+            destination: channelId,
+            companyId: bot.companyId,
+            showcaseSlug: typeof (req.body || {}).showcaseSlug === 'string' ? (req.body || {}).showcaseSlug : undefined
+        });
+
+        const messageId = sent?.message_id || sent?.[0]?.message_id || null;
+        let channelPost = null;
+        if (messageId) {
+            channelPost = await prisma.channelPost.create({
+                data: {
+                    carId: car.id,
+                    botId: bot.id,
+                    channelId,
+                    messageId: Number(messageId),
+                    status: 'ACTIVE',
+                    payload: {
+                        source: 'inventory_publish_telegram',
+                        publishedAt: new Date().toISOString()
+                    }
+                }
+            }).catch(() => null);
+        }
+
+        return res.json({ ok: true, sent, channelPost });
+    } catch (e: any) {
+        logger.error('[Inventory publish-telegram Error]:', e);
+        return errorResponse(res, 500, e?.message || 'Failed to publish car card');
     }
 });
 
