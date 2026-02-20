@@ -1,0 +1,14 @@
+[PROD-VERIFY] Checking containers...
+[PROD-VERIFY] API container created: 2026-02-20T14:35:49.477954977Z
+[PROD-VERIFY] Checking API health: http://127.0.0.1:3002/health
+[PROD-VERIFY] Health OK
+[PROD-VERIFY] Loading botId + webhookSecret from DB...
+[PROD-VERIFY] Bot: cmlb6zpgs000p46rg3mgs4ax7
+[PROD-VERIFY] Webhook URL: https://cartie2.umanoff-analytics.space/api/telegram/webhook/cmlb6zpgs000p46rg3mgs4ax7
+[PROD-VERIFY] Sending Telegram webhook smoke update_id=1964159811
+[PROD-VERIFY] Webhook returned 200
+[PROD-VERIFY] Verifying TelegramUpdate row exists...
+[PROD-VERIFY] TelegramUpdate recorded
+[PROD-VERIFY] Verifying recent tg.update.received events...
+[PROD-VERIFY] Platform events present
+[PROD-VERIFY] ✅ Production verification passed
