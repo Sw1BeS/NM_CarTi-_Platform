@@ -1,0 +1,9 @@
+Checking Routes...
+✅ Frontend Root OK (200)
+✅ Frontend Deep Link (SPA Fallback) OK (200)
+✅ Frontend Mini App Route OK (200)
+✅ Backend Health OK (200)
+✅ API /bots (auth protected) OK (401)
+✅ API /showcase (auth protected) OK (401)
+ℹ️  Set AUTH_TOKEN to validate 200 responses for /api/bots and /api/showcase.
+✅ Public Showcase Inventory OK (200)
