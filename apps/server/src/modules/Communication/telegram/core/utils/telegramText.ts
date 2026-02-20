@@ -5,12 +5,7 @@ export type Lang = 'EN' | 'UK' | 'RU';
 export const normalizeInput = (text?: string | null) =>
   String(text || '').trim().toLowerCase().replace(/\s+/g, ' ');
 
-export const resolveLang = (ctx: PipelineContext): Lang => {
-  const raw = String(ctx.locale || '').toUpperCase();
-  if (raw.startsWith('UK') || raw.startsWith('UA')) return 'UK';
-  if (raw.startsWith('RU')) return 'RU';
-  return 'UK';
-};
+export const resolveLang = (_ctx: PipelineContext): Lang => 'UK';
 
 const TEXT: Record<string, Record<Lang, string>> = {
   clientMenu: {
@@ -40,12 +35,12 @@ const TEXT: Record<string, Record<Lang, string>> = {
   },
   askBudget: {
     EN: 'Your budget (USD)? You can type "skip".',
-    UK: 'Ваш бюджет (USD)? Можна "skip".',
+    UK: 'Ваш бюджет (USD)? Можна написати "пропустити".',
     RU: 'Ваш бюджет (USD)? Можно "skip".'
   },
   askCity: {
     EN: 'City (or type "skip"):',
-    UK: 'Місто (або "skip"):',
+    UK: 'Місто (або "пропустити"):',
     RU: 'Город (или "skip"):'
   },
   askContact: {
@@ -65,7 +60,7 @@ const TEXT: Record<string, Record<Lang, string>> = {
   },
   invalidBudget: {
     EN: 'Budget looks incorrect. Try again or type "skip".',
-    UK: 'Бюджет некоректний. Спробуйте ще раз або "skip".',
+    UK: 'Бюджет некоректний. Спробуйте ще раз або напишіть "пропустити".',
     RU: 'Бюджет некорректный. Попробуйте еще раз или "skip".'
   },
   invalidPhone: {
@@ -105,27 +100,27 @@ const TEXT: Record<string, Record<Lang, string>> = {
   },
   catalogAskBrand: {
     EN: 'Brand? (or "skip")',
-    UK: 'Марка? (або "skip")',
+    UK: 'Марка? (або "пропустити")',
     RU: 'Марка? (или "skip")'
   },
   catalogAskModel: {
     EN: 'Model? (or "skip")',
-    UK: 'Модель? (або "skip")',
+    UK: 'Модель? (або "пропустити")',
     RU: 'Модель? (или "skip")'
   },
   catalogAskYear: {
     EN: 'Year range? (e.g., 2018-2022 or "skip")',
-    UK: 'Роки? (напр., 2018-2022 або "skip")',
+    UK: 'Роки? (напр., 2018-2022 або "пропустити")',
     RU: 'Годы? (например, 2018-2022 или "skip")'
   },
   catalogAskPrice: {
     EN: 'Price range USD? (e.g., 15000-30000 or "skip")',
-    UK: 'Ціна USD? (напр., 15000-30000 або "skip")',
+    UK: 'Ціна USD? (напр., 15000-30000 або "пропустити")',
     RU: 'Цена USD? (например, 15000-30000 или "skip")'
   },
   catalogAskCity: {
     EN: 'City? (or "skip")',
-    UK: 'Місто? (або "skip")',
+    UK: 'Місто? (або "пропустити")',
     RU: 'Город? (или "skip")'
   },
   catalogNoResults: {
@@ -165,22 +160,22 @@ const TEXT: Record<string, Record<Lang, string>> = {
   },
   b2bAskYear: {
     EN: 'Year range? (e.g., 2016-2022 or "skip")',
-    UK: 'Роки? (напр., 2016-2022 або "skip")',
+    UK: 'Роки? (напр., 2016-2022 або "пропустити")',
     RU: 'Годы? (например, 2016-2022 или "skip")'
   },
   b2bAskBudget: {
     EN: 'Budget USD? (e.g., 20000-35000 or "skip")',
-    UK: 'Бюджет USD? (напр., 20000-35000 або "skip")',
+    UK: 'Бюджет USD? (напр., 20000-35000 або "пропустити")',
     RU: 'Бюджет USD? (например, 20000-35000 или "skip")'
   },
   b2bAskMileage: {
     EN: 'Desired mileage? (e.g., 80-150k km or "skip")',
-    UK: 'Бажаний пробіг? (напр., 80-150 тис. км або "skip")',
+    UK: 'Бажаний пробіг? (напр., 80-150 тис. км або "пропустити")',
     RU: 'Желаемый пробег? (например, 80-150 тыс. км или "skip")'
   },
   b2bAskFuel: {
     EN: 'Fuel type? (petrol/diesel/hybrid or "skip")',
-    UK: 'Тип пального? (бензин/дизель/гібрид або "skip")',
+    UK: 'Тип пального? (бензин/дизель/гібрид або "пропустити")',
     RU: 'Тип топлива? (бензин/дизель/гибрид или "skip")'
   },
   b2bAskDesc: {
@@ -195,7 +190,7 @@ const TEXT: Record<string, Record<Lang, string>> = {
   },
   b2bAskCompany: {
     EN: 'Company name? (or "skip")',
-    UK: 'Назва компанії? (або "skip")',
+    UK: 'Назва компанії? (або "пропустити")',
     RU: 'Название компании? (или "skip")'
   },
   b2bConfirm: {
@@ -235,28 +230,28 @@ const BUTTONS = {
     sell: { EN: '💵 Sell', UK: '💵 Продати', RU: '💵 Продать' }
   },
   b2b: {
-    request: { EN: '📝 New Request', UK: '📝 Новий запит', RU: '📝 Новый запрос' }
+    request: { EN: '📝 New Request', UK: '📝 Створити запит', RU: '📝 Новый запрос' }
   },
   common: {
     back: { EN: '⬅️ Back', UK: '⬅️ Назад', RU: '⬅️ Назад' },
     cancel: { EN: '❌ Cancel', UK: '❌ Скасувати', RU: '❌ Отмена' },
     skip: { EN: 'Skip', UK: 'Пропустити', RU: 'Пропустить' },
     contact: { EN: '📱 Share Contact', UK: '📱 Поділитися контактом', RU: '📱 Поделиться контактом' },
-    openMiniApp: { EN: 'Open MiniApp', UK: 'Відкрити MiniApp', RU: 'Открыть MiniApp' },
+    openMiniApp: { EN: 'Open MiniApp', UK: 'Відкрити Mini App', RU: 'Открыть MiniApp' },
     confirm: { EN: '✅ Confirm', UK: '✅ Підтвердити', RU: '✅ Підтвердити' }
   }
 };
 
-export const t = (lang: Lang, key: string, vars: Record<string, string> = {}) => {
-  const template = TEXT[key]?.[lang] || TEXT[key]?.EN || '';
+export const t = (_lang: Lang, key: string, vars: Record<string, string> = {}) => {
+  const template = TEXT[key]?.UK || TEXT[key]?.EN || '';
   return template.replace(/\{(\w+)\}/g, (_, name) => vars[name] || '');
 };
 
-export const button = (lang: Lang, keyPath: string) => {
+export const button = (_lang: Lang, keyPath: string) => {
   const [group, key] = keyPath.split('.');
   const groupMap = (BUTTONS as any)[group] || {};
   const entry = groupMap[key];
-  return entry?.[lang] || entry?.EN || '';
+  return entry?.UK || entry?.EN || '';
 };
 
 export const isCommand = (input: string, candidates: string[]) => {

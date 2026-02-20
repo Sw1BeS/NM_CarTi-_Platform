@@ -838,7 +838,7 @@ const handleB2B = async (ctx: PipelineContext, text: string) => {
   if (!ctx.bot || !ctx.session) return false;
   const lang = resolveLang(ctx);
   const message = ctx.update?.message;
-  const state = ctx.session.state || 'B2B_MENU';
+  const state = (ctx.session.state === 'START' ? 'B2B_MENU' : ctx.session.state) || 'B2B_MENU';
   const vars = (ctx.session.variables as any) || {};
   const flow = vars.b2bFlow || {};
   const whitelistEnforced = b2bWhitelistService.isEnforced();
@@ -869,11 +869,17 @@ const handleB2B = async (ctx: PipelineContext, text: string) => {
     }
   }
 
-  const isNewRequest = isCommand(text, ['/request', button(lang, 'b2b.request')]);
-  const isCancel = isCommand(text, ['cancel', 'stop', 'відміна', 'отмена', button(lang, 'common.cancel')]);
+  const isNewRequest = isCommand(text, [
+    '/request',
+    button(lang, 'b2b.request'),
+    '📝 Створити запит',
+    '📝 Новий запит',
+    '📝 Создать запрос'
+  ]);
+  const isCancel = isCommand(text, ['cancel', 'stop', 'відміна', 'отмена', 'скасувати', button(lang, 'common.cancel')]);
   const isBack = isCommand(text, ['back', 'назад', '⬅️ back', '⬅️ назад', button(lang, 'common.back')]);
   const isMenu = isCommand(text, ['/start', '/menu', 'menu', 'reset']);
-  const isSkip = isCommand(text, ['skip', button(lang, 'common.skip')]);
+  const isSkip = isCommand(text, ['skip', 'пропустити', 'пропустить', button(lang, 'common.skip')]);
 
   if (isMenu) {
     await showMenu(ctx, lang, 'B2B');
@@ -1086,17 +1092,10 @@ export const handleDynamicMenu = async (ctx: PipelineContext, text: string) => {
 
   // 1. Show Menu
   if (isMenu) {
-    // LANGUAGE CHECK - Bootstrap Flow
+    // Force Ukrainian-only surface.
     const sessionVars = (ctx.session.variables as any) || {};
-    if (!sessionVars.language && !sessionVars.lang) {
-      await sendMessage(ctx, 'Please select your language / Оберіть мову:', {
-        inline_keyboard: [
-          [{ text: '🇺🇦 Українська', callback_data: 'set_lang:UK' }],
-          [{ text: '🇺🇸 English', callback_data: 'set_lang:EN' }],
-          [{ text: '🇷🇺 Русский', callback_data: 'set_lang:RU' }]
-        ]
-      });
-      return true;
+    if (sessionVars.language !== 'UK' || sessionVars.lang !== 'UK') {
+      await updateSession(ctx, ctx.session.state || 'DYN_MENU', { ...sessionVars, language: 'UK', lang: 'UK' });
     }
 
     const welcome = menuConfig.welcomeMessage || t(lang, 'clientMenu', { bot: ctx.bot.name || 'Bot' });
@@ -1329,9 +1328,9 @@ export const finalizeClientLead = async (ctx: PipelineContext) => {
       budgetMax: flow.budget || undefined,
       city: flow.city || undefined,
       description: [
-        `Via Bot. User: ${leadName}`,
-        flow.interest ? `Interest: ${BOT_A_INTEREST_OPTIONS[flow.interest] || flow.interest}` : null,
-        flow.comment ? `Comment: ${flow.comment}` : null
+        `Через бот. Користувач: ${leadName}`,
+        flow.interest ? `Інтерес: ${BOT_A_INTEREST_OPTIONS[flow.interest] || flow.interest}` : null,
+        flow.comment ? `Коментар: ${flow.comment}` : null
       ].filter(Boolean).join('\n'),
       language: lang
     }
@@ -1383,7 +1382,7 @@ export const finalizeClientLead = async (ctx: PipelineContext) => {
         payload: { city: flow.city, budget: flow.budget }
       });
       const reqCard = result.request ? renderRequestCard(result.request) : '';
-      const header = result.isDuplicate ? '♻️ Duplicate lead merged' : '🔥 New lead';
+      const header = result.isDuplicate ? '♻️ Дублікат заявки обʼєднано' : '🔥 Нова заявка';
       await sendMessage(ctx, `${header}\n\n${leadCard}${reqCard ? `\n\n${reqCard}` : ''}`, undefined, String(ctx.bot.adminChatId));
     }
   }
@@ -1427,12 +1426,12 @@ export const finalizeCatalogSell = async (ctx: PipelineContext) => {
 
   if (ctx.bot.adminChatId) {
     const leadCard = renderLeadCard({
-      clientName: flow.name || 'Seller',
+      clientName: flow.name || 'Продавець',
       phone: flow.phone,
       request: flow.car,
       payload: { leadType: 'SELL' }
     });
-    const header = result.isDuplicate ? '♻️ Duplicate sell lead merged' : '💵 New sell lead';
+    const header = result.isDuplicate ? '♻️ Дублікат заявки на продаж обʼєднано' : '💵 Нова заявка на продаж';
     await sendMessage(ctx, `${header}\n\n${leadCard}`, undefined, String(ctx.bot.adminChatId));
   }
 
@@ -1494,7 +1493,7 @@ export const finalizeB2BRequest = async (ctx: PipelineContext) => {
   };
 
   const mapped = mapRequestInput({
-    title: flow.title || 'Request',
+    title: flow.title || 'Запит',
     yearMin: flow.yearMin,
     yearMax: flow.yearMax,
     budgetMin: flow.budgetMin,

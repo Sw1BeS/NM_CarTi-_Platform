@@ -273,17 +273,17 @@ const buildB2BMiniAppConfig = (url: string, showcaseSlug: string): MiniAppConfig
 });
 
 const baseLeadButtons = (scenarioIds: Record<string, string>, miniAppUrl: string): MenuButton[] => [
-  { id: 'btn_buy', label: '🚗 Купити авто', label_uk: '🚗 Купити авто', label_ru: '🚗 Купить авто', type: 'SCENARIO', value: scenarioIds.buy || 'scn_buy', row: 0, col: 0 },
-  { id: 'btn_sell', label: '💰 Продати авто', label_uk: '💰 Продати авто', label_ru: '💰 Продать авто', type: 'SCENARIO', value: scenarioIds.sell || 'scn_sell', row: 0, col: 1 },
-  { id: 'btn_app', label: '📱 Додаток', label_uk: '📱 Додаток', label_ru: '📱 Приложение', type: 'WEB_APP', value: miniAppUrl, row: 1, col: 0 },
-  { id: 'btn_sup', label: '📞 Підтримка', label_uk: '📞 Підтримка', label_ru: '📞 Поддержка', type: 'SCENARIO', value: scenarioIds.support || 'scn_support', row: 2, col: 0 },
-  { id: 'btn_lang', label: '🌐 Мова', label_uk: '🌐 Мова', label_ru: '🌐 Язык', type: 'SCENARIO', value: scenarioIds.lang || 'scn_lang', row: 2, col: 1 }
+  { id: 'btn_buy', label: '🚗 Купити авто', label_uk: '🚗 Купити авто', label_ru: '🚗 Купити авто', type: 'SCENARIO', value: scenarioIds.buy || 'scn_buy', row: 0, col: 0 },
+  { id: 'btn_sell', label: '💰 Продати авто', label_uk: '💰 Продати авто', label_ru: '💰 Продати авто', type: 'SCENARIO', value: scenarioIds.sell || 'scn_sell', row: 0, col: 1 },
+  { id: 'btn_app', label: '📱 Додаток', label_uk: '📱 Додаток', label_ru: '📱 Додаток', type: 'WEB_APP', value: miniAppUrl, row: 1, col: 0 },
+  { id: 'btn_sup', label: '📞 Підтримка', label_uk: '📞 Підтримка', label_ru: '📞 Підтримка', type: 'SCENARIO', value: scenarioIds.support || 'scn_support', row: 2, col: 0 },
+  { id: 'btn_lang', label: '🌐 Мова', label_uk: '🌐 Мова', label_ru: '🌐 Мова', type: 'SCENARIO', value: scenarioIds.lang || 'scn_lang', row: 2, col: 1 }
 ];
 
 const baseB2BButtons = (scenarioIds: Record<string, string>, miniAppUrl: string): MenuButton[] => [
-  { id: 'btn_b2b_req', label: '📝 Створити запит', label_uk: '📝 Створити запит', label_ru: '📝 Создать запрос', type: 'SCENARIO', value: scenarioIds.request || 'scn_b2b_request', row: 0, col: 0 },
-  { id: 'btn_b2b_offer', label: '💼 Подати варіант', label_uk: '💼 Подати варіант', label_ru: '💼 Подать вариант', type: 'SCENARIO', value: scenarioIds.offer || 'scn_b2b_offer', row: 0, col: 1 },
-  { id: 'btn_b2b_app', label: '📱 Застосунок', label_uk: '📱 Застосунок', label_ru: '📱 Приложение', type: 'WEB_APP', value: miniAppUrl, row: 1, col: 0 },
+  { id: 'btn_b2b_req', label: '📝 Створити запит', label_uk: '📝 Створити запит', label_ru: '📝 Створити запит', type: 'SCENARIO', value: scenarioIds.request || 'scn_b2b_request', row: 0, col: 0 },
+  { id: 'btn_b2b_offer', label: '💼 Подати варіант', label_uk: '💼 Подати варіант', label_ru: '💼 Подати варіант', type: 'SCENARIO', value: scenarioIds.offer || 'scn_b2b_offer', row: 0, col: 1 },
+  { id: 'btn_b2b_app', label: '📱 Застосунок', label_uk: '📱 Застосунок', label_ru: '📱 Застосунок', type: 'WEB_APP', value: miniAppUrl, row: 1, col: 0 },
   { id: 'btn_b2b_help', label: 'ℹ️ Правила', label_uk: 'ℹ️ Правила', label_ru: 'ℹ️ Правила', type: 'SCENARIO', value: scenarioIds.help || 'scn_b2b_help', row: 1, col: 1 },
   { id: 'btn_b2b_menu', label: '🏠 Меню', label_uk: '🏠 Меню', label_ru: '🏠 Меню', type: 'TEXT', value: '/menu', row: 2, col: 0 }
 ];
@@ -320,7 +320,7 @@ const b2bScenarioBlueprints = [
         content: {
           text: 'Створіть структурований запит на авто для партнерської мережі.',
           text_uk: 'Створіть структурований запит на авто для партнерської мережі.',
-          text_ru: 'Создайте структурированный запрос на авто для партнерской сети.'
+          text_ru: 'Створіть структурований запит на авто для партнерської мережі.'
         },
         nextNodeId: 'ask_title'
       },
@@ -341,7 +341,7 @@ const b2bScenarioBlueprints = [
         content: {
           text: 'Бажаний рік (наприклад 2018+ або 2018-2021, напишіть "пропустити" для пропуску)',
           text_uk: 'Бажаний рік (наприклад 2018+ або 2018-2021, напишіть "пропустити" для пропуску)',
-          text_ru: 'Желаемый год (например 2018+ или 2018-2021, "skip" чтобы пропустить)',
+          text_ru: 'Бажаний рік (наприклад 2018+ або 2018-2021, напишіть "пропустити" для пропуску)',
           variableName: 'year'
         },
         nextNodeId: 'ask_budget'
@@ -352,7 +352,7 @@ const b2bScenarioBlueprints = [
         content: {
           text: 'Бюджет USD (наприклад 15000-25000, напишіть "пропустити" для пропуску)',
           text_uk: 'Бюджет USD (наприклад 15000-25000, напишіть "пропустити" для пропуску)',
-          text_ru: 'Бюджет USD (например 15000-25000, "skip" чтобы пропустить)',
+          text_ru: 'Бюджет USD (наприклад 15000-25000, напишіть "пропустити" для пропуску)',
           variableName: 'budget'
         },
         nextNodeId: 'ask_mileage'
@@ -363,7 +363,7 @@ const b2bScenarioBlueprints = [
         content: {
           text: 'Бажаний пробіг (напишіть "пропустити" для пропуску)',
           text_uk: 'Бажаний пробіг (напишіть "пропустити" для пропуску)',
-          text_ru: 'Желаемый пробег ("skip" чтобы пропустить)',
+          text_ru: 'Бажаний пробіг (напишіть "пропустити" для пропуску)',
           variableName: 'mileageText'
         },
         nextNodeId: 'ask_fuel'
@@ -374,7 +374,7 @@ const b2bScenarioBlueprints = [
         content: {
           text: 'Тип пального (напишіть "пропустити" для пропуску)',
           text_uk: 'Тип пального (напишіть "пропустити" для пропуску)',
-          text_ru: 'Тип топлива ("skip" чтобы пропустить)',
+          text_ru: 'Тип пального (напишіть "пропустити" для пропуску)',
           variableName: 'fuel'
         },
         nextNodeId: 'ask_comment'
@@ -385,7 +385,7 @@ const b2bScenarioBlueprints = [
         content: {
           text: 'Коментар / примітка (напишіть "пропустити" для пропуску)',
           text_uk: 'Коментар / примітка (напишіть "пропустити" для пропуску)',
-          text_ru: 'Комментарий / примечание ("skip" чтобы пропустить)',
+          text_ru: 'Коментар / примітка (напишіть "пропустити" для пропуску)',
           variableName: 'requestComment'
         },
         nextNodeId: 'ask_contact'
@@ -396,7 +396,7 @@ const b2bScenarioBlueprints = [
         content: {
           text: 'Поділіться контактом або введіть номер телефону',
           text_uk: 'Поділіться контактом або введіть номер телефону',
-          text_ru: 'Поделитесь контактом или введите номер телефона'
+          text_ru: 'Поділіться контактом або введіть номер телефону'
         },
         nextNodeId: 'ask_company'
       },
@@ -406,7 +406,7 @@ const b2bScenarioBlueprints = [
         content: {
           text: 'Назва компанії (напишіть "пропустити" для пропуску)',
           text_uk: 'Назва компанії (напишіть "пропустити" для пропуску)',
-          text_ru: 'Название компании ("skip" чтобы пропустить)',
+          text_ru: 'Назва компанії (напишіть "пропустити" для пропуску)',
           variableName: 'companyName'
         },
         nextNodeId: 'normalize'
@@ -425,7 +425,7 @@ const b2bScenarioBlueprints = [
         content: {
           text: '✅ Запит створено та опубліковано в каналі.',
           text_uk: '✅ Запит створено та опубліковано в каналі.',
-          text_ru: '✅ Запрос создан и опубликован в канале.'
+          text_ru: '✅ Запит створено та опубліковано в каналі.'
         }
       }
     ]
@@ -444,7 +444,7 @@ const b2bScenarioBlueprints = [
         content: {
           text: 'Подайте свій варіант для запиту. Якщо відкрили з deep-link каналу, запит уже підставлено.',
           text_uk: 'Подайте свій варіант для запиту. Якщо відкрили з deep-link каналу, запит уже підставлено.',
-          text_ru: 'Подайте ваш вариант по запросу. Если открыли из deep-link канала, запрос уже подставлен.'
+          text_ru: 'Подайте свій варіант для запиту. Якщо відкрили з deep-link каналу, запит уже підставлено.'
         },
         nextNodeId: 'ask_title'
       },
@@ -465,7 +465,7 @@ const b2bScenarioBlueprints = [
         content: {
           text: 'Рік (або "пропустити")',
           text_uk: 'Рік (або "пропустити")',
-          text_ru: 'Год (или "skip")',
+          text_ru: 'Рік (або "пропустити")',
           variableName: 'offerYear'
         },
         nextNodeId: 'ask_price'
@@ -476,7 +476,7 @@ const b2bScenarioBlueprints = [
         content: {
           text: 'Ціна і валюта (наприклад 18500 USD)',
           text_uk: 'Ціна і валюта (наприклад 18500 USD)',
-          text_ru: 'Цена и валюта (например 18500 USD)',
+          text_ru: 'Ціна і валюта (наприклад 18500 USD)',
           variableName: 'offerPrice'
         },
         nextNodeId: 'ask_mileage'
@@ -487,7 +487,7 @@ const b2bScenarioBlueprints = [
         content: {
           text: 'Пробіг (або "пропустити")',
           text_uk: 'Пробіг (або "пропустити")',
-          text_ru: 'Пробег (или "skip")',
+          text_ru: 'Пробіг (або "пропустити")',
           variableName: 'offerMileage'
         },
         nextNodeId: 'ask_fuel'
@@ -498,7 +498,7 @@ const b2bScenarioBlueprints = [
         content: {
           text: 'Тип пального (або "пропустити")',
           text_uk: 'Тип пального (або "пропустити")',
-          text_ru: 'Тип топлива (или "skip")',
+          text_ru: 'Тип пального (або "пропустити")',
           variableName: 'offerFuel'
         },
         nextNodeId: 'ask_condition'
@@ -509,7 +509,7 @@ const b2bScenarioBlueprints = [
         content: {
           text: 'Технічний стан (або "пропустити")',
           text_uk: 'Технічний стан (або "пропустити")',
-          text_ru: 'Техническое состояние (или "skip")',
+          text_ru: 'Технічний стан (або "пропустити")',
           variableName: 'offerCondition'
         },
         nextNodeId: 'ask_vin'
@@ -520,7 +520,7 @@ const b2bScenarioBlueprints = [
         content: {
           text: 'VIN (або "пропустити")',
           text_uk: 'VIN (або "пропустити")',
-          text_ru: 'VIN (или "skip")',
+          text_ru: 'VIN (або "пропустити")',
           variableName: 'offerVin'
         },
         nextNodeId: 'ask_comment'
@@ -531,7 +531,7 @@ const b2bScenarioBlueprints = [
         content: {
           text: 'Коментар / примітка без контактів',
           text_uk: 'Коментар / примітка без контактів',
-          text_ru: 'Комментарий / примечание без контактов',
+          text_ru: 'Коментар / примітка без контактів',
           variableName: 'offerComment'
         },
         nextNodeId: 'ask_contact'
@@ -542,7 +542,7 @@ const b2bScenarioBlueprints = [
         content: {
           text: 'Поділіться контактом або введіть номер телефону',
           text_uk: 'Поділіться контактом або введіть номер телефону',
-          text_ru: 'Поделитесь контактом или введите номер телефона'
+          text_ru: 'Поділіться контактом або введіть номер телефону'
         },
         nextNodeId: 'ask_company'
       },
@@ -552,7 +552,7 @@ const b2bScenarioBlueprints = [
         content: {
           text: 'Назва компанії (або "пропустити")',
           text_uk: 'Назва компанії (або "пропустити")',
-          text_ru: 'Название компании (или "skip")',
+          text_ru: 'Назва компанії (або "пропустити")',
           variableName: 'offerCompanyName'
         },
         nextNodeId: 'ask_photos'
@@ -563,7 +563,7 @@ const b2bScenarioBlueprints = [
         content: {
           text: 'Надішліть фото (до 8). Коли завершите — напишіть "готово".',
           text_uk: 'Надішліть фото (до 8). Коли завершите — напишіть "готово".',
-          text_ru: 'Отправьте фото (до 8). Когда закончите — напишите "done".',
+          text_ru: 'Надішліть фото (до 8). Коли завершите — напишіть "готово".',
           variableName: 'offerPhotos',
           allowMultiple: true,
           allowEmpty: false,
@@ -583,7 +583,7 @@ const b2bScenarioBlueprints = [
         content: {
           text: '✅ Варіант надіслано. Автор запиту перегляне, а адмін отримає "Підходить".',
           text_uk: '✅ Варіант надіслано. Автор запиту перегляне, а адмін отримає "Підходить".',
-          text_ru: '✅ Вариант отправлен. Автор запроса рассмотрит, а админ получит "Подходит".'
+          text_ru: '✅ Варіант надіслано. Автор запиту перегляне, а адмін отримає "Підходить".'
         }
       }
     ]
@@ -602,7 +602,7 @@ const b2bScenarioBlueprints = [
         content: {
           text: 'Правила B2B:\n1) Запити тільки через бота\n2) Відповіді тільки через кнопку "Є авто"\n3) Контакти в каналі приховані та передаються лише адміну',
           text_uk: 'Правила B2B:\n1) Запити тільки через бота\n2) Відповіді тільки через кнопку "Є авто"\n3) Контакти в каналі приховані та передаються лише адміну',
-          text_ru: 'Правила B2B:\n1) Запросы только через бота\n2) Ответы только через кнопку "Є авто"\n3) Контакты в канале скрыты и передаются только админу'
+          text_ru: 'Правила B2B:\n1) Запити тільки через бота\n2) Відповіді тільки через кнопку "Є авто"\n3) Контакти в каналі приховані та передаються лише адміну'
         }
       }
     ]
