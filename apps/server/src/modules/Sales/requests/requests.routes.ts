@@ -130,7 +130,7 @@ router.put('/:id', authenticateToken, requireRole(['OWNER', 'ADMIN', 'MANAGER', 
         if (!existing) return errorResponse(res, 404, 'Request not found');
         if (!isSuperadmin) {
             if (existing.companyId && existing.companyId !== userCompanyId) return errorResponse(res, 403, 'Forbidden');
-            if (!existing.companyId && userCompanyId !== 'company_system') return errorResponse(res, 403, 'Forbidden');
+            if (!existing.companyId) return errorResponse(res, 403, 'Forbidden');
         }
 
         // Update main request
@@ -166,7 +166,7 @@ router.post('/:id/link-lead', authenticateToken, requireRole(['OWNER', 'ADMIN', 
         if (!existing) return errorResponse(res, 404, 'Request not found');
         if (!isSuperadmin) {
             if (existing.companyId && existing.companyId !== userCompanyId) return errorResponse(res, 403, 'Forbidden');
-            if (!existing.companyId && userCompanyId !== 'company_system') return errorResponse(res, 403, 'Forbidden');
+            if (!existing.companyId) return errorResponse(res, 403, 'Forbidden');
         }
 
         const updated = await requestRepo.updateRequest(id, { leadId: String(leadId) } as any);
@@ -191,7 +191,7 @@ router.post('/:id/link-chat', authenticateToken, requireRole(['OWNER', 'ADMIN', 
         if (!existing) return errorResponse(res, 404, 'Request not found');
         if (!isSuperadmin) {
             if (existing.companyId && existing.companyId !== userCompanyId) return errorResponse(res, 403, 'Forbidden');
-            if (!existing.companyId && userCompanyId !== 'company_system') return errorResponse(res, 403, 'Forbidden');
+            if (!existing.companyId) return errorResponse(res, 403, 'Forbidden');
         }
 
         const updated = await requestRepo.updateRequest(id, { chatId: String(chatId) } as any);
@@ -214,7 +214,7 @@ router.delete('/:id', authenticateToken, requireRole(['OWNER', 'ADMIN']), async 
         if (!existing) return errorResponse(res, 404, 'Request not found');
         if (!isSuperadmin) {
             if (existing.companyId && existing.companyId !== userCompanyId) return errorResponse(res, 403, 'Forbidden');
-            if (!existing.companyId && userCompanyId !== 'company_system') return errorResponse(res, 403, 'Forbidden');
+            if (!existing.companyId) return errorResponse(res, 403, 'Forbidden');
         }
         await requestRepo.deleteRequest(id);
         res.json({ success: true });
@@ -235,7 +235,7 @@ router.post('/:id/variants', authenticateToken, requireRole(['OWNER', 'ADMIN', '
         if (!request) return errorResponse(res, 404, 'Request not found');
         if (!isSuperadmin) {
             if (request.companyId && request.companyId !== userCompanyId) return errorResponse(res, 403, 'Forbidden');
-            if (!request.companyId && userCompanyId !== 'company_system') return errorResponse(res, 403, 'Forbidden');
+            if (!request.companyId) return errorResponse(res, 403, 'Forbidden');
         }
 
         const variant = await requestRepo.addVariant(id, variantData);
@@ -261,7 +261,7 @@ router.post('/:id/variants/from-inventory', authenticateToken, requireRole(['OWN
         if (!request) return errorResponse(res, 404, 'Request not found');
         if (!isSuperadmin) {
             if (request.companyId && request.companyId !== userCompanyId) return errorResponse(res, 403, 'Forbidden');
-            if (!request.companyId && userCompanyId !== 'company_system') return errorResponse(res, 403, 'Forbidden');
+            if (!request.companyId) return errorResponse(res, 403, 'Forbidden');
         }
 
         const cars = await prisma.carListing.findMany({
@@ -359,7 +359,7 @@ router.post('/:id/publish-channel', authenticateToken, requireRole(['ADMIN', 'MA
         if (!isSuperadmin && !userCompanyId) return errorResponse(res, 400, 'Company context required', 'COMPANY_REQUIRED');
         if (!isSuperadmin) {
             if (request.companyId && request.companyId !== userCompanyId) return errorResponse(res, 403, 'Forbidden');
-            if (!request.companyId && userCompanyId !== 'company_system') return errorResponse(res, 403, 'Forbidden');
+            if (!request.companyId) return errorResponse(res, 403, 'Forbidden');
         }
 
         const effectiveCompanyId = request.companyId || userCompanyId || null;
@@ -369,7 +369,7 @@ router.post('/:id/publish-channel', authenticateToken, requireRole(['ADMIN', 'MA
         if (!destination) return errorResponse(res, 400, 'ChannelId required');
 
         const reqCard = buildChannelText(request, template);
-        const botUsername = bot.config ? (bot.config as any).username : undefined;
+        const botUsername = bot.config ? (bot.config as any).botUsername || (bot.config as any).username : undefined;
         const dl = botUsername && (request.publicId || request.id)
             ? generateRequestLink(botUsername, request.publicId || request.id)
             : undefined;
@@ -425,7 +425,7 @@ router.put('/:id/channel-post', authenticateToken, requireRole(['ADMIN', 'MANAGE
         if (!request) return errorResponse(res, 404, 'Request not found');
         if (!isSuperadmin) {
             if (request.companyId && request.companyId !== userCompanyId) return errorResponse(res, 403, 'Forbidden');
-            if (!request.companyId && userCompanyId !== 'company_system') return errorResponse(res, 403, 'Forbidden');
+            if (!request.companyId) return errorResponse(res, 403, 'Forbidden');
         }
 
         const cp = await requestRepo.findChannelPost(id, channelId);
@@ -479,7 +479,7 @@ router.post('/:id/close-channel', authenticateToken, requireRole(['ADMIN', 'MANA
         if (!request) return errorResponse(res, 404, 'Request not found');
         if (!isSuperadmin) {
             if (request.companyId && request.companyId !== userCompanyId) return errorResponse(res, 403, 'Forbidden');
-            if (!request.companyId && userCompanyId !== 'company_system') return errorResponse(res, 403, 'Forbidden');
+            if (!request.companyId) return errorResponse(res, 403, 'Forbidden');
         }
 
         const cp = await requestRepo.findChannelPost(id, channelId);

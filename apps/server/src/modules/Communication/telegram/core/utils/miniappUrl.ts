@@ -1,6 +1,17 @@
 import type { BotConfig } from '@prisma/client';
+import fs from 'node:fs';
 
 const stripTrailingSlash = (s: string) => s.replace(/\/+$/, '');
+const readBuildSha = () => {
+  const envSha = String(process.env.BUILD_SHA || '').trim();
+  if (envSha) return envSha;
+  try {
+    const fromFile = fs.readFileSync('/app/server/BUILD_SHA', 'utf8').trim();
+    return fromFile;
+  } catch {
+    return '';
+  }
+};
 
 export const buildMiniAppUrl = (bot: BotConfig, filters: Record<string, any>) => {
   const config = (bot.config || {}) as any;
@@ -40,6 +51,11 @@ export const buildMiniAppUrl = (bot: BotConfig, filters: Record<string, any>) =>
     if (value === undefined || value === null || value === '') return;
     url.searchParams.set(key, String(value));
   });
+
+  const buildSha = readBuildSha();
+  if (buildSha && !url.searchParams.has('v')) {
+    url.searchParams.set('v', buildSha.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 24));
+  }
 
   return url.toString();
 };

@@ -1,0 +1,81 @@
+apps/server/src/config/buildInfo.ts:33:    process.env.BUILD_SHA ||
+apps/server/src/config/buildInfo.ts:38:    process.env.BUILD_TIME ||
+apps/server/src/config/jwt.ts:19:    if (process.env.NODE_ENV === 'production') {
+apps/server/src/config/jwt.ts:20:        if (!process.env.JWT_SECRET) {
+apps/server/src/config/jwt.ts:23:        return process.env.JWT_SECRET;
+apps/server/src/config/jwt.ts:25:    return process.env.JWT_SECRET || 'dev_secret_key_123';
+apps/server/src/routes/apiRoutes.ts:1584:            || String(process.env.TELEGRAM_SCENARIO_SCOPE_FALLBACK || 'false').toLowerCase() === 'true';
+apps/server/src/routes/qaRoutes.ts:160:    const baseUrl = (settings?.modules as any)?.telegram?.publicBaseUrl || process.env.PUBLIC_BASE_URL || '';
+apps/server/src/middleware/workspaceContext.ts:25: * Feature flag: USE_V4_WORKSPACE_SCOPING (default OFF for backward compatibility)
+apps/server/src/middleware/workspaceContext.ts:37:    // Feature flag check - skip if not enabled
+apps/server/src/middleware/workspaceContext.ts:38:    if (process.env.USE_V4_WORKSPACE_SCOPING !== 'true') {
+apps/server/src/services/mediaStorage.service.ts:5:const STORAGE_ROOT = process.env.MEDIA_STORAGE_PATH || '/srv/cartie/storage';
+apps/server/src/services/mediaStorage.service.ts:7:const MAX_MEDIA_BYTES = Number(process.env.MEDIA_MAX_BYTES || 25 * 1024 * 1024);
+apps/web/src/pages/app/Settings.tsx:26:    const [activeTab, setActiveTab] = useState<'USERS' | 'TG' | 'LOGS' | 'FEATURES' | 'DICT' | 'BACKUP' | 'API' | 'VERSIONS' | 'SUPERADMIN' | 'GENERAL' | 'PARSER'>('USERS');
+apps/web/src/pages/app/Settings.tsx:43:        const allowed = ['USERS', 'TG', 'LOGS', 'FEATURES', 'DICT', 'BACKUP', 'API', 'VERSIONS', 'SUPERADMIN', 'GENERAL'];
+apps/web/src/pages/app/Settings.tsx:74:                                <NavButton active={activeTab === 'FEATURES'} onClick={() => setActiveTab('FEATURES')} icon={Cpu} label={t('settings.features')} />
+apps/web/src/pages/app/Settings.tsx:98:                    {activeTab === 'FEATURES' && user?.role === 'SUPER_ADMIN' && <FeaturesTab />}
+apps/server/src/services/miniapp.service.ts:367:    const buildSha = (process.env.BUILD_SHA || 'dev').slice(0, 12);
+apps/server/src/services/templatePreset.service.ts:76:const DEFAULT_PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || 'https://cartie2.umanoff-analytics.space';
+apps/server/src/services/templatePreset.service.ts:84:const BUILD_SHA_RAW = String(process.env.BUILD_SHA || readBuildMeta('/app/server/BUILD_SHA') || '').trim();
+apps/server/src/services/templatePreset.service.ts:85:const BUILD_TIME_RAW = String(process.env.BUILD_TIME || readBuildMeta('/app/server/BUILD_TIME') || '').trim();
+apps/server/src/services/prisma.ts:9:if (process.env.NODE_ENV !== 'production') {
+apps/server/src/index.ts:98:const mediaStorageRoot = process.env.MEDIA_STORAGE_PATH || path.join(__dirname, '../../storage');
+apps/server/src/index.ts:174:if (process.env.NODE_ENV !== 'test') {
+apps/server/src/workers/content.worker.ts:39:    const base = normalizePublicBase((bot?.config as any)?.publicBaseUrl || process.env.PUBLIC_BASE_URL);
+apps/web/src/pages/app/settings/SuperAdminTabs.tsx:96:    const FEATURES: { key: FeatureKey, label: string, desc: string }[] = [
+apps/web/src/pages/app/settings/SuperAdminTabs.tsx:110:                {FEATURES.map(f => (
+apps/server/src/utils/constants.ts:32: * Feature flags for v4.1 rollout
+apps/server/src/utils/constants.ts:35:export const FEATURE_FLAGS = {
+apps/web/src/pages/app/Requests.tsx:287:                            B2B bot uses flow-first runtime. Legacy hard-flow fallback is temporary and controlled by server flag.
+apps/web/src/pages/app/TelegramHub.components.tsx:459:                    <div className="text-[10px] text-[var(--text-secondary)] mt-1">Legacy B2B fallback is optional and controlled by server flag.</div>
+apps/server/src/modules/Integrations/meta/meta.service.ts:7:    private pixelId = process.env.META_PIXEL_ID;
+apps/server/src/modules/Integrations/meta/meta.service.ts:8:    private accessToken = process.env.META_ACCESS_TOKEN;
+apps/server/src/modules/Integrations/mtproto/mtproto.service.ts:36:        const apiId = connector.workspaceApiId || Number(process.env.TG_API_ID);
+apps/server/src/modules/Integrations/mtproto/mtproto.service.ts:37:        const apiHash = connector.workspaceApiHash || process.env.TG_API_HASH;
+apps/server/src/modules/Integrations/mtproto/mtproto.service.ts:381:            const maxBytes = Number(process.env.MEDIA_MAX_BYTES || 25 * 1024 * 1024);
+apps/server/src/modules/Integrations/mtproto/mtproto.worker.ts:20:        const legacyBackfillEnabled = String(process.env.MTPROTO_LEGACY_BACKFILL_ENABLED || 'false').toLowerCase() === 'true';
+apps/server/src/modules/Integrations/integration.service.ts:25:    let base = normalizePublicBase(process.env.PUBLIC_BASE_URL);
+apps/server/src/modules/Integrations/whatsapp/whatsapp.service.ts:77:    if (mode === 'subscribe' && token === process.env.WHATSAPP_VERIFY_TOKEN) {
+apps/server/src/modules/Core/health/health.controller.ts:30:        environment: process.env.NODE_ENV,
+apps/server/src/modules/Core/users/user.service.ts:45:    const isProduction = process.env.NODE_ENV === 'production';
+apps/server/src/modules/Core/users/user.service.ts:47:        if (!process.env.SEED_ADMIN_PASSWORD) {
+apps/server/src/modules/Core/users/user.service.ts:50:        if (!process.env.SEED_SUPERADMIN_PASSWORD) {
+apps/server/src/modules/Core/users/user.service.ts:55:    const adminEmail = process.env.SEED_ADMIN_EMAIL || 'admin';
+apps/server/src/modules/Core/users/user.service.ts:56:    const adminPassword = process.env.SEED_ADMIN_PASSWORD || 'admin';
+apps/server/src/modules/Core/users/user.service.ts:57:    const superEmail = process.env.SEED_SUPERADMIN_EMAIL || 'superadmin@cartie.com';
+apps/server/src/modules/Core/users/user.service.ts:58:    const superPassword = process.env.SEED_SUPERADMIN_PASSWORD || 'superadmin';
+apps/server/src/modules/Core/system/settings.service.ts:5:const DEFAULT_FEATURES = {
+apps/server/src/modules/Core/system/settings.service.ts:7:    MODULE_SCENARIOS: true,
+apps/server/src/modules/Core/system/settings.service.ts:8:    MODULE_SEARCH: true,
+apps/server/src/modules/Core/system/settings.service.ts:9:    MODULE_CAMPAIGNS: true,
+apps/server/src/modules/Core/system/settings.service.ts:10:    MODULE_COMPANIES: false,
+apps/server/src/modules/Core/system/settings.service.ts:11:    MODULE_CONTENT: true,
+apps/server/src/modules/Core/system/settings.service.ts:12:    MODULE_INTEGRATIONS: false
+apps/server/src/modules/Core/system/settings.service.ts:19:    features: DEFAULT_FEATURES
+apps/server/src/modules/Core/system/settings.service.ts:71:                features: settings.features || DEFAULT_FEATURES
+apps/server/src/modules/Core/auth/auth.routes.ts:14:    // Use read abstraction layer (reads from v4.1 or legacy based on flag)
+apps/server/src/modules/Communication/telegram/routing/routeMessage.ts:924:  const legacyB2BFallbackEnabled = String(process.env.TELEGRAM_B2B_LEGACY_FALLBACK || 'false').toLowerCase() === 'true';
+apps/server/src/modules/Communication/telegram/scenarios/middlewares/enrichContext.ts:21:const FEATURE_TTL_MS = 60_000;
+apps/server/src/modules/Communication/telegram/scenarios/middlewares/enrichContext.ts:24:  if (cachedFeatures && Date.now() - cachedFeatures.ts < FEATURE_TTL_MS) {
+apps/server/src/modules/Communication/telegram/scenarios/middlewares/enrichContext.ts:33:    logger.error('[TelegramPipeline] Failed to load feature flags:', e);
+apps/server/src/modules/Communication/telegram/scenarios/middlewares/resolveBotTenant.ts:24:    const expected = (ctx.bot.config as any)?.webhookSecret || process.env.TELEGRAM_WEBHOOK_SECRET;
+apps/server/src/modules/Communication/telegram/core/leadService.ts:46:  const envValue = process.env.LEAD_DEDUP_DAYS;
+apps/server/src/modules/Communication/telegram/core/telegram.routes.ts:28:  const expected = (bot.config as any)?.webhookSecret || process.env.TELEGRAM_WEBHOOK_SECRET || null;
+apps/server/src/modules/Communication/telegram/core/utils/callbackUtils.test.ts:22:  it('flags legacy callback data', () => {
+apps/server/src/modules/Communication/telegram/core/utils/miniappUrl.ts:6:  const envSha = String(process.env.BUILD_SHA || '').trim();
+apps/server/src/modules/Communication/telegram/core/utils/miniappUrl.ts:22:    || process.env.MINIAPP_URL
+apps/server/src/modules/Communication/telegram/core/telegramAdmin.service.ts:22:  const base = ensureBaseUrl(opts.publicBaseUrl || config.publicBaseUrl || process.env.PUBLIC_BASE_URL);
+apps/server/src/modules/Communication/bots/scenario.engine.ts:377:  String(process.env.TELEGRAM_B2B_LEGACY_FALLBACK || 'false').toLowerCase() === 'true';
+apps/server/src/modules/Communication/bots/scenario.engine.ts:1417:      // Deep-link routing: flow-first for B2B offer submit, legacy dealer flow only behind feature flag
+apps/server/src/modules/Communication/bots/scenario.engine.ts:1942:          const limitRaw = node.content?.limit || process.env.LEAD_REQUEST_DAILY_LIMIT || 3;
+apps/web/src/services/serverAdapter.ts:348:                MODULE_SCENARIOS: true,
+apps/web/src/services/serverAdapter.ts:349:                MODULE_SEARCH: true,
+apps/web/src/services/serverAdapter.ts:350:                MODULE_CAMPAIGNS: true,
+apps/web/src/services/serverAdapter.ts:351:                MODULE_COMPANIES: true,
+apps/web/src/services/serverAdapter.ts:352:                MODULE_CONTENT: true,
+apps/web/src/services/serverAdapter.ts:353:                MODULE_INTEGRATIONS: true
+apps/server/src/modules/Communication/bots/bot.service.ts:164:                const allowGlobalScenarioFallback = String(process.env.TELEGRAM_SCENARIO_SCOPE_FALLBACK || 'false').toLowerCase() === 'true';
+apps/server/src/modules/Communication/bots/bot.service.ts:224:            const enableLegacyB2BCommands = String(process.env.TELEGRAM_B2B_LEGACY_FALLBACK || 'false').toLowerCase() === 'true';
+apps/server/src/modules/Communication/bots/bot.service.ts:312:        const allowLegacyOfferFlow = String(process.env.TELEGRAM_LEGACY_OFFER_FLOW_FALLBACK || 'false').toLowerCase() === 'true';
+apps/server/src/modules/Communication/bots/bot.service.ts:314:            // Legacy fallback path kept behind feature-flag for one release cycle.

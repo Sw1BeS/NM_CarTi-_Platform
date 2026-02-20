@@ -1,5 +1,10 @@
 import { ParsingService } from '../src/modules/Integrations/parsing/parsing.service';
 
+if (process.env.ALLOW_DEPRECATED !== '1') {
+    console.error('[DEPRECATED] test_parsing_service.ts is an ad-hoc legacy script. Set ALLOW_DEPRECATED=1 to run intentionally.');
+    process.exit(1);
+}
+
 const SAMPLE_TEXT = `
 Listing ID: 12345
 Make: BMW

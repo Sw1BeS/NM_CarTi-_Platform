@@ -4,6 +4,7 @@ import { ApiClient } from '../../../services/apiClient';
 import { Bot, MiniAppConfig, Scenario } from '../../../types';
 import { useToast } from '../../../contexts/ToastContext';
 import { Smartphone, Plus, Trash2, Grid, List as ListIcon, Palette, Image as ImageIcon, Globe, Copy, UploadCloud } from 'lucide-react';
+const miniAppBuildTag = String((import.meta as any)?.env?.VITE_BUILD_ID || '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 24);
 
 const DEFAULT_NAV_ITEMS: MiniAppConfig['navItems'] = [
     { id: 'nav_home', label: 'Home', icon: 'Home', actionType: 'VIEW', value: 'HOME' },
@@ -71,10 +72,21 @@ export const MiniAppManager = ({ botId }: { botId: string }) => {
             }
         };
         loadBot();
-        Data.getScenarios().then(setScenarios).catch(() => setScenarios([]));
+        Data.getScenarios({ botId }).then(setScenarios).catch(() => setScenarios([]));
     }, [botId]);
 
-    const buildMiniAppUrl = (baseUrl: string, slug: string) => `${baseUrl.replace(/\/$/, '')}/p/app/${slug}`;
+    const buildMiniAppUrl = (baseUrl: string, slug: string) => {
+        const raw = `${baseUrl.replace(/\/$/, '')}/p/app/${slug}`;
+        try {
+            const url = new URL(raw);
+            if (miniAppBuildTag && !url.searchParams.has('v')) {
+                url.searchParams.set('v', miniAppBuildTag);
+            }
+            return url.toString();
+        } catch {
+            return raw;
+        }
+    };
 
     const persistConfig = async (newConfig: MiniAppConfig, options?: { baseUrl?: string; slug?: string; silent?: boolean }) => {
         if (!bot) return;

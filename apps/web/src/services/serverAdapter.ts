@@ -1,4 +1,8 @@
 
+/**
+ * @deprecated Frozen legacy adapter.
+ * Kept for reference only; active app path uses Data service + ApiClient directly.
+ */
 import { ApiClient } from './apiClient';
 import { DataAdapter } from './dataAdapter';
 import {
@@ -344,14 +348,8 @@ export class ServerAdapter implements DataAdapter {
 
         // Polyfill defaults if missing (e.g. empty DB)
         if (!settings.features) {
-            settings.features = {
-                MODULE_SCENARIOS: true,
-                MODULE_SEARCH: true,
-                MODULE_CAMPAIGNS: true,
-                MODULE_COMPANIES: true,
-                MODULE_CONTENT: true,
-                MODULE_INTEGRATIONS: true
-            };
+            const featureRes = await ApiClient.get<Record<string, boolean>>('system/features/resolve');
+            settings.features = featureRes.ok ? (featureRes.data || {}) : {};
         }
         if (!settings.navigation) {
             settings.navigation = { primary: defaultNavigation };

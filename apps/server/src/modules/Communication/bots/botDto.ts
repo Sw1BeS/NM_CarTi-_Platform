@@ -22,7 +22,7 @@ const ensureMiniAppUrl = (config: any) => {
   if (!mini || typeof mini !== 'object') return;
   if (mini.url) return;
   const baseUrl = String(config.publicBaseUrl || mini.baseUrl || '').trim();
-  const slug = String(config.defaultShowcaseSlug || mini.showcaseSlug || config.username || '').trim();
+  const slug = String(config.defaultShowcaseSlug || mini.showcaseSlug || config.botUsername || config.username || '').trim();
   if (baseUrl && slug) {
     mini.url = `${baseUrl.replace(/\/$/, '')}/p/app/${slug}`;
   }
@@ -32,7 +32,14 @@ const ensureMiniAppUrl = (config: any) => {
 export const mapBotInput = (input: any, existingConfig: any = {}) => {
   const config = { ...(existingConfig || {}) };
 
-  if ('username' in input) setConfigValue(config, 'username', input.username);
+  if ('username' in input) {
+    setConfigValue(config, 'username', input.username);
+    setConfigValue(config, 'botUsername', input.username);
+  }
+  if ('botUsername' in input) {
+    setConfigValue(config, 'botUsername', input.botUsername);
+    setConfigValue(config, 'username', input.botUsername);
+  }
   if ('publicBaseUrl' in input) setConfigValue(config, 'publicBaseUrl', input.publicBaseUrl);
   if ('role' in input) setConfigValue(config, 'role', input.role);
   if ('menuConfig' in input) setConfigValue(config, 'menuConfig', input.menuConfig);
@@ -70,10 +77,12 @@ export const mapBotInput = (input: any, existingConfig: any = {}) => {
 
 export const mapBotOutput = (bot: any) => {
   const config = bot?.config || {};
+  const username = config.botUsername || config.username || bot.name || '';
   return {
     id: bot.id,
     name: bot.name,
-    username: config.username || bot.name || '',
+    username,
+    botUsername: username,
     defaultShowcaseId: bot.defaultShowcaseId,
     defaultShowcaseSlug: bot.defaultShowcase?.slug || config.defaultShowcaseSlug,
     token: bot.token,
@@ -92,6 +101,7 @@ export const mapBotOutput = (bot: any) => {
     channelId: bot.channelId,
     template: bot.template,
     presetStatus: config.presetStatus,
-    presetVersion: config.presetVersion
+    presetVersion: config.presetVersion,
+    presetTemplate: config.presetTemplate
   };
 };

@@ -6,11 +6,13 @@ export interface Bot {
     id: string;
     name: string;
     username: string;
+    botUsername?: string;
     token: string;
     role: 'CLIENT' | 'CHANNEL' | 'BOTH';
     template?: 'CLIENT_LEAD' | 'B2B' | 'CATALOG' | string;
     presetStatus?: 'ready' | 'partial' | 'missing' | string;
     presetVersion?: string;
+    presetTemplate?: 'CLIENT_LEAD' | 'B2B' | 'CATALOG' | string;
     active: boolean;
     publicBaseUrl?: string;
     autoSync?: boolean;
@@ -50,6 +52,7 @@ export interface BotMenuButtonConfig {
 
 export interface MiniAppConfig {
     isEnabled: boolean;
+    surfaceMode?: 'LEAD' | 'B2B';
     title: string;
     welcomeText: string;
     headerImageUrl?: string;
@@ -115,7 +118,7 @@ export interface ScenarioNode {
         conditionValue?: string | number;
         trueNodeId?: string;
         falseNodeId?: string;
-        actionType?: 'NORMALIZE_REQUEST' | 'CREATE_LEAD' | 'CREATE_REQUEST' | 'TAG_USER' | 'SET_LANG' | 'NOTIFY_ADMIN' | 'LOOKUP_REQUEST';
+        actionType?: 'NORMALIZE_REQUEST' | 'CREATE_LEAD' | 'CREATE_REQUEST' | 'B2B_PUBLISH_REQUEST' | 'TAG_USER' | 'SET_LANG' | 'NOTIFY_ADMIN' | 'LOOKUP_REQUEST';
         leadType?: 'BUY' | 'SELL' | 'SUPPORT' | string;
         requestType?: 'BUY' | 'SELL' | string;
         requestTitle?: string;

@@ -1,0 +1,264 @@
+apps/server/src/modules/Integrations/meta.service.ts:2:import { prisma } from '../../services/prisma.js';
+apps/server/src/modules/Integrations/meta.service.ts:14:    const settings = await prisma.systemSettings.findFirst();
+apps/server/src/modules/Integrations/mtproto/mtproto.service.ts:4:import { prisma } from '../../../services/prisma.js';
+apps/server/src/modules/Integrations/mtproto/mtproto.service.ts:30:        const connector = await prisma.mTProtoConnector.findUnique({
+apps/server/src/modules/Integrations/mtproto/mtproto.service.ts:72:        await prisma.mTProtoConnector.update({
+apps/server/src/modules/Integrations/mtproto/mtproto.service.ts:114:        await prisma.mTProtoConnector.update({
+apps/server/src/modules/Integrations/mtproto/mtproto.service.ts:132:        await prisma.mTProtoConnector.update({
+apps/server/src/modules/Integrations/mtproto/mtproto.service.ts:155:                    const exists = await prisma.channelSource.findUnique({
+apps/server/src/modules/Integrations/mtproto/mtproto.service.ts:213:        const existing = await prisma.channelSource.findUnique({
+apps/server/src/modules/Integrations/mtproto/mtproto.service.ts:236:        return await prisma.channelSource.findMany({
+apps/server/src/modules/Integrations/mtproto/mtproto.service.ts:272:                const source = await prisma.channelSource.findUnique({
+apps/server/src/modules/Integrations/mtproto/mtproto.service.ts:306:                    await prisma.channelSource.update({
+apps/server/src/modules/Integrations/mtproto/mtproto.service.ts:551:        const source = await prisma.channelSource.findUnique({
+apps/server/src/modules/Integrations/mtproto/mtproto.service.ts:628:            prisma.carListing.count({ where: { source: 'TELEGRAM' } }),
+apps/server/src/modules/Integrations/mtproto/mtproto.service.ts:629:            prisma.carListing.count({ where: { source: 'TELEGRAM', createdAt: { gte: yesterday } } }),
+apps/server/src/modules/Integrations/mtproto/mtproto.service.ts:630:            prisma.lead.count({ where: { source: { contains: 'Telegram', mode: 'insensitive' } } }),
+apps/server/src/modules/Integrations/mtproto/mtproto.service.ts:631:            prisma.lead.count({ where: { source: { contains: 'Telegram', mode: 'insensitive' }, createdAt: { gte: yesterday } } }),
+apps/server/src/modules/Integrations/mtproto/mtproto.service.ts:632:            prisma.channelSource.count({ where: { status: 'ACTIVE' } })
+apps/server/src/modules/Integrations/mtproto/mtproto.lifecycle.ts:1:import { prisma } from '../../../services/prisma.js';
+apps/server/src/modules/Integrations/mtproto/mtproto.lifecycle.ts:14:            const connectors = await prisma.mTProtoConnector.findMany({
+apps/server/src/modules/Integrations/mtproto/mtproto.import.worker.ts:1:import { prisma } from '../../../services/prisma.js';
+apps/server/src/modules/Integrations/mtproto/mtproto.import.worker.ts:21:            const job = await prisma.telegramImportJob.findFirst({
+apps/server/src/modules/Integrations/mtproto/mtproto.import.worker.ts:28:            await prisma.telegramImportJob.update({
+apps/server/src/modules/Integrations/mtproto/mtproto.import.worker.ts:62:            const source = await prisma.channelSource.findUnique({
+apps/server/src/modules/Integrations/mtproto/mtproto.import.worker.ts:68:                await prisma.telegramImportJob.update({
+apps/server/src/modules/Integrations/mtproto/mtproto.import.worker.ts:76:                await prisma.telegramImportJob.update({
+apps/server/src/modules/Integrations/mtproto/mtproto.import.worker.ts:168:                await prisma.telegramImportJob.update({
+apps/server/src/modules/Integrations/mtproto/mtproto.import.worker.ts:199:                await prisma.telegramImportJob.update({
+apps/server/src/modules/Integrations/mtproto/mtproto.import.worker.ts:233:            await prisma.telegramImportJob.update({
+apps/server/src/modules/Integrations/mtproto/mtproto.import.service.ts:1:import { prisma } from '../../../services/prisma.js';
+apps/server/src/modules/Integrations/mtproto/mtproto.import.service.ts:95:        const source = await prisma.channelSource.findUnique({
+apps/server/src/modules/Integrations/mtproto/mtproto.import.service.ts:148:        const source = await prisma.channelSource.findUnique({
+apps/server/src/modules/Integrations/mtproto/mtproto.import.service.ts:156:        return prisma.telegramImportJob.create({
+apps/server/src/modules/Integrations/mtproto/mtproto.import.service.ts:170:        return prisma.telegramImportJob.findMany({
+apps/server/src/modules/Integrations/mtproto/mtproto.worker.ts:2:import { prisma } from '../../../services/prisma.js';
+apps/server/src/modules/Integrations/mtproto/mtproto.worker.ts:35:            const sources = await prisma.channelSource.findMany({
+apps/server/src/modules/Integrations/mtproto/mtproto.worker.ts:128:            const connectors = await prisma.mTProtoConnector.findMany({
+apps/server/src/modules/Integrations/mtproto/mtproto.worker.ts:135:                const sources = await prisma.channelSource.findMany({
+apps/server/src/modules/Integrations/mtproto/mtproto.routes.ts:3:import { prisma } from '../../../services/prisma.js';
+apps/server/src/modules/Integrations/mtproto/mtproto.routes.ts:17:        const connectors = await prisma.mTProtoConnector.findMany({
+apps/server/src/modules/Integrations/mtproto/mtproto.routes.ts:50:        const connector = await prisma.mTProtoConnector.create({
+apps/server/src/modules/Integrations/mtproto/mtproto.routes.ts:69:        await prisma.mTProtoConnector.delete({ where: { id: req.params.id } });
+apps/server/src/modules/Integrations/integration.routes.ts:9:import { prisma } from '../../services/prisma.js';
+apps/server/src/modules/Integrations/integration.routes.ts:56:        const logs = await prisma.integrationEventLog.findMany({
+apps/server/src/modules/Integrations/integration.routes.ts:139:                await prisma.integration.update({
+apps/server/src/modules/Integrations/integration.routes.ts:153:                await prisma.integration.update({
+apps/server/src/modules/Integrations/whatsapp/whatsapp.service.ts:2:import { prisma } from '../../../services/prisma.js';
+apps/server/src/modules/Integrations/telegram/telegramRegistry.service.ts:1:import { prisma } from '../../../services/prisma.js';
+apps/server/src/modules/Integrations/telegram/telegramRegistry.service.ts:52:        const existing = await prisma.telegramDestination.findUnique({
+apps/server/src/modules/Integrations/telegram/telegramRegistry.service.ts:100:        const sources = await prisma.channelSource.findMany({
+apps/server/src/modules/Integrations/telegram/telegramRegistry.service.ts:124:        const bots = await prisma.botConfig.findMany({
+apps/server/src/modules/Integrations/telegram/telegramRegistry.service.ts:160:        const messages = await prisma.botMessage.findMany({
+apps/server/src/modules/Integrations/telegram/telegramRegistry.service.ts:202:        const existing = await prisma.telegramDestination.findUnique({ where: { id } });
+apps/server/src/modules/Integrations/telegram/telegramRegistry.service.ts:226:        return prisma.telegramDestination.findMany({
+apps/server/src/modules/Integrations/telegram/telegramRegistry.service.ts:257:        const existing = await prisma.telegramDestination.findFirst({
+apps/server/src/modules/Integrations/telegram/telegramRegistry.service.ts:276:        const existing = await prisma.telegramDestination.findFirst({
+apps/server/src/modules/Integrations/telegram/telegramRegistry.service.ts:291:        const existing = await prisma.telegramDestination.findFirst({
+apps/server/src/modules/Integrations/telegram/telegramRegistry.service.ts:300:        const channelSource = await prisma.channelSource.findUnique({
+apps/server/src/modules/Integrations/telegram/telegramRegistry.service.ts:319:        const existing = await prisma.telegramDestination.findFirst({
+apps/server/src/modules/Integrations/telegram/telegramRegistry.service.ts:325:            const listings = await prisma.carListing.findMany({
+apps/server/src/modules/Integrations/telegram/telegramRegistry.service.ts:340:        const messages = await prisma.botMessage.findMany({
+apps/server/src/modules/Integrations/autoria.service.ts:2:import { prisma } from '../../services/prisma.js';
+apps/server/src/modules/Integrations/autoria.service.ts:6:    const settings = await prisma.systemSettings.findFirst();
+apps/server/src/modules/Integrations/integration.service.ts:6:import { prisma } from '../../services/prisma.js';
+apps/server/src/modules/Integrations/integration.service.ts:27:        const bot = await prisma.botConfig.findUnique({ where: { id: botId }, select: { config: true } });
+apps/server/src/modules/Integrations/integration.service.ts:41:        return prisma.integration.findMany({
+apps/server/src/modules/Integrations/integration.service.ts:58:        return prisma.integration.findUnique({
+apps/server/src/modules/Integrations/integration.service.ts:76:        return prisma.integration.upsert({
+apps/server/src/modules/Integrations/integration.service.ts:106:        return prisma.integration.delete({
+apps/server/src/modules/Integrations/integration.service.ts:121:        return prisma.integration.update({
+apps/server/src/modules/Integrations/integration.service.ts:230:        const webhooks = await prisma.integration.findMany({
+apps/server/src/modules/Parser/parser.controller.ts:4:import { prisma } from '../../services/prisma.js';
+apps/server/src/modules/Parser/parser.controller.ts:247:    const settings = await prisma.systemSettings.findFirst();
+apps/server/src/modules/Parser/parser.controller.ts:253:    const existing = await prisma.systemSettings.findFirst();
+apps/server/src/modules/Parser/parser.controller.ts:255:        return prisma.systemSettings.update({ where: { id: existing.id }, data: { modules } });
+apps/server/src/modules/Parser/parser.controller.ts:257:    return prisma.systemSettings.create({ data: { modules } });
+apps/server/src/modules/Marketing/showcase/showcase.service.ts:2:import { prisma } from '../../../services/prisma.js';
+apps/server/src/modules/Marketing/showcase/showcase.service.ts:34:        return prisma.showcase.create({
+apps/server/src/modules/Marketing/showcase/showcase.service.ts:53:        return prisma.showcase.update({
+apps/server/src/modules/Marketing/showcase/showcase.service.ts:63:        await prisma.showcase.delete({ where: { id } });
+apps/server/src/modules/Marketing/showcase/showcase.service.ts:68:        return prisma.showcase.findUnique({ where: { id } });
+apps/server/src/modules/Marketing/showcase/showcase.service.ts:72:        return prisma.showcase.findUnique({ where: { slug } });
+apps/server/src/modules/Marketing/showcase/showcase.service.ts:76:        return prisma.showcase.findMany({
+apps/server/src/modules/Marketing/showcase/showcase.service.ts:189:            explicitItems = await prisma.carListing.findMany({ where: explicitWhere });
+apps/server/src/modules/Marketing/showcase/showcase.service.ts:197:            prisma.carListing.count({ where }),
+apps/server/src/modules/Marketing/showcase/showcase.service.ts:198:            prisma.carListing.findMany({
+apps/server/src/modules/Sales/requests/requests.routes.ts:4:import { prisma } from '../../../services/prisma.js';
+apps/server/src/modules/Sales/requests/requests.routes.ts:41:            const bot = await prisma.botConfig.findUnique({ where: { id: botId }, select: { companyId: true } });
+apps/server/src/modules/Sales/requests/requests.routes.ts:95:            const bot = await prisma.botConfig.findUnique({ where: { id: requestedBotId }, select: { companyId: true } });
+apps/server/src/modules/Sales/requests/requests.routes.ts:267:        const cars = await prisma.carListing.findMany({
+apps/server/src/modules/Sales/requests/requests.routes.ts:275:        const created = await Promise.all(cars.map(car => prisma.requestVariant.create({
+apps/server/src/modules/Sales/requests/requests.routes.ts:308:        const bot = await prisma.botConfig.findUnique({ where: { id: botId } });
+apps/server/src/modules/Sales/requests/requests.routes.ts:313:    return prisma.botConfig.findFirst({
+apps/server/src/modules/Inventory/normalization/normalizationStore.ts:1:import { prisma } from '../../../services/prisma.js';
+apps/server/src/modules/Inventory/normalization/normalizationStore.ts:11:    const specific = await prisma.normalizationAlias.findFirst({
+apps/server/src/modules/Inventory/normalization/normalizationStore.ts:20:  const global = await prisma.normalizationAlias.findFirst({
+apps/server/src/modules/Inventory/inventory/inventory.routes.ts:4:import { prisma } from '../../../services/prisma.js';
+apps/server/src/modules/Inventory/inventory/inventory.routes.ts:131:        const result = await prisma.carListing.updateMany({
+apps/server/src/modules/Inventory/inventory/inventory.service.ts:3:import { prisma } from '../../../services/prisma.js';
+apps/server/src/modules/Inventory/inventory/inventory.service.ts:8:        await prisma.draft.create({
+apps/server/src/modules/Core/superadmin/superadmin.service.ts:6:import { prisma } from '../../../services/prisma.js';
+apps/server/src/modules/Core/superadmin/superadmin.service.ts:54:            prisma.scenarioTemplate.count() // No repo for templates yet, standard prisma call acceptable (<5 rule)
+apps/server/src/modules/Core/superadmin/superadmin.service.ts:128:            const membership = await prisma.membership.findFirst({
+apps/server/src/modules/Core/superadmin/superadmin.service.ts:137:                await prisma.membership.update({
+apps/server/src/modules/Core/superadmin/superadmin.service.ts:172:        const workspace = await prisma.workspace.findUnique({ where: { id: companyId } });
+apps/server/src/modules/Core/superadmin/superadmin.service.ts:185:        const workspace = await prisma.workspace.findUnique({ where: { id: companyId } });
+apps/server/src/modules/Core/superadmin/superadmin.service.ts:204:        return prisma.scenarioTemplate.create({
+apps/server/src/modules/Core/superadmin/superadmin.service.ts:221:        return prisma.systemLog.findMany({
+apps/server/src/modules/Core/superadmin/client-manager.service.ts:6:import { prisma } from '../../../services/prisma.js';
+apps/server/src/modules/Core/superadmin/client-manager.service.ts:51:        return prisma.workspace.update({
+apps/server/src/modules/Core/entities/bootstrapVariantB.ts:1:import { prisma } from '../../../services/prisma.js';
+apps/server/src/modules/Core/entities/bootstrapVariantB.ts:12:      const existing = await prisma.entityDefinition.findFirst({ where: { slug } });
+apps/server/src/modules/Core/entities/bootstrapVariantB.ts:15:         const def = await prisma.entityDefinition.create({
+apps/server/src/modules/Core/entities/bootstrapVariantB.ts:29:         await prisma.entityField.createMany({
+apps/server/src/modules/Core/health/health.controller.ts:2:import { prisma } from '../../../services/prisma.js';
+apps/server/src/modules/Core/system/settings.service.ts:2:import { prisma } from '../../../services/prisma.js';
+apps/server/src/modules/Core/system/settings.service.ts:56:        const settings = await prisma.systemSettings.findFirst({
+apps/server/src/modules/Core/system/settings.service.ts:80:        const existing = await prisma.systemSettings.findFirst();
+apps/server/src/modules/Core/system/settings.service.ts:83:            return await prisma.systemSettings.create({
+apps/server/src/modules/Core/system/settings.service.ts:99:        return await prisma.systemSettings.update({
+apps/server/src/modules/Core/users/user.service.ts:2:import { prisma } from '../../../services/prisma.js';
+apps/server/src/modules/Core/users/user.service.ts:40:    const count = await prisma.globalUser.count();
+apps/server/src/modules/Core/system/systemLog.service.ts:1:import { prisma } from '../../../services/prisma.js';
+apps/server/src/modules/Core/system/systemLog.service.ts:4:    await prisma.systemLog.create({
+apps/server/src/modules/Core/companies/company.service.ts:5:import { prisma } from '../../../services/prisma.js';
+apps/server/src/modules/Core/companies/company.service.ts:79:        const workspace = await prisma.workspace.findUnique({ where: { id: companyId } });
+apps/server/src/modules/Core/companies/company.service.ts:84:        return prisma.workspace.update({
+apps/server/src/modules/Core/companies/company.service.ts:124:        const membership = await prisma.membership.findFirst({
+apps/server/src/modules/Core/companies/company.service.ts:160:        const membership = await prisma.membership.findFirst({
+apps/server/src/modules/Core/companies/company.service.ts:172:        return prisma.membership.update({
+apps/server/src/modules/Core/companies/company.service.ts:182:        const membership = await prisma.membership.findFirst({
+apps/server/src/modules/Core/companies/company.service.ts:196:            const ownerCount = await prisma.membership.count({
+apps/server/src/modules/Core/companies/company.service.ts:210:        return prisma.membership.update({
+apps/server/src/modules/Core/companies/company.service.ts:221:            prisma.membership.count({ where: { workspace_id: companyId, deleted_at: null } }),
+apps/server/src/modules/Core/companies/company.service.ts:222:            prisma.botConfig.count({ where: { companyId } }),
+apps/server/src/modules/Core/companies/company.service.ts:223:            prisma.scenario.count({ where: { companyId } }),
+apps/server/src/modules/Core/companies/company.service.ts:224:            prisma.lead.count({
+apps/server/src/modules/Core/companies/company.service.ts:227:            prisma.b2bRequest.count({ where: { companyId } })
+apps/server/src/modules/Communication/telegram/messaging/outbox/telegramOutbox.ts:1:import { prisma } from '../../../../../services/prisma.js';
+apps/server/src/modules/Core/templates/template.service.ts:5:import { prisma } from '../../../services/prisma.js';
+apps/server/src/modules/Core/templates/template.service.ts:16:        return prisma.scenarioTemplate.findMany({
+apps/server/src/modules/Core/templates/template.service.ts:35:        return prisma.scenarioTemplate.findUnique({
+apps/server/src/modules/Core/templates/template.service.ts:44:        return prisma.companyTemplate.findMany({
+apps/server/src/modules/Core/templates/template.service.ts:57:        const template = await prisma.scenarioTemplate.findUnique({
+apps/server/src/modules/Core/templates/template.service.ts:66:        const existing = await prisma.companyTemplate.findUnique({
+apps/server/src/modules/Core/templates/template.service.ts:94:        const scenario = await prisma.scenario.create({
+apps/server/src/modules/Core/templates/template.service.ts:107:        await prisma.companyTemplate.create({
+apps/server/src/modules/Core/templates/template.service.ts:115:        await prisma.scenarioTemplate.update({
+apps/server/src/modules/Core/templates/template.service.ts:129:        const installation = await prisma.companyTemplate.findUnique({
+apps/server/src/modules/Core/templates/template.service.ts:142:        await prisma.companyTemplate.delete({
+apps/server/src/modules/Core/templates/template.service.ts:160:        return prisma.scenarioTemplate.create({
+apps/server/src/modules/Communication/telegram/destinations/destination.service.ts:2:import { prisma } from '../../../../services/prisma.js';
+apps/server/src/modules/Communication/telegram/routing/routeWebApp.ts:1:import { prisma } from '../../../../services/prisma.js';
+apps/server/src/modules/Communication/telegram/routing/routeWebApp.ts:99:    const car = await prisma.carListing.findUnique({ where: { id: payload.carId } });
+apps/server/src/modules/Communication/telegram/core/leadIdentity.test.ts:32:vi.mock('../../../../services/prisma.js', () => ({
+apps/server/src/modules/Communication/telegram/routing/tests/routeChannelPost.test.ts:35:    // In a real test with mocked prisma, we would assert prisma.draft.create was called
+apps/server/src/modules/Communication/telegram/core/leadService.ts:2:import { prisma } from '../../../../services/prisma.js';
+apps/server/src/modules/Communication/telegram/core/leadService.ts:83:    || (await prisma.botConfig.findUnique({ where: { id: input.botId }, select: { companyId: true } }))?.companyId
+apps/server/src/modules/Communication/telegram/core/leadService.ts:113:    await prisma.leadActivity.create({
+apps/server/src/modules/Communication/telegram/core/leadService.ts:129:      mergedLead = await prisma.lead.update({
+apps/server/src/modules/Communication/telegram/core/leadService.ts:139:        await prisma.lead.update({
+apps/server/src/modules/Communication/telegram/core/leadService.ts:254:      prisma.systemSettings.findFirst().then(settings => {
+apps/server/src/modules/Communication/telegram/routing/routeMyChatMember.ts:2:import { prisma } from '../../../../services/prisma.js';
+apps/server/src/modules/Communication/telegram/routing/routeMyChatMember.ts:28:        let def = await prisma.entityDefinition.findUnique({
+apps/server/src/modules/Communication/telegram/routing/routeMyChatMember.ts:35:          def = await prisma.entityDefinition.create({
+apps/server/src/modules/Communication/telegram/routing/routeMyChatMember.ts:47:          const existing = await prisma.entityRecord.findFirst({
+apps/server/src/modules/Communication/telegram/routing/routeMyChatMember.ts:69:             await prisma.entityRecord.update({
+apps/server/src/modules/Communication/telegram/routing/routeMyChatMember.ts:74:             await prisma.entityRecord.create({
+apps/server/src/modules/Communication/telegram/core/telegram.routes.ts:2:import { prisma } from '../../../../services/prisma.js';
+apps/server/src/modules/Communication/telegram/routing/routeCallback.ts:2:import { prisma } from '../../../../services/prisma.js';
+apps/server/src/modules/Communication/telegram/routing/routeCallback.ts:12:  ctx.session = await prisma.botSession.update({
+apps/server/src/modules/Communication/telegram/routing/routeCallback.ts:106:    await prisma.lead.update({ where: { id }, data: { status } });
+apps/server/src/modules/Communication/telegram/routing/routeMessage.ts:1:import { prisma } from '../../../../services/prisma.js';
+apps/server/src/modules/Communication/telegram/routing/routeMessage.ts:115:  ctx.session = await prisma.botSession.update({
+apps/server/src/modules/Communication/telegram/routing/routeMessage.ts:468:    const cars = await prisma.carListing.findMany({
+apps/server/src/modules/Communication/telegram/routing/routeMessage.ts:874:        const scenario = await prisma.scenario.findUnique({ where: { id: scenarioId } });
+apps/server/src/modules/Communication/telegram/routing/routeMessage.ts:994:      await prisma.messageLog.create({
+apps/server/src/modules/Communication/telegram/routing/routeMessage.ts:1105:  const request = await prisma.b2bRequest.create({
+apps/server/src/modules/Communication/telegram/routing/routeMessage.ts:1114:  await prisma.messageLog.create({
+apps/server/src/modules/Communication/telegram/routing/routeMessage.ts:1142:          await prisma.botConfig.update({
+apps/server/src/modules/Communication/telegram/routing/routeMessage.ts:1182:        await prisma.channelPost.create({
+apps/server/src/modules/Communication/telegram/core/events/eventEmitter.ts:2:import { prisma } from '../../../../../services/prisma.js';
+apps/server/src/modules/Communication/telegram/core/events/eventEmitter.ts:35:    await prisma.platformEvent.create({
+apps/server/src/modules/Communication/telegram/scenarios/middlewares/enrichContext.ts:1:import { prisma } from '../../../../../services/prisma.js';
+apps/server/src/modules/Communication/telegram/scenarios/middlewares/enrichContext.ts:28:    const settings = await prisma.systemSettings.findFirst({ orderBy: { id: 'desc' } });
+apps/server/src/modules/Communication/telegram/scenarios/middlewares/enrichContext.ts:77:    const existing = await prisma.botSession.findUnique({
+apps/server/src/modules/Communication/telegram/scenarios/middlewares/enrichContext.ts:83:      ctx.session = await prisma.botSession.create({
+apps/server/src/modules/Communication/telegram/scenarios/middlewares/enrichContext.ts:95:        const existingLead = await prisma.lead.findFirst({
+apps/server/src/modules/Communication/telegram/scenarios/middlewares/enrichContext.ts:106:          await prisma.lead.create({
+apps/server/src/modules/Communication/telegram/scenarios/middlewares/saveMessage.ts:2:import { prisma } from '../../../../../services/prisma.js';
+apps/server/src/modules/Communication/telegram/scenarios/middlewares/saveMessage.ts:30:            const existing = await prisma.botMessage.findFirst({
+apps/server/src/modules/Communication/telegram/scenarios/middlewares/saveMessage.ts:41:                await prisma.botMessage.create({
+apps/server/src/modules/Communication/telegram/scenarios/middlewares/dedup.ts:2:import { prisma } from '../../../../../services/prisma.js';
+apps/server/src/modules/Communication/telegram/scenarios/middlewares/dedup.ts:25:    await prisma.telegramUpdate.create({
+apps/server/src/modules/Communication/telegram/scenarios/middlewares/resolveBotTenant.ts:1:import { prisma } from '../../../../../services/prisma.js';
+apps/server/src/modules/Communication/telegram/scenarios/middlewares/resolveBotTenant.ts:7:    ctx.bot = await prisma.botConfig.findUnique({ where: { id: ctx.botId } });
+apps/server/src/modules/Communication/bots/scenario.engine.ts:1:import { prisma } from '../../../services/prisma.js';
+apps/server/src/modules/Communication/bots/scenario.engine.ts:389:  const request = await prisma.b2bRequest.findFirst({
+apps/server/src/modules/Communication/bots/scenario.engine.ts:407:  const variant = await prisma.requestVariant.create({
+apps/server/src/modules/Communication/bots/scenario.engine.ts:414:  await prisma.messageLog.create({
+apps/server/src/modules/Communication/bots/scenario.engine.ts:488:    await prisma.botSession.update({
+apps/server/src/modules/Communication/bots/scenario.engine.ts:530:      await prisma.botConfig.update({
+apps/server/src/modules/Communication/bots/scenario.engine.ts:552:        await prisma.botConfig.update({
+apps/server/src/modules/Communication/bots/scenario.engine.ts:576:      const scoped = await prisma.scenario.findMany({
+apps/server/src/modules/Communication/bots/scenario.engine.ts:589:        rawScenarios = await prisma.scenario.findMany({
+apps/server/src/modules/Communication/bots/scenario.engine.ts:719:            const car = await prisma.carListing.findUnique({ where: { id: webData.carId } });
+apps/server/src/modules/Communication/bots/scenario.engine.ts:998:            const dupUrl = await prisma.requestVariant.findFirst({ where: { requestId, sourceUrl: flow.url } });
+apps/server/src/modules/Communication/bots/scenario.engine.ts:1005:            const dupVin = await prisma.requestVariant.findFirst({
+apps/server/src/modules/Communication/bots/scenario.engine.ts:1050:          const variant = await prisma.requestVariant.create({
+apps/server/src/modules/Communication/bots/scenario.engine.ts:1057:          await prisma.messageLog.create({
+apps/server/src/modules/Communication/bots/scenario.engine.ts:1085:          const request = await prisma.b2bRequest.findUnique({ where: { id: requestId } });
+apps/server/src/modules/Communication/bots/scenario.engine.ts:1153:      await prisma.botConfig.update({
+apps/server/src/modules/Communication/bots/scenario.engine.ts:1178:      await prisma.botConfig.update({
+apps/server/src/modules/Communication/bots/scenario.engine.ts:1204:          const variant = await prisma.requestVariant.findUnique({
+apps/server/src/modules/Communication/bots/scenario.engine.ts:1216:            await prisma.requestVariant.update({
+apps/server/src/modules/Communication/bots/scenario.engine.ts:1220:            await prisma.b2bRequest.update({
+apps/server/src/modules/Communication/bots/scenario.engine.ts:1250:            await prisma.requestVariant.update({
+apps/server/src/modules/Communication/bots/scenario.engine.ts:1278:          const target = await prisma.requestVariant.findUnique({ where: { id: variantId } });
+apps/server/src/modules/Communication/bots/scenario.engine.ts:1284:            await prisma.requestVariant.update({
+apps/server/src/modules/Communication/bots/scenario.engine.ts:1288:            await prisma.messageLog.create({
+apps/server/src/modules/Communication/bots/scenario.engine.ts:1354:              const request = await prisma.b2bRequest.findFirst({
+apps/server/src/modules/Communication/bots/scenario.engine.ts:1379:            const req = await prisma.b2bRequest.findFirst({
+apps/server/src/modules/Communication/bots/scenario.engine.ts:1615:    const scenario = await prisma.scenario.findUnique({ where: { id: vars.__activeScenarioId } });
+apps/server/src/modules/Communication/bots/scenario.engine.ts:1634:    const scenario = await prisma.scenario.findUnique({ where: { id: vars.__activeScenarioId } });
+apps/server/src/modules/Communication/bots/scenario.engine.ts:1690:    const scenario = await prisma.scenario.findUnique({ where: { id: scenarioId } });
+apps/server/src/modules/Communication/bots/scenario.engine.ts:1875:          await prisma.scheduledJob.create({
+apps/server/src/modules/Communication/bots/scenario.engine.ts:1945:          const count = await prisma.b2bRequest.count({
+apps/server/src/modules/Communication/bots/scenario.engine.ts:2030:          const request = await prisma.b2bRequest.create({
+apps/server/src/modules/Communication/bots/scenario.engine.ts:2113:          const requestForDup = await prisma.b2bRequest.findFirst({
+apps/server/src/modules/Communication/bots/scenario.engine.ts:2120:            const duplicateByUrl = await prisma.requestVariant.findFirst({
+apps/server/src/modules/Communication/bots/scenario.engine.ts:2130:            const duplicateByVin = await prisma.requestVariant.findFirst({
+apps/server/src/modules/Communication/bots/scenario.engine.ts:2203:            const request = await prisma.b2bRequest.findFirst({
+apps/server/src/modules/Communication/bots/scenario.engine.ts:2222:                await prisma.channelPost.create({
+apps/server/src/modules/Communication/bots/scenario.engine.ts:2238:              await prisma.messageLog.create({
+apps/server/src/modules/Communication/bots/scenario.engine.ts:2260:            found = await prisma.b2bRequest.findFirst({
+apps/server/src/modules/Communication/bots/scenario.engine.ts:2302:        const internal = await prisma.carListing.findMany({
+apps/server/src/modules/Communication/bots/scenario.engine.ts:2386:          await prisma.draft.create({
+apps/server/src/modules/Communication/bots/scenario.engine.ts:2403:          await prisma.draft.create({
+apps/server/src/modules/Communication/bots/scenario.engine.ts:2442:        const req = await prisma.b2bRequest.findFirst({
+apps/server/src/modules/Communication/bots/scenario.engine.ts:2458:          await prisma.channelPost.create({
+apps/server/src/modules/Communication/bots/scenario.engine.ts:2497:        const req = await prisma.b2bRequest.findFirst({
+apps/server/src/modules/Communication/bots/scenario.engine.ts:2527:    const inventory = await prisma.carListing.findMany({ where: { id: carId } });
+apps/server/src/modules/Communication/bots/scenario.engine.ts:2550:    const request = await prisma.b2bRequest.findFirst({
+apps/server/src/modules/Communication/bots/scenario.engine.ts:2567:    const car = fromResults || await prisma.carListing.findUnique({ where: { id: carId } });
+apps/server/src/modules/Communication/bots/scenario.engine.ts:2590:    await prisma.requestVariant.create({
+apps/server/src/modules/Communication/bots/scenario.engine.ts:2603:    const existing = await prisma.carListing.findUnique({ where: { id: carId } });
+apps/server/src/modules/Communication/bots/scenario.engine.ts:2617:    await prisma.carListing.create({
+apps/server/src/modules/Communication/bots/scenario.engine.ts:2645:      await prisma.b2bRequest.update({
+apps/server/src/modules/Communication/bots/scenario.engine.ts:2654:      const req = await prisma.b2bRequest.findUnique({ where: { id: reqId } });
+apps/server/src/modules/Communication/bots/scenario.engine.ts:2671:      const req = await prisma.b2bRequest.findUnique({ where: { id: reqId } });
+apps/server/src/modules/Communication/bots/bot.service.ts:4:import { prisma } from '../../../services/prisma.js';
+apps/server/src/modules/Communication/bots/bot.service.ts:165:                const scopedScenarios = await prisma.scenario.findMany({
+apps/server/src/modules/Communication/bots/bot.service.ts:178:                    : await prisma.scenario.findMany({
+apps/server/src/modules/Communication/bots/bot.service.ts:339:        const existing = await prisma.botSession.findUnique({
+apps/server/src/modules/Communication/bots/bot.service.ts:343:        return prisma.botSession.create({
+apps/server/src/modules/Communication/bots/bot.service.ts:372:                    const request = await prisma.b2bRequest.findUnique({
+apps/server/src/modules/Communication/bots/bot.service.ts:520:                const lead = await prisma.lead.create({
+apps/server/src/modules/Communication/bots/bot.service.ts:536:                await prisma.b2bRequest.create({
+apps/server/src/modules/Communication/bots/bot.service.ts:631:                    const req = await prisma.b2bRequest.findFirst({ where: { publicId: flow.requestId } });
+apps/server/src/modules/Communication/bots/bot.service.ts:634:                    await prisma.requestVariant.create({
+apps/server/src/modules/Communication/bots/bot.service.ts:689:        await prisma.botSession.update({
+apps/server/src/modules/Communication/bots/bot.service.ts:722:            await prisma.lead.update({ where: { id }, data: { status } });
+apps/server/src/modules/Communication/telegram/core/telegramAdmin.service.ts:3:import { prisma } from '../../../../services/prisma.js';
+apps/server/src/modules/Communication/telegram/core/leadService.test.ts:39:vi.mock('../../../../services/prisma.js', () => ({

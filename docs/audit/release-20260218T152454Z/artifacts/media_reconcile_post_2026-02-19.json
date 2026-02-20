@@ -1,0 +1,28 @@
+{
+  "timestamp": "2026-02-19T18:07:54.871Z",
+  "mode": "DRY-RUN",
+  "mediaRoot": "/srv/cartie/storage/media",
+  "counts": {
+    "dbRefs": 2492,
+    "fsFiles": 2493,
+    "missingRefs": 0,
+    "orphanFiles": 1,
+    "criticalMissingRefs": 0,
+    "criticalOrphanFiles": 0
+  },
+  "actions": {
+    "clearedMissingRefs": {
+      "carListing": 0,
+      "requestVariant": 0
+    },
+    "deletedOrphans": 0
+  },
+  "samples": {
+    "missingRefs": [],
+    "orphanFiles": [
+      "_smoke/ping.txt"
+    ],
+    "criticalMissingRefs": [],
+    "criticalOrphanFiles": []
+  }
+}

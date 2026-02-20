@@ -1,0 +1,12 @@
+Command:
+rg -n "company_system" apps/server/src -g '!**/*.test.ts'
+
+Output:
+apps/server/src/modules/Core/users/user.service.ts:10:    let workspace = await getWorkspaceById('company_system');
+apps/server/src/modules/Core/users/user.service.ts:29:    // Ideally we should force ID 'company_system' but writeService generates ID.
+apps/server/src/modules/Core/users/user.service.ts:30:    // For now, let's accept the generated ID or modify writeService if 'company_system' ID is critical.
+apps/server/src/modules/Core/users/user.service.ts:34:    // Note: If we really needed specific ID 'company_system', we should have passed it.
+
+Interpretation:
+- user-facing API routes no longer use implicit `company_system` fallback.
+- remaining usage is limited to seed/bootstrap path.

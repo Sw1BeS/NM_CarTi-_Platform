@@ -8,6 +8,7 @@ import { runTelegramPipeline } from '../telegram/scenarios/pipeline.js';
 import { telegramOutbox } from '../telegram/messaging/outbox/telegramOutbox.js';
 import { BotRepository } from '../../../repositories/index.js';
 import { logger } from '../../../utils/logger.js';
+import { buildMiniAppUrl } from '../telegram/core/utils/miniappUrl.js';
 
 
 
@@ -148,26 +149,106 @@ class BotInstance {
 
     private async registerCommands() {
         try {
-            let commands: any[] = [];
-            if (this.config.template === 'CLIENT_LEAD') {
-                commands = [
-                    { command: 'start', description: '🚀 Start Menu' },
-                    { command: 'buy', description: '🚗 Buy Car' },
-                    { command: 'manager', description: '👤 Support' }
-                ];
-            } else if (this.config.template === 'CATALOG') {
-                commands = [
-                    { command: 'start', description: '🔍 Catalog' },
-                    { command: 'find', description: '🔎 Search' },
-                    { command: 'sell', description: '💵 Sell' }
-                ];
-            } else if (this.config.template === 'B2B') {
-                commands = [
-                    { command: 'start', description: '🤝 Partner Menu' },
-                    { command: 'request', description: '📝 New Request' }
-                ];
+            const commandMap = new Map<string, string>([
+                ['start', 'Головне меню'],
+                ['menu', 'Відкрити меню']
+            ]);
+            const addCommand = (commandRaw: string, descriptionRaw?: string) => {
+                const command = String(commandRaw || '').trim().toLowerCase().replace(/^\//, '');
+                if (!command || !/^[a-z0-9_]{1,32}$/.test(command)) return;
+                if (commandMap.has(command)) return;
+                commandMap.set(command, String(descriptionRaw || command).slice(0, 120));
+            };
+
+            if (this.config.companyId) {
+                const allowGlobalScenarioFallback = String(process.env.TELEGRAM_SCENARIO_SCOPE_FALLBACK || 'false').toLowerCase() === 'true';
+                const scopedScenarios = await prisma.scenario.findMany({
+                    where: {
+                        companyId: this.config.companyId,
+                        botId: this.config.id,
+                        status: 'PUBLISHED',
+                        isActive: true
+                    },
+                    select: { triggerCommand: true, name: true, botId: true },
+                    orderBy: { updatedAt: 'desc' }
+                });
+
+                const scenarios = scopedScenarios.length || !allowGlobalScenarioFallback
+                    ? scopedScenarios
+                    : await prisma.scenario.findMany({
+                        where: {
+                            companyId: this.config.companyId,
+                            status: 'PUBLISHED',
+                            isActive: true,
+                            OR: [{ botId: this.config.id }, { botId: null }]
+                        },
+                        select: { triggerCommand: true, name: true, botId: true },
+                        orderBy: { updatedAt: 'desc' }
+                    });
+
+                const scenarioByCommand = new Map<string, { triggerCommand: string | null; name: string | null; botId: string | null }>();
+                for (const scenario of scenarios) {
+                    const cmd = String(scenario.triggerCommand || '').trim().toLowerCase();
+                    if (!cmd) continue;
+                    const prev = scenarioByCommand.get(cmd);
+                    if (!prev) {
+                        scenarioByCommand.set(cmd, scenario);
+                        continue;
+                    }
+                    const prevScoped = prev.botId === this.config.id;
+                    const nextScoped = scenario.botId === this.config.id;
+                    if (nextScoped && !prevScoped) {
+                        scenarioByCommand.set(cmd, scenario);
+                    }
+                }
+
+                for (const scenario of scenarioByCommand.values()) {
+                    const cmd = String(scenario.triggerCommand || '').trim().toLowerCase();
+                    if (!cmd) continue;
+                    addCommand(cmd, String(scenario.name || cmd));
+                }
             }
+
+            const menuButtons = Array.isArray((this.config.config as any)?.menuConfig?.buttons)
+                ? (this.config.config as any).menuConfig.buttons
+                : [];
+            for (const btn of menuButtons) {
+                if (!btn || typeof btn !== 'object') continue;
+                if (btn.type !== 'TEXT' && btn.type !== 'COMMAND') continue;
+                const value = String(btn.value || '').trim();
+                if (!value.startsWith('/')) continue;
+                const label = btn.label_uk || btn.label || btn.label_ru || value;
+                addCommand(value, label);
+            }
+
+            const enableLegacyB2BCommands = String(process.env.TELEGRAM_B2B_LEGACY_FALLBACK || 'false').toLowerCase() === 'true';
+            if (this.config.template === 'B2B' && enableLegacyB2BCommands) {
+                if (!commandMap.has('request')) {
+                    commandMap.set('request', 'Створити запит');
+                }
+                if (!commandMap.has('help')) commandMap.set('help', 'Правила B2B');
+                if (!commandMap.has('setup_admin')) commandMap.set('setup_admin', 'Налаштувати чат адміністратора');
+                if (!commandMap.has('setup_channel')) commandMap.set('setup_channel', 'Налаштувати канал публікацій');
+            }
+
+            const commands = Array.from(commandMap.entries()).map(([command, description]) => ({
+                command,
+                description
+            }));
             await axios.post(`https://api.telegram.org/bot${this.config.token}/setMyCommands`, { commands });
+
+            // Keep Telegram chat menu button aligned with current mini app URL.
+            const miniAppUrl = buildMiniAppUrl(this.config as any, {});
+            if (miniAppUrl) {
+                const menuText = String((this.config.config as any)?.menuButtonText || 'Відкрити застосунок').trim() || 'Відкрити застосунок';
+                await axios.post(`https://api.telegram.org/bot${this.config.token}/setChatMenuButton`, {
+                    menu_button: {
+                        type: 'web_app',
+                        text: menuText.slice(0, 64),
+                        web_app: { url: miniAppUrl }
+                    }
+                });
+            }
         } catch (e: any) {
             const status = e?.response?.status;
             if (status === 401 || status === 404) {
@@ -228,16 +309,18 @@ class BotInstance {
 
 
     private async processUpdate(update: any) {
-        // HACK: Intercept "Offer Flow" before pipeline
-        const msg = update.message || update.callback_query?.message;
-        const chatId = msg?.chat?.id?.toString?.();
-
-        if (chatId) {
-            const session = await this.ensureSession(update);
-            if (session && session.state.startsWith('OFFER_')) {
-                const text = update.message?.text || '';
-                await this.handleOfferFlow(update, chatId, text, session);
-                return; // Skip pipeline
+        const allowLegacyOfferFlow = String(process.env.TELEGRAM_LEGACY_OFFER_FLOW_FALLBACK || 'false').toLowerCase() === 'true';
+        if (allowLegacyOfferFlow) {
+            // Legacy fallback path kept behind feature-flag for one release cycle.
+            const msg = update.message || update.callback_query?.message;
+            const chatId = msg?.chat?.id?.toString?.();
+            if (chatId) {
+                const session = await this.ensureSession(update);
+                if (session && session.state.startsWith('OFFER_')) {
+                    const text = update.message?.text || '';
+                    await this.handleOfferFlow(update, chatId, text, session);
+                    return;
+                }
             }
         }
 
@@ -273,8 +356,8 @@ class BotInstance {
         switch (payload.type) {
             case 'dealer_invite':
                 // Dealer joining from channel post
-                await this.sendMessage(chatId, `🤝 <b>Welcome, Dealer!</b>\n\nYou've been invited to join our partner network.\n\nPlease share your contact to proceed.`, {
-                    keyboard: [[{ text: "📱 Share Contact", request_contact: true }]], resize_keyboard: true
+                await this.sendMessage(chatId, `🤝 <b>Вітаємо, партнере!</b>\n\nВас запрошено до партнерської мережі.\n\nПоділіться контактом, щоб продовжити.`, {
+                    keyboard: [[{ text: "📱 Поділитися контактом", request_contact: true }]], resize_keyboard: true
                 });
                 await this.updateSession(session.id, 'DEALER_ONBOARDING', {
                     role: 'DEALER',
@@ -291,22 +374,22 @@ class BotInstance {
                         include: { variants: true }
                     });
                     if (request) {
-                        await this.sendMessage(chatId, `📋 <b>Request: ${request.title}</b>\n\n${request.description || ''}\n\n💰 Budget: $${request.budgetMin}-${request.budgetMax}\n📅 Year: ${request.yearMin}-${request.yearMax}\n📍 ${request.city || 'Any'}`);
+                        await this.sendMessage(chatId, `📋 <b>Запит: ${request.title}</b>\n\n${request.description || ''}\n\n💰 Бюджет: $${request.budgetMin}-${request.budgetMax}\n📅 Рік: ${request.yearMin}-${request.yearMax}\n📍 ${request.city || 'Будь-яке місто'}`);
                         if (request.variants.length > 0) {
-                            await this.sendMessage(chatId, `Found ${request.variants.length} options. Contact us to view.`);
+                            await this.sendMessage(chatId, `Знайдено варіантів: ${request.variants.length}. Напишіть менеджеру для перегляду.`);
                         }
                     } else {
-                        await this.sendMessage(chatId, `❌ Request not found or expired.`);
+                        await this.sendMessage(chatId, `❌ Запит не знайдено або він уже неактуальний.`);
                     }
                 } catch (e) {
                     logger.error('[DeepLink] Failed to load request:', e);
-                    await this.sendMessage(chatId, `⚠️ Error loading request.`);
+                    await this.sendMessage(chatId, `⚠️ Не вдалося завантажити запит.`);
                 }
                 break;
 
             case 'offer':
                 // Offer notification from dealer to client OR Dealer entering Offer Flow
-                await this.sendMessage(chatId, `👷 <b>Submit Offer for Request #${payload.id}</b>\n\nPlease enter your price (USD):`);
+                await this.sendMessage(chatId, `👷 <b>Подання варіанту для запиту #${payload.id}</b>\n\nВведіть вашу ціну (USD):`);
                 await this.updateSession(session.id, 'OFFER_PRICE', {
                     offerFlow: { requestId: payload.id }
                 });
@@ -314,7 +397,7 @@ class BotInstance {
 
             default:
                 // Unknown payload, proceed to regular flow
-                await this.sendMessage(chatId, `👋 Welcome! Use /start to begin.`);
+                await this.sendMessage(chatId, `👋 Вітаємо! Використайте /start, щоб почати.`);
         }
     }
 
@@ -511,29 +594,29 @@ class BotInstance {
         if (state === 'OFFER_PRICE') {
             const price = parseInt(text.replace(/[^\d]/g, ''), 10);
             if (!price || price < 100) {
-                await this.sendMessage(chatId, "⚠️ Please enter a valid price in USD (e.g. 15000).");
+                await this.sendMessage(chatId, "⚠️ Введіть коректну ціну в USD (наприклад 15000).");
                 return;
             }
             flow.price = price;
             await this.updateSession(session.id, 'START', {});
-            await this.sendMessage(chatId, "📝 Add a short description (Color, Mileage, Condition):");
+            await this.sendMessage(chatId, "📝 Додайте короткий опис (колір, пробіг, стан):");
             return;
         }
 
         if (state === 'OFFER_DESC') {
             if (text.length < 5) {
-                await this.sendMessage(chatId, "Please add a bit more detail.");
+                await this.sendMessage(chatId, "Додайте трохи більше деталей.");
                 return;
             }
             flow.description = text;
             await this.updateSession(session.id, 'OFFER_CONFIRM', { offerFlow: flow });
 
-            const summary = `Request: #${flow.requestId}\nPrice: $${flow.price}\nDesc: ${flow.description}`;
+            const summary = `Запит: #${flow.requestId}\nЦіна: $${flow.price}\nОпис: ${flow.description}`;
 
-            await this.sendMessage(chatId, `✅ <b>Confirm Offer?</b>\n\n${summary}`, {
+            await this.sendMessage(chatId, `✅ <b>Підтвердити варіант?</b>\n\n${summary}`, {
                 inline_keyboard: [[
-                    { text: '🚀 Submit Offer', callback_data: 'OFFER_SUBMIT' },
-                    { text: '❌ Cancel', callback_data: 'OFFER_CANCEL' }
+                    { text: '🚀 Подати варіант', callback_data: 'OFFER_SUBMIT' },
+                    { text: '❌ Скасувати', callback_data: 'OFFER_CANCEL' }
                 ]]
             });
             return;
@@ -546,7 +629,7 @@ class BotInstance {
                 try {
                     // Check if request exists
                     const req = await prisma.b2bRequest.findFirst({ where: { publicId: flow.requestId } });
-                    if (!req) throw new Error("Request not found");
+                    if (!req) throw new Error("Запит не знайдено");
 
                     await prisma.requestVariant.create({
                         data: {
@@ -574,7 +657,7 @@ class BotInstance {
                 return;
             }
             if (data === 'OFFER_CANCEL') {
-                await this.sendMessage(chatId, "❌ Cancelled.");
+                await this.sendMessage(chatId, "❌ Скасовано.");
                 await this.updateSession(session.id, 'START', {});
                 return;
             }
@@ -584,11 +667,11 @@ class BotInstance {
     private async broadcastRequestToChannel(request: any) {
         if (!this.config.channelId) return;
 
-        const text = `📋 <b>NEW REQUEST ${request.publicId ? '#' + request.publicId : ''}</b>\n\n` +
+        const text = `📋 <b>НОВИЙ ЗАПИТ ${request.publicId ? '#' + request.publicId : ''}</b>\n\n` +
             `🚗 <b>${request.title}</b>\n` +
-            `💰 Budget: ${request.budgetMax ? '$' + request.budgetMax : 'Negotiable'}\n` +
-            `📍 ${request.city || 'Ukraine'}\n\n` +
-            `👇 <b>Have this car? Submit offer:</b>`;
+            `💰 Бюджет: ${request.budgetMax ? '$' + request.budgetMax : 'договірний'}\n` +
+            `📍 ${request.city || 'Україна'}\n\n` +
+            `👇 <b>Є авто? Подайте варіант:</b>`;
 
         const link = `https://t.me/${this.config.name}?start=offer_${request.publicId}`;
 
@@ -598,7 +681,7 @@ class BotInstance {
             chatId: this.config.channelId,
             text,
             replyMarkup: {
-                inline_keyboard: [[{ text: "🚀 Submit Offer", url: link }]]
+                inline_keyboard: [[{ text: "🚀 Подати варіант", url: link }]]
             }
         });
     }
@@ -615,8 +698,8 @@ class BotInstance {
     // --- TEMPLATE LOGIC: CATALOG ---
     private async handleCatalogBot(msg: any, chatId: string, text: string, session: any) {
         if (text === '/start') {
-            await this.sendMessage(chatId, "🔍 <b>Catalog Search</b>\nUse menu below.", {
-                keyboard: [[{ text: "🔎 Find" }, { text: "💵 Sell" }]], resize_keyboard: true
+            await this.sendMessage(chatId, "🔍 <b>Пошук у каталозі</b>\nСкористайтеся меню нижче.", {
+                keyboard: [[{ text: "🔎 Пошук" }, { text: "💵 Продаж" }]], resize_keyboard: true
             });
         }
     }
@@ -624,8 +707,8 @@ class BotInstance {
     // --- TEMPLATE LOGIC: B2B ---
     private async handleB2BBot(msg: any, chatId: string, text: string, session: any) {
         if (text === '/start') {
-            await this.sendMessage(chatId, "🤝 <b>Dealer Network</b>", {
-                keyboard: [[{ text: "📝 New Request" }]], resize_keyboard: true
+            await this.sendMessage(chatId, "🤝 <b>Партнерська мережа дилерів</b>", {
+                keyboard: [[{ text: "📝 Новий запит" }]], resize_keyboard: true
             });
         }
     }

@@ -1,0 +1,25 @@
+P0-2 Iteration 11 (2026-02-19)
+
+Extracted runtime/timing node handlers from ScenarioEngine executeNode:
+- apps/server/src/modules/Communication/bots/scenario-engine/actions/node-runtime.actions.ts
+
+Moved node handlers:
+- DELAY
+- GALLERY
+
+Behavior preservation:
+- `executeDelayNode` keeps scheduler handoff for long delays (>10s) with identical `scheduledJob` payload.
+- `executeGalleryNode` preserves gallery card rendering cadence and keyboard behavior.
+
+ScenarioEngine delegate anchors:
+43:  executeDelayNode as executeDelayNodeAction,
+44:  executeGalleryNode as executeGalleryNodeAction
+769:      case 'DELAY': {
+770:        const delayResult = await executeDelayNodeAction({
+782:      case 'GALLERY': {
+783:        await executeGalleryNodeAction({ bot, session, vars, text, lang });
+
+Line counts after iteration 11:
+  882 apps/server/src/modules/Communication/bots/scenario.engine.ts
+   78 apps/server/src/modules/Communication/bots/scenario-engine/actions/node-runtime.actions.ts
+  960 total

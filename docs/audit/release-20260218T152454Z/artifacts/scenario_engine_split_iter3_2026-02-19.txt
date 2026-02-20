@@ -1,0 +1,23 @@
+P0-2 Iteration 3 (2026-02-19)
+
+Extracted large handleUpdate branches from ScenarioEngine:
+- apps/server/src/modules/Communication/bots/scenario-engine/actions/dealer-flow.actions.ts
+- apps/server/src/modules/Communication/bots/scenario-engine/actions/callback.actions.ts
+
+Moved logic:
+- Legacy dealer flow state machine (INIT -> AWAIT_* -> CONFIRM -> DEALER_SEND/DEALER_EDIT)
+- Callback query processing (B2BVAR/VARIANT/SCN:CHOICE/CAR:*/CMD:BACK)
+
+ScenarioEngine now delegates via coordinator closures:
+- handleDealerFlowAction(...) from handleUpdate
+- handleCallbackQueryAction(...) from handleUpdate
+
+Line counts after iteration 3:
+ 1654 apps/server/src/modules/Communication/bots/scenario.engine.ts
+  378 apps/server/src/modules/Communication/bots/scenario-engine/actions/dealer-flow.actions.ts
+  190 apps/server/src/modules/Communication/bots/scenario-engine/actions/callback.actions.ts
+ 2222 total
+
+Delegate anchors in scenario.engine.ts:
+360:    const handleDealerFlow = async () => {
+426:      const handledCallback = await handleCallbackQueryAction({

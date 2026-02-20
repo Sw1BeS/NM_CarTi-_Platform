@@ -9,7 +9,7 @@ export const resolveLang = (ctx: PipelineContext): Lang => {
   const raw = String(ctx.locale || '').toUpperCase();
   if (raw.startsWith('UK') || raw.startsWith('UA')) return 'UK';
   if (raw.startsWith('RU')) return 'RU';
-  return 'EN';
+  return 'UK';
 };
 
 const TEXT: Record<string, Record<Lang, string>> = {

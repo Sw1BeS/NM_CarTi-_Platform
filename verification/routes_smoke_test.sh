@@ -3,8 +3,8 @@
 
 set -euo pipefail
 
-FRONTEND_URL=${1:-"http://localhost:3000"}
-BACKEND_URL=${2:-"http://localhost:3001"}
+FRONTEND_URL=${1:-${WEB_BASE_URL:-"http://localhost:8082"}}
+BACKEND_URL=${2:-${API_BASE_URL:-"http://localhost:3002"}}
 AUTH_TOKEN=${AUTH_TOKEN:-""}
 
 echo "Checking Routes..."

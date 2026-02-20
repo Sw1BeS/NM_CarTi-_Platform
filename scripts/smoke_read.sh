@@ -1,18 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-DEFAULT_PORT="3001"
-
-if [ -z "${BASE_URL:-}" ]; then
-  if [ -f "$ROOT_DIR/.env" ]; then
-    PORT_LINE=$(grep -E '^PORT=' "$ROOT_DIR/.env" | tail -n1 || true)
-    if [ -n "$PORT_LINE" ]; then
-      DEFAULT_PORT="${PORT_LINE#PORT=}"
-    fi
-  fi
-  BASE_URL="http://127.0.0.1:${DEFAULT_PORT}"
-fi
+BASE_URL="${BASE_URL:-${API_BASE_URL:-http://127.0.0.1:3002}}"
 
 AUTH_TOKEN="${AUTH_TOKEN:-}"
 

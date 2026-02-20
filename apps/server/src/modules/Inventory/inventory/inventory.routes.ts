@@ -155,7 +155,7 @@ router.put('/:id', requireRole(['ADMIN', 'MANAGER']), async (req, res) => {
         if (!existing) return errorResponse(res, 404, 'Car not found');
         if (!isSuperadmin) {
             if (existing.companyId && existing.companyId !== userCompanyId) return errorResponse(res, 403, 'Forbidden');
-            if (!existing.companyId && userCompanyId !== 'company_system') return errorResponse(res, 403, 'Forbidden');
+            if (!existing.companyId) return errorResponse(res, 403, 'Forbidden');
         }
 
         const { id: _id, createdAt, updatedAt, ...raw } = req.body;
@@ -181,7 +181,7 @@ router.delete('/:id', requireRole(['ADMIN']), async (req, res) => {
         if (!existing) return errorResponse(res, 404, 'Car not found');
         if (!isSuperadmin) {
             if (existing.companyId && existing.companyId !== userCompanyId) return errorResponse(res, 403, 'Forbidden');
-            if (!existing.companyId && userCompanyId !== 'company_system') return errorResponse(res, 403, 'Forbidden');
+            if (!existing.companyId) return errorResponse(res, 403, 'Forbidden');
         }
 
         await carRepo.deleteCar(id);

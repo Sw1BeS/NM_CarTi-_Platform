@@ -1,6 +1,11 @@
 import { prisma } from '../src/services/prisma.js';
 import { DEFAULT_NAVIGATION } from '../src/modules/Core/system/defaults.js';
 
+if (process.env.ALLOW_DEPRECATED !== '1') {
+  console.error('[DEPRECATED] patch_nav_leads.ts is one-off and frozen. Set ALLOW_DEPRECATED=1 to run intentionally.');
+  process.exit(1);
+}
+
 const normalizeNavigation = (nav: any) => {
   const primary = Array.isArray(nav?.primary)
     ? nav.primary

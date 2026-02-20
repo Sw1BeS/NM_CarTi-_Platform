@@ -1,0 +1,17 @@
+apps/web/src/contexts/WorkerContext.tsx:91	POST	messages/send
+apps/web/src/modules/Telegram/SourcesDestinations/index.tsx:124	POST	integrations/telegram/registry
+apps/web/src/modules/Telegram/MTProtoSources/ParsingRuleEditor.tsx:42	POST	integrations/parsing/preview
+apps/web/src/modules/Telegram/MTProtoSources/index.tsx:63	POST	integrations/mtproto/connectors
+apps/web/src/pages/public/Login.tsx:36	GET	/health
+apps/web/src/pages/app/Settings.tsx:442	GET	/health
+apps/web/src/pages/app/Inbox.tsx:265	POST	messages/logs
+apps/web/src/pages/app/TelegramHub.tsx:249	GET	integrations/mtproto/stats
+apps/web/src/services/botEngine.ts:1209	POST	messages/send
+apps/web/src/services/serverAdapter.ts:38	GET	health
+apps/web/src/services/serverAdapter.ts:255	POST	messages
+apps/web/src/services/serverAdapter.ts:389	PUT	system/settings
+apps/web/src/services/serverAdapter.ts:464	POST	integrations/mtproto/connectors
+apps/web/src/services/serverAdapter.ts:472	POST	integrations/mtproto/auth/send-code
+apps/web/src/services/serverAdapter.ts:477	POST	integrations/mtproto/auth/sign-in
+apps/web/src/services/data.ts:226	POST	parser/preview
+apps/web/src/services/data.ts:239	POST	parser/mapping

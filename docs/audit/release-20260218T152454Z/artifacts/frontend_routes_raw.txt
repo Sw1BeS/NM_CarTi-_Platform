@@ -1,0 +1,30 @@
+78:                      <Route path="/login" element={<Login />} />
+79:                      <Route path="/p/request" element={<PublicRequest />} />
+81:                      <Route path="/p/app" element={<MiniApp />} />
+82:                      <Route path="/p/app/:slug" element={<MiniApp />} />
+83:                      <Route path="/p/dealer" element={<DealerPortal />} />
+84:                      <Route path="/p/proposal/:id" element={<ClientProposal />} />
+87:                      <Route path="/" element={<ProtectedRoute path="/"><Dashboard /></ProtectedRoute>} />
+88:                      <Route path="/inbox" element={<ProtectedRoute path="/inbox"><InboxPage /></ProtectedRoute>} />
+89:                      <Route path="/requests" element={<ProtectedRoute path="/requests"><RequestList /></ProtectedRoute>} />
+91:                      <Route path="/telegram" element={<ProtectedRoute path="/telegram"><TelegramHub /></ProtectedRoute>} />
+92:                      <Route path="/telegram/sources" element={<ProtectedRoute path="/telegram"><TelegramSources /></ProtectedRoute>} />
+93:                      <Route path="/scenarios" element={<ProtectedRoute path="/scenarios"><Navigate to="/telegram?tab=FLOWS" replace /></ProtectedRoute>} />
+94:                      <Route path="/leads" element={<ProtectedRoute path="/leads"><Leads /></ProtectedRoute>} />
+95:                      <Route path="/search" element={<ProtectedRoute path="/search"><SearchPage /></ProtectedRoute>} />
+96:                      <Route path="/inventory" element={<ProtectedRoute path="/inventory"><InventoryPage /></ProtectedRoute>} />
+97:                      <Route path="/companies" element={<ProtectedRoute path="/companies"><CompaniesPage /></ProtectedRoute>} />
+98:                      <Route path="/entities" element={<ProtectedRoute path="/entities"><EntitiesPage /></ProtectedRoute>} />
+99:                      <Route path="/settings" element={<ProtectedRoute path="/settings"><SettingsPage /></ProtectedRoute>} />
+100:                      <Route path="/content" element={<ProtectedRoute path="/content"><ContentPage /></ProtectedRoute>} />
+101:                      <Route path="/calendar" element={<ProtectedRoute path="/calendar"><ContentCalendarPage /></ProtectedRoute>} />
+102:                      <Route path="/partners" element={<ProtectedRoute path="/partners"><PartnersPage /></ProtectedRoute>} />
+103:                      <Route path="/company" element={<ProtectedRoute path="/company"><CompanySettingsPage /></ProtectedRoute>} />
+104:                      <Route path="/help" element={<ProtectedRoute path="/help"><HelpPage /></ProtectedRoute>} />
+105:                      <Route path="/integrations" element={<ProtectedRoute path="/integrations"><IntegrationsLayout /></ProtectedRoute>}>
+107:                        <Route path="mtproto" element={<MTProtoIntegration />} />
+108:                        <Route path=":type" element={<IntegrationEditor />} />
+110:                      <Route path="/qa" element={<ProtectedRoute path="/qa"><QAStageA /></ProtectedRoute>} />
+111:                      <Route path="/health" element={<ProtectedRoute path="/health"><HealthPage /></ProtectedRoute>} />
+112:                      <Route path="/superadmin/*" element={<ProtectedRoute path="/superadmin"><SuperadminRoutes /></ProtectedRoute>} />
+114:                      <Route path="*" element={<NotFound />} />

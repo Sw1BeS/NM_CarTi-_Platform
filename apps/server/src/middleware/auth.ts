@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { verifyJwt, JwtUserPayload } from '../config/jwt.js';
 import { errorResponse } from '../utils/errorResponse.js';
+import { resolveTenantContext } from '../utils/tenantContext.js';
 
 export interface AuthRequest extends Request {
   user?: JwtUserPayload;
@@ -12,8 +13,18 @@ export interface AuthRequest extends Request {
 const normalizeJwtPayload = (raw: any): JwtUserPayload => {
   const userId = raw?.userId ? String(raw.userId) : '';
   const role = raw?.role ? String(raw.role) : '';
-  const companyId = raw?.companyId ? String(raw.companyId) : raw?.workspaceId ? String(raw.workspaceId) : '';
-  const workspaceId = raw?.workspaceId ? String(raw.workspaceId) : raw?.companyId ? String(raw.companyId) : '';
+  const rawCompanyId = raw?.companyId ? String(raw.companyId) : '';
+  const rawWorkspaceId = raw?.workspaceId ? String(raw.workspaceId) : '';
+  if (rawCompanyId && rawWorkspaceId && rawCompanyId !== rawWorkspaceId) {
+    throw new Error('Invalid token tenant payload');
+  }
+  const tenant = resolveTenantContext({
+    role,
+    companyId: rawCompanyId,
+    workspaceId: rawWorkspaceId
+  });
+  const companyId = tenant.companyId;
+  const workspaceId = tenant.workspaceId;
   const globalUserId = raw?.globalUserId ? String(raw.globalUserId) : userId;
 
   if (!userId || !role || !companyId || !workspaceId) {

@@ -1,0 +1,14 @@
+P0-5 Security Preflight (2026-02-19)
+
+Implemented:
+- infra/security_preflight.sh
+  - validates JWT_SECRET presence/strength
+  - blocks insecure JWT defaults
+  - requires TELEGRAM_WEBHOOK_SECRET when TELEGRAM_BOT_TOKEN exists
+  - requires strong seed passwords when RUN_SEED=1
+- infra/deploy_prod.sh now invokes security preflight in preflight stage.
+- apps/server/src/config/jwt.ts now rejects missing JWT_SECRET outside test env and rejects weak production secret.
+
+Verification:
+- bash infra/security_preflight.sh --env-file /srv/cartie/.env --run-seed 0 -> OK
+- bash infra/security_preflight.sh --env-file /srv/cartie/.env --run-seed 1 -> OK

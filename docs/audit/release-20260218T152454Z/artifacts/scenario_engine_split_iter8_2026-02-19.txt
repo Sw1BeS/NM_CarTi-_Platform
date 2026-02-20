@@ -1,0 +1,28 @@
+P0-2 Iteration 8 (2026-02-19)
+
+Extracted non-action node executors from ScenarioEngine executeNode:
+- apps/server/src/modules/Communication/bots/scenario-engine/actions/node-broadcast.actions.ts
+
+Moved node handlers:
+- SEARCH_CARS
+- SEARCH_FALLBACK
+- CHANNEL_POST
+- REQUEST_BROADCAST
+- OFFER_COLLECT
+
+Result contracts:
+- `executeSearchCarsNode/executeSearchFallbackNode` mutate vars and continue.
+- `executeChannelPostNode/executeRequestBroadcastNode/executeOfferCollectNode` return `NodeExecutionResult` (`continue|halt`) to preserve legacy break semantics on validation failures.
+
+ScenarioEngine delegate anchors:
+28-32: imports execute*NodeAction from node-broadcast.actions.ts
+844:      case 'SEARCH_CARS': {
+861:      case 'SEARCH_FALLBACK': {
+878:      case 'CHANNEL_POST': {
+906:      case 'REQUEST_BROADCAST': {
+934:      case 'OFFER_COLLECT': {
+
+Line counts after iteration 8:
+  932 apps/server/src/modules/Communication/bots/scenario.engine.ts
+  232 apps/server/src/modules/Communication/bots/scenario-engine/actions/node-broadcast.actions.ts
+ 1164 total

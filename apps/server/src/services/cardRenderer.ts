@@ -21,13 +21,21 @@ export const renderVariantCard = (variant: any, opts: { includeContact?: boolean
   const contact = variant.contact || variant.specs?.contact;
   const fuel = variant.specs?.fuel;
   const condition = variant.specs?.condition;
+  const transmission = variant.specs?.transmission;
+  const drive = variant.specs?.drive;
+  const engine = variant.specs?.engine;
+  const color = variant.specs?.color;
   const note = truncateText(variant.specs?.note);
   const parts = [
     `🚗 <b>${(variant.title || 'Варіант').toUpperCase()}</b>`,
     price ? `💰 ${price.toLocaleString()} ${currency}` : null,
     variant.year ? `📅 ${variant.year}` : null,
     variant.mileage ? `🛣 ${formatMileage(variant.mileage)}` : null,
+    engine ? `⚙️ ${engine}` : null,
     fuel ? `⛽ ${fuel}` : null,
+    transmission ? `🕹 ${transmission}` : null,
+    drive ? `🛞 ${drive}` : null,
+    color ? `🎨 ${color}` : null,
     condition ? `🛠 ${condition}` : null,
     variant.location ? `📍 ${variant.location}` : null,
     variant.specs?.vin ? `🔑 VIN: ${variant.specs.vin}` : null,
@@ -88,9 +96,9 @@ export const renderLeadCard = (lead: any) => {
 
 export const renderCarListingCard = (car: any, lang: string = 'EN') => {
   const t = {
-    EN: { mileage: 'km', price: 'Price', vin: 'VIN' },
-    UK: { mileage: 'км', price: 'Ціна', vin: 'VIN' },
-    RU: { mileage: 'км', price: 'Цена', vin: 'VIN' }
+    EN: { mileage: 'km', vin: 'VIN' },
+    UK: { mileage: 'км', vin: 'VIN' },
+    RU: { mileage: 'км', vin: 'VIN' }
   } as const;
 
   const loc = t[lang as keyof typeof t] || t.EN;
@@ -102,8 +110,11 @@ export const renderCarListingCard = (car: any, lang: string = 'EN') => {
   const parts: string[] = [`🚗 <b>${(header || rawTitle).toUpperCase()}</b>`];
   if (car.mileage) parts.push(`🛣 ${Math.round(car.mileage / 1000)} ${loc.mileage}`);
   if (car.specs?.engine) parts.push(`⚙️ ${car.specs.engine}`);
+  if (car.specs?.fuel) parts.push(`⛽ ${car.specs.fuel}`);
   if (car.specs?.drive) parts.push(`🛞 ${car.specs.drive}`);
   if (car.specs?.transmission) parts.push(`🕹 ${car.specs.transmission}`);
+  if (car.location) parts.push(`📍 ${car.location}`);
+  if (car.specs?.condition) parts.push(`🛠 ${car.specs.condition}`);
   if (car.specs?.vin) parts.push(`🔑 ${loc.vin}: ${car.specs.vin}`);
 
   const priceObj = car.price && typeof car.price === 'object' ? car.price : { amount: car.price };

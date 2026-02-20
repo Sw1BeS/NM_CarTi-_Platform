@@ -29,6 +29,8 @@ export interface CarCard {
     sourceId?: string;
     sourceUrl: string;
     title: string;
+    brand?: string;
+    model?: string;
     price: { amount: number; currency: 'USD' | 'EUR' | 'UAH' };
     year: number;
     mileage: number;
@@ -37,12 +39,15 @@ export interface CarCard {
     mediaUrls?: string[];
     mediaItems?: Array<{ url?: string; previewUrl?: string; tgFileId?: string; tgMeta?: any; source?: string }>;
     specs: {
+        brand?: string;
+        model?: string;
         engine?: string;
         transmission?: string;
         fuel?: string;
         vin?: string;
         drive?: string;
         color?: string;
+        condition?: string;
     };
     description?: string;
     status: 'AVAILABLE' | 'RESERVED' | 'SOLD' | 'PENDING' | 'HIDDEN';

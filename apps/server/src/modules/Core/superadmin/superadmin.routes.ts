@@ -9,7 +9,7 @@ import { ClientManagerService } from './client-manager.service.js';
 import { companyContext } from '../../../middleware/companyContext.js';
 import { authenticateToken, requireRole } from '../../../middleware/auth.js';
 import { signJwt } from '../../../config/jwt.js';
-import { getWorkspaceById, getWorkspaceBySlug } from '../../../services/v41/readService.js';
+import { getWorkspaceById } from '../../../services/v41/readService.js';
 import { errorResponse } from '../../../utils/errorResponse.js';
 
 const router = Router();
@@ -204,9 +204,7 @@ router.post('/impersonate', async (req: any, res) => {
         }
 
         if (!resolvedCompanyId || !resolvedWorkspaceId) {
-            const systemWorkspace = await getWorkspaceById('company_system') || await getWorkspaceBySlug('system');
-            resolvedCompanyId = resolvedCompanyId || systemWorkspace?.id || 'company_system';
-            resolvedWorkspaceId = resolvedWorkspaceId || resolvedCompanyId;
+            return errorResponse(res, 400, 'Target user has no tenant context');
         }
 
         const payload = {

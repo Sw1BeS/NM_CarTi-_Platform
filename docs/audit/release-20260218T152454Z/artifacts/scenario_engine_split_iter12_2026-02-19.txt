@@ -1,0 +1,28 @@
+P0-2 Iteration 12 (2026-02-19)
+
+Extracted session orchestration from ScenarioEngine into runtime flow module:
+- apps/server/src/modules/Communication/bots/scenario-engine/runtime/session-flow.ts
+
+Moved orchestration branches:
+- handleInput (active scenario input resolver + completion flow)
+- startScenario (scenario bootstrap + user context capture + entry-node execution)
+
+Behavior preservation:
+- `handleInputRuntime` keeps active-node guards, localized choice matching, REQUEST_CONTACT behavior, and end-of-flow completion semantics.
+- `startScenarioRuntime` keeps scenario activation checks, user metadata capture from update payload, and identical entry-node resolution strategy.
+
+ScenarioEngine delegate anchors:
+55: import { handleInputRuntime, startScenarioRuntime } from './scenario-engine/runtime/session-flow.js';
+510: static async handleInput(...)
+511:   return handleInputRuntime({ ... })
+524: static async startScenario(...)
+525:   return startScenarioRuntime({ ... })
+
+Runtime exports:
+35: export const handleInputRuntime = async ({ ... })
+114: export const startScenarioRuntime = async ({ ... })
+
+Line counts after iteration 12:
+  800 apps/server/src/modules/Communication/bots/scenario.engine.ts
+  162 apps/server/src/modules/Communication/bots/scenario-engine/runtime/session-flow.ts
+  962 total

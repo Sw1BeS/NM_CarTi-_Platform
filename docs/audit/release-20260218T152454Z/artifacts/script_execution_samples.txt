@@ -1,0 +1,162 @@
+2026-02-18 npx tsx apps/server/scripts/check_users.ts (workdir apps/server) -> exit 0
+2026-02-18 npx tsx apps/server/scripts/qa_smoke.ts (workdir apps/server) -> exit 1 (ERR_MODULE_NOT_FOUND: src/modules/telegram/utils/miniappPayload.js)
+2026-02-18 npx tsx apps/server/scripts/verify_routes.ts (workdir apps/server) -> exit 0 (prints /api/v1/entities prefix, drift from runtime mount /api/entities)
+2026-02-18 npx tsx apps/server/src/scripts/mtproto_qa.ts (workdir apps/server) -> exit 0 (6/7 cases passed)
+2026-02-18 npx tsx apps/server/scripts/test_parsing_service.ts (workdir apps/server) -> exit 0
+2026-02-18 bash scripts/smoke_read.sh BASE_URL=http://127.0.0.1:3002 -> exit 0
+2026-02-18 bash scripts/smoke.sh API_BASE_URL=http://127.0.0.1:3002 -> exit 0 (high false-positive tolerance)
+2026-02-18 bash verification/routes_smoke_test.sh http://127.0.0.1:8082 http://127.0.0.1:3002 -> exit 0
+2026-02-18 bash verification/smoke_test_basic.sh -> exit 0 despite endpoint failures (no strict fail policy)
+2026-02-18 bash verification/check_showcase.sh http://127.0.0.1:3002/api/showcase/public system -> exit 0
+2026-02-19 npx tsx apps/server/scripts/verify_routes.ts (workdir /srv/cartie) -> exit 0 (prefix updated to /api/entities)
+2026-02-19 npx tsx apps/server/scripts/qa_smoke.ts (workdir /srv/cartie) -> exit 0
+2026-02-19 bash verification/smoke_test_basic.sh (workdir /srv/cartie) -> exit 0 (strict fail-fast enabled)
+2026-02-19 npx tsx apps/server/scripts/debug_orphans.ts (workdir /srv/cartie) -> exit 0 (default dry-run mode)
+2026-02-19 bash scripts/smoke.sh (workdir /srv/cartie) -> exit 0 (strict status matrix)
+2026-02-19 bash scripts/verify-deployment.sh (workdir /srv/cartie) -> exit 0 (public checks pass, auth checks skipped without token)
+2026-02-19 npx tsx apps/server/scripts/verify_routes.ts (workdir /srv/cartie) -> exit 0 (includes legacyAdmin + legacyMessaging routers)
+2026-02-19 npx tsx apps/server/scripts/verify_routes.ts (workdir /srv/cartie) -> exit 0 (includes legacyAnalytics router)
+2026-02-19 npm --prefix apps/server run build -> exit 0 (after analytics/messages route extraction)
+2026-02-19 npm --prefix apps/server test -> exit 0 (18 files, 40 tests)
+2026-02-19 bash scripts/smoke.sh -> exit 0
+2026-02-19 bash scripts/verify-deployment.sh -> exit 0 (public checks pass; auth checks skipped without token)
+2026-02-19 bash verification/smoke_test_basic.sh -> exit 0
+2026-02-19 npm --prefix apps/server run build -> exit 0 (after Telegram proxy/file route extraction)
+2026-02-19 npm --prefix apps/server test -> exit 0 (18 files, 40 tests)
+2026-02-19 npx tsx apps/server/scripts/verify_routes.ts -> exit 0 (includes legacyTelegramProxy router)
+2026-02-19 bash scripts/smoke.sh -> exit 0
+2026-02-19 bash scripts/verify-deployment.sh -> exit 0
+2026-02-19 bash verification/smoke_test_basic.sh -> exit 0
+2026-02-19 npm --prefix apps/server run build -> exit 0 (after scenarios route extraction)
+2026-02-19 npm --prefix apps/server test -> exit 0 (18 files, 40 tests)
+2026-02-19 npx tsx apps/server/scripts/verify_routes.ts -> exit 0 (includes legacyScenarios router)
+2026-02-19 bash scripts/smoke.sh -> exit 0
+2026-02-19 bash scripts/verify-deployment.sh -> exit 0
+2026-02-19 bash verification/smoke_test_basic.sh -> exit 0
+2026-02-19 npm --prefix apps/server run build -> exit 0 (after campaigns + drafts route extraction)
+2026-02-19 npm --prefix apps/server test -> exit 0 (18 files, 40 tests)
+2026-02-19 npx tsx apps/server/scripts/verify_routes.ts -> exit 0 (includes legacyCampaigns + legacyDrafts routers)
+2026-02-19 bash scripts/smoke.sh -> exit 0
+2026-02-19 bash scripts/verify-deployment.sh -> exit 0
+2026-02-19 bash verification/smoke_test_basic.sh -> exit 0
+2026-02-19 npm --prefix apps/server run build -> exit 0 (after leads route extraction)
+2026-02-19 npm --prefix apps/server test -> exit 0 (18 files, 40 tests)
+2026-02-19 npx tsx apps/server/scripts/verify_routes.ts -> exit 0 (includes legacyLeads router)
+2026-02-19 bash scripts/smoke.sh -> exit 0
+2026-02-19 bash scripts/verify-deployment.sh -> exit 0
+2026-02-19 bash verification/smoke_test_basic.sh -> exit 0
+2026-02-19 npm --prefix apps/server run build -> exit 0 (after bots + content route extraction)
+2026-02-19 npm --prefix apps/server test -> exit 0 (18 files, 40 tests)
+2026-02-19 npx tsx apps/server/scripts/verify_routes.ts -> exit 0 (includes legacyBots + legacyContent routers)
+2026-02-19 bash scripts/smoke.sh -> exit 0
+2026-02-19 bash scripts/verify-deployment.sh -> exit 0
+2026-02-19 bash verification/smoke_test_basic.sh -> exit 0
+2026-02-19 npm --prefix apps/server run build -> exit 0 (after scenario.engine split iteration 1)
+2026-02-19 npm --prefix apps/server test -> exit 0 (18 files, 40 tests)
+2026-02-19 npx tsx apps/server/scripts/verify_routes.ts -> exit 0 (route registry unchanged, 90 root routes)
+2026-02-19 bash scripts/smoke.sh -> exit 0
+2026-02-19 bash scripts/verify-deployment.sh -> exit 0
+2026-02-19 bash verification/smoke_test_basic.sh -> exit 0
+2026-02-19 npm --prefix apps/server run build -> exit 0 (after scenario.engine split iteration 2: session actions extraction)
+2026-02-19 npm --prefix apps/server test -> exit 0 (18 files, 40 tests)
+2026-02-19 npx tsx apps/server/scripts/verify_routes.ts -> exit 0 (route registry unchanged, 90 root routes)
+2026-02-19 bash scripts/smoke.sh -> exit 0
+2026-02-19 bash scripts/verify-deployment.sh -> exit 0
+2026-02-19 bash verification/smoke_test_basic.sh -> exit 0
+2026-02-19 npm --prefix apps/server run build -> exit 0 (after scenario.engine split iteration 3: dealer-flow + callback extraction)
+2026-02-19 npm --prefix apps/server test -> exit 0 (18 files, 40 tests)
+2026-02-19 npx tsx apps/server/scripts/verify_routes.ts -> exit 0 (route registry unchanged, 90 root routes)
+2026-02-19 bash scripts/smoke.sh -> exit 0
+2026-02-19 bash scripts/verify-deployment.sh -> exit 0
+2026-02-19 bash verification/smoke_test_basic.sh -> exit 0
+2026-02-19 npm --prefix apps/server run build -> exit 0 (after scenario.engine split iteration 4: web_app_data + start entrypoint extraction)
+2026-02-19 npm --prefix apps/server test -> exit 0 (18 files, 40 tests)
+2026-02-19 npx tsx apps/server/scripts/verify_routes.ts -> exit 0 (route registry unchanged, 90 root routes)
+2026-02-19 bash scripts/smoke.sh -> exit 0
+2026-02-19 bash scripts/verify-deployment.sh -> exit 0
+2026-02-19 bash verification/smoke_test_basic.sh -> exit 0
+2026-02-19 npm --prefix apps/server run build -> exit 0 (after scenario.engine split iteration 5: legacy setup-branch cleanup)
+2026-02-19 npm --prefix apps/server test -> exit 0 (18 files, 40 tests)
+2026-02-19 bash scripts/smoke.sh -> exit 0
+2026-02-19 npx tsx apps/server/scripts/verify_routes.ts -> exit 0 (route registry unchanged, 90 root routes)
+2026-02-19 bash scripts/verify-deployment.sh -> exit 0
+2026-02-19 bash verification/smoke_test_basic.sh -> exit 0
+2026-02-19 npm --prefix apps/server run build -> exit 0 (after scenario.engine split iteration 6: setup flow extraction)
+2026-02-19 npm --prefix apps/server test -> exit 0 (18 files, 40 tests)
+2026-02-19 bash scripts/smoke.sh -> exit 0
+2026-02-19 npx tsx apps/server/scripts/verify_routes.ts -> exit 0 (route registry unchanged, 90 root routes)
+2026-02-19 bash scripts/verify-deployment.sh -> exit 0
+2026-02-19 bash verification/smoke_test_basic.sh -> exit 0
+2026-02-19 npm --prefix apps/server run build -> exit 0 (after scenario.engine split iteration 7: ACTION node extraction)
+2026-02-19 npm --prefix apps/server test -> exit 0 (18 files, 40 tests)
+2026-02-19 npx tsx apps/server/scripts/verify_routes.ts -> exit 0 (route registry unchanged, 90 root routes)
+2026-02-19 bash scripts/smoke.sh -> exit 0
+2026-02-19 bash scripts/verify-deployment.sh -> exit 0
+2026-02-19 bash verification/smoke_test_basic.sh -> exit 0
+2026-02-19 npm --prefix apps/server run build -> exit 0 (after scenario.engine split iteration 8: SEARCH/CHANNEL/BROADCAST node extraction)
+2026-02-19 npm --prefix apps/server test -> exit 0 (18 files, 40 tests)
+2026-02-19 bash scripts/smoke.sh -> exit 0
+2026-02-19 npx tsx apps/server/scripts/verify_routes.ts -> exit 0 (route registry unchanged, 90 root routes)
+2026-02-19 bash scripts/verify-deployment.sh -> exit 0
+2026-02-19 bash verification/smoke_test_basic.sh -> exit 0
+2026-02-19 npm --prefix apps/server run build -> exit 0 (after scenario.engine split iteration 9: lifecycle completion dedup)
+2026-02-19 npm --prefix apps/server test -> exit 0 (18 files, 40 tests)
+2026-02-19 bash scripts/smoke.sh -> exit 0
+2026-02-19 npx tsx apps/server/scripts/verify_routes.ts -> exit 0 (route registry unchanged, 90 root routes)
+2026-02-19 bash scripts/verify-deployment.sh -> exit 0
+2026-02-19 bash verification/smoke_test_basic.sh -> exit 0
+2026-02-19 npm --prefix apps/server run build -> exit 0 (after scenario.engine split iteration 10: interaction node extraction)
+2026-02-19 npm --prefix apps/server test -> exit 0 (18 files, 40 tests)
+2026-02-19 bash scripts/smoke.sh -> exit 0
+2026-02-19 npx tsx apps/server/scripts/verify_routes.ts -> exit 0 (route registry unchanged, 90 root routes)
+2026-02-19 bash scripts/verify-deployment.sh -> exit 0
+2026-02-19 bash verification/smoke_test_basic.sh -> exit 0
+2026-02-19 npm --prefix apps/server run build -> exit 0 (after scenario.engine split iteration 11: delay/gallery runtime extraction)
+2026-02-19 npm --prefix apps/server test -> exit 0 (18 files, 40 tests)
+2026-02-19 bash scripts/smoke.sh -> exit 0
+2026-02-19 npx tsx apps/server/scripts/verify_routes.ts -> exit 0 (route registry unchanged, 90 root routes)
+2026-02-19 bash scripts/verify-deployment.sh -> exit 0
+2026-02-19 bash verification/smoke_test_basic.sh -> exit 0
+2026-02-19 npm --prefix apps/server run build -> exit 0 (after scenario.engine split iteration 12: handleInput/startScenario runtime delegation)
+2026-02-19 npm --prefix apps/server test -> exit 0 (18 files, 40 tests)
+2026-02-19 bash scripts/smoke.sh -> exit 0
+2026-02-19 npx tsx apps/server/scripts/verify_routes.ts -> exit 0 (route registry unchanged, 90 root routes)
+2026-02-19 bash scripts/verify-deployment.sh -> exit 0
+2026-02-19 bash verification/smoke_test_basic.sh -> exit 0
+2026-02-19 npm --prefix apps/server run build -> exit 0 (after scenario.engine split iteration 13: goBack runtime delegation)
+2026-02-19 npm --prefix apps/server test -> exit 0 (18 files, 40 tests)
+2026-02-19 bash scripts/smoke.sh -> exit 0
+2026-02-19 npx tsx apps/server/scripts/verify_routes.ts -> exit 0 (route registry unchanged, 90 root routes)
+2026-02-19 bash scripts/verify-deployment.sh -> exit 0
+2026-02-19 bash verification/smoke_test_basic.sh -> exit 0
+2026-02-19 npm --prefix apps/server run build -> exit 0 (after scenario.engine split iteration 14: executeNode runtime extraction)
+2026-02-19 npm --prefix apps/server test -> exit 0 (18 files, 40 tests)
+2026-02-19 bash scripts/smoke.sh -> exit 0
+2026-02-19 npx tsx apps/server/scripts/verify_routes.ts -> exit 0 (route registry unchanged, 90 root routes)
+2026-02-19 bash scripts/verify-deployment.sh -> exit 0
+2026-02-19 bash verification/smoke_test_basic.sh -> exit 0
+2026-02-19 npm --prefix apps/server run build -> exit 0 (after scenario.engine split iteration 15: scenario registry extraction)
+2026-02-19 npm --prefix apps/server test -> exit 0 (18 files, 40 tests)
+2026-02-19 bash scripts/smoke.sh -> exit 0
+2026-02-19 npx tsx apps/server/scripts/verify_routes.ts -> exit 0 (route registry unchanged, 90 root routes)
+2026-02-19 bash scripts/verify-deployment.sh -> exit 0
+2026-02-19 bash verification/smoke_test_basic.sh -> exit 0
+2026-02-19 npm --prefix apps/server run build -> exit 0 (after scenario.engine split iteration 16: handleUpdate runtime extraction)
+2026-02-19 npm --prefix apps/server test -> exit 0 (19 files, 43 tests; includes api.v2 envelope tests)
+2026-02-19 npm --prefix apps/web run build -> exit 0
+2026-02-19 bash scripts/smoke.sh -> exit 0
+2026-02-19 npx tsx apps/server/scripts/verify_routes.ts -> exit 0 (route registry unchanged, 90 root routes)
+2026-02-19 bash scripts/verify-deployment.sh -> exit 0
+2026-02-19 bash verification/smoke_test_basic.sh -> exit 0
+2026-02-19 bash infra/security_preflight.sh --env-file /srv/cartie/.env --run-seed 0 -> exit 0
+2026-02-19 bash infra/security_preflight.sh --env-file /srv/cartie/.env --run-seed 1 -> exit 0
+2026-02-19 npm --prefix apps/server run build -> exit 0 (post P0 closure sweep)
+2026-02-19 npm --prefix apps/server test -> exit 0 (20 files, 46 tests)
+2026-02-19 npm --prefix apps/web run build -> exit 0
+2026-02-19 bash scripts/smoke.sh -> exit 0
+2026-02-19 npx tsx apps/server/scripts/verify_routes.ts -> exit 0 (route registry unchanged, 90 root routes)
+2026-02-19 bash scripts/verify-deployment.sh -> exit 0
+2026-02-19 bash verification/smoke_test_basic.sh -> exit 0
+2026-02-19 bash scripts/smoke.sh -> exit 0 (post P0 closure final check)
+2026-02-19 bash scripts/verify-deployment.sh -> exit 0 (post P0 closure final check)
+2026-02-19 bash verification/smoke_test_basic.sh -> exit 0 (post P0 closure final check)

@@ -92,6 +92,7 @@ const resolveBotForSlug = async (slug: string, companyId?: string | null, resolv
       ...(companyId ? { companyId } : {}),
       OR: [
         { config: { path: ['defaultShowcaseSlug'], equals: trimmed } },
+        { config: { path: ['botUsername'], equals: trimmed } },
         { config: { path: ['username'], equals: trimmed } }
       ]
     }
@@ -203,12 +204,12 @@ export class MiniAppService {
       listingTitle = listing?.title || undefined;
     }
 
-    const title = titleFromInput || (listingTitle ? `Request: ${listingTitle}` : 'Mini App Request');
+    const title = titleFromInput || (listingTitle ? `Запит: ${listingTitle}` : 'Запит з Mini App');
 
     const descriptionParts: string[] = [];
-    if (listingTitle) descriptionParts.push(`Listing: ${listingTitle}`);
-    if (comment) descriptionParts.push(`Comment: ${comment}`);
-    if (phone) descriptionParts.push(`Phone: ${phone}`);
+    if (listingTitle) descriptionParts.push(`Картка: ${listingTitle}`);
+    if (comment) descriptionParts.push(`Коментар: ${comment}`);
+    if (phone) descriptionParts.push(`Контакт: ${phone}`);
     const description = descriptionFromInput || (descriptionParts.length ? descriptionParts.join('\n') : undefined);
 
     const tracking = isRecord(input.tracking) ? input.tracking : {};
@@ -368,11 +369,14 @@ export class MiniAppService {
       companyId,
       botId,
       publicSlug: resolved.slug || slug,
+      template: botConfig?.template || undefined,
       miniapp: botConfig?.config ? (botConfig.config as Record<string, any>)?.miniAppConfig : undefined,
-      botUsername: (botConfig?.config as Record<string, any>)?.username,
+      botUsername: (botConfig?.config as Record<string, any>)?.botUsername
+        || (botConfig?.config as Record<string, any>)?.username,
       appName: (botConfig?.config as Record<string, any>)?.name,
       modeHints: {
-        previewReadOnly: true,
+        requiresTelegram: true,
+        previewReadOnly: false,
         requiresInitDataForWrites: true
       },
       diagnostics: {

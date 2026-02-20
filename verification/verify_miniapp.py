@@ -1,4 +1,10 @@
 from playwright.sync_api import Page, expect, sync_playwright
+import os
+import sys
+
+if os.getenv("ALLOW_DEPRECATED") != "1":
+    print("[DEPRECATED] verification/verify_miniapp.py is frozen. Set ALLOW_DEPRECATED=1 to run intentionally.", file=sys.stderr)
+    sys.exit(1)
 
 def test_miniapp(page: Page):
     # Mock Inventory API

@@ -1,47 +1,80 @@
 {
-  auto_https off
+	auto_https off
 }
 
 :8080 {
-  encode zstd gzip
+	encode zstd gzip
 
-  @health path /health /api/health
-  handle @health {
-    header Cache-Control "no-store"
-    rewrite * /health
-    reverse_proxy api:3001
-  }
+	@health path /health /api/health
+	handle @health {
+		header Cache-Control "no-store"
+		rewrite * /health
+		reverse_proxy api:3001 {
+			health_uri /health
+			health_interval 5s
+			health_timeout 2s
+			fail_duration 15s
+			lb_try_duration 10s
+			lb_try_interval 250ms
+			transport http {
+				dial_timeout 3s
+				response_header_timeout 20s
+			}
+		}
+	}
 
-  @api path /api/*
-  handle @api {
-    header Cache-Control "no-store"
-    reverse_proxy api:3001
-  }
+	@api path /api/*
+	handle @api {
+		header Cache-Control "no-store"
+		reverse_proxy api:3001 {
+			health_uri /health
+			health_interval 5s
+			health_timeout 2s
+			fail_duration 20s
+			lb_try_duration 15s
+			lb_try_interval 250ms
+			transport http {
+				dial_timeout 3s
+				response_header_timeout 30s
+			}
+		}
+	}
 
-  @media path /media/*
-  handle @media {
-    header Cache-Control "public, max-age=86400"
-    reverse_proxy api:3001
-  }
+	@media path /media/*
+	handle @media {
+		header Cache-Control "public, max-age=86400"
+		reverse_proxy api:3001 {
+			health_uri /health
+			health_interval 5s
+			health_timeout 2s
+			fail_duration 20s
+			lb_try_duration 15s
+			lb_try_interval 250ms
+			transport http {
+				dial_timeout 3s
+				response_header_timeout 45s
+			}
+		}
+	}
 
-  @buildMeta path /BUILD_SHA /BUILD_TIME
-  handle @buildMeta {
-    header Cache-Control "no-store"
-    root * /srv/www
-    file_server
-  }
+	@buildMeta path /BUILD_SHA /BUILD_TIME
+	handle @buildMeta {
+		header Cache-Control "no-store"
+		root * /srv/www
+		file_server
+	}
 
-  @assets path /assets/*
-  handle @assets {
-    header Cache-Control "public, max-age=31536000, immutable"
-    root * /srv/www
-    file_server
-  }
+	@assets path /assets/*
+	handle @assets {
+		header Cache-Control "public, max-age=31536000, immutable"
+		root * /srv/www
+		file_server
+	}
 
-  handle {
-    header Cache-Control "no-cache"
-    root * /srv/www
-    try_files {path} /index.html
-    file_server
-  }
+	handle {
+		header Cache-Control "no-cache"
+		root * /srv/www
+		try_files {path} /index.html
+		file_server
+	}
 }

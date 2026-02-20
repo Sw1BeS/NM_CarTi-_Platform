@@ -1,0 +1,177 @@
+[
+  {
+    "path": "scripts/cleanup_demo_data.sql",
+    "status": "Deprecated",
+    "note": "One-off destructive SQL cleanup, kept for manual forensic use only."
+  },
+  {
+    "path": "scripts/smoke.sh",
+    "status": "OK",
+    "note": "Primary API smoke."
+  },
+  {
+    "path": "scripts/smoke_read.sh",
+    "status": "OK",
+    "note": "Read-only smoke."
+  },
+  {
+    "path": "scripts/smoke_write.sh",
+    "status": "OK",
+    "note": "Write smoke with explicit guard."
+  },
+  {
+    "path": "scripts/verify-deployment.sh",
+    "status": "OK",
+    "note": "Deployment verification."
+  },
+  {
+    "path": "infra/deploy_infra2.sh",
+    "status": "OK",
+    "note": "Wrapper to canonical deploy."
+  },
+  {
+    "path": "infra/deploy_manual.sh",
+    "status": "OK",
+    "note": "Manual wrapper."
+  },
+  {
+    "path": "infra/deploy_prod.sh",
+    "status": "OK",
+    "note": "Canonical production deploy."
+  },
+  {
+    "path": "infra/monitor.sh",
+    "status": "OK",
+    "note": "Runtime monitor."
+  },
+  {
+    "path": "infra/prod_verify.sh",
+    "status": "OK",
+    "note": "Post-deploy verification."
+  },
+  {
+    "path": "apps/server/scripts/check_telegram_health.ts",
+    "status": "OK",
+    "note": "Read-only health report."
+  },
+  {
+    "path": "apps/server/scripts/check_users.ts",
+    "status": "OK",
+    "note": "Read-only user report."
+  },
+  {
+    "path": "apps/server/scripts/debug_orphans.ts",
+    "status": "OK",
+    "note": "Orphan cleanup with dry-run by default."
+  },
+  {
+    "path": "apps/server/scripts/reconcile_media.ts",
+    "status": "OK",
+    "note": "Media refs/files reconcile utility."
+  },
+  {
+    "path": "apps/server/scripts/inspect-db.js",
+    "status": "OK",
+    "note": "DB structural inspection."
+  },
+  {
+    "path": "apps/server/scripts/migrate_inventory.ts",
+    "status": "Deprecated",
+    "note": "Legacy v4.1 migration script."
+  },
+  {
+    "path": "apps/server/scripts/migrate_leads.ts",
+    "status": "Deprecated",
+    "note": "Legacy v4.1 migration script."
+  },
+  {
+    "path": "apps/server/scripts/patch_nav_leads.ts",
+    "status": "Deprecated",
+    "note": "One-off patch script."
+  },
+  {
+    "path": "apps/server/scripts/qa_smoke.ts",
+    "status": "OK",
+    "note": "Backend smoke assertions."
+  },
+  {
+    "path": "apps/server/scripts/seed_definitions.ts",
+    "status": "OK",
+    "note": "Definitions seed."
+  },
+  {
+    "path": "apps/server/scripts/seed_showcase.ts",
+    "status": "OK",
+    "note": "Showcase seed."
+  },
+  {
+    "path": "apps/server/scripts/sync_bot_presets.ts",
+    "status": "OK",
+    "note": "Active post-deploy preset sync."
+  },
+  {
+    "path": "apps/server/scripts/test_parser.ts",
+    "status": "Deprecated",
+    "note": "Ad-hoc parser playground."
+  },
+  {
+    "path": "apps/server/scripts/test_parsing_service.ts",
+    "status": "Deprecated",
+    "note": "Ad-hoc parsing playground."
+  },
+  {
+    "path": "apps/server/scripts/update_enum.ts",
+    "status": "Deprecated",
+    "note": "One-time enum migration helper."
+  },
+  {
+    "path": "apps/server/scripts/verify_routes.ts",
+    "status": "OK",
+    "note": "Route registry smoke."
+  },
+  {
+    "path": "apps/server/src/scripts/cleanupScenarios.ts",
+    "status": "OK",
+    "note": "Scenario cleanup utility."
+  },
+  {
+    "path": "apps/server/src/scripts/mtproto_qa.ts",
+    "status": "Deprecated",
+    "note": "Ad-hoc QA helper."
+  },
+  {
+    "path": "apps/server/src/scripts/seedTemplates.ts",
+    "status": "OK",
+    "note": "Scenario templates seed."
+  },
+  {
+    "path": "apps/server/src/scripts/seed_entities.ts",
+    "status": "OK",
+    "note": "Entity seed script."
+  },
+  {
+    "path": "verification/check_showcase.sh",
+    "status": "OK",
+    "note": "Showcase smoke."
+  },
+  {
+    "path": "verification/routes_smoke_test.sh",
+    "status": "OK",
+    "note": "Route smoke."
+  },
+  {
+    "path": "verification/smoke_test_basic.sh",
+    "status": "OK",
+    "note": "Basic runtime smoke."
+  },
+  {
+    "path": "verification/verify_csv.py",
+    "status": "Deprecated",
+    "note": "Legacy Playwright prototype."
+  },
+  {
+    "path": "verification/verify_miniapp.py",
+    "status": "Deprecated",
+    "note": "Legacy Playwright prototype."
+  }
+]

@@ -1,0 +1,38 @@
+[SCRIPT-AUDIT] verifying script status manifest...
+DEPRECATED  scripts/cleanup_demo_data.sql
+OK          scripts/smoke.sh (bash -n OK)
+OK          scripts/smoke_read.sh (bash -n OK)
+OK          scripts/smoke_write.sh (bash -n OK)
+OK          scripts/verify-deployment.sh (bash -n OK)
+OK          infra/deploy_infra2.sh (bash -n OK)
+OK          infra/deploy_manual.sh (bash -n OK)
+OK          infra/deploy_prod.sh (bash -n OK)
+OK          infra/monitor.sh (bash -n OK)
+OK          infra/prod_verify.sh (bash -n OK)
+OK          apps/server/scripts/check_telegram_health.ts (TS syntax OK)
+OK          apps/server/scripts/check_users.ts (TS syntax OK)
+OK          apps/server/scripts/debug_orphans.ts (TS syntax OK)
+OK          apps/server/scripts/reconcile_media.ts (TS syntax OK)
+OK          apps/server/scripts/inspect-db.js (node --check OK)
+DEPRECATED  apps/server/scripts/migrate_inventory.ts
+DEPRECATED  apps/server/scripts/migrate_leads.ts
+DEPRECATED  apps/server/scripts/patch_nav_leads.ts
+OK          apps/server/scripts/qa_smoke.ts (TS syntax OK)
+OK          apps/server/scripts/seed_definitions.ts (TS syntax OK)
+OK          apps/server/scripts/seed_showcase.ts (TS syntax OK)
+OK          apps/server/scripts/sync_bot_presets.ts (TS syntax OK)
+DEPRECATED  apps/server/scripts/test_parser.ts
+DEPRECATED  apps/server/scripts/test_parsing_service.ts
+DEPRECATED  apps/server/scripts/update_enum.ts
+OK          apps/server/scripts/verify_routes.ts (TS syntax OK)
+OK          apps/server/src/scripts/cleanupScenarios.ts (TS syntax OK)
+DEPRECATED  apps/server/src/scripts/mtproto_qa.ts
+OK          apps/server/src/scripts/seedTemplates.ts (TS syntax OK)
+OK          apps/server/src/scripts/seed_entities.ts (TS syntax OK)
+OK          verification/check_showcase.sh (bash -n OK)
+OK          verification/routes_smoke_test.sh (bash -n OK)
+OK          verification/smoke_test_basic.sh (bash -n OK)
+DEPRECATED  verification/verify_csv.py
+DEPRECATED  verification/verify_miniapp.py
+[SCRIPT-AUDIT] summary: OK=25 Deprecated=10 Total=35
+[SCRIPT-AUDIT] pass

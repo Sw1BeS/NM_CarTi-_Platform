@@ -28,7 +28,9 @@ export const SettingsPage = () => {
     const { user } = useAuth();
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
-    const parserEnabled = (import.meta as any)?.env?.VITE_PARSER_ENABLED === 'true';
+    const parserEnabled =
+        (import.meta as any)?.env?.VITE_PARSER_ENABLED === 'true'
+        && (import.meta as any)?.env?.VITE_PARSER_PROD_READY === 'true';
 
     useEffect(() => {
         const tab = searchParams.get('tab');
@@ -126,7 +128,9 @@ const ParserTab = () => {
     const [preview, setPreview] = useState<any | null>(null);
     const [mapping, setMapping] = useState<Record<string, string>>({});
     const [loading, setLoading] = useState(false);
-    const parserEnabled = (import.meta as any)?.env?.VITE_PARSER_ENABLED === 'true';
+    const parserEnabled =
+        (import.meta as any)?.env?.VITE_PARSER_ENABLED === 'true'
+        && (import.meta as any)?.env?.VITE_PARSER_PROD_READY === 'true';
 
     const fieldOptions = ['title', 'description', 'price', 'currency', 'mileage', 'year', 'vin', 'location', 'images', 'url', 'custom'];
 

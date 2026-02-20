@@ -1,0 +1,19 @@
+   9936 ⏰ Scheduler: Job [scheduled_jobs] Failed
+   2398 Bot Loop Error (CARTIE_TEST_BOT):
+     27 [Telegram Proxy] Error:
+     26 [TelegramWebhook] Pipeline error:
+     19 Bot Update Error (CARTIE_TEST_BOT):
+     16 [BotInstance] Pipeline error (CARTIE_TEST_BOT):
+     13 [Parser] preview error:
+     10 Health Check DB Error:
+      8 [Campaigns] List error:
+      4 Create Bot Error:
+      3 [MTProtoImportWorker] Job failed:
+      3 Parse error:
+      2 Manual sync failed for cml6tx85900hq10i0njjvk0nm:
+      1 [Templates] List error:
+      1 [Scenarios] List error:
+      1 [Metrics] Dashboard error:
+      1 [Messages] Send error:
+      1 [IntegrationService] Telegram publish error:
+      1 [ContentWorker] Critical error:

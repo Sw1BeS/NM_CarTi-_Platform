@@ -16,13 +16,22 @@ export interface JwtUserPayload {
 }
 
 export const getJwtSecret = (): string => {
-    if (process.env.NODE_ENV === 'production') {
-        if (!process.env.JWT_SECRET) {
-            throw new Error('JWT_SECRET is required in production');
+    const secret = process.env.JWT_SECRET;
+    if (!secret) {
+        if (process.env.NODE_ENV === 'test') {
+            return 'test_jwt_secret_for_ci_only';
         }
-        return process.env.JWT_SECRET;
+        throw new Error('JWT_SECRET is required');
     }
-    return process.env.JWT_SECRET || 'dev_secret_key_123';
+
+    if (process.env.NODE_ENV === 'production' && secret.length < 32) {
+        throw new Error('JWT_SECRET must be at least 32 characters in production');
+    }
+    if (process.env.NODE_ENV === 'production' && secret === 'dev_secret_key_123') {
+        throw new Error('Insecure JWT_SECRET is not allowed in production');
+    }
+
+    return secret;
 };
 
 export const signJwt = (payload: JwtUserPayload, options?: jwt.SignOptions): string => {

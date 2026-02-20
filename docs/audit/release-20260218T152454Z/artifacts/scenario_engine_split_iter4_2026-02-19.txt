@@ -1,0 +1,21 @@
+P0-2 Iteration 4 (2026-02-19)
+
+Extracted entrypoint branches from ScenarioEngine handleUpdate:
+- apps/server/src/modules/Communication/bots/scenario-engine/actions/entry.actions.ts
+
+Moved logic:
+- WEB APP DATA handling (`RUN_SCENARIO`, `LEAD`) -> handleWebAppData
+- /start deep-link routing (`dealer_invite`, `request`, `offer`) -> handleStartCommand
+
+ScenarioEngine delegate anchors:
+44:  handleStartCommand as handleStartCommandAction,
+45:  handleWebAppData as handleWebAppDataAction
+275:    const handledWebAppData = await handleWebAppDataAction({
+383:    const handledStart = await handleStartCommandAction({
+
+Line counts after iteration 4:
+ 1505 apps/server/src/modules/Communication/bots/scenario.engine.ts
+  257 apps/server/src/modules/Communication/bots/scenario-engine/actions/entry.actions.ts
+  378 apps/server/src/modules/Communication/bots/scenario-engine/actions/dealer-flow.actions.ts
+  190 apps/server/src/modules/Communication/bots/scenario-engine/actions/callback.actions.ts
+ 2330 total

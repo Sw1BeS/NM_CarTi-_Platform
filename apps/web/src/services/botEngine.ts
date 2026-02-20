@@ -910,6 +910,9 @@ export class BotEngine {
                         } as any);
                         session.variables['requestId'] = req.publicId;
                     }
+                    if (node.content.actionType === 'B2B_PUBLISH_REQUEST') {
+                        // Local simulator mode: publishing to Telegram channel is handled on server runtime.
+                    }
 
                     if (node.nextNodeId) await this.executeNode(bot, session, scenario, node.nextNodeId, adapter);
                     else {

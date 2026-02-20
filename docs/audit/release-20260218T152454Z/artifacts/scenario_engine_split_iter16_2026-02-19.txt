@@ -1,0 +1,24 @@
+P0-2 Iteration 16 (2026-02-19)
+
+Extracted update orchestration from ScenarioEngine:
+- apps/server/src/modules/Communication/bots/scenario-engine/runtime/update-handler.ts
+
+Moved orchestration branch:
+- handleUpdate (entry routing, setup/menu/start/callback/input orchestration)
+
+Behavior preservation:
+- Keeps manager action handling, setup flow handling, dealer fallback gating, callback processing, photo-question loop, language enforcement and keyword trigger semantics.
+- All previous delegate callbacks remain wired through ScenarioEngine wrappers.
+
+ScenarioEngine delegate anchors:
+18: import { handleUpdateRuntime } from './scenario-engine/runtime/update-handler.js';
+35: static async handleUpdate(...)
+36:   return handleUpdateRuntime({ ... })
+
+Runtime export:
+48: export const handleUpdateRuntime = async ({ ... })
+
+Line counts after iteration 16:
+  127 apps/server/src/modules/Communication/bots/scenario.engine.ts
+  421 apps/server/src/modules/Communication/bots/scenario-engine/runtime/update-handler.ts
+  548 total

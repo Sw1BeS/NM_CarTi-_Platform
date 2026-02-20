@@ -13,6 +13,7 @@ import { buildMiniAppUrl } from '../core/utils/miniappUrl.js';
 import { generatePublicId, mapRequestInput } from '../../../../services/dto.js';
 import { buildCallbackData } from '../core/utils/callbackUtils.js';
 import { button, isCommand, resolveLang, t, type Lang } from '../core/utils/telegramText.js';
+import { logger } from '../../../../utils/logger.js';
 
 
 const parseRange = (input: string) => {
@@ -906,61 +907,45 @@ export const handleDynamicMenu = async (ctx: PipelineContext, text: string) => {
 export const routeMessage = async (ctx: PipelineContext) => {
   if (!ctx.bot || !ctx.session) return false;
 
-  const sessionVars = (ctx.session.variables as any) || {};
-  const isB2BTemplate = ctx.bot.template === 'B2B';
-  const hasActiveScenario = !!sessionVars.__activeScenarioId;
-  const isDealerFlow = sessionVars.role === 'DEALER'
-    || !!sessionVars.dealer_state
-    || !!sessionVars.dealer_invite_id
-    || !!sessionVars.ref_request_id;
-
-  // 1. Prioritize Scenarios (Triggers)
-  // For B2B template, skip scenario routing unless we're already inside a scenario
-  // or handling dealer flow to avoid menu/flow mismatch.
-  if (!isB2BTemplate || hasActiveScenario || isDealerFlow) {
-    const handledScenario = await ScenarioEngine.handleUpdate(ctx.bot as any, ctx.session, ctx.update);
-    if (handledScenario) return true;
-  }
+  const handledScenario = await ScenarioEngine.handleUpdate(ctx.bot as any, ctx.session, ctx.update).catch((error) => {
+    logger.error('[TelegramRoute] ScenarioEngine error', {
+      botId: ctx.bot?.id,
+      template: ctx.bot?.template,
+      chatId: ctx.chatId,
+      error: error instanceof Error ? error.message : String(error)
+    });
+    return false;
+  });
+  if (handledScenario) return true;
 
   const message = ctx.update?.message;
   const text = message?.text || '';
+  const isB2BTemplate = ctx.bot.template === 'B2B';
+  const legacyB2BFallbackEnabled = String(process.env.TELEGRAM_B2B_LEGACY_FALLBACK || 'false').toLowerCase() === 'true';
 
   // 2. Dynamic Menu Logic (Prioritized over legacy templates)
-  const isDynamicHandled = isB2BTemplate ? false : await handleDynamicMenu(ctx, text);
+  const isDynamicHandled = await handleDynamicMenu(ctx, text);
   if (isDynamicHandled) return true;
 
-  // 3. Legacy Templates (Fallback)
-  // If modern scenarios exist for this bot/company, do not fall back to legacy template flows
-  // (Logic preserved from original file)
-  const companyId = (ctx as any).companyId || ctx.bot.companyId;
-  /* 
-   NOTE: We relaxed this check slightly. If handleDynamicMenu returned false, 
-   it means user is not interacting with the menu. 
-   We still want to allow legacy templates if they are active?
-   BUT: If the user has a "Dynamic Menu", they likely don't want "CLIENT_LEAD" hardcoded behavior 
-   interfering (e.g. asking for name immediately if not matched).
-   
-   However, we should still allow the "Legacy" flows to run if the user hasn't fully migrated.
-   The implementation plan says: "If present, delegate".
-   We did checks at top.
-  */
-
-  if (companyId && !isB2BTemplate) {
-    const hasScenarios = await prisma.scenario.findFirst({
-      where: {
-        companyId,
-        status: 'PUBLISHED',
-        isActive: true,
-        OR: [{ botId: ctx.bot.id }, { botId: null }]
-      },
-      select: { id: true }
+  if (isB2BTemplate && !legacyB2BFallbackEnabled) {
+    logger.info('[TelegramRoute] B2B legacy fallback skipped (flow-first mode)', {
+      botId: ctx.bot.id,
+      chatId: ctx.chatId
     });
-    if (hasScenarios) return true;
+    return false;
   }
 
+  // 3. Legacy Templates (Fallback)
   if (ctx.bot.template === 'CLIENT_LEAD') return handleClientLead(ctx, text);
   if (ctx.bot.template === 'CATALOG') return handleCatalog(ctx, text);
-  if (ctx.bot.template === 'B2B') return handleB2B(ctx, text);
+  if (ctx.bot.template === 'B2B') {
+    logger.info('[TelegramRoute] Using B2B legacy fallback path', {
+      botId: ctx.bot.id,
+      chatId: ctx.chatId,
+      state: ctx.session.state || 'unknown'
+    });
+    return handleB2B(ctx, text);
+  }
 
   return false;
 };

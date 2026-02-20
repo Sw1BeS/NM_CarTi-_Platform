@@ -1,0 +1,24 @@
+P0-2 Iteration 13 (2026-02-19)
+
+Extracted navigation/session rewind branch from ScenarioEngine:
+- apps/server/src/modules/Communication/bots/scenario-engine/runtime/navigation.ts
+
+Moved orchestration branch:
+- goBack (history rewind + active scenario fallback completion)
+
+Behavior preservation:
+- Keeps localized "nothing to go back" responses and default menu re-display behavior.
+- Keeps fallback completion path with `reason: 'back_reset'` when previous node/scenario is unavailable.
+
+ScenarioEngine delegate anchors:
+56: import { goBackRuntime } from './scenario-engine/runtime/navigation.js';
+485: static async goBack(...)
+486:   return goBackRuntime({ ... })
+
+Runtime export:
+19: export const goBackRuntime = async ({ ... })
+
+Line counts after iteration 13:
+  786 apps/server/src/modules/Communication/bots/scenario.engine.ts
+   57 apps/server/src/modules/Communication/bots/scenario-engine/runtime/navigation.ts
+  843 total

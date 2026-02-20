@@ -1,5 +1,6 @@
 import { LeadStatus as DbLeadStatus, RequestStatus as DbRequestStatus, VariantStatus as DbVariantStatus, Prisma } from '@prisma/client';
 import { NormalizationService } from './normalization.service.js';
+import { parseCarData } from './enhanced-parsing.utils.js';
 
 const DEFAULT_CURRENCY = 'USD';
 
@@ -382,7 +383,61 @@ export const mapInventoryInput = (input: Record<string, unknown>): InventoryInpu
 };
 
 export const mapInventoryOutput = (car: Record<string, unknown>) => ({
-  ...car,
+  ...(() => {
+    const description = toString(car.description) || '';
+    const parsed = description ? parseCarData(description) : {};
+    const rawSpecs = car.specs;
+    const baseSpecs = rawSpecs && typeof rawSpecs === 'object' && !Array.isArray(rawSpecs)
+      ? { ...(rawSpecs as Record<string, unknown>) }
+      : {};
+
+    const mergedSpecs: Record<string, unknown> = {
+      ...baseSpecs
+    };
+
+    if (!mergedSpecs.brand && parsed.brand !== undefined) mergedSpecs.brand = parsed.brand;
+    if (!mergedSpecs.model && parsed.model !== undefined) mergedSpecs.model = parsed.model;
+
+    const parsedSpecKeys = ['engine', 'fuel', 'transmission', 'drive', 'vin', 'color', 'condition'] as const;
+    for (const key of parsedSpecKeys) {
+      if (!mergedSpecs[key] && parsed[key] !== undefined) {
+        mergedSpecs[key] = parsed[key];
+      }
+    }
+
+    const mediaUrls = Array.isArray(car.mediaUrls)
+      ? (car.mediaUrls as unknown[]).filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+      : [];
+    const mediaItems = Array.isArray(car.mediaItems)
+      ? (car.mediaItems as unknown[])
+      : [];
+    const thumbnail = toString(car.thumbnail) || mediaUrls[0] || '';
+    const year = toNumber(car.year) ?? toNumber(parsed.year) ?? 0;
+    const mileage = toNumber(car.mileage) ?? toNumber(parsed.mileage) ?? 0;
+    const location = toString(car.location) || toString(parsed.location) || '';
+    const title = toString(car.title) || toString(parsed.title) || 'Unknown Car';
+    const modelFromSource = toString((car as any).model) || toString((mergedSpecs as any).model) || '';
+    const modelFromParsed = toString(parsed.model) || '';
+    const modelLooksNoisy = /(?:color|condition|пробіг|пробег|ціна|цена|price|бюджет|грн|usd|eur)/i.test(modelFromSource)
+      || modelFromSource.split(/\s+/).length > 5;
+    const model = (modelFromSource && !modelLooksNoisy) ? modelFromSource : (modelFromParsed || modelFromSource);
+    const brand = toString((car as any).brand) || toString((mergedSpecs as any).brand) || toString(parsed.brand) || '';
+
+    return {
+      ...car,
+      title,
+      brand,
+      model,
+      year,
+      mileage,
+      location,
+      thumbnail,
+      mediaUrls,
+      mediaItems,
+      specs: mergedSpecs,
+      description
+    };
+  })(),
   canonicalId: car.id,
   price: {
     amount: toNumber(car.price) ?? 0,

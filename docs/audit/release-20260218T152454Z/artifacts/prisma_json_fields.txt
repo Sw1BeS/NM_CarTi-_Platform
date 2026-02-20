@@ -1,0 +1,54 @@
+119:  rules Json @db.JsonB
+148:  structure Json @db.JsonB
+186:  config Json @db.JsonB
+208:  config       Json?           @db.JsonB
+250:  payload    Json?
+275:  payload   Json?
+289:  payload   Json?            @db.JsonB
+342:  payload  Json?   @db.JsonB // Mini app / tracking payload
+388:  mediaItems Json?   @db.JsonB
+391:  specs     Json?
+392:  statusHistory Json? @db.JsonB
+420:  metadata    Json?     @db.JsonB
+441:  variables Json?    @db.JsonB
+476:  metadata    Json?    @db.JsonB
+494:  payload   Json?    @db.JsonB
+513:  meta        Json?    @map("payloadMeta") @db.JsonB
+534:  result   Json?    @db.JsonB
+558:  mediaItems  Json?    @db.JsonB
+559:  specs       Json?
+569:  originalRaw     Json?   @db.JsonB // Store original raw message for debug/re-parse
+650:  importRules Json? @db.JsonB
+744:  payload   Json?  @db.JsonB
+764:  payload   Json?           @db.JsonB
+776:  payload   Json?    @db.JsonB
+823:  variables  Json?
+824:  history    Json?
+857:  payload   Json?
+870:  payload   Json?
+885:  nodes          Json
+905:  content        Json
+908:  stats          Json?
+909:  targetAudience Json?
+922:  navigation      Json?
+923:  features        Json?
+924:  branding        Json?
+925:  modules         Json?
+936:  payload   Json?
+981:  config Json? @db.JsonB
+996:  data Json @db.JsonB
+1012:  settings   Json      @default(dbgenerated("'{}'::jsonb")) @db.JsonB
+1076:  config       Json      @default(dbgenerated("'{}'::jsonb")) @db.JsonB
+1102:  permissions  Json      @default(dbgenerated("'{}'::jsonb")) @db.JsonB
+1125:  capabilities Json      @default(dbgenerated("'{}'::jsonb")) @db.JsonB
+1153:  config         Json      @default(dbgenerated("'{}'::jsonb")) @db.JsonB
+1175:  attributes     Json      @default(dbgenerated("'{}'::jsonb")) @db.JsonB
+1202:  promoted      Json                    @default(dbgenerated("'{}'::jsonb")) @db.JsonB
+1239:  meta             Json      @default(dbgenerated("'{}'::jsonb")) @db.JsonB
+1301:  meta         Json      @default(dbgenerated("'{}'::jsonb")) @db.JsonB
+1513:  content         Json      @db.JsonB
+1554:  config       Json      @default(dbgenerated("'{}'::jsonb")) @db.JsonB
+1596:  schema        Json      @db.JsonB
+1663:  data            Json      @db.JsonB
+1688:  layout         Json      @db.JsonB
+1708:  columns        Json      @db.JsonB

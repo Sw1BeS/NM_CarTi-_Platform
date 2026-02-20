@@ -1,0 +1,17 @@
+apps/web/src/contexts/WorkerContext.tsx:91:                                    const sendRes = await ApiClient.post('messages/send', {
+apps/web/src/modules/Telegram/SourcesDestinations/index.tsx:124:            const res = await ApiClient.post('integrations/telegram/registry', {
+apps/web/src/modules/Telegram/MTProtoSources/ParsingRuleEditor.tsx:42:            const res = await ApiClient.post('integrations/parsing/preview', { text, template });
+apps/web/src/modules/Telegram/MTProtoSources/index.tsx:63:            const res = await ApiClient.post('integrations/mtproto/connectors', {
+apps/web/src/pages/public/Login.tsx:36:            const res = await ApiClient.get('/health');
+apps/web/src/pages/app/Settings.tsx:442:            const res = await ApiClient.get('/health');
+apps/web/src/pages/app/Inbox.tsx:265:                await ApiClient.post('messages/logs', {
+apps/web/src/pages/app/TelegramHub.tsx:249:        ApiClient.get('integrations/mtproto/stats').then(res => {
+apps/web/src/services/botEngine.ts:1209:            const res = await ApiClient.post('messages/send', { chatId, text, imageUrl, botId: active.id });
+apps/web/src/services/serverAdapter.ts:38:            const health = await ApiClient.get('health');
+apps/web/src/services/serverAdapter.ts:255:        const res = await ApiClient.post('messages', m);
+apps/web/src/services/serverAdapter.ts:389:        const res = await ApiClient.put('system/settings', s);
+apps/web/src/services/serverAdapter.ts:464:        const res = await ApiClient.post('integrations/mtproto/connectors', attachSuperadminCompany(data));
+apps/web/src/services/serverAdapter.ts:472:        const res = await ApiClient.post('integrations/mtproto/auth/send-code', attachSuperadminCompany({ connectorId, phone } as any));
+apps/web/src/services/serverAdapter.ts:477:        const res = await ApiClient.post('integrations/mtproto/auth/sign-in', attachSuperadminCompany(data));
+apps/web/src/services/data.ts:226:        const res = await ApiClient.post('parser/preview', { url });
+apps/web/src/services/data.ts:239:        const res = await ApiClient.post('parser/mapping', { domain, mapping: payload, remember });

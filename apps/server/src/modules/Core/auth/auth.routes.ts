@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import { authenticateToken, AuthRequest } from '../../../middleware/auth.js';
-import { getUserByEmail, getWorkspaceById, getWorkspaceBySlug } from '../../../services/v41/readService.js';
+import { getUserByEmail } from '../../../services/v41/readService.js';
 import { signJwt } from '../../../config/jwt.js';
 import { logger } from '../../../utils/logger.js';
 import { errorResponse } from '../../../utils/errorResponse.js';
@@ -23,14 +23,12 @@ router.post('/login', async (req: Request, res: Response) => {
       return errorResponse(res as any, 401, 'Invalid credentials', 'AUTH_INVALID');
     }
 
-    // Canonical payload: always include companyId + workspaceId.
-    let workspaceId = user.workspace?.id || user.companyId || null;
-    if (!workspaceId) {
-      const systemWorkspace = await getWorkspaceById('company_system') || await getWorkspaceBySlug('system');
-      workspaceId = systemWorkspace?.id || 'company_system';
-    }
-
+    // Canonical payload: always include companyId + workspaceId, no implicit system fallback.
+    const workspaceId = user.workspace?.id || user.companyId || null;
     const companyId = user.companyId || workspaceId;
+    if (!companyId || !workspaceId) {
+      return errorResponse(res as any, 403, 'User tenant context missing', 'AUTH_TENANT_REQUIRED');
+    }
 
     const token = signJwt({
       userId: user.id,

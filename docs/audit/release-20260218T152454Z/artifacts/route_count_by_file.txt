@@ -1,0 +1,13 @@
+     16 modules/Integrations/mtproto/mtproto.routes.ts
+     12 modules/Core/superadmin/superadmin.routes.ts
+     11 modules/Sales/requests/requests.routes.ts
+      9 modules/Integrations/integration.routes.ts
+      8 modules/Integrations/telegram/telegramRegistry.routes.ts
+      7 modules/Core/companies/company.routes.ts
+      5 modules/Inventory/inventory/inventory.routes.ts
+      5 modules/Core/templates/template.routes.ts
+      4 modules/Communication/telegram/destinations/destination.routes.ts
+      3 modules/Core/system/system.routes.ts
+      2 modules/Core/auth/auth.routes.ts
+      1 modules/Integrations/parsing/parsing.routes.ts
+      1 modules/Communication/telegram/core/telegram.routes.ts

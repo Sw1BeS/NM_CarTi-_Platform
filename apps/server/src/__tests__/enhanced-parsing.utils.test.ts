@@ -12,4 +12,19 @@ describe('enhanced parsing utils', () => {
     expect(parsed.price).toBe(12500);
     expect(parsed.currency).toBe('USD');
   });
+
+  it('extracts key specs from mixed UA/RU text', () => {
+    const parsed = parseCarData('Audi Q7 2021\nПробіг: 118 тис км\nПальне: дизель\nКПП: автомат\nПривід: повний');
+    expect(parsed.title).toContain('Audi Q7');
+    expect(parsed.mileage).toBe(118000);
+    expect(parsed.fuel).toBe('diesel');
+    expect(parsed.transmission).toBe('automatic');
+    expect(parsed.drive).toBe('awd');
+  });
+
+  it('keeps model clean when first line contains extra descriptors', () => {
+    const parsed = parseCarData('Audi e-tron 2021, Blue color. Perfect condition.');
+    expect(parsed.brand).toBe('Audi');
+    expect(parsed.model).toBe('e-tron');
+  });
 });

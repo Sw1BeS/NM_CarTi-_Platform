@@ -1,5 +1,10 @@
 import { MTProtoService } from '../src/modules/Integrations/mtproto/mtproto.service';
 
+if (process.env.ALLOW_DEPRECATED !== '1') {
+    console.error('[DEPRECATED] test_parser.ts is an ad-hoc legacy script. Set ALLOW_DEPRECATED=1 to run intentionally.');
+    process.exit(1);
+}
+
 const SAMPLES = [
     {
         name: "Audi A5 Simple",

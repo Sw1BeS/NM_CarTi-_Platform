@@ -4,7 +4,8 @@ import { SCENARIO_TEMPLATE_PACK } from '../seeds/scenarioPack.js';
 const args = process.argv.slice(2);
 const companyArg = args.find(a => a.startsWith('--companyId='));
 const companyId = companyArg ? companyArg.split('=')[1] : undefined;
-const dryRun = args.includes('--dry-run');
+const execute = args.includes('--execute');
+const dryRun = !execute;
 
 const scenarioIdMap: Record<string, string> = {
     tpl_buy_request: 'scn_buy',
@@ -82,7 +83,7 @@ const upsertScenarios = async (companyId: string) => {
 };
 
 const main = async () => {
-    log(`Dry run: ${dryRun ? 'YES' : 'NO'}`);
+    log(`Dry run: ${dryRun ? 'YES' : 'NO'} (use --execute for destructive mode)`);
     if (companyId) log(`Scope: companyId=${companyId}`);
 
     const companies = companyId

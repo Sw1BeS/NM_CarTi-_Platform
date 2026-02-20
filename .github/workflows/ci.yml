@@ -44,6 +44,13 @@ jobs:
       working-directory: ./apps/server
       run: npm test
 
+    - name: Script Status Audit
+      run: bash scripts/audit_scripts.sh
+
+    - name: Route Registry Smoke
+      working-directory: ./apps/server
+      run: npx tsx scripts/verify_routes.ts
+
     - name: Docker Build With Build Metadata
       run: |
         set -euo pipefail

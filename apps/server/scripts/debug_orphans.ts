@@ -1,11 +1,15 @@
 
-import { prisma } from './src/services/prisma';
+// @ts-ignore
+import { prisma } from '../src/services/prisma.js';
+
+const execute = process.argv.includes('--execute');
 
 async function checkAndClean() {
     try {
         const workspaces = await prisma.workspace.findMany();
         const workspaceIds = new Set(workspaces.map(w => w.id));
         console.log(`Found ${workspaces.length} workspaces.`);
+        console.log(`Mode: ${execute ? 'EXECUTE (destructive)' : 'DRY-RUN (no deletes)'}`);
 
         // List of models to check that have 'companyId'
         // Note: TypeScript might complain if models don't exist in client yet?
@@ -21,11 +25,13 @@ async function checkAndClean() {
                 const orphans = records.filter((r: any) => r.companyId && !workspaceIds.has(r.companyId));
 
                 if (orphans.length > 0) {
-                    console.log(`Found ${orphans.length} orphans in ${modelName}. Deleting...`);
-                    await prismaModel.deleteMany({
-                        where: { id: { in: orphans.map((o: any) => o.id) } }
-                    });
-                    console.log(`Cleaned ${modelName}.`);
+                    console.log(`Found ${orphans.length} orphans in ${modelName}.`);
+                    if (!execute) {
+                        console.log(`[DRY-RUN] Would delete IDs: ${orphans.map((o: any) => o.id).join(', ')}`);
+                        return;
+                    }
+                    await prismaModel.deleteMany({ where: { id: { in: orphans.map((o: any) => o.id) } } });
+                    console.log(`Deleted ${orphans.length} orphan rows from ${modelName}.`);
                 } else {
                     console.log(`${modelName} is clean.`);
                 }
@@ -46,6 +52,8 @@ async function checkAndClean() {
 
     } catch (e) {
         console.error(e);
+    } finally {
+        await prisma.$disconnect();
     }
 }
 

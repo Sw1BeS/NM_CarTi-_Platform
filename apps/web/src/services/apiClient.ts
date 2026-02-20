@@ -9,37 +9,93 @@ export interface ApiResponse<T = any> {
     details?: any;
 }
 
-interface RequestOptions extends RequestInit {
+type QueryPrimitive = string | number | boolean | null | undefined;
+type QueryValue = QueryPrimitive | QueryPrimitive[];
+type QueryParams = URLSearchParams | Record<string, QueryValue>;
+
+export interface RequestOptions extends RequestInit {
     token?: string;
     skipAuth?: boolean;
+    auth?: boolean;
+    query?: QueryParams;
+    params?: QueryParams;
+    timeoutMs?: number;
 }
 
-// Standalone function to avoid 'this' context issues
+const appendQueryToEndpoint = (endpoint: string, query?: QueryParams) => {
+    if (!query) return endpoint;
+
+    const [path, rawQuery = ''] = endpoint.split('?');
+    const search = new URLSearchParams(rawQuery);
+
+    if (query instanceof URLSearchParams) {
+        query.forEach((value, key) => {
+            search.set(key, value);
+        });
+    } else {
+        Object.entries(query).forEach(([key, value]) => {
+            if (Array.isArray(value)) {
+                search.delete(key);
+                value.forEach((item) => {
+                    if (item !== undefined && item !== null) {
+                        search.append(key, String(item));
+                    }
+                });
+                return;
+            }
+
+            if (value === undefined || value === null) {
+                search.delete(key);
+                return;
+            }
+            search.set(key, String(value));
+        });
+    }
+
+    const queryString = search.toString();
+    return queryString ? `${path}?${queryString}` : path;
+};
+
+// Standalone function to avoid 'this' context issues.
 async function request<T>(endpoint: string, options: RequestOptions = {}): Promise<ApiResponse<T>> {
     const base = getApiBase();
-    const url = `${base}${endpoint.startsWith('/') ? '' : '/'}${endpoint}`;
+    const endpointWithQuery = appendQueryToEndpoint(endpoint, options.query || options.params);
+    const url = `${base}${endpointWithQuery.startsWith('/') ? '' : '/'}${endpointWithQuery}`;
 
     const headers: HeadersInit = {
-        'Content-Type': 'application/json',
         'Accept': 'application/json',
         ...(options.headers || {} as any),
     };
 
     const token = options.token || localStorage.getItem('cartie_token');
-    if (token && !options.skipAuth) {
+    const skipAuth = options.skipAuth || options.auth === false;
+    if (token && !skipAuth) {
         headers['Authorization'] = `Bearer ${token}`;
     }
 
+    const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
+    if (!isFormData && !('Content-Type' in (headers as any))) {
+        headers['Content-Type'] = 'application/json';
+    }
+
+    const requestInit: RequestInit = { ...options, headers };
+    delete (requestInit as any).token;
+    delete (requestInit as any).skipAuth;
+    delete (requestInit as any).auth;
+    delete (requestInit as any).query;
+    delete (requestInit as any).params;
+    delete (requestInit as any).timeoutMs;
+
     // Debug logging
-    console.debug(`[API] ${options.method || 'GET'} ${url}`);
+    console.debug(`[API] ${requestInit.method || 'GET'} ${url}`);
 
     try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 15000);
-        const response = await fetch(url, { ...options, headers, signal: controller.signal });
+        const timeoutId = setTimeout(() => controller.abort(), options.timeoutMs || 15000);
+        const response = await fetch(url, { ...requestInit, signal: controller.signal });
         clearTimeout(timeoutId);
 
-        let data;
+        let data: any;
         const contentType = response.headers.get('content-type');
         if (contentType && contentType.includes('application/json')) {
             data = await response.json();
@@ -53,13 +109,31 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
             }
         }
 
+        const isV2Envelope = data && typeof data === 'object' && typeof (data as any).ok === 'boolean' && (data as any).meta?.version === 'v2';
+        if (isV2Envelope) {
+            if (!(data as any).ok || !response.ok) {
+                const errorPayload = (data as any).error || {};
+                return {
+                    ok: false,
+                    status: response.status,
+                    message: errorPayload.message || response.statusText,
+                    details: errorPayload
+                };
+            }
+            return {
+                ok: true,
+                status: response.status,
+                data: (data as any).data as T
+            };
+        }
+
         if (!response.ok) {
             // Auto-logout on 401
-            if (response.status === 401 && !endpoint.includes('login')) {
+            if (response.status === 401 && !endpointWithQuery.includes('login')) {
                 localStorage.removeItem('cartie_token');
                 window.dispatchEvent(new Event('auth-error'));
             }
-            console.warn(`[API] ${options.method || 'GET'} ${url} → ${response.status}`, data.message || response.statusText);
+            console.warn(`[API] ${requestInit.method || 'GET'} ${url} → ${response.status}`, data.message || response.statusText);
             return {
                 ok: false,
                 status: response.status,
@@ -96,19 +170,32 @@ export async function apiFetch<T = any>(endpoint: string, options: any = {}): Pr
 export const ApiClient = {
     request,
 
-    get<T>(endpoint: string) {
-        return request<T>(endpoint, { method: 'GET' });
+    get<T>(endpoint: string, options: Omit<RequestOptions, 'method' | 'body'> = {}) {
+        return request<T>(endpoint, { ...options, method: 'GET' });
     },
 
-    post<T>(endpoint: string, body: any) {
-        return request<T>(endpoint, { method: 'POST', body: JSON.stringify(body) });
+    post<T>(endpoint: string, body: any, options: Omit<RequestOptions, 'method' | 'body'> = {}) {
+        const payload = (typeof FormData !== 'undefined' && body instanceof FormData)
+            ? body
+            : JSON.stringify(body ?? {});
+        return request<T>(endpoint, { ...options, method: 'POST', body: payload });
     },
 
-    put<T>(endpoint: string, body: any) {
-        return request<T>(endpoint, { method: 'PUT', body: JSON.stringify(body) });
+    put<T>(endpoint: string, body: any, options: Omit<RequestOptions, 'method' | 'body'> = {}) {
+        const payload = (typeof FormData !== 'undefined' && body instanceof FormData)
+            ? body
+            : JSON.stringify(body ?? {});
+        return request<T>(endpoint, { ...options, method: 'PUT', body: payload });
     },
 
-    delete<T>(endpoint: string) {
-        return request<T>(endpoint, { method: 'DELETE' });
+    patch<T>(endpoint: string, body: any, options: Omit<RequestOptions, 'method' | 'body'> = {}) {
+        const payload = (typeof FormData !== 'undefined' && body instanceof FormData)
+            ? body
+            : JSON.stringify(body ?? {});
+        return request<T>(endpoint, { ...options, method: 'PATCH', body: payload });
+    },
+
+    delete<T>(endpoint: string, options: Omit<RequestOptions, 'method' | 'body'> = {}) {
+        return request<T>(endpoint, { ...options, method: 'DELETE' });
     }
 };

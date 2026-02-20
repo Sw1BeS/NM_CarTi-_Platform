@@ -29,6 +29,7 @@ import { MTProtoLifeCycle } from './modules/Integrations/mtproto/mtproto.lifecyc
 import { workspaceContext } from './middleware/workspaceContext.js';
 import { checkHealth } from './modules/Core/health/health.controller.js';
 import { validateEnv } from './config/env.js';
+import { apiV2Envelope } from './middleware/apiV2Envelope.js';
 import process from 'process';
 import { logger } from './utils/logger.js';
 import { errorResponse } from './utils/errorResponse.js';
@@ -54,6 +55,15 @@ app.use(express.json({ limit: '30mb' }) as any);
 
 // v4.1 Workspace Context Middleware (extracts workspace from headers/domain/token)
 app.use(workspaceContext);
+
+// Legacy API deprecation headers (v2 successor)
+app.use('/api', (req, res, next) => {
+  if (req.path.startsWith('/v2')) return next();
+  res.setHeader('Deprecation', 'true');
+  res.setHeader('Sunset', 'Tue, 31 Mar 2026 23:59:59 GMT');
+  res.setHeader('Link', '</api/v2>; rel=\"successor-version\"');
+  next();
+});
 
 // Routes
 // 1) Public Webhooks (must be before /api which has auth)
@@ -82,6 +92,26 @@ app.use('/api/qa', qaRoutes);
 // Health Check (Robust)
 app.get('/health', checkHealth);
 app.get('/api/health', checkHealth);
+
+// 5) Versioned API v2 (enveloped responses)
+const apiV2Router = express.Router();
+apiV2Router.use(apiV2Envelope);
+apiV2Router.get('/health', checkHealth);
+apiV2Router.use('/public', publicRoutes);
+apiV2Router.use('/miniapp', miniAppRoutes);
+apiV2Router.use('/auth', authRoutes);
+apiV2Router.use('/system', systemRoutes);
+apiV2Router.use('/entities', entityRoutes);
+apiV2Router.use('/inventory', inventoryRoutes);
+apiV2Router.use('/requests', requestsRoutes);
+apiV2Router.use('/companies', companyRoutes);
+apiV2Router.use('/templates', templateRoutes);
+apiV2Router.use('/integrations', integrationRoutes);
+apiV2Router.use('/superadmin', superadminRoutes);
+apiV2Router.use('/qa', qaRoutes);
+apiV2Router.use('/telegram', telegramRoutes);
+apiV2Router.use('/', apiRoutes);
+app.use('/api/v2', apiV2Router);
 
 // 5) Legacy/God Router (auth inside router)
 app.use('/api', apiRoutes);

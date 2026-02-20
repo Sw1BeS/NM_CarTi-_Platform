@@ -1,0 +1,7 @@
+Communication	b2bRequest,botConfig,botMessage,botSession,carListing,channelPost,draft,entityDefinition,entityRecord,lead,leadActivity,messageLog,platformEvent,requestVariant,scenario,scheduledJob,systemSettings,telegramUpdate
+Core	b2bRequest,botConfig,companyTemplate,entityDefinition,entityField,globalUser,lead,membership,scenario,scenarioTemplate,systemLog,systemSettings,workspace
+Integrations	botConfig,botMessage,carListing,channelSource,integration,integrationEventLog,lead,mTProtoConnector,systemSettings,telegramDestination,telegramImportJob
+Inventory	carListing,draft,normalizationAlias
+Marketing	carListing,showcase
+Parser	systemSettings
+Sales	botConfig,carListing,requestVariant

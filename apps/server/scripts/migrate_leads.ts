@@ -2,6 +2,11 @@
 import { PrismaClient } from '@prisma/client';
 import { ulid } from 'ulid';
 
+if (process.env.ALLOW_DEPRECATED !== '1') {
+    console.error('[DEPRECATED] migrate_leads.ts is frozen. Set ALLOW_DEPRECATED=1 to run intentionally.');
+    process.exit(1);
+}
+
 const prisma = new PrismaClient();
 
 async function getEntityTypeId(workspaceId: string, slug: string) {

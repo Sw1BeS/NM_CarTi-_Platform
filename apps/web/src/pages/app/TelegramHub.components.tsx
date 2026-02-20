@@ -9,6 +9,7 @@ import { buildDefaultBotMenuConfig, buildDefaultMiniAppConfig } from '../../serv
 import { AlertTriangle, Activity, Globe, Terminal } from 'lucide-react';
 
 const stripTrailingSlash = (s: string) => s.replace(/\/+$/, '');
+const miniAppBuildTag = String((import.meta as any)?.env?.VITE_BUILD_ID || '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 24);
 
 const resolveBaseUrl = (raw: string) => {
     const input = (raw || '').trim();
@@ -30,8 +31,20 @@ const resolveBaseUrl = (raw: string) => {
 
 const buildMiniAppUrl = (baseUrl: string, slug: string) => {
     const base = stripTrailingSlash(baseUrl || '');
-    if (/\/p\/app\//.test(base)) return base; // already a full miniapp url
-    return `${base}/p/app/${slug}`;
+    const raw = /\/p\/app\//.test(base) ? base : `${base}/p/app/${slug}`;
+    try {
+        const url = new URL(raw);
+        if (miniAppBuildTag && !url.searchParams.has('v')) {
+            url.searchParams.set('v', miniAppBuildTag);
+        }
+        return url.toString();
+    } catch {
+        return raw;
+    }
+};
+
+const normalizeTemplate = (value: unknown): 'CLIENT_LEAD' | 'B2B' => {
+    return String(value || '').toUpperCase() === 'B2B' ? 'B2B' : 'CLIENT_LEAD';
 };
 
 export const AddBotModal = ({ onClose }: { onClose: () => void }) => {
@@ -60,13 +73,13 @@ export const AddBotModal = ({ onClose }: { onClose: () => void }) => {
 
     const handleAdd = async () => {
         if (!token.trim()) {
-            showToast('Token is required', 'error');
+            showToast('Потрібен токен', 'error');
             return;
         }
         setSaving(true);
         try {
             // Auto-generate fallback
-            const fallbackName = 'My New Bot';
+            const fallbackName = 'Новий бот';
             const fallbackSlug = name.trim() ? name.trim().toLowerCase().replace(/\s+/g, '_') : 'bot';
 
             const { base, detectedSlug } = resolveBaseUrl(effectiveBaseUrl || window.location.origin);
@@ -110,7 +123,7 @@ export const AddBotModal = ({ onClose }: { onClose: () => void }) => {
                 }
             }
 
-            showToast("Bot connected");
+            showToast("Бота підключено");
             onClose();
         } catch (e: any) {
             console.error(e);
@@ -123,26 +136,26 @@ export const AddBotModal = ({ onClose }: { onClose: () => void }) => {
     return (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="panel w-full max-w-md p-8 animate-slide-up shadow-2xl">
-                <h3 className="font-bold text-2xl text-[var(--text-primary)] mb-6">Connect Bot</h3>
+                <h3 className="font-bold text-2xl text-[var(--text-primary)] mb-6">Підключити бота</h3>
                 <div className="space-y-4">
-                    <input className="input" placeholder="Name (Auto-detected if empty)" value={name} onChange={e => setName(e.target.value)} />
-                    <input className="input" placeholder="Token" value={token} onChange={e => setToken(e.target.value)} />
-                    <input className="input" placeholder="Channel ID (optional)" value={channelId} onChange={e => setChannelId(e.target.value)} />
-                    <input className="input" placeholder="Admin Chat ID (optional)" value={adminChatId} onChange={e => setAdminChatId(e.target.value)} />
+                    <input className="input" placeholder="Назва (якщо порожньо — авто)" value={name} onChange={e => setName(e.target.value)} />
+                    <input className="input" placeholder="Токен" value={token} onChange={e => setToken(e.target.value)} />
+                    <input className="input" placeholder="Channel ID (опційно)" value={channelId} onChange={e => setChannelId(e.target.value)} />
+                    <input className="input" placeholder="Admin Chat ID (опційно)" value={adminChatId} onChange={e => setAdminChatId(e.target.value)} />
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
-                            <label className="text-xs font-bold text-[var(--text-secondary)] uppercase block mb-1">Mode</label>
+                            <label className="text-xs font-bold text-[var(--text-secondary)] uppercase block mb-1">Режим</label>
                             <select className="input" value={mode} onChange={e => setMode(e.target.value as any)}>
                                 <option value="polling">Polling</option>
                                 <option value="webhook">Webhook</option>
                             </select>
                         </div>
                         <div>
-                            <label className="text-xs font-bold text-[var(--text-secondary)] uppercase block mb-1">Template</label>
+                            <label className="text-xs font-bold text-[var(--text-secondary)] uppercase block mb-1">Шаблон</label>
                             <select className="input" value={template} onChange={e => setTemplate(e.target.value as 'CLIENT_LEAD' | 'B2B')}>
                                 <option value="CLIENT_LEAD">Lead Bot</option>
-                                <option value="B2B">B2B Network</option>
+                                <option value="B2B">B2B Мережа</option>
                             </select>
                         </div>
                     </div>
@@ -151,20 +164,20 @@ export const AddBotModal = ({ onClose }: { onClose: () => void }) => {
                         <input className="input" placeholder={companyBaseUrl || 'https://your.domain'} value={publicBaseUrl} onChange={e => setPublicBaseUrl(e.target.value)} />
                         {!publicBaseUrl && (
                             <div className="text-[10px] text-[var(--text-secondary)] mt-1 flex items-center gap-1">
-                                Using company base URL by default.
+                                За замовчуванням використовується базовий URL компанії.
                             </div>
                         )}
                         {effectiveBaseUrl.includes('localhost') && (
                             <div className="text-[10px] text-amber-500 mt-1 flex items-center gap-1">
-                                <AlertTriangle size={10} /> Localhost won't work for Telegram Webhooks/Mini Apps
+                                <AlertTriangle size={10} /> Localhost не працює для Telegram webhook/Mini App
                             </div>
                         )}
                     </div>
 
                     <div className="flex justify-end gap-3 mt-6">
-                        <button onClick={onClose} className="btn-ghost">Cancel</button>
+                        <button onClick={onClose} className="btn-ghost">Скасувати</button>
                         <button onClick={handleAdd} disabled={saving} className="btn-primary px-6">
-                            {saving ? 'Connecting...' : 'Connect'}
+                            {saving ? 'Підключення...' : 'Підключити'}
                         </button>
                     </div>
                 </div>
@@ -201,26 +214,31 @@ export const BotSettings = ({ bot }: { bot: Bot }) => {
             .catch(() => {});
     }, []);
 
-    const normalizeMiniAppConfig = (draft: Bot) => {
+    const normalizeMiniAppConfig = (draft: Bot, options?: { replaceTemplateManaged?: boolean }) => {
         const fallbackSlug = draft.defaultShowcaseSlug || 'system';
         const hasOverride = !!draft.publicBaseUrl;
         const baseCandidate = draft.publicBaseUrl || companyBaseUrl || window.location.origin;
         const { base, detectedSlug } = resolveBaseUrl(baseCandidate);
         const slug = detectedSlug || fallbackSlug;
         const miniAppUrl = buildMiniAppUrl(base, slug);
-        const template = ((draft as any).template === 'B2B' ? 'B2B' : 'CLIENT_LEAD') as 'CLIENT_LEAD' | 'B2B';
+        const template = normalizeTemplate((draft as any).template);
+        const previousTemplate = normalizeTemplate((bot as any).presetTemplate || bot.template);
+        const templateChanged = template !== previousTemplate;
+        const replaceTemplateManaged = options?.replaceTemplateManaged === true || templateChanged;
         const defaultMenu = buildDefaultBotMenuConfig(template, miniAppUrl);
         const defaultMini = buildDefaultMiniAppConfig(template, miniAppUrl, slug);
+        const menuSource = replaceTemplateManaged ? defaultMenu : (draft.menuConfig || defaultMenu);
         const menuConfig = {
-            ...(draft.menuConfig || defaultMenu),
-            buttons: (draft.menuConfig?.buttons || defaultMenu.buttons).map(btn =>
+            ...menuSource,
+            buttons: (menuSource.buttons || defaultMenu.buttons).map(btn =>
                 (btn.type === 'LINK' || btn.type === 'WEB_APP') && btn.value === '{{MINI_APP_URL}}'
                     ? { ...btn, value: miniAppUrl }
                     : btn
             )
         };
+        const miniSource = replaceTemplateManaged ? defaultMini : (draft.miniAppConfig || defaultMini);
         const miniAppConfig = {
-            ...(draft.miniAppConfig || defaultMini),
+            ...miniSource,
             url: miniAppUrl,
             showcaseSlug: slug
         };
@@ -228,15 +246,22 @@ export const BotSettings = ({ bot }: { bot: Bot }) => {
     };
 
     const save = async (options?: { forcePreset?: boolean; applyPreset?: boolean; successMessage?: string }) => {
-        const normalized = normalizeMiniAppConfig(form);
+        const currentTemplate = normalizeTemplate((form as any).template);
+        const previousTemplate = normalizeTemplate((bot as any).presetTemplate || bot.template);
+        const templateChanged = currentTemplate !== previousTemplate;
+        const forcePreset = options?.forcePreset ?? templateChanged;
+        const normalized = normalizeMiniAppConfig(form, { replaceTemplateManaged: forcePreset });
         const payload = {
             ...normalized,
             applyPreset: options?.applyPreset ?? true,
-            forcePreset: options?.forcePreset ?? false
+            forcePreset
         } as any;
         const saved = await Data.saveBot(payload);
         setForm(saved as any);
-        showToast(options?.successMessage || "Settings Saved");
+        const defaultMessage = templateChanged
+            ? 'Шаблон змінено, пресет застосовано повторно'
+            : 'Налаштування збережено';
+        showToast(options?.successMessage || defaultMessage);
     };
 
     const handleSyncMenu = async () => {
@@ -245,8 +270,8 @@ export const BotSettings = ({ bot }: { bot: Bot }) => {
             const baseUrl = form.publicBaseUrl || companyBaseUrl || window.location.origin;
             const slug = form.defaultShowcaseSlug || 'system';
             const appUrl = buildMiniAppUrl(baseUrl, slug);
-            await TelegramAPI.setChatMenuButton(form.token, "Open App", appUrl);
-            showToast("Menu Button Synced");
+            await TelegramAPI.setChatMenuButton(form.token, "Відкрити застосунок", appUrl);
+            showToast("Кнопку меню синхронізовано");
         } catch (e: any) { showToast(e.message, 'error'); }
     };
 
@@ -274,22 +299,86 @@ export const BotSettings = ({ bot }: { bot: Bot }) => {
 
     const handleSyncCommands = async () => {
         try {
-            const scenarios = await Data.getScenarios();
+            const scenarios = await Data.getScenarios(form.id ? { botId: form.id } : undefined);
             const commands = scenarios.filter(s => s.isActive && s.triggerCommand).map(s => ({ command: s.triggerCommand, description: s.name }));
             commands.push({ command: 'start', description: 'Restart' });
             commands.push({ command: 'menu', description: 'Menu' });
             await TelegramAPI.setMyCommands(form.token, commands);
-            showToast("Commands Synced");
+            showToast("Команди синхронізовано");
         } catch (e: any) { showToast(e.message, 'error'); }
     };
 
     const getMiniAppUrl = () => {
-        if (!form.username) return '';
+        const username = (form as any).botUsername || form.username;
+        if (!username) return '';
         if (form.defaultShowcaseSlug) {
-            return `https://t.me/${form.username}/app?startapp=${form.defaultShowcaseSlug}`;
+            return `https://t.me/${username}/app?startapp=${form.defaultShowcaseSlug}`;
         }
-        return `https://t.me/${form.username}/app`; // Standard deep link
+        return `https://t.me/${username}/app`; // Standard deep link
     };
+
+    const renderPresetChecklist = () => {
+        const template = normalizeTemplate((form as any).template || 'CLIENT_LEAD');
+        const menuButtons = Array.isArray((form as any).menuConfig?.buttons) ? (form as any).menuConfig.buttons : [];
+        const mini = (form as any).miniAppConfig || {};
+        const buttonValues = new Set(menuButtons.map((btn: any) => String(btn?.value || '').trim().toLowerCase()));
+        const buttonIds = new Set(menuButtons.map((btn: any) => String(btn?.id || '').trim()));
+        const hasMini = Boolean(mini?.isEnabled && mini?.url);
+        const hasBotUsername = Boolean((form as any).botUsername || form.username);
+
+        const leadChecks = [
+            { label: 'Кнопки lead-меню налаштовані', ok: menuButtons.length >= 4 },
+            { label: 'Mini App налаштовано', ok: hasMini },
+            { label: 'Username бота синхронізовано', ok: hasBotUsername }
+        ];
+
+        const b2bChecks = [
+            { label: 'Channel ID налаштовано', ok: Boolean(form.channelId) },
+            { label: 'Admin chat налаштовано', ok: Boolean(form.adminChatId) },
+            { label: 'Кнопка: Створити запит', ok: buttonIds.has('btn_b2b_req') || buttonValues.has('/request') },
+            { label: 'Кнопка: Подати варіант', ok: buttonIds.has('btn_b2b_offer') || buttonValues.has('/offer') },
+            { label: 'Кнопка: Правила', ok: buttonIds.has('btn_b2b_help') },
+            { label: 'Кнопка: Меню', ok: buttonValues.has('/menu') },
+            { label: 'Mini App налаштовано', ok: hasMini },
+            { label: 'Username бота синхронізовано', ok: hasBotUsername }
+        ];
+
+        const checks = template === 'B2B' ? b2bChecks : leadChecks;
+        return (
+            <div className="mt-3 rounded-xl border border-[var(--border-color)] bg-[var(--bg-input)] p-3">
+                <div className="text-[10px] uppercase font-bold text-[var(--text-secondary)] mb-2">Чекліст готовності пресету</div>
+                <div className="space-y-1.5">
+                    {checks.map(item => (
+                        <div key={item.label} className="flex items-center justify-between text-xs">
+                            <span className="text-[var(--text-primary)]">{item.label}</span>
+                            <span className={item.ok ? 'text-green-500 font-bold' : 'text-red-400 font-bold'}>
+                                {item.ok ? 'OK' : 'MISSING'}
+                            </span>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        );
+    };
+
+    const activeTemplate = normalizeTemplate((form as any).template || 'CLIENT_LEAD');
+    const templatePackage = activeTemplate === 'B2B'
+        ? {
+            title: 'Пакет B2B мережі',
+            points: [
+                'Flows: create_request, submit_offer, request_decision, admin_routing, help',
+                'Меню: Створити запит / Подати варіант / Застосунок / Правила / Меню',
+                'Mini App: запити+інвентар / обране / статуси (B2B)'
+            ]
+        }
+        : {
+            title: 'Пакет Lead Bot',
+            points: [
+                'Flows: start, buy, sell, support, language',
+                'Меню: Купити / Продати / Додаток / Підтримка / Мова',
+                'Mini App: інвентар / запит / статус'
+            ]
+        };
 
     return (
         <div className="max-w-2xl mx-auto p-8 space-y-8 overflow-y-auto h-full">
@@ -345,12 +434,29 @@ export const BotSettings = ({ bot }: { bot: Bot }) => {
                     <select
                         className="input w-full"
                         value={((form as any).template || 'CLIENT_LEAD')}
-                        onChange={e => setForm({ ...form, template: e.target.value } as any)}
+                        onChange={e => {
+                            const nextTemplate = normalizeTemplate(e.target.value);
+                            const fallbackSlug = form.defaultShowcaseSlug || 'system';
+                            const baseCandidate = form.publicBaseUrl || companyBaseUrl || window.location.origin;
+                            const { base, detectedSlug } = resolveBaseUrl(baseCandidate);
+                            const slug = detectedSlug || fallbackSlug;
+                            const miniAppUrl = buildMiniAppUrl(base, slug);
+                            const menuConfig = buildDefaultBotMenuConfig(nextTemplate, miniAppUrl);
+                            const miniAppConfig = buildDefaultMiniAppConfig(nextTemplate, miniAppUrl, slug);
+                            setForm({
+                                ...form,
+                                template: nextTemplate,
+                                defaultShowcaseSlug: slug,
+                                menuConfig,
+                                miniAppConfig
+                            } as any);
+                        }}
                     >
                         <option value="CLIENT_LEAD">Lead Bot</option>
                         <option value="B2B">B2B Network</option>
                     </select>
-                    <div className="text-[10px] text-[var(--text-secondary)] mt-1">B2B template uses hard-flow routing for dealer requests.</div>
+                    <div className="text-[10px] text-[var(--text-secondary)] mt-1">Scenarios and menu are applied from selected template preset.</div>
+                    <div className="text-[10px] text-[var(--text-secondary)] mt-1">Legacy B2B fallback is optional and controlled by server flag.</div>
                     <div className="mt-2 text-[10px] flex items-center gap-2">
                         <span className="text-[var(--text-secondary)]">Preset status:</span>
                         <span className={`font-bold ${form.presetStatus === 'ready' ? 'text-green-500' : form.presetStatus === 'partial' ? 'text-yellow-500' : 'text-red-500'}`}>
@@ -360,6 +466,18 @@ export const BotSettings = ({ bot }: { bot: Bot }) => {
                             <span className="text-[var(--text-secondary)]">v{form.presetVersion}</span>
                         )}
                     </div>
+                    <div className="mt-3 rounded-xl border border-[var(--border-color)] bg-[var(--bg-input)] p-3">
+                        <div className="text-[10px] uppercase font-bold text-[var(--text-secondary)] mb-1">Active template package</div>
+                        <div className="text-sm font-semibold text-[var(--text-primary)] mb-2">{templatePackage.title}</div>
+                        <div className="space-y-1">
+                            {templatePackage.points.map(point => (
+                                <div key={point} className="text-xs text-[var(--text-secondary)]">
+                                    • {point}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                    {renderPresetChecklist()}
                 </div>
                 <div className="grid grid-cols-2 gap-6">
                     <div>

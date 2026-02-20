@@ -14,7 +14,7 @@ const getLocaleFromCode = (code?: string | null) => {
   const raw = String(code || '').toLowerCase();
   if (raw.startsWith('uk') || raw.startsWith('ua')) return 'UK';
   if (raw.startsWith('ru')) return 'RU';
-  return 'EN';
+  return 'UK';
 };
 
 let cachedFeatures: { ts: number; features: Record<string, any> } | null = null;

@@ -1,0 +1,6 @@
+docs/MODULES/COMMUNICATION.md:15:│   ├── bot.routes.ts
+docs/MODULES/FRONTEND.md:27:- Router: `App.tsx` (HashRouter)
+docs/MODULES/INVENTORY.md:22:- GET /api/inventory/cars
+docs/MODULES/INVENTORY.md:23:- POST /api/inventory/cars
+docs/MODULES/CORE.md:31:- POST /api/auth/register
+docs/AUDIT.md:12:- **Frontend Stack:** Vite, React, Tailwind, Framer Motion (HashRouter used)

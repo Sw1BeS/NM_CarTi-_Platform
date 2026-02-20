@@ -1,0 +1,5 @@
+  1720 apps/server/prisma/schema.prisma
+  3029 apps/server/src/routes/apiRoutes.ts
+  2697 apps/server/src/modules/Communication/bots/scenario.engine.ts
+  1626 apps/web/src/pages/public/MiniApp.tsx
+  9072 total

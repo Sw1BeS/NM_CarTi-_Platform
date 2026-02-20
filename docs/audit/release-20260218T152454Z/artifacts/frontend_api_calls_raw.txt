@@ -1,0 +1,209 @@
+apps/web/src/pages/public/Login.tsx:36:            const res = await ApiClient.get('/health');
+apps/web/src/pages/app/Health.tsx:38:            const res = await ApiClient.get<any>('health');
+apps/web/src/pages/app/Settings.tsx:442:            const res = await ApiClient.get('/health');
+apps/web/src/pages/app/Marketplace.tsx:38:            const data = await ApiClient.apiFetch(`/templates/marketplace?${params}`);
+apps/web/src/pages/app/Marketplace.tsx:47:            const data = await ApiClient.apiFetch('/templates/installed/list');
+apps/web/src/pages/app/Marketplace.tsx:56:            await ApiClient.apiFetch(`/templates/${templateId}/install`, {
+apps/web/src/pages/app/Inventory.tsx:913:            const res = await ApiClient.post<{ ok: boolean; url?: string; name?: string }>('storage/upload', {
+apps/web/src/pages/app/settings/UsersTab.tsx:23:        const res = await ApiClient.get<User[]>('companies/current/users');
+apps/web/src/pages/app/settings/UsersTab.tsx:30:        const res = await ApiClient.post<any>('companies/current/users', {
+apps/web/src/pages/app/settings/UsersTab.tsx:47:        const res = await ApiClient.delete(`companies/current/users/${userId}`);
+apps/web/src/pages/app/Integrations.tsx:31:            const res = await ApiClient.get<Integration[]>('integrations');
+apps/web/src/pages/app/Integrations.tsx:40:            const res = await ApiClient.post(`integrations/${type}/toggle`, { isActive });
+apps/web/src/pages/app/CompanySettings.tsx:57:            const data = await apiFetch('/companies/current/users');
+apps/web/src/pages/app/CompanySettings.tsx:66:            await apiFetch('/companies/current/branding', {
+apps/web/src/pages/app/CompanySettings.tsx:80:            await apiFetch('/companies/current/users', {
+apps/web/src/pages/app/CompanySettings.tsx:97:            await apiFetch(`/companies/current/users/${userId}`, {
+apps/web/src/pages/app/QAStageA.tsx:82:                  const res = await ApiClient.get<any>(`qa/telegram/token${selectedBotId ? `?botId=${selectedBotId}` : ''}`);
+apps/web/src/pages/app/QAStageA.tsx:96:                  const res = await ApiClient.get<any>(`qa/telegram/webhook${selectedBotId ? `?botId=${selectedBotId}` : ''}`);
+apps/web/src/pages/app/QAStageA.tsx:134:                const res = await ApiClient.get<any>(`qa/media/check?url=${encodeURIComponent(mediaUrl)}`);
+apps/web/src/pages/app/QAStageA.tsx:171:              const res = await ApiClient.get<any>(`qa/simulate/start?${params.toString()}`);
+apps/web/src/pages/app/TelegramHub.components.tsx:117:                    await ApiClient.post(`bots/${bot.id}/webhook`, {
+apps/web/src/pages/app/IntegrationEditor.tsx:98:        const res = await ApiClient.get<T>(endpoint);
+apps/web/src/pages/app/IntegrationEditor.tsx:104:        const res = await ApiClient.put<T>(endpoint, body);
+apps/web/src/pages/app/IntegrationEditor.tsx:110:        const res = await ApiClient.post<T>(endpoint, body);
+apps/web/src/pages/app/Inbox.tsx:265:                await ApiClient.post('messages/logs', {
+apps/web/src/pages/app/Inbox.tsx:298:                const res = await ApiClient.post<{ ok: boolean; url?: string }>('storage/upload', {
+apps/web/src/pages/app/Inbox.tsx:610:        const res = await fetch(`${base}/telegram/file?${params.toString()}`, {
+apps/web/src/pages/app/Inbox.tsx:618:        const res = await ApiClient.post<{ ok: boolean; url?: string }>('telegram/file/cache', payload);
+apps/web/src/pages/app/TelegramHub.tsx:249:        ApiClient.get('integrations/mtproto/stats').then(res => {
+apps/web/src/contexts/CompanyContext.tsx:48:            const data = await ApiClient.apiFetch(`/companies/current${query}`);
+apps/web/src/contexts/WorkerContext.tsx:91:                                    const sendRes = await ApiClient.post('messages/send', {
+apps/web/src/services/superadminApi.ts:20:        const res = await ApiClient.get<CompanySummary[]>('/superadmin/companies');
+apps/web/src/services/superadminApi.ts:29:        const res = await ApiClient.get<User[]>(`/superadmin/users${query.toString() ? `?${query.toString()}` : ''}`);
+apps/web/src/services/superadminApi.ts:34:        const res = await ApiClient.post<User>('/superadmin/users', payload);
+apps/web/src/services/superadminApi.ts:40:        const res = await ApiClient.put<User>(`/superadmin/users/${id}`, payload);
+apps/web/src/services/superadminApi.ts:46:        const res = await ApiClient.post<{ token: string; user: User }>('/superadmin/impersonate', payload);
+apps/web/src/services/superadminApi.ts:52:        const res = await ApiClient.post<CompanySummary>('/superadmin/companies', payload);
+apps/web/src/services/superadminApi.ts:58:        const res = await ApiClient.put<CompanySummary>(`/superadmin/companies/${id}/status`, { isActive });
+apps/web/src/services/superadminApi.ts:64:        const res = await ApiClient.put<CompanySummary>(`/superadmin/companies/${id}/plan`, { plan });
+apps/web/src/services/parsingJobService.ts:17:        const res = await ApiClient.post<ParsingJob>('search/parse', attachSuperadminCompany({ url } as any));
+apps/web/src/services/parsingJobService.ts:27:        const res = await ApiClient.get<ParsingJob[]>(`search/jobs${queryString ? `?${queryString}` : ''}`);
+apps/web/src/services/metricsService.ts:76:        const res = await ApiClient.get<DashboardMetricsResponse>(`metrics/dashboard${query}`);
+apps/web/src/services/metricsService.ts:89:        const res = await ApiClient.get<TelegramMetricsResponse>(`metrics/telegram${query}`);
+apps/web/src/services/botEngine.ts:1209:            const res = await ApiClient.post('messages/send', { chatId, text, imageUrl, botId: active.id });
+apps/web/src/services/mtproto.service.ts:38:        const res = await ApiClient.get<MTProtoConnector[]>('/integrations/mtproto/connectors');
+apps/web/src/services/mtproto.service.ts:45:        const res = await ApiClient.post<{ phoneCodeHash: string, isCodeViaApp: boolean }>('/integrations/mtproto/auth/send-code', { connectorId, phone });
+apps/web/src/services/mtproto.service.ts:50:        const res = await ApiClient.post<{ success: boolean }>('/integrations/mtproto/auth/sign-in', payload);
+apps/web/src/services/mtproto.service.ts:57:        const res = await ApiClient.get<ChannelSource[]>(`/integrations/mtproto/${connectorId}/channels`);
+apps/web/src/services/mtproto.service.ts:62:        const res = await ApiClient.get<any>(`/integrations/mtproto/${connectorId}/resolve?query=${encodeURIComponent(query)}`);
+apps/web/src/services/mtproto.service.ts:67:        const res = await ApiClient.post<ChannelSource>(`/integrations/mtproto/${connectorId}/channels`, { channel });
+apps/web/src/services/mtproto.service.ts:74:        const res = await ApiClient.post<ImportPreview>(`/integrations/mtproto/${connectorId}/channels/${sourceId}/preview`, payload);
+apps/web/src/services/mtproto.service.ts:79:        const res = await ApiClient.post<any>(`/integrations/mtproto/${connectorId}/channels/${sourceId}/import`, payload);
+apps/web/src/services/mtproto.service.ts:86:        const res = await ApiClient.get<any[]>('/integrations/mtproto/import-jobs' + (sourceId ? `?sourceId=${sourceId}` : ''));
+apps/web/src/services/parserClient.ts:17:  const res = await ApiClient.post<any>('parser/preview', { url });
+apps/web/src/services/parserClient.ts:49:  const res = await ApiClient.post<any>('parser/mapping', { domain, mapping, remember: true });
+apps/web/src/services/carService.ts:42:            const res = await fetch(proxy.url(url), { signal: controller.signal, headers });
+apps/web/src/services/publicationService.ts:46:        const res = await ApiClient.get<ContentTemplate[]>(`content/templates${query ? `?${query}` : ''}`);
+apps/web/src/services/publicationService.ts:52:        const res = await ApiClient.post<ContentTemplate>('content/templates', attachSuperadminCompany(payload as any));
+apps/web/src/services/publicationService.ts:58:        const res = await ApiClient.put<ContentTemplate>(`content/templates/${id}`, payload);
+apps/web/src/services/publicationService.ts:64:        const res = await ApiClient.delete(`content/templates/${id}`);
+apps/web/src/services/publicationService.ts:69:        const res = await ApiClient.post<{ text: string; variables: Record<string, any> }>('content/templates/preview', attachSuperadminCompany(payload as any));
+apps/web/src/services/publicationService.ts:79:        const res = await ApiClient.get<PublicationJob[]>(`content/publication-jobs${queryString ? `?${queryString}` : ''}`);
+apps/web/src/services/publicationService.ts:85:        const res = await ApiClient.post<PublicationJob>('content/publication-jobs', attachSuperadminCompany(payload as any));
+apps/web/src/services/publicationService.ts:91:        const res = await ApiClient.post<PublicationJob>(`content/publication-jobs/${id}/retry`, {});
+apps/web/src/services/publicationService.ts:97:        const res = await ApiClient.delete(`content/publication-jobs/${id}`);
+apps/web/src/services/publicationService.ts:102:        const res = await ApiClient.get<PublicationResult[]>(`content/publication-jobs/${id}/results`);
+apps/web/src/modules/Telegram/SourcesDestinations/index.tsx:47:            const res = await ApiClient.get<TelegramRegistryItem[]>('integrations/telegram/registry');
+apps/web/src/modules/Telegram/SourcesDestinations/index.tsx:63:            await ApiClient.post(`integrations/telegram/registry/${item.id}/pause`, {});
+apps/web/src/modules/Telegram/SourcesDestinations/index.tsx:73:            await ApiClient.post(`integrations/telegram/registry/${item.id}/resume`, {});
+apps/web/src/modules/Telegram/SourcesDestinations/index.tsx:83:            await ApiClient.post(`integrations/telegram/registry/${item.id}/sync`, {});
+apps/web/src/modules/Telegram/SourcesDestinations/index.tsx:94:            await ApiClient.delete(`integrations/telegram/registry/${item.id}`);
+apps/web/src/modules/Telegram/SourcesDestinations/index.tsx:107:            const res = await ApiClient.get<RegistryLogItem[]>(`integrations/telegram/registry/${item.id}/logs`);
+apps/web/src/modules/Telegram/SourcesDestinations/index.tsx:124:            const res = await ApiClient.post('integrations/telegram/registry', {
+apps/web/src/modules/Telegram/MTProtoSources/ParsingRuleEditor.tsx:42:            const res = await ApiClient.post('integrations/parsing/preview', { text, template });
+apps/web/src/modules/Telegram/MTProtoSources/index.tsx:34:            const res = await ApiClient.get<MTProtoConnector[]>('integrations/mtproto/connectors');
+apps/web/src/modules/Telegram/MTProtoSources/index.tsx:48:            await ApiClient.delete(`integrations/mtproto/connectors/${id}`);
+apps/web/src/modules/Telegram/MTProtoSources/index.tsx:63:            const res = await ApiClient.post('integrations/mtproto/connectors', {
+apps/web/src/modules/Telegram/MTProtoSources/index.tsx:194:                            await ApiClient.put(`integrations/mtproto/${editingRulesFor.connectorId}/channels/${editingRulesFor.id}`, { importRules: rules });
+apps/web/src/modules/Telegram/MTProtoSources/index.tsx:223:            const res = await ApiClient.get(`integrations/mtproto/${connector.id}/channels`);
+apps/web/src/modules/Telegram/MTProtoSources/index.tsx:233:            await ApiClient.post(`integrations/mtproto/${connector.id}/channels/${sourceId}/sync`, {});
+apps/web/src/modules/Telegram/MTProtoSources/index.tsx:247:            const resolveRes = await ApiClient.get(`integrations/mtproto/${connector.id}/resolve?query=${channelQuery}`);
+apps/web/src/modules/Telegram/MTProtoSources/index.tsx:252:                await ApiClient.post(`integrations/mtproto/${connector.id}/channels`, {
+apps/web/src/modules/Telegram/MTProtoSources/index.tsx:399:            const res = await ApiClient.get<MTProtoImportJob[]>(`integrations/mtproto/import-jobs?sourceId=${channel.id}`);
+apps/web/src/modules/Telegram/MTProtoSources/index.tsx:419:            const res = await ApiClient.post<{ items: MTProtoPreviewItem[] }>(`integrations/mtproto/${connectorId}/channels/${channel.id}/preview`, buildPayload());
+apps/web/src/modules/Telegram/MTProtoSources/index.tsx:440:            const res = await ApiClient.post(`integrations/mtproto/${connectorId}/channels/${channel.id}/import`, buildPayload());
+apps/web/src/modules/Telegram/MiniAppManager/index.tsx:177:            const res = await ApiClient.post<{ ok: boolean; url?: string; name?: string }>('storage/upload', {
+apps/web/src/modules/Telegram/components/AddBotModal.tsx:87:                    await ApiClient.post(`bots/${bot.id}/webhook`, {
+apps/web/src/services/telegram.ts:12:            const res = await ApiClient.post<{ ok: boolean; result: any }>('telegram/call', {
+apps/web/src/services/showcaseService.ts:7:        const res = await axios.get(`${API_URL}/showcase`, {
+apps/web/src/services/showcaseService.ts:15:        const res = await axios.get(`${API_URL}/showcase/${id}`, {
+apps/web/src/services/showcaseService.ts:23:        const res = await axios.post(`${API_URL}/showcase`, data, {
+apps/web/src/services/showcaseService.ts:31:        const res = await axios.put(`${API_URL}/showcase/${id}`, data, {
+apps/web/src/services/showcaseService.ts:39:        await axios.delete(`${API_URL}/showcase/${id}`, {
+apps/web/src/services/data.ts:108:        const res = await ApiClient.get<any[]>('scenarios/templates');
+apps/web/src/services/data.ts:198:        const res = await ApiClient.get<any[]>(`messages/logs${query ? `?${query}` : ''}`);
+apps/web/src/services/data.ts:226:        const res = await ApiClient.post('parser/preview', { url });
+apps/web/src/services/data.ts:232:        const res = await ApiClient.get(`parser/mapping/${domain}`);
+apps/web/src/services/data.ts:239:        const res = await ApiClient.post('parser/mapping', { domain, mapping: payload, remember });
+apps/web/src/services/whatsapp.ts:19:            const res = await fetch(url, {
+apps/web/src/services/leadsService.ts:32:        const res = await ApiClient.get<LeadsResponse | Lead[]>(`leads${queryString ? `?${queryString}` : ''}`);
+apps/web/src/services/leadsService.ts:49:        const res = await ApiClient.post<Lead>('leads', attachSuperadminCompany(lead as any));
+apps/web/src/services/leadsService.ts:55:        const res = await ApiClient.put<Lead>(`leads/${id}`, attachSuperadminCompany(lead as any));
+apps/web/src/services/leadsService.ts:61:        const res = await ApiClient.delete(`leads/${id}`);
+apps/web/src/services/leadsService.ts:66:        const res = await ApiClient.post<Lead>('leads/merge', attachSuperadminCompany({ primaryId, duplicateId } as any));
+apps/web/src/services/requestsService.ts:32:        const res = await ApiClient.get<RequestsResponse | B2BRequest[]>(`requests${queryString ? `?${queryString}` : ''}`);
+apps/web/src/services/requestsService.ts:48:        const res = await ApiClient.post<B2BRequest>('requests', attachSuperadminCompany(req as any));
+apps/web/src/services/requestsService.ts:54:        const res = await ApiClient.put<B2BRequest>(`requests/${id}`, attachSuperadminCompany(req as any));
+apps/web/src/services/requestsService.ts:60:        const res = await ApiClient.delete(`requests/${id}`);
+apps/web/src/services/requestsService.ts:65:        const res = await ApiClient.post<Variant>(`requests/${requestId}/variants`, attachSuperadminCompany(variant as any));
+apps/web/src/services/requestsService.ts:71:        const res = await ApiClient.post<Variant[]>(`requests/${requestId}/variants/from-inventory`, attachSuperadminCompany({ carIds } as any));
+apps/web/src/services/requestsService.ts:77:        const res = await ApiClient.post<B2BRequest>(`requests/${requestId}/link-lead`, attachSuperadminCompany({ leadId } as any));
+apps/web/src/services/requestsService.ts:83:        const res = await ApiClient.post<B2BRequest>(`requests/${requestId}/link-chat`, attachSuperadminCompany({ chatId } as any));
+apps/web/src/services/requestsService.ts:89:        const res = await ApiClient.post(`requests/${requestId}/publish-channel`, attachSuperadminCompany(payload as any));
+apps/web/src/services/requestsService.ts:95:        const res = await ApiClient.put(`requests/${requestId}/channel-post`, attachSuperadminCompany(payload as any));
+apps/web/src/services/requestsService.ts:101:        const res = await ApiClient.post(`requests/${requestId}/close-channel`, attachSuperadminCompany(payload as any));
+apps/web/src/services/miniappApi.ts:50:  return await apiFetch(`/miniapp/favorites?${query.toString()}`, {
+apps/web/src/services/miniappApi.ts:57:  return await apiFetch(`/miniapp/favorites/${carListingId}`, {
+apps/web/src/services/miniappApi.ts:65:  return await apiFetch('/miniapp/requests', {
+apps/web/src/services/miniappApi.ts:79:  return await apiFetch(`/miniapp/requests/status?${query.toString()}`, {
+apps/web/src/services/miniappApi.ts:106:  const response = await apiFetch(`/miniapp/config?slug=${slug}`, {
+apps/web/src/services/instagram.ts:19:            const res = await fetch(url, {
+apps/web/src/services/destination.service.ts:17:        const res = await ApiClient.get<TelegramDestination[]>('/telegram/destinations', { params: filters });
+apps/web/src/services/destination.service.ts:23:        const res = await ApiClient.post<{ started: boolean; message: string }>(`/telegram/destinations/${id}/sync`, {});
+apps/web/src/services/destination.service.ts:29:        const res = await ApiClient.patch<TelegramDestination>(`/telegram/destinations/${id}/pause`, {});
+apps/web/src/services/destination.service.ts:35:        const res = await ApiClient.patch<TelegramDestination>(`/telegram/destinations/${id}/resume`, {});
+apps/web/src/services/integrationLogsService.ts:28:        const res = await ApiClient.get<IntegrationEventLog[]>(`integrations/logs${queryString ? `?${queryString}` : ''}`);
+apps/web/src/services/publicApi.ts:5:  return await apiFetch('/public/leads', {
+apps/web/src/services/publicApi.ts:13:  return await apiFetch('/public/requests', {
+apps/web/src/services/publicApi.ts:21:  return await apiFetch(`/public/requests/${requestId}/variants`, {
+apps/web/src/services/publicApi.ts:29:  return await apiFetch('/public/dealer/session', {
+apps/web/src/services/publicApi.ts:37:  return await apiFetch('/public/bots', {
+apps/web/src/services/publicApi.ts:54:  return await apiFetch(`/showcase/public/${slug}/inventory?${query.toString()}`, {
+apps/web/src/services/publicApi.ts:61:  return await apiFetch('/public/requests', {
+apps/web/src/services/publicApi.ts:76:  return await apiFetch(`/public/${slug}/inventory?${query.toString()}`, {
+apps/web/src/services/publicApi.ts:83:  return await apiFetch(`/public/${slug}/requests`, {
+apps/web/src/services/publicApi.ts:96:  return await apiFetch(`/public/${slug}/request-status?${query.toString()}`, {
+apps/web/src/services/publicApi.ts:103:  return await apiFetch(`/public/proposals/${id}`, {
+apps/web/src/services/publicApi.ts:110:  await apiFetch(`/public/proposals/${id}/view`, {
+apps/web/src/services/publicApi.ts:118:  await apiFetch(`/public/proposals/${id}/feedback`, {
+apps/web/src/services/apiClient.ts:39:        const response = await fetch(url, { ...options, headers, signal: controller.signal });
+apps/web/src/services/systemApi.ts:12:        const { data } = await axios.get(`${API_URL}/system/settings/public`);
+apps/web/src/services/systemApi.ts:17:        const { data } = await axios.get(`${API_URL}/system/settings`);
+apps/web/src/services/systemApi.ts:22:        const { data } = await axios.put(`${API_URL}/system/settings`, payload);
+apps/web/src/services/serverAdapter.ts:38:            const health = await ApiClient.get('health');
+apps/web/src/services/serverAdapter.ts:64:        const res = await ApiClient.get<any>(`entities/${slug}/records/${id}`);
+apps/web/src/services/serverAdapter.ts:70:        const res = await ApiClient.get<any[]>(`entities/${slug}/records?limit=1000`);
+apps/web/src/services/serverAdapter.ts:90:            const res = await ApiClient.put(`entities/${slug}/records/${existing._recordId}`, { data: this.wrap(data) });
+apps/web/src/services/serverAdapter.ts:94:            const res = await ApiClient.post(`entities/${slug}/records`, { data: this.wrap(data) });
+apps/web/src/services/serverAdapter.ts:104:            await ApiClient.delete(`entities/${slug}/records/${existing._recordId}`);
+apps/web/src/services/serverAdapter.ts:111:        const res = await ApiClient.get<User[]>('users');
+apps/web/src/services/serverAdapter.ts:117:            const res = await ApiClient.put<User>(`users/${u.id}`, u);
+apps/web/src/services/serverAdapter.ts:121:        const res = await ApiClient.post<User>('users', data);
+apps/web/src/services/serverAdapter.ts:128:        const res = await ApiClient.get<any>(`requests${this.buildQuery()}`);
+apps/web/src/services/serverAdapter.ts:141:            const res = await ApiClient.put<B2BRequest>(`requests/${payloadWithCompany.id}`, payloadWithCompany);
+apps/web/src/services/serverAdapter.ts:145:        const res = await ApiClient.post<B2BRequest>('requests', payload);
+apps/web/src/services/serverAdapter.ts:150:        await ApiClient.delete(`requests/${id}`);
+apps/web/src/services/serverAdapter.ts:155:        const res = await ApiClient.get<any>(`leads${this.buildQuery()}`);
+apps/web/src/services/serverAdapter.ts:163:            const res = await ApiClient.put<Lead>(`leads/${payloadWithCompany.id}`, payloadWithCompany);
+apps/web/src/services/serverAdapter.ts:167:        const res = await ApiClient.post<Lead>('leads', payload);
+apps/web/src/services/serverAdapter.ts:174:        const res = await ApiClient.get<Bot[]>(`bots${this.buildQuery()}`);
+apps/web/src/services/serverAdapter.ts:182:            const res = await ApiClient.put<Bot>(`bots/${payloadWithCompany.id}`, payloadWithCompany);
+apps/web/src/services/serverAdapter.ts:188:        const res = await ApiClient.post<Bot>('bots', payload);
+apps/web/src/services/serverAdapter.ts:193:        await ApiClient.delete(`bots/${id}`);
+apps/web/src/services/serverAdapter.ts:212:        const res = await ApiClient.get<Scenario[]>(`scenarios${this.buildQuery(params)}`);
+apps/web/src/services/serverAdapter.ts:217:        const res = await ApiClient.post<Scenario>('scenarios', payload);
+apps/web/src/services/serverAdapter.ts:222:        const res = await ApiClient.delete(`scenarios/${id}`);
+apps/web/src/services/serverAdapter.ts:230:        const res = await ApiClient.get<any[]>('drafts');
+apps/web/src/services/serverAdapter.ts:236:        const res = await ApiClient.get<Campaign[]>(`campaigns${this.buildQuery()}`);
+apps/web/src/services/serverAdapter.ts:240:        const res = await ApiClient.post<Campaign>('campaigns', attachSuperadminCompany(c as any));
+apps/web/src/services/serverAdapter.ts:251:        const res = await ApiClient.get<TelegramMessage[]>(`messages${this.buildQuery(params)}`);
+apps/web/src/services/serverAdapter.ts:255:        const res = await ApiClient.post('messages', m);
+apps/web/src/services/serverAdapter.ts:262:        const res = await ApiClient.get<any[]>(`inbox/macros${this.buildQuery()}`);
+apps/web/src/services/serverAdapter.ts:266:        const res = await ApiClient.post<any>('inbox/macros', attachSuperadminCompany(data));
+apps/web/src/services/serverAdapter.ts:271:        const res = await ApiClient.put<any>(`inbox/macros/${id}`, attachSuperadminCompany(data));
+apps/web/src/services/serverAdapter.ts:276:        const res = await ApiClient.delete(`inbox/macros/${id}`);
+apps/web/src/services/serverAdapter.ts:282:        const res = await ApiClient.get<any>(`inbox/notes${this.buildQuery(params)}`);
+apps/web/src/services/serverAdapter.ts:286:        const res = await ApiClient.post<any>('inbox/notes', attachSuperadminCompany(data as any));
+apps/web/src/services/serverAdapter.ts:292:        const res = await ApiClient.get<TelegramDestination[]>(`destinations${this.buildQuery()}`);
+apps/web/src/services/serverAdapter.ts:301:        const res = await ApiClient.get<any>(`inventory${this.buildQuery(params)}`);
+apps/web/src/services/serverAdapter.ts:310:            const res = await ApiClient.put<CarListing>(`inventory/${id}`, payload);
+apps/web/src/services/serverAdapter.ts:314:        const res = await ApiClient.post<CarListing>('inventory', payload);
+apps/web/src/services/serverAdapter.ts:319:        await ApiClient.delete(`inventory/${id}`);
+apps/web/src/services/serverAdapter.ts:329:        const res = await ApiClient.get<SystemSettings>('system/settings');
+apps/web/src/services/serverAdapter.ts:389:        const res = await ApiClient.put('system/settings', s);
+apps/web/src/services/serverAdapter.ts:449:                ApiClient.delete(`entities/${slug}/records/${r._recordId}`)
+apps/web/src/services/serverAdapter.ts:453:                ApiClient.post(`entities/${slug}/records`, { data: this.wrap(r) })
+apps/web/src/services/serverAdapter.ts:460:        const res = await ApiClient.get<any[]>(`integrations/mtproto/connectors${this.buildQuery()}`);
+apps/web/src/services/serverAdapter.ts:464:        const res = await ApiClient.post('integrations/mtproto/connectors', attachSuperadminCompany(data));
+apps/web/src/services/serverAdapter.ts:469:        await ApiClient.delete(`integrations/mtproto/connectors/${id}`);
+apps/web/src/services/serverAdapter.ts:472:        const res = await ApiClient.post('integrations/mtproto/auth/send-code', attachSuperadminCompany({ connectorId, phone } as any));
+apps/web/src/services/serverAdapter.ts:477:        const res = await ApiClient.post('integrations/mtproto/auth/sign-in', attachSuperadminCompany(data));
+apps/web/src/services/serverAdapter.ts:482:        const res = await ApiClient.get<any[]>(`integrations/mtproto/${connectorId}/channels${this.buildQuery()}`);
+apps/web/src/services/serverAdapter.ts:489:        const res = await ApiClient.get<any>(`integrations/mtproto/${connectorId}/resolve${this.buildQuery(params)}`);
+apps/web/src/services/serverAdapter.ts:495:        const res = await ApiClient.post(`integrations/mtproto/${connectorId}/channels`, attachSuperadminCompany({ channel, importRules } as any));
+apps/web/src/services/serverAdapter.ts:501:        const res = await ApiClient.delete(`integrations/mtproto/channels/${id}`);
+apps/web/src/services/serverAdapter.ts:506:        const res = await ApiClient.post(`integrations/mtproto/${connectorId}/sync`, attachSuperadminCompany({} as any));
+apps/web/src/services/draftsService.ts:22:        const res = await ApiClient.get<DraftRecord[]>('drafts');
+apps/web/src/services/draftsService.ts:28:        const res = await ApiClient.post<DraftRecord>('drafts', payload);
+apps/web/src/services/draftsService.ts:34:        const res = await ApiClient.put<DraftRecord>(`drafts/${id}`, payload);
+apps/web/src/services/draftsService.ts:40:        const res = await ApiClient.delete(`drafts/${id}`);
+apps/web/src/services/authApi.ts:6:    return await apiFetch("/auth/login", { 
+apps/web/src/services/authApi.ts:13:    return await apiFetch("/auth/me", { 
+apps/web/src/services/inventoryService.ts:38:        const res = await ApiClient.get<InventoryResponse>(`inventory${queryString ? `?${queryString}` : ''}`);
+apps/web/src/services/inventoryService.ts:55:            ? await ApiClient.put<CarListing>(`inventory/${car.canonicalId}`, payload)
+apps/web/src/services/inventoryService.ts:56:            : await ApiClient.post<CarListing>('inventory', payload);
+apps/web/src/services/inventoryService.ts:65:        const res = await ApiClient.delete(`inventory/${id}`);
+apps/web/src/services/inventoryService.ts:71:        const res = await ApiClient.post<{ count: number }>('inventory/bulk', payload);
+apps/web/src/services/entitiesApi.ts:59:    await apiFetch(`/entities/${slug}/records/${id}`, {
+apps/web/src/providers/ThemeProvider.tsx:32:                const res = await ApiClient.get<any>(`companies/current${query}`);

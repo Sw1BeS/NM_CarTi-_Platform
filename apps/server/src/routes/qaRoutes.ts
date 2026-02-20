@@ -41,7 +41,7 @@ router.get('/simulate/start', authenticateToken, requireRole(['SUPER_ADMIN', 'AD
   const requestId = req.query.requestId as string;
   const dealerId = req.query.dealerId as string;
   const bot = await prisma.botConfig.findFirst({ where: { isEnabled: true } });
-  const botUsername = bot?.config ? (bot.config as any).username : undefined;
+  const botUsername = bot?.config ? (bot.config as any).botUsername || (bot.config as any).username : undefined;
   if (!bot?.token || !botUsername) return errorResponse(res, 400, 'Bot username missing');
 
   if (type === 'dealer_invite' && dealerId) {

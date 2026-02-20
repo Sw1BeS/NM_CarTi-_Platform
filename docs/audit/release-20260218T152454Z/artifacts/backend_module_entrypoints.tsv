@@ -1,0 +1,17 @@
+module	entry_file	route_count	authenticate	require_role	company_context
+Communication	Communication/telegram/core/telegram.routes.ts	1	0	0	0
+Communication	Communication/telegram/destinations/destination.routes.ts	4	5	0	0
+Core	Core/auth/auth.routes.ts	2	2	0	0
+Core	Core/companies/company.routes.ts	7	2	6	2
+Core	Core/health/health.controller.ts	0	0	0	0
+Core	Core/superadmin/superadmin.routes.ts	12	2	2	2
+Core	Core/system/system.routes.ts	3	2	3	0
+Core	Core/templates/template.routes.ts	5	4	0	4
+Integrations	Integrations/integration.routes.ts	9	2	9	2
+Integrations	Integrations/mtproto/mtproto.routes.ts	16	0	17	0
+Integrations	Integrations/parsing/parsing.routes.ts	1	0	1	0
+Integrations	Integrations/telegram/telegramRegistry.routes.ts	8	0	9	0
+Inventory	Inventory/inventory/inventory.routes.ts	5	2	5	0
+Marketing	Marketing/showcase/showcase.controller.ts	6	2	4	0
+Parser	Parser/parser.controller.ts	3	2	4	0
+Sales	Sales/requests/requests.routes.ts	11	12	11	0

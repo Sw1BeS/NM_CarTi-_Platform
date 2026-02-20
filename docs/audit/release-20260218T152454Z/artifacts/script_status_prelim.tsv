@@ -1,0 +1,35 @@
+path	exists	lines	bytes	lang	write_keywords	env_guard	import_missing	prelim_status
+scripts/cleanup_demo_data.sql	YES	18	904	sql	0	0	NO	OK
+scripts/smoke.sh	YES	106	3212	shell	0	0	NO	OK
+scripts/smoke_read.sh	YES	84	2378	shell	0	0	NO	OK
+scripts/smoke_write.sh	YES	71	1859	shell	0	2	NO	OK
+scripts/verify-deployment.sh	YES	130	5155	shell	0	0	NO	OK
+infra/deploy_infra2.sh	YES	21	631	shell	0	0	NO	OK
+infra/deploy_manual.sh	YES	21	631	shell	0	0	NO	OK
+infra/deploy_prod.sh	YES	434	13442	shell	5	4	NO	OK
+infra/monitor.sh	YES	65	1882	shell	0	0	NO	OK
+infra/prod_verify.sh	YES	62	3038	shell	3	2	NO	OK
+apps/server/scripts/check_telegram_health.ts	YES	43	1647	ts	0	0	NO	OK
+apps/server/scripts/check_users.ts	YES	26	837	ts	0	0	NO	OK
+apps/server/scripts/debug_orphans.ts	YES	52	2241	ts	0	1	YES	Needs Fix
+apps/server/scripts/inspect-db.js	YES	70	2621	js	0	0	NO	OK
+apps/server/scripts/migrate_inventory.ts	YES	102	3728	ts	4	0	NO	Needs Fix
+apps/server/scripts/migrate_leads.ts	YES	152	6277	ts	12	0	NO	Needs Fix
+apps/server/scripts/patch_nav_leads.ts	YES	59	1701	ts	1	0	YES	Needs Fix
+apps/server/scripts/qa_smoke.ts	YES	94	2911	ts	0	0	YES	Needs Fix
+apps/server/scripts/seed_definitions.ts	YES	137	4638	ts	5	0	NO	Needs Fix
+apps/server/scripts/seed_showcase.ts	YES	47	1180	ts	2	0	NO	Needs Fix
+apps/server/scripts/sync_bot_presets.ts	YES	156	5595	ts	1	0	YES	Needs Fix
+apps/server/scripts/test_parser.ts	YES	76	2234	ts	0	0	NO	OK
+apps/server/scripts/test_parsing_service.ts	YES	38	1149	ts	1	0	NO	Needs Fix
+apps/server/scripts/update_enum.ts	YES	17	455	ts	0	0	NO	OK
+apps/server/scripts/verify_routes.ts	YES	57	2030	ts	0	0	NO	OK
+apps/server/src/scripts/cleanupScenarios.ts	YES	145	4782	ts	12	0	YES	Needs Fix
+apps/server/src/scripts/mtproto_qa.ts	YES	79	2867	ts	0	0	YES	Needs Fix
+apps/server/src/scripts/seedTemplates.ts	YES	35	990	ts	2	0	YES	Needs Fix
+apps/server/src/scripts/seed_entities.ts	YES	54	2214	ts	1	0	YES	Needs Fix
+verification/check_showcase.sh	YES	49	1259	shell	0	0	NO	OK
+verification/routes_smoke_test.sh	YES	60	1926	shell	0	0	NO	OK
+verification/smoke_test_basic.sh	YES	39	1301	shell	0	0	NO	OK
+verification/verify_csv.py	YES	63	2191	py	0	0	NO	OK
+verification/verify_miniapp.py	YES	40	1674	py	0	0	NO	OK

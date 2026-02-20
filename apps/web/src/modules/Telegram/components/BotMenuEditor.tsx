@@ -4,6 +4,19 @@ import { Bot, BotMenuButtonConfig, Scenario } from '../../../types';
 import { Plus, Trash2, Upload, Download, UploadCloud, Grid } from 'lucide-react';
 import { useToast } from '../../../contexts/ToastContext';
 import { TelegramAPI } from '../../../services/telegram';
+const miniAppBuildTag = String((import.meta as any)?.env?.VITE_BUILD_ID || '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 24);
+
+const withBuildTag = (raw: string) => {
+    try {
+        const url = new URL(raw);
+        if (miniAppBuildTag && !url.searchParams.has('v')) {
+            url.searchParams.set('v', miniAppBuildTag);
+        }
+        return url.toString();
+    } catch {
+        return raw;
+    }
+};
 
 const normalizeMenuConfig = (menuConfig?: Bot['menuConfig']) => {
     const buttonsRaw = Array.isArray(menuConfig?.buttons) ? menuConfig!.buttons : [];
@@ -53,7 +66,7 @@ export const BotMenuEditor = ({ scenarios, botId, standalone = false }: { scenar
 
     const bot = bots.find(b => b.id === selectedBotId);
 
-    if (!bot) return <div className="p-10 text-center text-gray-400">No active bots found.</div>;
+    if (!bot) return <div className="p-10 text-center text-gray-400">Активних ботів не знайдено.</div>;
     const menuConfig = normalizeMenuConfig(bot.menuConfig);
     const isB2B = bot.template === 'B2B';
 
@@ -86,58 +99,58 @@ export const BotMenuEditor = ({ scenarios, botId, standalone = false }: { scenar
     const scenarioIds = getScenarioIds(scenarios);
 
     const resolveMiniAppUrl = () => {
-        if (bot.miniAppConfig?.url) return bot.miniAppConfig.url;
+        if (bot.miniAppConfig?.url) return withBuildTag(bot.miniAppConfig.url);
         const base = (bot.publicBaseUrl || companyBaseUrl || window.location.origin).replace(/\/$/, '');
         const slug = (bot.defaultShowcaseSlug || bot.username || 'system').trim();
         if (!base || !slug) return '{{MINI_APP_URL}}';
-        return `${base}/p/app/${slug}`;
+        return withBuildTag(`${base}/p/app/${slug}`);
     };
     const miniAppUrl = resolveMiniAppUrl();
 
     const buildMenuTemplates = (ids: ReturnType<typeof getScenarioIds>) => ([
         {
             id: 'standard',
-            name: 'CarTié Standard',
-            description: 'Buy/Sell/Support + Mini App + Language',
-            welcomeMessage: '👋 Welcome to CarTié! Choose an option below:',
+            name: 'CarTié Стандарт',
+            description: 'Купівля/Продаж/Підтримка + Mini App + Мова',
+            welcomeMessage: '👋 Вітаємо в CarTié! Оберіть опцію нижче:',
             buttons: [
-                { id: 'btn_buy', label: '🚗 Buy a Car', label_uk: '🚗 Купити авто', label_ru: '🚗 Купить авто', type: 'SCENARIO', value: ids.buy, row: 0, col: 0 },
-                { id: 'btn_sell', label: '💰 Sell My Car', label_uk: '💰 Продати авто', label_ru: '💰 Продать авто', type: 'SCENARIO', value: ids.sell, row: 0, col: 1 },
-                { id: 'btn_app', label: '📱 Open App', label_uk: '📱 Додаток', label_ru: '📱 Приложение', type: 'WEB_APP', value: miniAppUrl, row: 1, col: 0 },
-                { id: 'btn_support', label: '📞 Status / Support', label_uk: '📞 Статус / Підтримка', label_ru: '📞 Статус / Поддержка', type: 'SCENARIO', value: ids.support, row: 1, col: 1 },
-                { id: 'btn_lang', label: '🌐 Language', label_uk: '🌐 Мова', label_ru: '🌐 Язык', type: 'SCENARIO', value: ids.lang, row: 2, col: 0 }
+                { id: 'btn_buy', label: '🚗 Купити авто', label_uk: '🚗 Купити авто', label_ru: '🚗 Купить авто', type: 'SCENARIO', value: ids.buy, row: 0, col: 0 },
+                { id: 'btn_sell', label: '💰 Продати авто', label_uk: '💰 Продати авто', label_ru: '💰 Продать авто', type: 'SCENARIO', value: ids.sell, row: 0, col: 1 },
+                { id: 'btn_app', label: '📱 Додаток', label_uk: '📱 Додаток', label_ru: '📱 Приложение', type: 'WEB_APP', value: miniAppUrl, row: 1, col: 0 },
+                { id: 'btn_support', label: '📞 Статус / Підтримка', label_uk: '📞 Статус / Підтримка', label_ru: '📞 Статус / Поддержка', type: 'SCENARIO', value: ids.support, row: 1, col: 1 },
+                { id: 'btn_lang', label: '🌐 Мова', label_uk: '🌐 Мова', label_ru: '🌐 Язык', type: 'SCENARIO', value: ids.lang, row: 2, col: 0 }
             ]
         },
         {
             id: 'sales',
-            name: 'Sales Focus',
-            description: 'Buy/Sell + App + Support',
-            welcomeMessage: '🚗 CarTié Sales Desk — pick an action:',
+            name: 'Фокус Продажів',
+            description: 'Купівля/Продаж + Додаток + Підтримка',
+            welcomeMessage: '🚗 CarTié Sales Desk — оберіть дію:',
             buttons: [
-                { id: 'btn_buy', label: '🚗 Buy', label_uk: '🚗 Купити', label_ru: '🚗 Купить', type: 'SCENARIO', value: ids.buy, row: 0, col: 0 },
-                { id: 'btn_sell', label: '💰 Sell', label_uk: '💰 Продати', label_ru: '💰 Продать', type: 'SCENARIO', value: ids.sell, row: 0, col: 1 },
-                { id: 'btn_app', label: '📱 Mini App', label_uk: '📱 Додаток', label_ru: '📱 Приложение', type: 'WEB_APP', value: miniAppUrl, row: 1, col: 0 },
-                { id: 'btn_support', label: '☎️ Status / Support', label_uk: '☎️ Статус / Підтримка', label_ru: '☎️ Статус / Поддержка', type: 'SCENARIO', value: ids.support, row: 1, col: 1 }
+                { id: 'btn_buy', label: '🚗 Купити', label_uk: '🚗 Купити', label_ru: '🚗 Купить', type: 'SCENARIO', value: ids.buy, row: 0, col: 0 },
+                { id: 'btn_sell', label: '💰 Продати', label_uk: '💰 Продати', label_ru: '💰 Продать', type: 'SCENARIO', value: ids.sell, row: 0, col: 1 },
+                { id: 'btn_app', label: '📱 Додаток', label_uk: '📱 Додаток', label_ru: '📱 Приложение', type: 'WEB_APP', value: miniAppUrl, row: 1, col: 0 },
+                { id: 'btn_support', label: '☎️ Статус / Підтримка', label_uk: '☎️ Статус / Підтримка', label_ru: '☎️ Статус / Поддержка', type: 'SCENARIO', value: ids.support, row: 1, col: 1 }
             ]
         },
         {
             id: 'minimal',
-            name: 'Minimal',
-            description: 'App + Support only',
-            welcomeMessage: 'Welcome! Use the menu below:',
+            name: 'Мінімальний',
+            description: 'Лише Додаток + Підтримка',
+            welcomeMessage: 'Вітаємо! Скористайтеся меню нижче:',
             buttons: [
-                { id: 'btn_app', label: '📱 Open App', label_uk: '📱 Додаток', label_ru: '📱 Приложение', type: 'WEB_APP', value: miniAppUrl, row: 0, col: 0 },
-                { id: 'btn_support', label: '📞 Status / Support', label_uk: '📞 Статус / Підтримка', label_ru: '📞 Статус / Поддержка', type: 'SCENARIO', value: ids.support, row: 0, col: 1 }
+                { id: 'btn_app', label: '📱 Додаток', label_uk: '📱 Додаток', label_ru: '📱 Приложение', type: 'WEB_APP', value: miniAppUrl, row: 0, col: 0 },
+                { id: 'btn_support', label: '📞 Статус / Підтримка', label_uk: '📞 Статус / Підтримка', label_ru: '📞 Статус / Поддержка', type: 'SCENARIO', value: ids.support, row: 0, col: 1 }
             ]
         },
         {
             id: 'lead_basic',
-            name: 'Lead Bot Basic',
-            description: 'Mini App + quick contact lead flow',
-            welcomeMessage: '👋 Welcome! Choose an option below:',
+            name: 'Базовий Lead Bot',
+            description: 'Mini App + швидкий запит на контакт',
+            welcomeMessage: '👋 Вітаємо! Оберіть опцію нижче:',
             buttons: [
-                { id: 'btn_app', label: '📱 Catalog', label_uk: '📱 Каталог', label_ru: '📱 Каталог', type: 'WEB_APP', value: miniAppUrl, row: 0, col: 0 },
-                { id: 'btn_lead', label: '📞 Request Contact', label_uk: '📞 Запит на звʼязок', label_ru: '📞 Запрос связи', type: 'SCENARIO', value: ids.lead, row: 0, col: 1 }
+                { id: 'btn_app', label: '📱 Каталог', label_uk: '📱 Каталог', label_ru: '📱 Каталог', type: 'WEB_APP', value: miniAppUrl, row: 0, col: 0 },
+                { id: 'btn_lead', label: '📞 Запит на звʼязок', label_uk: '📞 Запит на звʼязок', label_ru: '📞 Запрос связи', type: 'SCENARIO', value: ids.lead, row: 0, col: 1 }
             ]
         }
     ]);
@@ -165,7 +178,7 @@ export const BotMenuEditor = ({ scenarios, botId, standalone = false }: { scenar
         for (const req of missing) {
             const tpl = templates.find(t => t.id === req.templateId);
             if (!tpl) {
-                showToast(`Template ${req.templateId} not found. Run seed to install defaults.`, 'error');
+                showToast(`Шаблон ${req.templateId} не знайдено. Запустіть seed для встановлення шаблонів.`, 'error');
                 continue;
             }
             const now = new Date().toISOString();
@@ -192,9 +205,9 @@ export const BotMenuEditor = ({ scenarios, botId, standalone = false }: { scenar
         const refreshedIds = getScenarioIds(updatedScenarios);
         const tpl = buildMenuTemplates(refreshedIds).find(t => t.id === templateId);
         if (!tpl) return;
-        if (!confirm(`Apply "${tpl.name}" template? This will replace current menu buttons.`)) return;
+        if (!confirm(`Застосувати шаблон "${tpl.name}"? Поточні кнопки меню буде замінено.`)) return;
         await saveConfig(tpl.buttons as BotMenuButtonConfig[], tpl.welcomeMessage);
-        showToast(`Template applied: ${tpl.name}`);
+        showToast(`Шаблон застосовано: ${tpl.name}`);
     };
 
     const handlePublish = async () => {
@@ -207,9 +220,9 @@ export const BotMenuEditor = ({ scenarios, botId, standalone = false }: { scenar
                     showToast('Set a public base URL before publishing menu', 'error');
                     return;
                 }
-                await TelegramAPI.setChatMenuButton(bot.token, "Open App", appUrl);
+                await TelegramAPI.setChatMenuButton(bot.token, "Відкрити застосунок", appUrl);
             }
-            showToast("Commands & Menu Published");
+            showToast("Команди та меню опубліковано");
         } catch (e: any) { showToast(e.message, 'error'); }
     };
 
@@ -233,15 +246,15 @@ export const BotMenuEditor = ({ scenarios, botId, standalone = false }: { scenar
             try {
                 const json = JSON.parse(event.target?.result as string);
                 if (json.buttons && Array.isArray(json.buttons)) {
-                    if (confirm("Replace current menu configuration? This cannot be undone.")) {
+                    if (confirm("Замінити поточну конфігурацію меню? Дію неможливо скасувати.")) {
                         saveConfig(json.buttons, json.welcomeMessage);
-                        showToast("Menu Configuration Imported");
+                        showToast("Конфігурацію меню імпортовано");
                     }
                 } else {
-                    showToast("Invalid config format", "error");
+                    showToast("Невірний формат конфігурації", "error");
                 }
             } catch (err) {
-                showToast("Error parsing file", "error");
+                showToast("Помилка під час читання файлу", "error");
             }
             if (configInputRef.current) configInputRef.current.value = '';
         };
@@ -251,7 +264,7 @@ export const BotMenuEditor = ({ scenarios, botId, standalone = false }: { scenar
     const addButton = (row: number) => {
         const newBtn: BotMenuButtonConfig = {
             id: `btn_${Date.now()}`,
-            label: 'New Button',
+            label: 'Нова кнопка',
             type: 'SCENARIO',
             value: '',
             row: row,
@@ -301,7 +314,7 @@ export const BotMenuEditor = ({ scenarios, botId, standalone = false }: { scenar
                 <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-6 bg-[#18181B] rounded-b-xl z-20"></div>
                 <div className="bg-[url('https://telegram.org/file/464001088/1/bSWkX5Y-Q7Y/7680076a5933615174')] bg-cover flex-1 p-4 flex flex-col items-center justify-center text-white text-sm">
                     <div className="bg-[#182533] p-3 rounded-lg shadow-sm mt-4 text-xs w-full max-w-[80%] ml-auto text-left opacity-90">
-                        {menuConfig.welcomeMessage || "Welcome!"}
+                        {menuConfig.welcomeMessage || "Вітаємо!"}
                         <div className="text-[9px] text-gray-400 text-right mt-1">10:00 AM</div>
                     </div>
                 </div>
@@ -327,8 +340,8 @@ export const BotMenuEditor = ({ scenarios, botId, standalone = false }: { scenar
             <div className="flex-1 bg-[var(--bg-panel)] rounded-xl shadow-lg border border-[var(--border-color)] p-8 overflow-y-auto">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
                     <div>
-                        <h3 className="font-bold text-2xl text-[var(--text-primary)]">Menu Configuration</h3>
-                        <p className="text-sm text-[var(--text-secondary)] mt-1">Customize the persistent keyboard layout</p>
+                        <h3 className="font-bold text-2xl text-[var(--text-primary)]">Конфігурація меню</h3>
+                        <p className="text-sm text-[var(--text-secondary)] mt-1">Налаштуйте постійне меню бота</p>
                     </div>
                     <div className="flex gap-3 flex-wrap">
                         {!botId && (
@@ -336,16 +349,16 @@ export const BotMenuEditor = ({ scenarios, botId, standalone = false }: { scenar
                                 {bots.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                             </select>
                         )}
-                        <button onClick={() => configInputRef.current?.click()} className="btn-secondary px-3" title="Import Config"><Upload size={16} /></button>
-                        <button onClick={handleExportConfig} className="btn-secondary px-3" title="Export Config"><Download size={16} /></button>
+                        <button onClick={() => configInputRef.current?.click()} className="btn-secondary px-3" title="Імпорт конфігурації"><Upload size={16} /></button>
+                        <button onClick={handleExportConfig} className="btn-secondary px-3" title="Експорт конфігурації"><Download size={16} /></button>
                         <button onClick={handlePublish} className="btn-primary flex items-center gap-2 px-4">
-                            <UploadCloud size={16} /> Push Commands
+                            <UploadCloud size={16} /> Опублікувати команди
                         </button>
                     </div>
                 </div>
                 {isB2B && (
                     <div className="mb-6 rounded-xl border border-amber-400/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
-                        B2B bots use a built-in hard flow. Menu settings here do not affect the live B2B menu.
+                        B2B-бот використовує вбудований runtime flow. Налаштування меню тут не змінюють live B2B-меню.
                     </div>
                 )}
 
@@ -354,11 +367,11 @@ export const BotMenuEditor = ({ scenarios, botId, standalone = false }: { scenar
                     <div className="bg-[var(--bg-input)] border border-[var(--border-color)] rounded-xl p-4">
                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                             <div>
-                                <div className="text-xs uppercase font-bold text-[var(--text-secondary)]">Menu Templates</div>
+                                <div className="text-xs uppercase font-bold text-[var(--text-secondary)]">Шаблони меню</div>
                                 <div className="text-sm text-[var(--text-primary)] font-semibold mt-1">{selectedTemplate?.name}</div>
                                 <div className="text-xs text-[var(--text-secondary)] mt-1">{selectedTemplate?.description}</div>
                             </div>
-                            <button onClick={applyTemplate} className="btn-primary text-xs px-4 py-2 whitespace-nowrap">Apply Template</button>
+                            <button onClick={applyTemplate} className="btn-primary text-xs px-4 py-2 whitespace-nowrap">Застосувати шаблон</button>
                         </div>
                         <div className="mt-4 flex flex-col sm:flex-row gap-3">
                             <select className="input text-sm" value={templateId} onChange={e => setTemplateId(e.target.value)}>
@@ -367,14 +380,14 @@ export const BotMenuEditor = ({ scenarios, botId, standalone = false }: { scenar
                                 ))}
                             </select>
                             <div className="text-[10px] text-[var(--text-secondary)] flex-1">
-                                Uses current scenarios if they exist (buy/sell/status/lang). You can edit button targets after applying.
+                                Використовує наявні сценарії (buy/sell/status/lang), якщо вони є. Після застосування можна змінити цілі кнопок.
                             </div>
                         </div>
                     </div>
                 </div>
 
                 <div className="mb-8">
-                    <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2">Welcome Message</label>
+                    <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2">Вітальне повідомлення</label>
                     <textarea
                         className="textarea h-24"
                         value={menuConfig.welcomeMessage || ''}
@@ -386,43 +399,43 @@ export const BotMenuEditor = ({ scenarios, botId, standalone = false }: { scenar
 
                 <div className="space-y-4">
                     <h4 className="text-sm font-bold text-[var(--text-primary)] uppercase border-b border-[var(--border-color)] pb-3 flex items-center gap-2">
-                        <Grid size={16} /> Button Actions
+                        <Grid size={16} /> Дії кнопок
                     </h4>
                     {menuConfig.buttons.map((btn, idx) => (
                         <div key={btn.id} className="bg-[var(--bg-input)] p-5 rounded-xl border border-[var(--border-color)] flex flex-col gap-4 group hover:border-gold-500/30 transition-all">
                             <div className="flex justify-between items-center">
-                                <span className="text-xs font-bold bg-[var(--bg-panel)] px-2 py-1 rounded text-[var(--text-secondary)] border border-[var(--border-color)]">Row {btn.row + 1}</span>
+                                <span className="text-xs font-bold bg-[var(--bg-panel)] px-2 py-1 rounded text-[var(--text-secondary)] border border-[var(--border-color)]">Рядок {btn.row + 1}</span>
                                 <button onClick={() => deleteButton(btn.id)} className="text-red-500 hover:bg-red-500/10 p-2 rounded transition-colors"><Trash2 size={16} /></button>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div>
-                                    <label className="text-[10px] text-[var(--text-muted)] font-bold uppercase mb-1 block">Label</label>
-                                    <input className="input text-sm font-bold w-full mb-2" value={btn.label} onChange={e => updateButton(btn.id, { label: e.target.value })} placeholder="Default Label" />
+                                    <label className="text-[10px] text-[var(--text-muted)] font-bold uppercase mb-1 block">Назва</label>
+                                    <input className="input text-sm font-bold w-full mb-2" value={btn.label} onChange={e => updateButton(btn.id, { label: e.target.value })} placeholder="Основна назва" />
                                     <div className="grid grid-cols-2 gap-2">
-                                        <input className="input text-xs" value={btn.label_uk || ''} onChange={e => updateButton(btn.id, { label_uk: e.target.value })} placeholder="UK Label" />
-                                        <input className="input text-xs" value={btn.label_ru || ''} onChange={e => updateButton(btn.id, { label_ru: e.target.value })} placeholder="RU Label" />
+                                        <input className="input text-xs" value={btn.label_uk || ''} onChange={e => updateButton(btn.id, { label_uk: e.target.value })} placeholder="UK назва" />
+                                        <input className="input text-xs" value={btn.label_ru || ''} onChange={e => updateButton(btn.id, { label_ru: e.target.value })} placeholder="RU назва" />
                                     </div>
                                 </div>
                                 <div>
-                                    <label className="text-[10px] text-[var(--text-muted)] font-bold uppercase mb-1 block">Action Type</label>
+                                    <label className="text-[10px] text-[var(--text-muted)] font-bold uppercase mb-1 block">Тип дії</label>
                                     <select className="input text-sm" value={btn.type} onChange={e => updateButton(btn.id, { type: e.target.value as any })}>
-                                        <option value="SCENARIO">Start Scenario</option>
-                                        <option value="TEXT">Send Text Reply</option>
-                                        <option value="LINK">Open URL</option>
-                                        <option value="WEB_APP">Open Mini App</option>
+                                        <option value="SCENARIO">Запустити сценарій</option>
+                                        <option value="TEXT">Надіслати текст</option>
+                                        <option value="LINK">Відкрити URL</option>
+                                        <option value="WEB_APP">Відкрити Mini App</option>
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="text-[10px] text-[var(--text-muted)] font-bold uppercase mb-1 block">Target</label>
+                                    <label className="text-[10px] text-[var(--text-muted)] font-bold uppercase mb-1 block">Ціль</label>
                                     {btn.type === 'SCENARIO' ? (
                                         <select className="input text-sm" value={btn.value} onChange={e => updateButton(btn.id, { value: e.target.value })}>
-                                            <option value="">Select Scenario...</option>
+                                            <option value="">Оберіть сценарій...</option>
                                             {scenarios.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                                         </select>
                                     ) : (
                                         <input
                                             className="input text-sm"
-                                            placeholder={btn.type === 'LINK' ? 'https://...' : btn.type === 'WEB_APP' ? 'Mini App URL' : 'Reply text'}
+                                            placeholder={btn.type === 'LINK' ? 'https://...' : btn.type === 'WEB_APP' ? 'URL Mini App' : 'Текст відповіді'}
                                             value={btn.value}
                                             onChange={e => updateButton(btn.id, { value: e.target.value })}
                                         />

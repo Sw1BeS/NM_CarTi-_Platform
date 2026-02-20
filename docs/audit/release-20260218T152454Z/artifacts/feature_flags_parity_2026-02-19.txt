@@ -1,0 +1,22 @@
+P0-4 Feature Flags SoT (2026-02-19)
+
+Server source-of-truth:
+- apps/server/src/modules/Core/system/features.resolver.ts
+- DEFAULT_FEATURES:
+  MODULE_SCENARIOS=true
+  MODULE_SEARCH=true
+  MODULE_CAMPAIGNS=true
+  MODULE_COMPANIES=false
+  MODULE_CONTENT=true
+  MODULE_INTEGRATIONS=false
+
+Server settings integration:
+- apps/server/src/modules/Core/system/settings.service.ts uses resolveFeatures(...) on read/write.
+- apps/server/src/modules/Core/system/system.routes.ts exposes GET /api/system/features/resolve.
+
+Frontend parity changes:
+- apps/web/src/services/serverAdapter.ts no longer injects hardcoded MODULE_COMPANIES/MODULE_INTEGRATIONS=true.
+- missing settings.features now resolved from server endpoint `system/features/resolve`.
+
+Result:
+- UI feature toggles are sourced from server-resolved contract.

@@ -1,0 +1,23 @@
+P0-2 Iteration 2 (2026-02-19)
+
+Extracted ScenarioEngine action methods into dedicated module:
+- apps/server/src/modules/Communication/bots/scenario-engine/actions/session.actions.ts
+
+Moved methods (delegate wrappers left in ScenarioEngine):
+- handleCarSelection
+- resolveRequestId
+- handleAddToRequest
+- handleAddToCatalog
+- handleManagerRequestAction
+
+Line counts after iteration 2:
+ 2121 apps/server/src/modules/Communication/bots/scenario.engine.ts
+  205 apps/server/src/modules/Communication/bots/scenario-engine/actions/session.actions.ts
+ 2326 total
+
+Method references in scenario.engine.ts:
+2102:  static async handleCarSelection(bot: BotRuntime, chatId: string, vars: Record<string, any>, carId: string, userId?: string) {
+2106:  static async resolveRequestId(vars: Record<string, any>) {
+2110:  static async handleAddToRequest(bot: BotRuntime, chatId: string, vars: Record<string, any>, carId: string) {
+2114:  static async handleAddToCatalog(bot: BotRuntime, chatId: string, vars: Record<string, any>, carId: string) {
+2118:  static async handleManagerRequestAction(bot: BotRuntime, session: any, data: string, userId?: string) {

@@ -1,4 +1,8 @@
 
+/**
+ * @deprecated Legacy interface kept only for historical compatibility.
+ * Active frontend data layer was unified on ApiClient/Data services in release wave 2026-02-19 (P1-1).
+ */
 import {
     User, B2BRequest, Lead, Bot, Scenario, TelegramContent, Campaign,
     TelegramMessage, TelegramDestination, CarListing, Company,

@@ -1,39 +1,45 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
-# Configuration
-API_URL="http://localhost:3000/api"
-WEB_URL="http://localhost:3001"
-# Use a minimal valid JWT structure if real authentication isn't easily scriptable without a complex login flow
-# Or better, this script assumes specific env vars are set or uses curl to login first if needed.
-# For now, we will just check public endpoints and health.
+API_BASE_URL="${API_BASE_URL:-http://127.0.0.1:3002}"
+WEB_BASE_URL="${WEB_BASE_URL:-http://127.0.0.1:8082}"
+PUBLIC_SLUG="${PUBLIC_SLUG:-system}"
 
-echo "--- CarTié Smoke Test ---"
+PASSED=0
+FAILED=0
 
-# 1. System Health
-echo "1. Checking System Health..."
-HEALTH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$API_URL/health")
-if [ "$HEALTH_STATUS" == "200" ]; then
-    echo "✅ API Health: OK"
-else
-    echo "❌ API Health: FAILED ($HEALTH_STATUS)"
+status_check() {
+  local label="$1"
+  local url="$2"
+  local expected="$3"
+
+  local status
+  status=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 10 "$url" || echo "000")
+
+  if [[ " $expected " == *" $status "* ]]; then
+    echo "PASS  $label -> $status ($url)"
+    PASSED=$((PASSED + 1))
+    return
+  fi
+
+  echo "FAIL  $label -> $status ($url), expected: $expected"
+  FAILED=$((FAILED + 1))
+}
+
+echo "--- Cartie Basic Smoke ---"
+echo "API_BASE_URL=$API_BASE_URL"
+echo "WEB_BASE_URL=$WEB_BASE_URL"
+echo "PUBLIC_SLUG=$PUBLIC_SLUG"
+
+status_check "api-health" "$API_BASE_URL/health" "200"
+status_check "miniapp-config" "$API_BASE_URL/api/miniapp/config?slug=$PUBLIC_SLUG" "200"
+status_check "showcase-inventory" "$API_BASE_URL/api/showcase/public/$PUBLIC_SLUG/inventory" "200"
+status_check "web-root" "$WEB_BASE_URL/" "200 301 302 304"
+
+# Protected endpoint without token should be denied (auth expected).
+status_check "protected-auth-required" "$API_BASE_URL/api/requests" "401 403"
+
+echo "--- Summary: PASS=$PASSED FAIL=$FAILED ---"
+if [ "$FAILED" -gt 0 ]; then
+  exit 1
 fi
-
-# 2. Public MiniApp Config
-echo "2. Checking MiniApp Config..."
-CONFIG_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$API_URL/miniapp/config?slug=system")
-if [ "$CONFIG_STATUS" == "200" ]; then
-    echo "✅ MiniApp Config: OK"
-else
-    echo "❌ MiniApp Config: FAILED ($CONFIG_STATUS)"
-fi
-
-# 3. Public Inventory
-echo "3. Checking Public Inventory..."
-INVENTORY_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$API_URL/showcase/public/system/inventory")
-if [ "$INVENTORY_STATUS" == "200" ]; then
-    echo "✅ Public Inventory: OK"
-else
-    echo "❌ Public Inventory: FAILED ($INVENTORY_STATUS)"
-fi
-
-echo "--- Smoke Test Complete ---"

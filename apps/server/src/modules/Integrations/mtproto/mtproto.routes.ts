@@ -216,15 +216,16 @@ router.get('/import-jobs', requireRole(mtprotoRoles), async (req: any, res) => {
 // POST /api/integrations/mtproto/:connectorId/sync
 router.post('/:connectorId/sync', requireRole(mtprotoRoles), async (req: any, res) => {
     try {
-        // Trigger generic backfill (or could target specific connector if refactored)
-        // For now, running the global worker cycle is safe enough or we make it targeted
-
-        // Let's just trigger the global worker 
+        const useLegacy = String(req.query.legacy || '').toLowerCase() === '1' || String(req.query.legacy || '').toLowerCase() === 'true';
         if (mtprotoWorker) {
-            mtprotoWorker.runBackfill().catch((err: any) => logger.error(err));
+            if (useLegacy) {
+                mtprotoWorker.runBackfill().catch((err: any) => logger.error(err));
+            } else {
+                mtprotoWorker.runImportJobs().catch((err: any) => logger.error(err));
+            }
         }
 
-        res.json({ success: true, message: 'Sync started' });
+        res.json({ success: true, mode: useLegacy ? 'legacy_backfill' : 'import_jobs', message: 'Sync started' });
     } catch (e: any) {
         return errorResponse(res, 500, e.message || 'MTProto error', 'MTPROTO_ERROR');
     }

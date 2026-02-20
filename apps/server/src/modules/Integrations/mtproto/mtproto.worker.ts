@@ -17,6 +17,11 @@ export class MTProtoWorker {
     private channelSourceRepo = new ChannelSourceRepository(prisma);
 
     async runBackfill() {
+        const legacyBackfillEnabled = String(process.env.MTPROTO_LEGACY_BACKFILL_ENABLED || 'false').toLowerCase() === 'true';
+        if (!legacyBackfillEnabled) {
+            logger.info('[MTProtoWorker] Legacy backfill path is disabled. Use import jobs worker instead.');
+            return;
+        }
         if (this.isRunning) {
             logger.info('[MTProtoWorker] Already running');
             return;

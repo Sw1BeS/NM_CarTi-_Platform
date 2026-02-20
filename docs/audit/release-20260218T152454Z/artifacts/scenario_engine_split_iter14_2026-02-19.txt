@@ -1,0 +1,25 @@
+P0-2 Iteration 14 (2026-02-19)
+
+Extracted node orchestration dispatcher from ScenarioEngine:
+- apps/server/src/modules/Communication/bots/scenario-engine/runtime/node-executor.ts
+
+Moved orchestration branch:
+- executeNode (node dispatch, recursion routing, scenario.step emission, completion fallbacks)
+
+Behavior preservation:
+- Retains infinite-loop guard (`depth > 25`) and warning path.
+- Retains `scenario.step` event emission payload and interactive history rewind semantics.
+- Retains per-node handler behavior and callback-driven recursion for START/JUMP/CONDITION/DELAY and next-node continuation.
+
+ScenarioEngine delegate anchors:
+36: import { executeNodeRuntime } from './scenario-engine/runtime/node-executor.js';
+505: static async executeNode(...): Promise<void>
+506:   return executeNodeRuntime({ ... })
+
+Runtime export:
+41: export const executeNodeRuntime = async ({ ... })
+
+Line counts after iteration 14:
+  540 apps/server/src/modules/Communication/bots/scenario.engine.ts
+  299 apps/server/src/modules/Communication/bots/scenario-engine/runtime/node-executor.ts
+  839 total

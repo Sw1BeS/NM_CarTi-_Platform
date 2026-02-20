@@ -1,10 +1,14 @@
 import { SCENARIO_TEMPLATE_PACK } from '../seeds/scenarioPack.js';
 import { prisma } from './prisma.js';
+import fs from 'node:fs';
 
 type BotTemplate = 'CLIENT_LEAD' | 'B2B' | 'CATALOG' | string;
 export type PresetStatus = 'ready' | 'partial' | 'missing';
 
-export const TEMPLATE_PRESET_VERSION = '2026.02.16-r1';
+export const TEMPLATE_PRESET_VERSION = '2026.02.18-r7';
+
+const LEGACY_LEAD_WELCOME_EN = '👋 Welcome to CarTié! Choose an option below:';
+const LEGACY_B2B_WELCOME_EN = '🤝 CarDealer Lviv B2B\n\nCreate a structured request and get offers from partner dealers.';
 
 type MenuButton = {
   id: string;
@@ -19,6 +23,7 @@ type MenuButton = {
 
 type MiniAppConfig = {
   isEnabled: boolean;
+  surfaceMode?: 'LEAD' | 'B2B';
   title: string;
   welcomeText: string;
   primaryColor: string;
@@ -29,6 +34,32 @@ type MiniAppConfig = {
   url?: string;
   showcaseSlug?: string;
   homeBlocks?: unknown[];
+};
+
+const coalesceText = (value: unknown, fallback: string) => {
+  const text = typeof value === 'string' ? value.trim() : '';
+  return text || fallback;
+};
+
+const mergeMiniAppConfig = (fallback: MiniAppConfig, existing: Partial<MiniAppConfig> | undefined): MiniAppConfig => {
+  const source = (existing && typeof existing === 'object') ? existing : {};
+  const layout = source.layout === 'LIST' || source.layout === 'GRID' ? source.layout : fallback.layout;
+  const surfaceMode = source.surfaceMode === 'B2B' || source.surfaceMode === 'LEAD'
+    ? source.surfaceMode
+    : fallback.surfaceMode;
+
+  return {
+    ...fallback,
+    ...source,
+    surfaceMode,
+    layout,
+    title: coalesceText(source.title, fallback.title),
+    welcomeText: coalesceText(source.welcomeText, fallback.welcomeText),
+    primaryColor: coalesceText(source.primaryColor, fallback.primaryColor),
+    accentColor: coalesceText(source.accentColor, fallback.accentColor || '#111111'),
+    actions: Array.isArray(source.actions) && source.actions.length ? source.actions : fallback.actions,
+    navItems: Array.isArray(source.navItems) && source.navItems.length ? source.navItems : fallback.navItems
+  };
 };
 
 type BotConfigShape = Record<string, any> & {
@@ -43,12 +74,30 @@ type BotConfigShape = Record<string, any> & {
 };
 
 const DEFAULT_PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || 'https://cartie2.umanoff-analytics.space';
-const BUILD_TAG = (process.env.BUILD_SHA || 'dev').slice(0, 12);
+const readBuildMeta = (filePath: string) => {
+  try {
+    return fs.readFileSync(filePath, 'utf8').trim();
+  } catch {
+    return '';
+  }
+};
+const BUILD_SHA_RAW = String(process.env.BUILD_SHA || readBuildMeta('/app/server/BUILD_SHA') || '').trim();
+const BUILD_TIME_RAW = String(process.env.BUILD_TIME || readBuildMeta('/app/server/BUILD_TIME') || '').trim();
+const BUILD_TAG_SOURCE = (BUILD_SHA_RAW.includes('-dirty') && BUILD_TIME_RAW)
+  ? `${BUILD_SHA_RAW}-${BUILD_TIME_RAW}`
+  : (BUILD_SHA_RAW || BUILD_TIME_RAW || '');
+const BUILD_TAG = BUILD_TAG_SOURCE.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 24);
 
 const normalizeTemplate = (value: BotTemplate): 'CLIENT_LEAD' | 'B2B' | 'CATALOG' => {
   const normalized = String(value || '').toUpperCase();
   if (normalized === 'CLIENT_LEAD' || normalized === 'B2B' || normalized === 'CATALOG') return normalized;
   return 'CLIENT_LEAD';
+};
+
+const toKnownTemplate = (value: unknown): 'CLIENT_LEAD' | 'B2B' | 'CATALOG' | null => {
+  const normalized = String(value || '').trim().toUpperCase();
+  if (normalized === 'CLIENT_LEAD' || normalized === 'B2B' || normalized === 'CATALOG') return normalized;
+  return null;
 };
 
 const sanitizeSlug = (value?: string | null) => {
@@ -68,32 +117,133 @@ const resolveBaseUrl = (raw?: string | null) => {
   }
 };
 
-const buildMiniAppUrl = (baseUrl: string, slug: string) => `${baseUrl.replace(/\/+$/, '')}/p/app/${slug}?v=${BUILD_TAG}`;
+const buildMiniAppUrl = (baseUrl: string, slug: string) => {
+  const raw = `${baseUrl.replace(/\/+$/, '')}/p/app/${slug}`;
+  try {
+    const url = new URL(raw);
+    if (BUILD_TAG) {
+      url.searchParams.set('v', BUILD_TAG);
+    }
+    return url.toString();
+  } catch {
+    return BUILD_TAG ? `${raw}?v=${BUILD_TAG}` : raw;
+  }
+};
+
+const LEAD_BUTTON_IDS = new Set(['btn_buy', 'btn_sell', 'btn_app', 'btn_sup', 'btn_lang']);
+const B2B_BUTTON_IDS = new Set(['btn_b2b_req', 'btn_b2b_offer', 'btn_b2b_app', 'btn_b2b_help', 'btn_b2b_menu']);
+
+const inferPresetTemplate = (config: BotConfigShape): 'CLIENT_LEAD' | 'B2B' | 'CATALOG' | null => {
+  const explicit = toKnownTemplate((config as Record<string, any>)?.presetTemplate);
+  if (explicit) return explicit;
+
+  const buttons = Array.isArray(config.menuConfig?.buttons) ? config.menuConfig?.buttons : [];
+  const ids = new Set(buttons.map(btn => String(btn?.id || '').trim()));
+  const values = new Set(buttons.map(btn => String(btn?.value || '').trim().toLowerCase()));
+  const miniTitle = String(config.miniAppConfig?.title || '').toLowerCase();
+  const menuWelcome = String(config.menuConfig?.welcomeMessage || '').toLowerCase();
+
+  let leadScore = 0;
+  let b2bScore = 0;
+
+  if (Array.from(LEAD_BUTTON_IDS).some(id => ids.has(id))) leadScore += 2;
+  if (Array.from(B2B_BUTTON_IDS).some(id => ids.has(id))) b2bScore += 2;
+
+  if (values.has('/request') || values.has('/offer') || values.has('/menu')) b2bScore += 1;
+  if (values.has('/buy') || values.has('/sell') || values.has('/status') || values.has('/lang')) leadScore += 1;
+
+  if (miniTitle.includes('cardealer lviv') || menuWelcome.includes('cardealer lviv')) b2bScore += 1;
+  if (miniTitle.includes('cartié premium') || menuWelcome.includes('concierge')) leadScore += 1;
+
+  if (b2bScore > leadScore && b2bScore >= 2) return 'B2B';
+  if (leadScore >= b2bScore && leadScore >= 2) return 'CLIENT_LEAD';
+  return null;
+};
 
 const cloneMenu = (welcomeMessage: string, buttons: MenuButton[]): { welcomeMessage: string; buttons: MenuButton[] } => ({
   welcomeMessage,
   buttons: buttons.map(btn => ({ ...btn }))
 });
 
+const normalizeToken = (value?: string | null) => String(value || '').trim().toLowerCase();
+const normalizeWelcome = (value?: string | null) => normalizeToken(value).replace(/\s+/g, ' ').trim();
+
+const shouldReplaceLeadWelcome = (value?: string | null) => {
+  const token = normalizeWelcome(value);
+  if (!token) return true;
+  if (token === normalizeWelcome(LEGACY_LEAD_WELCOME_EN)) return true;
+  return token.includes('welcome to cartie') || token.includes('choose an option');
+};
+
+const shouldReplaceB2BWelcome = (value?: string | null) => {
+  const token = normalizeWelcome(value);
+  if (!token) return true;
+  if (token === normalizeWelcome(LEGACY_B2B_WELCOME_EN)) return true;
+  return token.includes('cardealer lviv b2b') || token.includes('create a structured request');
+};
+
+const mergePresetButtons = (existingButtons: MenuButton[] | undefined, requiredButtons: MenuButton[]) => {
+  const existing = Array.isArray(existingButtons)
+    ? existingButtons
+      .filter((btn): btn is MenuButton => Boolean(btn && typeof btn === 'object'))
+      .map((btn, idx) => ({ ...btn, id: btn.id || `custom_${idx}` }))
+    : [];
+
+  const used = new Set<number>();
+
+  const mergedRequired = requiredButtons.map(req => {
+    const reqValue = normalizeToken(req.value);
+    const reqLabel = normalizeToken(req.label_uk || req.label);
+
+    const idx = existing.findIndex((btn, i) => {
+      if (used.has(i)) return false;
+      const idMatch = normalizeToken(btn.id) === normalizeToken(req.id);
+      const valueMatch = reqValue && normalizeToken(btn.value) === reqValue;
+      const labelMatch = reqLabel && [btn.label, btn.label_uk, btn.label_ru].some(label => normalizeToken(label) === reqLabel);
+      return idMatch || valueMatch || labelMatch;
+    });
+
+    if (idx === -1) return { ...req };
+
+    used.add(idx);
+    const src = existing[idx];
+    return {
+      ...src,
+      id: req.id,
+      type: req.type,
+      value: req.value,
+      row: req.row,
+      col: req.col,
+      label: src.label || req.label,
+      label_uk: src.label_uk || req.label_uk,
+      label_ru: src.label_ru || req.label_ru
+    } as MenuButton;
+  });
+
+  const extras = existing.filter((_, idx) => !used.has(idx));
+  return [...mergedRequired, ...extras].sort((a, b) => (a.row - b.row) || (a.col - b.col));
+};
+
 const buildClientLeadMiniAppConfig = (url: string, showcaseSlug: string): MiniAppConfig => ({
   isEnabled: true,
+  surfaceMode: 'LEAD',
   title: 'CarTié Premium',
-  welcomeText: 'Your personal automotive concierge.',
+  welcomeText: 'Ваш персональний помічник з підбору авто.',
   primaryColor: '#D4AF37',
   accentColor: '#111111',
   layout: 'GRID',
   actions: [
-    { id: 'act_stock', label: 'Stock', icon: 'Grid', actionType: 'VIEW', value: 'INVENTORY' },
-    { id: 'act_req', label: 'Request', icon: 'Search', actionType: 'VIEW', value: 'REQUEST' },
-    { id: 'act_chat', label: 'Chat', icon: 'MessageCircle', actionType: 'LINK', value: 'https://t.me/cartie_manager' },
-    { id: 'act_sell', label: 'Trade-In', icon: 'DollarSign', actionType: 'SCENARIO', value: 'scn_sell' }
+    { id: 'act_stock', label: 'Інвентар', icon: 'Grid', actionType: 'VIEW', value: 'INVENTORY' },
+    { id: 'act_req', label: 'Запит', icon: 'Search', actionType: 'VIEW', value: 'REQUEST' },
+    { id: 'act_chat', label: 'Чат', icon: 'MessageCircle', actionType: 'LINK', value: 'https://t.me/cartie_manager' },
+    { id: 'act_sell', label: 'Оцінка Trade-In', icon: 'DollarSign', actionType: 'SCENARIO', value: 'scn_sell' }
   ],
   navItems: [
-    { id: 'nav_home', label: 'Home', icon: 'Home', actionType: 'VIEW', value: 'HOME' },
-    { id: 'nav_stock', label: 'Stock', icon: 'LayoutGrid', actionType: 'VIEW', value: 'INVENTORY' },
-    { id: 'nav_saved', label: 'Saved', icon: 'Heart', actionType: 'VIEW', value: 'FAVORITES' },
-    { id: 'nav_request', label: 'Request', icon: 'Search', actionType: 'VIEW', value: 'REQUEST' },
-    { id: 'nav_status', label: 'Status', icon: 'ClipboardList', actionType: 'VIEW', value: 'STATUS' }
+    { id: 'nav_home', label: 'Головна', icon: 'Home', actionType: 'VIEW', value: 'HOME' },
+    { id: 'nav_stock', label: 'Інвентар', icon: 'LayoutGrid', actionType: 'VIEW', value: 'INVENTORY' },
+    { id: 'nav_saved', label: 'Обране', icon: 'Heart', actionType: 'VIEW', value: 'FAVORITES' },
+    { id: 'nav_request', label: 'Запит', icon: 'Search', actionType: 'VIEW', value: 'REQUEST' },
+    { id: 'nav_status', label: 'Статус', icon: 'ClipboardList', actionType: 'VIEW', value: 'STATUS' }
   ],
   url,
   showcaseSlug
@@ -101,38 +251,41 @@ const buildClientLeadMiniAppConfig = (url: string, showcaseSlug: string): MiniAp
 
 const buildB2BMiniAppConfig = (url: string, showcaseSlug: string): MiniAppConfig => ({
   isEnabled: true,
+  surfaceMode: 'B2B',
   title: 'CarDealer Lviv B2B',
-  welcomeText: 'Live inventory and partner request tracking.',
-  primaryColor: '#D4AF37',
-  accentColor: '#111111',
+  welcomeText: 'Інвентар партнерів та статуси B2B-запитів у реальному часі.',
+  primaryColor: '#2AA876',
+  accentColor: '#0B1F17',
   layout: 'GRID',
   actions: [
-    { id: 'act_stock', label: 'Inventory', icon: 'Grid', actionType: 'VIEW', value: 'INVENTORY' },
-    { id: 'act_fav', label: 'Favorites', icon: 'Heart', actionType: 'VIEW', value: 'FAVORITES' },
-    { id: 'act_status', label: 'Status', icon: 'ClipboardList', actionType: 'VIEW', value: 'STATUS' }
+    { id: 'act_stock', label: 'Інвентар', icon: 'Grid', actionType: 'VIEW', value: 'INVENTORY' },
+    { id: 'act_fav', label: 'Обране', icon: 'Heart', actionType: 'VIEW', value: 'FAVORITES' },
+    { id: 'act_status', label: 'Статуси', icon: 'ClipboardList', actionType: 'VIEW', value: 'STATUS' }
   ],
   navItems: [
-    { id: 'nav_home', label: 'Home', icon: 'Home', actionType: 'VIEW', value: 'HOME' },
-    { id: 'nav_stock', label: 'Stock', icon: 'LayoutGrid', actionType: 'VIEW', value: 'INVENTORY' },
-    { id: 'nav_saved', label: 'Saved', icon: 'Heart', actionType: 'VIEW', value: 'FAVORITES' },
-    { id: 'nav_status', label: 'Status', icon: 'ClipboardList', actionType: 'VIEW', value: 'STATUS' }
+    { id: 'nav_home', label: 'Головна', icon: 'Home', actionType: 'VIEW', value: 'HOME' },
+    { id: 'nav_stock', label: 'Інвентар', icon: 'LayoutGrid', actionType: 'VIEW', value: 'INVENTORY' },
+    { id: 'nav_saved', label: 'Обране', icon: 'Heart', actionType: 'VIEW', value: 'FAVORITES' },
+    { id: 'nav_status', label: 'Статуси', icon: 'ClipboardList', actionType: 'VIEW', value: 'STATUS' }
   ],
   url,
   showcaseSlug
 });
 
 const baseLeadButtons = (scenarioIds: Record<string, string>, miniAppUrl: string): MenuButton[] => [
-  { id: 'btn_buy', label: '🚗 Buy a Car', label_uk: '🚗 Купити авто', label_ru: '🚗 Купить авто', type: 'SCENARIO', value: scenarioIds.buy || 'scn_buy', row: 0, col: 0 },
-  { id: 'btn_sell', label: '💰 Sell My Car', label_uk: '💰 Продати авто', label_ru: '💰 Продать авто', type: 'SCENARIO', value: scenarioIds.sell || 'scn_sell', row: 0, col: 1 },
-  { id: 'btn_app', label: '📱 Open App', label_uk: '📱 Додаток', label_ru: '📱 Приложение', type: 'WEB_APP', value: miniAppUrl, row: 1, col: 0 },
-  { id: 'btn_sup', label: '📞 Support', label_uk: '📞 Підтримка', label_ru: '📞 Поддержка', type: 'SCENARIO', value: scenarioIds.support || 'scn_support', row: 2, col: 0 },
-  { id: 'btn_lang', label: '🌐 Language', label_uk: '🌐 Мова', label_ru: '🌐 Язык', type: 'SCENARIO', value: scenarioIds.lang || 'scn_lang', row: 2, col: 1 }
+  { id: 'btn_buy', label: '🚗 Купити авто', label_uk: '🚗 Купити авто', label_ru: '🚗 Купить авто', type: 'SCENARIO', value: scenarioIds.buy || 'scn_buy', row: 0, col: 0 },
+  { id: 'btn_sell', label: '💰 Продати авто', label_uk: '💰 Продати авто', label_ru: '💰 Продать авто', type: 'SCENARIO', value: scenarioIds.sell || 'scn_sell', row: 0, col: 1 },
+  { id: 'btn_app', label: '📱 Додаток', label_uk: '📱 Додаток', label_ru: '📱 Приложение', type: 'WEB_APP', value: miniAppUrl, row: 1, col: 0 },
+  { id: 'btn_sup', label: '📞 Підтримка', label_uk: '📞 Підтримка', label_ru: '📞 Поддержка', type: 'SCENARIO', value: scenarioIds.support || 'scn_support', row: 2, col: 0 },
+  { id: 'btn_lang', label: '🌐 Мова', label_uk: '🌐 Мова', label_ru: '🌐 Язык', type: 'SCENARIO', value: scenarioIds.lang || 'scn_lang', row: 2, col: 1 }
 ];
 
-const baseB2BButtons = (miniAppUrl: string): MenuButton[] => [
-  { id: 'btn_b2b_req', label: '📝 Створити запит', label_uk: '📝 Створити запит', label_ru: '📝 Создать запрос', type: 'TEXT', value: '/request', row: 0, col: 0 },
-  { id: 'btn_b2b_app', label: '📱 Mini App', label_uk: '📱 Mini App', label_ru: '📱 Mini App', type: 'WEB_APP', value: miniAppUrl, row: 0, col: 1 },
-  { id: 'btn_b2b_menu', label: '🏠 Меню', label_uk: '🏠 Меню', label_ru: '🏠 Меню', type: 'TEXT', value: '/menu', row: 1, col: 0 }
+const baseB2BButtons = (scenarioIds: Record<string, string>, miniAppUrl: string): MenuButton[] => [
+  { id: 'btn_b2b_req', label: '📝 Створити запит', label_uk: '📝 Створити запит', label_ru: '📝 Создать запрос', type: 'SCENARIO', value: scenarioIds.request || 'scn_b2b_request', row: 0, col: 0 },
+  { id: 'btn_b2b_offer', label: '💼 Подати варіант', label_uk: '💼 Подати варіант', label_ru: '💼 Подать вариант', type: 'SCENARIO', value: scenarioIds.offer || 'scn_b2b_offer', row: 0, col: 1 },
+  { id: 'btn_b2b_app', label: '📱 Застосунок', label_uk: '📱 Застосунок', label_ru: '📱 Приложение', type: 'WEB_APP', value: miniAppUrl, row: 1, col: 0 },
+  { id: 'btn_b2b_help', label: 'ℹ️ Правила', label_uk: 'ℹ️ Правила', label_ru: 'ℹ️ Правила', type: 'SCENARIO', value: scenarioIds.help || 'scn_b2b_help', row: 1, col: 1 },
+  { id: 'btn_b2b_menu', label: '🏠 Меню', label_uk: '🏠 Меню', label_ru: '🏠 Меню', type: 'TEXT', value: '/menu', row: 2, col: 0 }
 ];
 
 const maybePatchMenuLinks = (buttons: MenuButton[] | undefined, miniAppUrl: string): MenuButton[] => {
@@ -152,6 +305,310 @@ const clientLeadScenarioSpecs = [
   { key: 'lang', templateId: 'tpl_lang_select', triggerCommand: 'lang' }
 ] as const;
 
+const b2bScenarioBlueprints = [
+  {
+    key: 'request',
+    triggerCommand: 'request',
+    name: 'B2B Запит',
+    keywords: ['request', 'запит', 'заявка', 'car request'],
+    entryNodeId: 'start',
+    nodes: [
+      { id: 'start', type: 'START', content: { text: '' }, nextNodeId: 'intro' },
+      {
+        id: 'intro',
+        type: 'MESSAGE',
+        content: {
+          text: 'Створіть структурований запит на авто для партнерської мережі.',
+          text_uk: 'Створіть структурований запит на авто для партнерської мережі.',
+          text_ru: 'Создайте структурированный запрос на авто для партнерской сети.'
+        },
+        nextNodeId: 'ask_title'
+      },
+      {
+        id: 'ask_title',
+        type: 'QUESTION_TEXT',
+        content: {
+          text: 'Марка / модель?',
+          text_uk: 'Марка / модель?',
+          text_ru: 'Марка / модель?',
+          variableName: 'requestTitle'
+        },
+        nextNodeId: 'ask_year'
+      },
+      {
+        id: 'ask_year',
+        type: 'QUESTION_TEXT',
+        content: {
+          text: 'Бажаний рік (наприклад 2018+ або 2018-2021, напишіть "пропустити" для пропуску)',
+          text_uk: 'Бажаний рік (наприклад 2018+ або 2018-2021, напишіть "пропустити" для пропуску)',
+          text_ru: 'Желаемый год (например 2018+ или 2018-2021, "skip" чтобы пропустить)',
+          variableName: 'year'
+        },
+        nextNodeId: 'ask_budget'
+      },
+      {
+        id: 'ask_budget',
+        type: 'QUESTION_TEXT',
+        content: {
+          text: 'Бюджет USD (наприклад 15000-25000, напишіть "пропустити" для пропуску)',
+          text_uk: 'Бюджет USD (наприклад 15000-25000, напишіть "пропустити" для пропуску)',
+          text_ru: 'Бюджет USD (например 15000-25000, "skip" чтобы пропустить)',
+          variableName: 'budget'
+        },
+        nextNodeId: 'ask_mileage'
+      },
+      {
+        id: 'ask_mileage',
+        type: 'QUESTION_TEXT',
+        content: {
+          text: 'Бажаний пробіг (напишіть "пропустити" для пропуску)',
+          text_uk: 'Бажаний пробіг (напишіть "пропустити" для пропуску)',
+          text_ru: 'Желаемый пробег ("skip" чтобы пропустить)',
+          variableName: 'mileageText'
+        },
+        nextNodeId: 'ask_fuel'
+      },
+      {
+        id: 'ask_fuel',
+        type: 'QUESTION_TEXT',
+        content: {
+          text: 'Тип пального (напишіть "пропустити" для пропуску)',
+          text_uk: 'Тип пального (напишіть "пропустити" для пропуску)',
+          text_ru: 'Тип топлива ("skip" чтобы пропустить)',
+          variableName: 'fuel'
+        },
+        nextNodeId: 'ask_comment'
+      },
+      {
+        id: 'ask_comment',
+        type: 'QUESTION_TEXT',
+        content: {
+          text: 'Коментар / примітка (напишіть "пропустити" для пропуску)',
+          text_uk: 'Коментар / примітка (напишіть "пропустити" для пропуску)',
+          text_ru: 'Комментарий / примечание ("skip" чтобы пропустить)',
+          variableName: 'requestComment'
+        },
+        nextNodeId: 'ask_contact'
+      },
+      {
+        id: 'ask_contact',
+        type: 'REQUEST_CONTACT',
+        content: {
+          text: 'Поділіться контактом або введіть номер телефону',
+          text_uk: 'Поділіться контактом або введіть номер телефону',
+          text_ru: 'Поделитесь контактом или введите номер телефона'
+        },
+        nextNodeId: 'ask_company'
+      },
+      {
+        id: 'ask_company',
+        type: 'QUESTION_TEXT',
+        content: {
+          text: 'Назва компанії (напишіть "пропустити" для пропуску)',
+          text_uk: 'Назва компанії (напишіть "пропустити" для пропуску)',
+          text_ru: 'Название компании ("skip" чтобы пропустить)',
+          variableName: 'companyName'
+        },
+        nextNodeId: 'normalize'
+      },
+      { id: 'normalize', type: 'ACTION', content: { actionType: 'NORMALIZE_REQUEST' }, nextNodeId: 'create_request' },
+      {
+        id: 'create_request',
+        type: 'ACTION',
+        content: { actionType: 'CREATE_REQUEST', requestType: 'BUY', requestStatus: 'COLLECTING_VARIANTS' },
+        nextNodeId: 'publish_channel'
+      },
+      { id: 'publish_channel', type: 'ACTION', content: { actionType: 'B2B_PUBLISH_REQUEST' }, nextNodeId: 'done' },
+      {
+        id: 'done',
+        type: 'MESSAGE',
+        content: {
+          text: '✅ Запит створено та опубліковано в каналі.',
+          text_uk: '✅ Запит створено та опубліковано в каналі.',
+          text_ru: '✅ Запрос создан и опубликован в канале.'
+        }
+      }
+    ]
+  },
+  {
+    key: 'offer',
+    triggerCommand: 'offer',
+    name: 'B2B Подання варіанту',
+    keywords: ['offer', 'є авто', 'варіант', 'подати варіант', 'имею авто'],
+    entryNodeId: 'start',
+    nodes: [
+      { id: 'start', type: 'START', content: { text: '' }, nextNodeId: 'intro' },
+      {
+        id: 'intro',
+        type: 'MESSAGE',
+        content: {
+          text: 'Подайте свій варіант для запиту. Якщо відкрили з deep-link каналу, запит уже підставлено.',
+          text_uk: 'Подайте свій варіант для запиту. Якщо відкрили з deep-link каналу, запит уже підставлено.',
+          text_ru: 'Подайте ваш вариант по запросу. Если открыли из deep-link канала, запрос уже подставлен.'
+        },
+        nextNodeId: 'ask_title'
+      },
+      {
+        id: 'ask_title',
+        type: 'QUESTION_TEXT',
+        content: {
+          text: 'Марка / модель',
+          text_uk: 'Марка / модель',
+          text_ru: 'Марка / модель',
+          variableName: 'offerTitle'
+        },
+        nextNodeId: 'ask_year'
+      },
+      {
+        id: 'ask_year',
+        type: 'QUESTION_TEXT',
+        content: {
+          text: 'Рік (або "пропустити")',
+          text_uk: 'Рік (або "пропустити")',
+          text_ru: 'Год (или "skip")',
+          variableName: 'offerYear'
+        },
+        nextNodeId: 'ask_price'
+      },
+      {
+        id: 'ask_price',
+        type: 'QUESTION_TEXT',
+        content: {
+          text: 'Ціна і валюта (наприклад 18500 USD)',
+          text_uk: 'Ціна і валюта (наприклад 18500 USD)',
+          text_ru: 'Цена и валюта (например 18500 USD)',
+          variableName: 'offerPrice'
+        },
+        nextNodeId: 'ask_mileage'
+      },
+      {
+        id: 'ask_mileage',
+        type: 'QUESTION_TEXT',
+        content: {
+          text: 'Пробіг (або "пропустити")',
+          text_uk: 'Пробіг (або "пропустити")',
+          text_ru: 'Пробег (или "skip")',
+          variableName: 'offerMileage'
+        },
+        nextNodeId: 'ask_fuel'
+      },
+      {
+        id: 'ask_fuel',
+        type: 'QUESTION_TEXT',
+        content: {
+          text: 'Тип пального (або "пропустити")',
+          text_uk: 'Тип пального (або "пропустити")',
+          text_ru: 'Тип топлива (или "skip")',
+          variableName: 'offerFuel'
+        },
+        nextNodeId: 'ask_condition'
+      },
+      {
+        id: 'ask_condition',
+        type: 'QUESTION_TEXT',
+        content: {
+          text: 'Технічний стан (або "пропустити")',
+          text_uk: 'Технічний стан (або "пропустити")',
+          text_ru: 'Техническое состояние (или "skip")',
+          variableName: 'offerCondition'
+        },
+        nextNodeId: 'ask_vin'
+      },
+      {
+        id: 'ask_vin',
+        type: 'QUESTION_TEXT',
+        content: {
+          text: 'VIN (або "пропустити")',
+          text_uk: 'VIN (або "пропустити")',
+          text_ru: 'VIN (или "skip")',
+          variableName: 'offerVin'
+        },
+        nextNodeId: 'ask_comment'
+      },
+      {
+        id: 'ask_comment',
+        type: 'QUESTION_TEXT',
+        content: {
+          text: 'Коментар / примітка без контактів',
+          text_uk: 'Коментар / примітка без контактів',
+          text_ru: 'Комментарий / примечание без контактов',
+          variableName: 'offerComment'
+        },
+        nextNodeId: 'ask_contact'
+      },
+      {
+        id: 'ask_contact',
+        type: 'REQUEST_CONTACT',
+        content: {
+          text: 'Поділіться контактом або введіть номер телефону',
+          text_uk: 'Поділіться контактом або введіть номер телефону',
+          text_ru: 'Поделитесь контактом или введите номер телефона'
+        },
+        nextNodeId: 'ask_company'
+      },
+      {
+        id: 'ask_company',
+        type: 'QUESTION_TEXT',
+        content: {
+          text: 'Назва компанії (або "пропустити")',
+          text_uk: 'Назва компанії (або "пропустити")',
+          text_ru: 'Название компании (или "skip")',
+          variableName: 'offerCompanyName'
+        },
+        nextNodeId: 'ask_photos'
+      },
+      {
+        id: 'ask_photos',
+        type: 'QUESTION_PHOTO',
+        content: {
+          text: 'Надішліть фото (до 8). Коли завершите — напишіть "готово".',
+          text_uk: 'Надішліть фото (до 8). Коли завершите — напишіть "готово".',
+          text_ru: 'Отправьте фото (до 8). Когда закончите — напишите "done".',
+          variableName: 'offerPhotos',
+          allowMultiple: true,
+          allowEmpty: false,
+          maxCount: 8
+        },
+        nextNodeId: 'create_offer'
+      },
+      {
+        id: 'create_offer',
+        type: 'ACTION',
+        content: { actionType: 'CREATE_VARIANT' },
+        nextNodeId: 'done'
+      },
+      {
+        id: 'done',
+        type: 'MESSAGE',
+        content: {
+          text: '✅ Варіант надіслано. Автор запиту перегляне, а адмін отримає "Підходить".',
+          text_uk: '✅ Варіант надіслано. Автор запиту перегляне, а адмін отримає "Підходить".',
+          text_ru: '✅ Вариант отправлен. Автор запроса рассмотрит, а админ получит "Подходит".'
+        }
+      }
+    ]
+  },
+  {
+    key: 'help',
+    triggerCommand: 'help',
+    name: 'B2B Правила',
+    keywords: ['help', 'правила', 'rules', 'menu'],
+    entryNodeId: 'start',
+    nodes: [
+      { id: 'start', type: 'START', content: { text: '' }, nextNodeId: 'rules' },
+      {
+        id: 'rules',
+        type: 'MESSAGE',
+        content: {
+          text: 'Правила B2B:\n1) Запити тільки через бота\n2) Відповіді тільки через кнопку "Є авто"\n3) Контакти в каналі приховані та передаються лише адміну',
+          text_uk: 'Правила B2B:\n1) Запити тільки через бота\n2) Відповіді тільки через кнопку "Є авто"\n3) Контакти в каналі приховані та передаються лише адміну',
+          text_ru: 'Правила B2B:\n1) Запросы только через бота\n2) Ответы только через кнопку "Є авто"\n3) Контакты в канале скрыты и передаются только админу'
+        }
+      }
+    ]
+  }
+] as const;
+
 const resolveTemplateStructure = (templateId: string) => {
   const tpl = SCENARIO_TEMPLATE_PACK.find(item => item.id === templateId);
   const structure = (tpl?.structure || {}) as any;
@@ -168,16 +625,19 @@ const resolveTemplateStructure = (templateId: string) => {
   };
 };
 
-const ensureClientLeadScenarios = async (companyId: string, forcePreset: boolean) => {
+const ensureClientLeadScenarios = async (companyId: string, forcePreset: boolean, botId?: string | null) => {
   const scenarioIds: Record<string, string> = {};
 
   for (const spec of clientLeadScenarioSpecs) {
     const defaults = resolveTemplateStructure(spec.templateId);
+    const where: any = {
+      companyId,
+      triggerCommand: spec.triggerCommand
+    };
+    if (botId) where.botId = botId;
+
     const existing = await prisma.scenario.findFirst({
-      where: {
-        companyId,
-        triggerCommand: spec.triggerCommand
-      },
+      where,
       orderBy: { updatedAt: 'desc' }
     });
 
@@ -193,7 +653,8 @@ const ensureClientLeadScenarios = async (companyId: string, forcePreset: boolean
             isActive: true,
             status: 'PUBLISHED',
             entryNodeId: defaults.entryNodeId,
-            nodes: defaults.nodes
+            nodes: defaults.nodes,
+            ...(botId ? { botId } : {})
           }
         });
       } else if (!existing.isActive || existing.status !== 'PUBLISHED') {
@@ -217,7 +678,8 @@ const ensureClientLeadScenarios = async (companyId: string, forcePreset: boolean
         status: 'PUBLISHED',
         entryNodeId: defaults.entryNodeId,
         nodes: defaults.nodes,
-        companyId
+        companyId,
+        ...(botId ? { botId } : {})
       }
     });
     scenarioIds[spec.key] = created.id;
@@ -226,9 +688,89 @@ const ensureClientLeadScenarios = async (companyId: string, forcePreset: boolean
   return scenarioIds;
 };
 
+const ensureB2BScenarios = async (companyId: string, forcePreset: boolean, botId?: string | null) => {
+  const scenarioIds: Record<string, string> = {};
+
+  for (const spec of b2bScenarioBlueprints) {
+    const where: any = {
+      companyId,
+      triggerCommand: spec.triggerCommand
+    };
+    if (botId) where.botId = botId;
+
+    const existing = await prisma.scenario.findFirst({
+      where,
+      orderBy: { updatedAt: 'desc' }
+    });
+
+    if (existing) {
+      scenarioIds[spec.key] = existing.id;
+      if (forcePreset) {
+        await prisma.scenario.update({
+          where: { id: existing.id },
+          data: {
+            name: spec.name,
+            triggerCommand: spec.triggerCommand,
+            keywords: [...spec.keywords],
+            isActive: true,
+            status: 'PUBLISHED',
+            entryNodeId: spec.entryNodeId,
+            nodes: spec.nodes as any,
+            ...(botId ? { botId } : {})
+          }
+        });
+      } else if (!existing.isActive || existing.status !== 'PUBLISHED') {
+        await prisma.scenario.update({
+          where: { id: existing.id },
+          data: {
+            isActive: true,
+            status: 'PUBLISHED'
+          }
+        });
+      }
+      continue;
+    }
+
+    const created = await prisma.scenario.create({
+      data: {
+        name: spec.name,
+        triggerCommand: spec.triggerCommand,
+        keywords: [...spec.keywords],
+        isActive: true,
+        status: 'PUBLISHED',
+        entryNodeId: spec.entryNodeId,
+        nodes: spec.nodes as any,
+        companyId,
+        ...(botId ? { botId } : {})
+      }
+    });
+    scenarioIds[spec.key] = created.id;
+  }
+
+  return scenarioIds;
+};
+
+const disableConflictingTemplateCommands = async (
+  companyId: string,
+  botId: string | null | undefined,
+  disallowedCommands: string[]
+) => {
+  if (!botId || disallowedCommands.length === 0) return;
+  await prisma.scenario.updateMany({
+    where: {
+      companyId,
+      botId,
+      isActive: true,
+      triggerCommand: { in: disallowedCommands }
+    },
+    data: { isActive: false }
+  });
+};
+
 export const getTemplatePresetStatus = async (input: {
   template: BotTemplate;
   companyId: string;
+  botId?: string | null;
   config?: BotConfigShape | null;
   channelId?: string | null;
   adminChatId?: string | null;
@@ -244,6 +786,7 @@ export const getTemplatePresetStatus = async (input: {
     const available = await prisma.scenario.findMany({
       where: {
         companyId: input.companyId,
+        ...(input.botId ? { botId: input.botId } : {}),
         isActive: true,
         status: 'PUBLISHED',
         triggerCommand: { in: Array.from(required) }
@@ -262,11 +805,28 @@ export const getTemplatePresetStatus = async (input: {
 
   if (template === 'B2B') {
     const values = new Set(menuButtons.map(btn => String(btn.value || '').trim().toLowerCase()));
-    const hasMenu = values.has('/request') && values.has('/menu');
+    const scenarioButtons = menuButtons.filter(btn => btn.type === 'SCENARIO');
+    const hasRequestEntry = values.has('/request') || scenarioButtons.some(btn => btn.id === 'btn_b2b_req');
+    const hasOfferEntry = values.has('/offer') || scenarioButtons.some(btn => btn.id === 'btn_b2b_offer');
+    const hasHelpEntry = scenarioButtons.some(btn => btn.id === 'btn_b2b_help');
+    const hasMenu = hasRequestEntry && hasOfferEntry && hasHelpEntry && values.has('/menu');
+    const required = ['request', 'offer', 'help'];
+    const available = await prisma.scenario.findMany({
+      where: {
+        companyId: input.companyId,
+        ...(input.botId ? { botId: input.botId } : {}),
+        isActive: true,
+        status: 'PUBLISHED',
+        triggerCommand: { in: required }
+      },
+      select: { triggerCommand: true }
+    });
+    const commandSet = new Set(available.map(item => String(item.triggerCommand || '').toLowerCase()));
+    const hasScenarios = required.every(cmd => commandSet.has(cmd));
     const hasAdmin = Boolean(String(input.adminChatId || '').trim());
     const hasChannel = Boolean(String(input.channelId || '').trim());
-    const score = [hasMenu, hasMini, hasAdmin, hasChannel].filter(Boolean).length;
-    if (score === 4) return 'ready';
+    if (hasMenu && hasMini && hasAdmin && hasChannel && hasScenarios) return 'ready';
+    const score = [hasMenu, hasMini, hasAdmin, hasChannel, hasScenarios].filter(Boolean).length;
     if (score === 0) return 'missing';
     return 'partial';
   }
@@ -280,6 +840,7 @@ export const getTemplatePresetStatus = async (input: {
 export const applyTemplatePreset = async (input: {
   template: BotTemplate;
   companyId: string;
+  botId?: string | null;
   config?: BotConfigShape | null;
   defaultShowcaseSlug?: string | null;
   fallbackName?: string | null;
@@ -298,8 +859,10 @@ export const applyTemplatePreset = async (input: {
   const applyPreset = input.applyPreset !== false;
   const forcePreset = input.forcePreset === true;
   const config: BotConfigShape = { ...(input.config || {}) };
+  const previousPresetTemplate = inferPresetTemplate(config);
+  const shouldHardReplacePreset = forcePreset || Boolean(previousPresetTemplate && previousPresetTemplate !== template);
 
-  const fallbackSlug = sanitizeSlug(input.defaultShowcaseSlug) || sanitizeSlug(config.defaultShowcaseSlug) || sanitizeSlug(config.username) || sanitizeSlug(input.fallbackName) || 'system';
+  const fallbackSlug = sanitizeSlug(input.defaultShowcaseSlug) || sanitizeSlug(config.defaultShowcaseSlug) || sanitizeSlug(config.botUsername) || sanitizeSlug(config.username) || sanitizeSlug(input.fallbackName) || 'system';
   const baseUrl = resolveBaseUrl(config.publicBaseUrl);
   const miniAppUrl = buildMiniAppUrl(baseUrl, fallbackSlug);
 
@@ -307,28 +870,31 @@ export const applyTemplatePreset = async (input: {
   config.publicBaseUrl = baseUrl;
 
   if (template === 'CLIENT_LEAD' && applyPreset) {
-    const scenarioIds = await ensureClientLeadScenarios(input.companyId, forcePreset);
+    await disableConflictingTemplateCommands(input.companyId, input.botId, ['request', 'offer', 'help']);
+    const scenarioIds = await ensureClientLeadScenarios(input.companyId, forcePreset, input.botId);
 
     const fallbackMenu = cloneMenu(
-      "👋 Welcome to CarTié Concierge!\n\nWe provide premium car sourcing and selling services.\nHow can we help you today?",
+      "👋 Вітаємо в CarTié Concierge!\n\nМи допоможемо з підбором та продажем авто.\nОберіть дію нижче.",
       baseLeadButtons(scenarioIds, miniAppUrl)
     );
     const existingButtons = Array.isArray(config.menuConfig?.buttons) ? config.menuConfig.buttons : [];
-    if (forcePreset || existingButtons.length === 0) {
+    if (shouldHardReplacePreset || existingButtons.length === 0) {
       config.menuConfig = fallbackMenu;
     } else {
+      const existingWelcome = String(config.menuConfig?.welcomeMessage || '').trim();
+      const shouldResetWelcome = shouldReplaceLeadWelcome(existingWelcome);
       config.menuConfig = {
-        welcomeMessage: config.menuConfig?.welcomeMessage || fallbackMenu.welcomeMessage,
-        buttons: maybePatchMenuLinks(existingButtons, miniAppUrl)
+        welcomeMessage: shouldResetWelcome ? fallbackMenu.welcomeMessage : existingWelcome,
+        buttons: maybePatchMenuLinks(mergePresetButtons(existingButtons, fallbackMenu.buttons), miniAppUrl)
       };
     }
 
-    if (forcePreset || !config.miniAppConfig) {
-      config.miniAppConfig = buildClientLeadMiniAppConfig(miniAppUrl, fallbackSlug);
+    const fallbackMini = buildClientLeadMiniAppConfig(miniAppUrl, fallbackSlug);
+    if (shouldHardReplacePreset || !config.miniAppConfig) {
+      config.miniAppConfig = fallbackMini;
     } else {
       config.miniAppConfig = {
-        ...config.miniAppConfig,
-        isEnabled: config.miniAppConfig.isEnabled ?? true,
+        ...mergeMiniAppConfig(fallbackMini, config.miniAppConfig || {}),
         url: miniAppUrl,
         showcaseSlug: fallbackSlug
       };
@@ -336,35 +902,50 @@ export const applyTemplatePreset = async (input: {
   }
 
   if (template === 'B2B' && applyPreset) {
+    await disableConflictingTemplateCommands(input.companyId, input.botId, ['buy', 'sell', 'status', 'lang', 'lead', 'support']);
+    const scenarioIds = await ensureB2BScenarios(input.companyId, forcePreset, input.botId);
     const fallbackMenu = cloneMenu(
-      "🤝 CarDealer Lviv B2B\n\nCreate a structured request and get offers from partner dealers.",
-      baseB2BButtons(miniAppUrl)
+      "🤝 CarDealer Lviv B2B\n\nСтворюйте структурований запит та отримуйте пропозиції через кнопку «Є авто».",
+      baseB2BButtons(scenarioIds, miniAppUrl)
     );
     const existingButtons = Array.isArray(config.menuConfig?.buttons) ? config.menuConfig.buttons : [];
-    if (forcePreset || existingButtons.length === 0) {
+    if (shouldHardReplacePreset || existingButtons.length === 0) {
       config.menuConfig = fallbackMenu;
     } else {
+      const existingWelcome = String(config.menuConfig?.welcomeMessage || '').trim();
+      const shouldResetWelcome = shouldReplaceB2BWelcome(existingWelcome);
       config.menuConfig = {
-        welcomeMessage: config.menuConfig?.welcomeMessage || fallbackMenu.welcomeMessage,
-        buttons: maybePatchMenuLinks(existingButtons, miniAppUrl)
+        welcomeMessage: shouldResetWelcome ? fallbackMenu.welcomeMessage : existingWelcome,
+        buttons: maybePatchMenuLinks(mergePresetButtons(existingButtons, fallbackMenu.buttons), miniAppUrl)
       };
     }
 
-    if (forcePreset || !config.miniAppConfig) {
-      config.miniAppConfig = buildB2BMiniAppConfig(miniAppUrl, fallbackSlug);
+    const fallbackMini = buildB2BMiniAppConfig(miniAppUrl, fallbackSlug);
+    if (shouldHardReplacePreset || !config.miniAppConfig) {
+      config.miniAppConfig = fallbackMini;
     } else {
       config.miniAppConfig = {
-        ...config.miniAppConfig,
-        isEnabled: config.miniAppConfig.isEnabled ?? true,
+        ...mergeMiniAppConfig(fallbackMini, config.miniAppConfig || {}),
         url: miniAppUrl,
         showcaseSlug: fallbackSlug
       };
     }
   }
 
+  const canonicalUsername = sanitizeSlug(config.botUsername || config.username);
+  if (canonicalUsername) {
+    config.botUsername = canonicalUsername;
+    config.username = canonicalUsername;
+  }
+
+  if (applyPreset) {
+    config.presetTemplate = template;
+  }
+
   const presetStatus = await getTemplatePresetStatus({
     template,
     companyId: input.companyId,
+    botId: input.botId,
     config,
     channelId: input.channelId,
     adminChatId: input.adminChatId

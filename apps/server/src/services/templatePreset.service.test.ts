@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { getTemplatePresetStatus } from './templatePreset.service.js';
 
 describe('templatePreset.service', () => {
-  it('returns ready for B2B when menu, miniapp, channel and admin are present', async () => {
+  it('returns partial for B2B when scenario pack is missing', async () => {
     const status = await getTemplatePresetStatus({
       template: 'B2B',
       companyId: 'company_test',
@@ -11,7 +11,8 @@ describe('templatePreset.service', () => {
       config: {
         menuConfig: {
           buttons: [
-            { id: 'r', label: 'Request', type: 'TEXT', value: '/request', row: 0, col: 0 },
+            { id: 'btn_b2b_req', label: 'Request', type: 'SCENARIO', value: 'scenario_request', row: 0, col: 0 },
+            { id: 'btn_b2b_help', label: 'Help', type: 'SCENARIO', value: 'scenario_help', row: 1, col: 0 },
             { id: 'm', label: 'Menu', type: 'TEXT', value: '/menu', row: 1, col: 0 }
           ]
         },
@@ -24,7 +25,7 @@ describe('templatePreset.service', () => {
       } as any
     });
 
-    expect(status).toBe('ready');
+    expect(status).toBe('partial');
   });
 
   it('returns missing for B2B when menu and miniapp are absent', async () => {

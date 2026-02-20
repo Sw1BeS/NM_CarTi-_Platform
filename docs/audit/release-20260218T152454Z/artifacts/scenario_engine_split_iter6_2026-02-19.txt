@@ -1,0 +1,19 @@
+P0-2 Iteration 6 (2026-02-19)
+
+Extracted active setup flow from ScenarioEngine handleUpdate:
+- apps/server/src/modules/Communication/bots/scenario-engine/actions/setup.actions.ts
+
+Moved logic:
+- /setup_admin
+- /setup_channel
+- setup_mode=CHANNEL forwarding/cancel flow
+
+ScenarioEngine delegate anchors:
+47:import { handleSetupCommands as handleSetupCommandsAction } from './scenario-engine/actions/setup.actions.js';
+106:    const handledSetup = await handleSetupCommandsAction({
+114:    if (handledSetup) return true;
+
+Line counts after iteration 6:
+ 1424 apps/server/src/modules/Communication/bots/scenario.engine.ts
+   68 apps/server/src/modules/Communication/bots/scenario-engine/actions/setup.actions.ts
+ 1492 total

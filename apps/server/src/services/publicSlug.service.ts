@@ -100,7 +100,7 @@ export const resolvePublicSlug = async (slug: string): Promise<PublicSlugResolut
   const matched = bots.find(bot => {
     const config = (bot.config || {}) as any;
     const showcaseSlug = normalizeBotSlug(String(config.defaultShowcaseSlug || ''));
-    const username = normalizeBotSlug(String(config.username || bot.name || ''));
+    const username = normalizeBotSlug(String(config.botUsername || config.username || bot.name || ''));
     return showcaseSlug === normalizedLower || username === normalizedLower;
   });
 

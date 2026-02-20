@@ -1,0 +1,26 @@
+P0-2 Iteration 9 (2026-02-19)
+
+Extracted scenario lifecycle completion/cleanup helpers:
+- apps/server/src/modules/Communication/bots/scenario-engine/runtime/lifecycle.ts
+
+Added runtime helpers:
+- clearActiveScenario(vars, history)
+- completeScenarioFlow({ bot, chatId, vars, history, scenarioId, payload, userId, lang, persistSession })
+
+Refactor effects in ScenarioEngine:
+- Replaced duplicated end-of-scenario blocks in goBack, handleInput, executeNode.
+- Added local executeNode closures:
+  - completeCurrentScenario(reason)
+  - continueToNextOrComplete()
+- Preserved behavior: scenario completion event, state cleanup, main menu keyboard, and session persistence.
+
+Delegate anchors in scenario.engine.ts:
+37:import { clearActiveScenario, completeScenarioFlow } from './scenario-engine/runtime/lifecycle.js';
+179:      clearActiveScenario(vars, history);
+666:    const completeCurrentScenario = async (reason: string = 'end') => {
+679:    const continueToNextOrComplete = async () => {
+
+Line counts after iteration 9:
+  895 apps/server/src/modules/Communication/bots/scenario.engine.ts
+   51 apps/server/src/modules/Communication/bots/scenario-engine/runtime/lifecycle.ts
+  946 total

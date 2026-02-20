@@ -1,5 +1,10 @@
 from playwright.sync_api import Page, expect, sync_playwright
 import os
+import sys
+
+if os.getenv("ALLOW_DEPRECATED") != "1":
+    print("[DEPRECATED] verification/verify_csv.py is frozen. Set ALLOW_DEPRECATED=1 to run intentionally.", file=sys.stderr)
+    sys.exit(1)
 
 def test_csv_import(page: Page):
     # Mock Inventory API

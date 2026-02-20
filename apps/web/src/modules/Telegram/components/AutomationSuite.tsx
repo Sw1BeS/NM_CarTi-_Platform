@@ -57,6 +57,7 @@ export const PropertiesPanel = ({ node, allNodes, onChange, onDelete, onClose, o
         'NORMALIZE_REQUEST',
         'CREATE_LEAD',
         'CREATE_REQUEST',
+        'B2B_PUBLISH_REQUEST',
         'TAG_USER',
         'SET_LANG',
         'NOTIFY_ADMIN'

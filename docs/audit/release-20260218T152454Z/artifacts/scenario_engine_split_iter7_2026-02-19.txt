@@ -1,0 +1,23 @@
+P0-2 Iteration 7 (2026-02-19)
+
+Extracted executeNode ACTION branch from ScenarioEngine:
+- apps/server/src/modules/Communication/bots/scenario-engine/actions/node-action.actions.ts
+
+Moved logic:
+- ACTION node handlers: SET_LANG, NORMALIZE_REQUEST, CHECK_DAILY_REQUEST_LIMIT,
+  CREATE_LEAD, CREATE_REQUEST, CREATE_VARIANT, B2B_PUBLISH_REQUEST,
+  LOOKUP_REQUEST, NOTIFY_ADMIN.
+- Preserved legacy `break` semantics via return contract `ActionExecutionResult`:
+  - `halt` => stop node progression (equivalent to previous `break` in case body)
+  - `continue` => proceed to nextNode/end branch.
+
+ScenarioEngine delegate anchors:
+38:import { executeActionNode as executeActionNodeAction } from './scenario-engine/actions/node-action.actions.js';
+793:      case 'ACTION': {
+794:        const actionResult = await executeActionNodeAction({
+802:        if (actionResult === 'halt') break;
+
+Line counts after iteration 7:
+ 1066 apps/server/src/modules/Communication/bots/scenario.engine.ts
+  415 apps/server/src/modules/Communication/bots/scenario-engine/actions/node-action.actions.ts
+ 1481 total

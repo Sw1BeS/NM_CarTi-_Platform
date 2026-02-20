@@ -1,0 +1,15 @@
+folder	exists	files	dirs	size	notes
+.agent	YES	206	85	2.3M	
+.github	YES	1	2	12K	
+_archive	YES	19	8	120K	
+_logs	YES	64	1	20M	
+apps/server	YES	7929	1416	251M	
+apps/web	YES	20670	1559	282M	
+data	YES	1779	29	73M	
+docs	YES	98	10	840K	
+env	YES	1	1	8.0K	
+infra	YES	12	2	68K	
+scripts	YES	5	1	28K	
+services	YES	0	1	4.0K	empty
+storage	YES	2283	7	415M	
+verification	YES	6	1	424K	

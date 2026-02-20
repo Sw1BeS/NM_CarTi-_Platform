@@ -1,0 +1,15 @@
+  12 apps/server/src/routes/publicRoutes.ts
+  11 apps/server/src/routes/legacyMessaging.routes.ts
+  10 apps/server/src/routes/legacyContent.routes.ts
+  10 apps/server/src/routes/entityRoutes.ts
+   9 apps/server/src/modules/Integrations/integration.routes.ts
+   8 apps/server/src/routes/legacyAdmin.routes.ts
+   7 apps/server/src/routes/qaRoutes.ts
+   6 apps/server/src/routes/legacyBots.routes.ts
+   5 apps/server/src/routes/miniAppRoutes.ts
+   5 apps/server/src/routes/legacyLeads.routes.ts
+   5 apps/server/src/routes/legacyDrafts.routes.ts
+   5 apps/server/src/routes/legacyAnalytics.routes.ts
+   4 apps/server/src/routes/legacyScenarios.routes.ts
+   4 apps/server/src/routes/legacyCampaigns.routes.ts
+   3 apps/server/src/routes/legacyTelegramProxy.routes.ts

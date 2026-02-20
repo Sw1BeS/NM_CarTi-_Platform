@@ -1,0 +1,7 @@
+    422 dial tcp: lookup api: i/o timeout
+    108 dial tcp 172.18.0.3:3001: connect: connection refused
+     33 dial tcp: lookup api on 127.0.0.11:53: server misbehaving
+     33 dial tcp 172.18.0.3:3001: i/o timeout
+      6 dial tcp: lookup api on 127.0.0.11:53: write udp 127.0.0.1:56710->127.0.0.11:53: i/o timeout
+      1 dial tcp: lookup api on 127.0.0.11:53: read udp 127.0.0.1:49677->127.0.0.11:53: i/o timeout
+      1 dial tcp 172.18.0.2:3001: connect: connection refused

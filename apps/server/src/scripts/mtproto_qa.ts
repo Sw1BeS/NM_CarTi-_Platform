@@ -1,6 +1,11 @@
 
 import { parseCarData } from '../services/enhanced-parsing.utils.js';
 
+if (process.env.ALLOW_DEPRECATED !== '1') {
+    console.error('[DEPRECATED] mtproto_qa.ts is legacy QA helper. Set ALLOW_DEPRECATED=1 to run intentionally.');
+    process.exit(1);
+}
+
 const TEST_CASES = [
     {
         name: "Standard Labeled",

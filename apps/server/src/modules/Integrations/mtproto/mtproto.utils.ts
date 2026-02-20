@@ -100,6 +100,7 @@ export class MessageParser {
 
     static detectCurrency(text: string): string | undefined {
         const upper = text.toUpperCase();
+        if (/(У\.?Е\.?|УЕ|У\. О\.|У\\.О\\.)/i.test(text)) return 'USD';
         if (upper.includes('UAH') || text.includes('₴') || upper.includes('ГРН')) return 'UAH';
         if (upper.includes('EUR') || text.includes('€')) return 'EUR';
         if (upper.includes('USD') || text.includes('$')) return 'USD';
@@ -161,7 +162,7 @@ export class MessageParser {
         // Cleanup rawNum: remove trailing dots/commas
         rawNum = rawNum.trim().replace(/[.,]$/, '');
 
-        let price = this.normalizeNumberSimple(rawNum);
+        let price = this.normalizeNumber(rawNum);
         if (price === null) return { price: null, currency: defaultCurr };
 
         // Apply suffix
@@ -261,12 +262,12 @@ export class MessageParser {
         // Labeled: "Mileage: 100000"
         // Suffix: "100k km", "100 тыс км"
 
-        const R_MILE_NUM = `(\\d+(?:[\\s.,]?\\d+)*)`;
+        const R_MILE_NUM = `(\\d+(?:[ \\t.,]?\\d+)*)`;
         const R_MILE_UNIT = `(km|mi|miles|км|миль)`;
         const R_MILE_SUFFIX = `(k|к|тыс|тис)?`;
 
         const mileRegex = new RegExp(`(?:Mileage|Пробег)\\s*:?\\s*${R_MILE_NUM}\\s*${R_MILE_SUFFIX}\\s*${R_MILE_UNIT}?`, 'i');
-        const mileUnitRegex = new RegExp(`\\b${R_MILE_NUM}\\s*${R_MILE_SUFFIX}\\s*${R_MILE_UNIT}`, 'i');
+        const mileUnitRegex = new RegExp(`\\b${R_MILE_NUM}\\s*${R_MILE_SUFFIX}\\s*${R_MILE_UNIT}\\b`, 'i');
 
         let mileage: number | null = null;
         const mMatchA = cleanText.match(mileRegex);
@@ -282,9 +283,10 @@ export class MessageParser {
         }
 
         if (rawMile) {
-            let mVal = this.normalizeNumberSimple(rawMile);
+            let mVal = this.normalizeNumber(rawMile);
             if (mVal !== null) {
-                if (mSuffix && (mSuffix.startsWith('k') || mSuffix.startsWith('к') || mSuffix.startsWith('t'))) {
+                const suffix = (mSuffix || '').toLowerCase();
+                if (suffix && (suffix.startsWith('k') || suffix.startsWith('к') || suffix.startsWith('t') || suffix.startsWith('т'))) {
                     mVal *= 1000;
                 }
                 // If < 1000, probably x1000 implied? "Mileage 120" -> 120000

@@ -1,8 +1,8 @@
 
 import { PrismaClient } from '@prisma/client';
-import { parseMiniAppPayload } from '../src/modules/telegram/utils/miniappPayload.js';
+import { parseMiniAppPayload } from '../src/modules/Communication/telegram/core/utils/miniappPayload.js';
 // @ts-ignore
-import { normalizeBrand } from '../src/modules/normalization/normalizeBrand.js';
+import { normalizeBrand } from '../src/modules/Inventory/normalization/normalizeBrand.js';
 
 const prisma = new PrismaClient();
 

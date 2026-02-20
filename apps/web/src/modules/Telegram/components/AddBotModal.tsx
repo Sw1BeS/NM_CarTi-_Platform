@@ -5,6 +5,8 @@ import { ApiClient } from '../../../services/apiClient';
 import { useToast } from '../../../contexts/ToastContext';
 import { buildDefaultBotMenuConfig, buildDefaultMiniAppConfig } from '../../../services/defaults';
 
+const miniAppBuildTag = String((import.meta as any)?.env?.VITE_BUILD_ID || '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 24);
+
 export const AddBotModal = ({ onClose }: any) => {
     const [name, setName] = useState('');
     const [token, setToken] = useState('');
@@ -20,7 +22,18 @@ export const AddBotModal = ({ onClose }: any) => {
     const { showToast } = useToast();
     const effectiveBaseUrl = (publicBaseUrl || companyBaseUrl || window.location.origin).replace(/\/$/, '');
 
-    const buildMiniAppUrl = (baseUrl: string, slug: string) => `${baseUrl.replace(/\/$/, '')}/p/app/${slug}`;
+    const buildMiniAppUrl = (baseUrl: string, slug: string) => {
+        const raw = `${baseUrl.replace(/\/$/, '')}/p/app/${slug}`;
+        try {
+            const url = new URL(raw);
+            if (miniAppBuildTag && !url.searchParams.has('v')) {
+                url.searchParams.set('v', miniAppBuildTag);
+            }
+            return url.toString();
+        } catch {
+            return raw;
+        }
+    };
     useEffect(() => {
         Data.getSettings()
             .then(settings => {

@@ -1,0 +1,46 @@
+# DB AUDIT 2026-02-18T15:33:03Z
+
+## Table counts
+workspace_count=3
+global_user_count=11
+bot_count=1
+lead_count=64
+request_count=19
+variant_count=39
+car_count=66
+draft_count=31
+scenario_count=14
+integration_count=2
+event_log_count=3085
+telegram_update_count=106
+
+## Orphan checks
+orphan_bot_company=0
+orphan_lead_company=0
+orphan_request_company=0
+orphan_car_company=1
+orphan_draft_bot=0
+orphan_variant_request=0
+orphan_membership_workspace=0
+
+## Status distributions
+request_status|COLLECTING_VARIANTS|18
+request_status|SHORTLIST|1
+variant_status|SUBMITTED|37
+variant_status|APPROVED|1
+variant_status|REVIEWED|1
+lead_status|NEW|38
+lead_status|CONTACTED|14
+lead_status|IN_PROGRESS|10
+lead_status|LOST|2
+import_job_status|FAILED|3
+import_job_status|DONE|1
+parsing_job_status|FAILED|3
+parsing_job_status|DONE|1
+
+## company_system usage
+system_workspace_exists=1
+bots_company_system=0
+leads_company_system=0
+requests_company_system=0
+cars_company_system=0

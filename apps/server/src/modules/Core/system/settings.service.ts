@@ -1,16 +1,7 @@
 
 import { prisma } from '../../../services/prisma.js';
 import { DEFAULT_NAVIGATION } from './defaults.js';
-
-const DEFAULT_FEATURES = {
-    // Default fallbacks if DB is empty/old
-    MODULE_SCENARIOS: true,
-    MODULE_SEARCH: true,
-    MODULE_CAMPAIGNS: true,
-    MODULE_COMPANIES: false,
-    MODULE_CONTENT: true,
-    MODULE_INTEGRATIONS: false
-};
+import { DEFAULT_FEATURES, resolveFeatures } from './features.resolver.js';
 
 const DEFAULT_PUBLIC_SETTINGS = {
     branding: {},
@@ -68,11 +59,14 @@ export class SettingsService {
                 branding: settings.branding || {},
                 modules: settings.modules || {},
                 navigation: hasNav ? normalized : DEFAULT_NAVIGATION,
-                features: settings.features || DEFAULT_FEATURES
+                features: resolveFeatures(settings.features)
             };
         }
 
-        return settings;
+        return {
+            ...settings,
+            features: resolveFeatures(settings.features)
+        };
     }
 
     static async updateSettings(payload: any) {
@@ -85,7 +79,7 @@ export class SettingsService {
                     branding: payload.branding ?? {},
                     modules: payload.modules ?? {},
                     navigation: payload.navigation ?? {},
-                    features: payload.features ?? {}, // keep compat
+                    features: resolveFeatures(payload.features ?? {}),
                     autoriaApiKey: payload.autoriaApiKey,
                     metaPixelId: payload.metaPixelId,
                     metaToken: payload.metaToken,
@@ -102,7 +96,7 @@ export class SettingsService {
                 branding: payload.branding ?? undefined,
                 modules: payload.modules ?? undefined,
                 navigation: payload.navigation ?? undefined,
-                features: payload.features ?? undefined,
+                features: payload.features !== undefined ? resolveFeatures(payload.features) : undefined,
                 autoriaApiKey: payload.autoriaApiKey ?? undefined,
                 metaPixelId: payload.metaPixelId ?? undefined,
                 metaToken: payload.metaToken ?? undefined,

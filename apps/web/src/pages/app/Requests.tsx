@@ -284,7 +284,7 @@ export const RequestList: React.FC = () => {
                     <div>
                         <div className="text-xs uppercase tracking-wider font-bold text-gold-500">B2B Runtime</div>
                         <div className="text-sm text-[var(--text-secondary)]">
-                            B2B bot uses hard-flow runtime. Scenario/menu editor is informative, not source of truth for this flow.
+                            B2B bot uses flow-first runtime. Legacy hard-flow fallback is temporary and controlled by server flag.
                         </div>
                     </div>
                     <div className="flex gap-2 text-xs">

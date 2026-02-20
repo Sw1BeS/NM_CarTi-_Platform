@@ -4,6 +4,19 @@ import { Bot, BotMenuButtonConfig, Scenario } from '../../../types';
 import { TelegramAPI } from '../../../services/telegram';
 import { useToast } from '../../../contexts/ToastContext';
 import { Settings, Plus, RefreshCw, UploadCloud, Trash2 } from 'lucide-react';
+const miniAppBuildTag = String((import.meta as any)?.env?.VITE_BUILD_ID || '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 24);
+
+const withBuildTag = (raw: string) => {
+    try {
+        const url = new URL(raw);
+        if (miniAppBuildTag && !url.searchParams.has('v')) {
+            url.searchParams.set('v', miniAppBuildTag);
+        }
+        return url.toString();
+    } catch {
+        return raw;
+    }
+};
 
 interface MenuDesignerProps {
     bot: Bot;
@@ -18,8 +31,8 @@ export const MenuDesigner = ({ bot }: MenuDesignerProps) => {
     const [companyBaseUrl, setCompanyBaseUrl] = useState('');
 
     useEffect(() => {
-        Data.getScenarios().then(setScenarios);
-    }, []);
+        Data.getScenarios(bot?.id ? { botId: bot.id } : undefined).then(setScenarios);
+    }, [bot?.id]);
 
     useEffect(() => {
         Data.getSettings()
@@ -41,7 +54,8 @@ export const MenuDesigner = ({ bot }: MenuDesignerProps) => {
         try {
             const base = (bot.publicBaseUrl || companyBaseUrl || window.location.origin).replace(/\/$/, '');
             const slug = (bot.defaultShowcaseSlug || bot.username || 'system').trim();
-            const appUrl = base && slug ? `${base}/p/app/${slug}` : undefined;
+            const fallbackUrl = base && slug ? `${base}/p/app/${slug}` : '';
+            const appUrl = withBuildTag(bot.miniAppConfig?.url || fallbackUrl);
             if (!base || base.includes('localhost')) {
                 showToast('Set a public base URL before pushing menu', 'error');
                 setIsSyncing(false);

@@ -1,0 +1,8 @@
+Command:
+rg -n "router\.(get|post|put|delete|patch)\(" apps/server/src/routes/apiRoutes.ts
+
+Output:
+<no matches>
+
+Interpretation:
+- `apiRoutes.ts` contains no direct route handlers and acts as compatibility shim only.

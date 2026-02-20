@@ -1,0 +1,8 @@
+     35 Communication
+     21 Integrations
+     15 Core
+      8 Inventory
+      2 v41
+      2 Marketing
+      1 Sales
+      1 Parser

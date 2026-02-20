@@ -378,30 +378,36 @@ export class ChannelIngestionService {
     private extractCarData(text: string): CarData | null {
         if (!text) return null;
 
-        const specs = parseCarData(text);
+        const parsed = parseCarData(text);
         const description = text;
+        const lines = String(text).split('\n').map(line => line.trim()).filter(Boolean);
+        const firstLine = lines[0] || '';
 
-        let title = '';
-        const brandModelMatch = text.match(/(BMW|Mercedes|Audi|VW|Volkswagen|Toyota|Lexus|Nissan|Hyundai|Kia|Porsche)\s*([A-Z0-9\-\s]+)/i);
+        const brand = typeof parsed.brand === 'string' ? parsed.brand : undefined;
+        const model = typeof parsed.model === 'string' ? parsed.model : undefined;
 
-        let brand = specs.brand;
-        let model = specs.model;
+        const fallbackTitle = `${brand || ''} ${model || ''}`.trim() || parsed.title || firstLine;
+        const title = fallbackTitle || `Car ${parsed.year || ''} ${parsed.price ? `${parsed.price}${parsed.currency || ''}` : ''}`.trim() || 'Unknown Car';
 
-        if (brandModelMatch) {
-            brand = brandModelMatch[1];
-            model = brandModelMatch[2].trim();
-            title = `${brand} ${model}`;
-        } else {
-            title = `Car ${specs.year || ''} ${specs.price ? specs.price + (specs.currency || '') : ''}`.trim() || 'Unknown Car';
-        }
+        const specs: Record<string, unknown> = {
+            ...(parsed || {})
+        };
+        delete specs.title;
+        delete specs.brand;
+        delete specs.model;
+        delete specs.price;
+        delete specs.currency;
+        delete specs.year;
+        delete specs.mileage;
+        delete specs.location;
 
         return {
             title,
-            price: specs.price,
-            currency: specs.currency || 'USD',
-            year: specs.year,
-            mileage: specs.mileage,
-            location: specs.location, // enhanced-parsing doesn't extract location yet, but consistent with interface
+            price: parsed.price,
+            currency: parsed.currency || 'USD',
+            year: parsed.year,
+            mileage: parsed.mileage,
+            location: parsed.location,
             brand,
             model,
             specs,

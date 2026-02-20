@@ -1,0 +1,282 @@
+apps/server/src/config/jwt.ts:12:    workspaceId: string;
+apps/server/src/__tests__/templates.installed.route.test.ts:75:      workspaceId: 'company-1'
+apps/server/src/__tests__/superadmin.impersonate.payload.test.ts:40:  it('issues a canonical token payload including workspaceId', async () => {
+apps/server/src/__tests__/superadmin.impersonate.payload.test.ts:65:      if (where?.id === targetWorkspaceId || where?.id === 'company_system') {
+apps/server/src/__tests__/superadmin.impersonate.payload.test.ts:68:          slug: where.id === 'company_system' ? 'system' : 'target-ws',
+apps/server/src/__tests__/superadmin.impersonate.payload.test.ts:69:          name: where.id === 'company_system' ? 'System Workspace' : 'Target Workspace',
+apps/server/src/__tests__/superadmin.impersonate.payload.test.ts:82:      workspaceId: 'admin-workspace'
+apps/server/src/__tests__/superadmin.impersonate.payload.test.ts:98:    expect(decoded.workspaceId).toBe(targetWorkspaceId);
+apps/server/src/__tests__/telegram.webhook.baseurl.infer.test.ts:80:      workspaceId: 'ws-1'
+apps/server/src/routes/publicRoutes.ts:67:        // The plan says: "use ShowcaseService... if slug matches a showcase, use it. If not, fallback or error".
+apps/server/src/routes/publicRoutes.ts:68:        // Let's keep the legacy logic as fallback ONLY if showcase not found AND workspace found.
+apps/server/src/routes/apiRoutes.ts:56:    const systemWorkspace = await getWorkspaceById('company_system') || await getWorkspaceBySlug('system');
+apps/server/src/routes/apiRoutes.ts:59:    logger.warn('[API] System workspace not found, falling back to ID literal "company_system"');
+apps/server/src/routes/apiRoutes.ts:60:    return 'company_system';
+apps/server/src/routes/apiRoutes.ts:92:    const userCompanyId = user.companyId || user.workspaceId;
+apps/server/src/routes/apiRoutes.ts:140:        const userCompanyId = user.companyId || user.workspaceId || null;
+apps/server/src/routes/apiRoutes.ts:157:                // especially if the user just sent a fallback like "My New Bot" or "bot"
+apps/server/src/routes/apiRoutes.ts:267:            fallbackName: botName,
+apps/server/src/routes/apiRoutes.ts:304:    const userCompanyId = user.companyId || user.workspaceId;
+apps/server/src/routes/apiRoutes.ts:351:            fallbackName: data.name || existing.name,
+apps/server/src/routes/apiRoutes.ts:387:        const userCompanyId = user.companyId || user.workspaceId;
+apps/server/src/routes/apiRoutes.ts:396:        // Production-friendly fallback: infer base URL from proxy headers when PUBLIC_BASE_URL isn't set.
+apps/server/src/routes/apiRoutes.ts:417:        const userCompanyId = user.companyId || user.workspaceId;
+apps/server/src/routes/apiRoutes.ts:438:        const userCompanyId = user.companyId || user.workspaceId;
+apps/server/src/routes/apiRoutes.ts:623:        const userCompanyId = user.companyId || user.workspaceId;
+apps/server/src/routes/apiRoutes.ts:791:        const userCompanyId = user.companyId || user.workspaceId;
+apps/server/src/routes/apiRoutes.ts:826:        const userCompanyId = user.companyId || user.workspaceId;
+apps/server/src/routes/apiRoutes.ts:867:        const userCompanyId = user.companyId || user.workspaceId;
+apps/server/src/routes/apiRoutes.ts:971:        const userCompanyId = user.companyId || user.workspaceId;
+apps/server/src/routes/apiRoutes.ts:1145:        const userCompanyId = user.companyId || user.workspaceId;
+apps/server/src/routes/apiRoutes.ts:1198:        const userCompanyId = user.companyId || user.workspaceId;
+apps/server/src/routes/apiRoutes.ts:1221:        const userCompanyId = user.companyId || user.workspaceId;
+apps/server/src/routes/apiRoutes.ts:1254:        const userCompanyId = user.companyId || user.workspaceId;
+apps/server/src/routes/apiRoutes.ts:1304:        const userCompanyId = user.companyId || user.workspaceId;
+apps/server/src/routes/apiRoutes.ts:1351:        const userCompanyId = user.companyId || user.workspaceId;
+apps/server/src/routes/apiRoutes.ts:1390:        const userCompanyId = user.companyId || user.workspaceId;
+apps/server/src/routes/apiRoutes.ts:1410:        const userCompanyId = user.companyId || user.workspaceId;
+apps/server/src/routes/apiRoutes.ts:1439:        const userCompanyId = user.companyId || user.workspaceId;
+apps/server/src/routes/apiRoutes.ts:1470:        const userCompanyId = user.companyId || user.workspaceId;
+apps/server/src/routes/apiRoutes.ts:1492:        const userCompanyId = user.companyId || user.workspaceId;
+apps/server/src/routes/apiRoutes.ts:1520:        const userCompanyId = user.companyId || user.workspaceId;
+apps/server/src/routes/apiRoutes.ts:1579:        const userCompanyId = user.companyId || user.workspaceId;
+apps/server/src/routes/apiRoutes.ts:1743:        const userCompanyId = user.companyId || user.workspaceId;
+apps/server/src/routes/apiRoutes.ts:1784:        const userCompanyId = user.companyId || user.workspaceId;
+apps/server/src/routes/apiRoutes.ts:1826:        const userCompanyId = user.companyId || user.workspaceId;
+apps/server/src/routes/apiRoutes.ts:1938:        const userCompanyId = user.companyId || user.workspaceId;
+apps/server/src/routes/apiRoutes.ts:2031:                const recordCompanyId = data.companyId || data.workspaceId;
+apps/server/src/routes/apiRoutes.ts:2117:    const userCompanyId = user.companyId || user.workspaceId;
+apps/server/src/routes/apiRoutes.ts:2167:    const userCompanyId = user.companyId || user.workspaceId;
+apps/server/src/routes/apiRoutes.ts:2194:    const userCompanyId = user.companyId || user.workspaceId;
+apps/server/src/routes/apiRoutes.ts:2203:        where.OR = companyId === 'company_system'
+apps/server/src/routes/apiRoutes.ts:2217:        const userCompanyId = user.companyId || user.workspaceId;
+apps/server/src/routes/apiRoutes.ts:2256:        const userCompanyId = user.companyId || user.workspaceId;
+apps/server/src/routes/apiRoutes.ts:2262:            if (!existing.botId && userCompanyId !== 'company_system') return errorResponse(res, 403, 'Forbidden');
+apps/server/src/routes/apiRoutes.ts:2303:        const userCompanyId = user.companyId || user.workspaceId;
+apps/server/src/routes/apiRoutes.ts:2309:            if (!existing.botId && userCompanyId !== 'company_system') return errorResponse(res, 403, 'Forbidden');
+apps/server/src/routes/apiRoutes.ts:2329:        const userCompanyId = user.companyId || user.workspaceId;
+apps/server/src/routes/apiRoutes.ts:2349:        const userCompanyId = user.companyId || user.workspaceId;
+apps/server/src/routes/apiRoutes.ts:2379:        const userCompanyId = user.companyId || user.workspaceId;
+apps/server/src/routes/apiRoutes.ts:2410:        const userCompanyId = user.companyId || user.workspaceId;
+apps/server/src/routes/apiRoutes.ts:2432:        const userCompanyId = user.companyId || user.workspaceId;
+apps/server/src/routes/apiRoutes.ts:2456:        const userCompanyId = user.companyId || user.workspaceId;
+apps/server/src/routes/apiRoutes.ts:2490:        const userCompanyId = user.companyId || user.workspaceId;
+apps/server/src/routes/apiRoutes.ts:2688:        const userCompanyId = user.companyId || user.workspaceId;
+apps/server/src/routes/apiRoutes.ts:2711:        const userCompanyId = user.companyId || user.workspaceId;
+apps/server/src/routes/apiRoutes.ts:2735:        const userCompanyId = user.companyId || user.workspaceId;
+apps/server/src/routes/apiRoutes.ts:2755:        const userCompanyId = user.companyId || user.workspaceId;
+apps/server/src/routes/apiRoutes.ts:2785:        const userCompanyId = user.companyId || user.workspaceId;
+apps/server/src/routes/apiRoutes.ts:2808:        const userCompanyId = user.companyId || user.workspaceId;
+apps/server/src/routes/apiRoutes.ts:2871:        const userCompanyId = user.companyId || user.workspaceId;
+apps/server/src/routes/apiRoutes.ts:2918:        // If data.companyId is missing, we might fail or need a fallback.
+apps/server/src/routes/apiRoutes.ts:2921:        if (!data.companyId && !data.workspaceId) {
+apps/server/src/routes/apiRoutes.ts:2933:            companyId: data.companyId || data.workspaceId // Support both
+apps/server/src/middleware/companyContext.ts:6: * Adapter to populate legacy req.companyId and req.workspaceId from the authenticated user.
+apps/server/src/middleware/companyContext.ts:16:    req.workspaceId = req.user.workspaceId;
+apps/server/src/middleware/workspaceContext.ts:9:    workspaceId?: string;
+apps/server/src/middleware/workspaceContext.ts:16: * Extracts workspace identifier from request and attaches it to req.workspaceId
+apps/server/src/middleware/workspaceContext.ts:44:        let workspaceId: string | undefined;
+apps/server/src/middleware/workspaceContext.ts:55:            workspaceId = headerId;
+apps/server/src/middleware/workspaceContext.ts:59:        if (!workspaceSlug && !workspaceId) {
+apps/server/src/middleware/workspaceContext.ts:73:        if (!workspaceSlug && !workspaceId && (req as any).user?.workspaceId) {
+apps/server/src/middleware/workspaceContext.ts:74:            workspaceId = (req as any).user.workspaceId;
+apps/server/src/middleware/workspaceContext.ts:79:        if (workspaceSlug && !workspaceId) {
+apps/server/src/middleware/workspaceContext.ts:96:                    workspaceId = workspace.id;
+apps/server/src/middleware/workspaceContext.ts:105:        if (workspaceId) {
+apps/server/src/middleware/workspaceContext.ts:106:            req.workspaceId = workspaceId;
+apps/server/src/middleware/workspaceContext.ts:111:            // Individual routes can check req.workspaceId and return 400 if required
+apps/server/src/middleware/workspaceContext.ts:128: *   const records = await getRecords(req.workspaceId!);
+apps/server/src/middleware/workspaceContext.ts:137:    if (!req.workspaceId) {
+apps/server/src/middleware/workspaceContext.ts:154:    if (!req.workspaceId) {
+apps/server/src/middleware/workspaceContext.ts:157:    return req.workspaceId;
+apps/server/src/middleware/auth.ts:9:  workspaceId?: string;
+apps/server/src/middleware/auth.ts:15:  const companyId = raw?.companyId ? String(raw.companyId) : raw?.workspaceId ? String(raw.workspaceId) : '';
+apps/server/src/middleware/auth.ts:16:  const workspaceId = raw?.workspaceId ? String(raw.workspaceId) : raw?.companyId ? String(raw.companyId) : '';
+apps/server/src/middleware/auth.ts:19:  if (!userId || !role || !companyId || !workspaceId) {
+apps/server/src/middleware/auth.ts:28:    workspaceId,
+apps/server/src/services/publicSlug.service.ts:36:    if (showcase?.workspaceId) {
+apps/server/src/services/publicSlug.service.ts:39:        companyId: showcase.workspaceId,
+apps/server/src/services/publicSlug.service.ts:51:      if (showcase?.workspaceId) {
+apps/server/src/services/publicSlug.service.ts:54:          companyId: showcase.workspaceId,
+apps/server/src/services/enhanced-parsing.utils.ts:203:        const fallbackTitle = trimText(`${parsed.brand || ''} ${parsed.model || ''}`) || cleanModel(firstLine);
+apps/server/src/services/enhanced-parsing.utils.ts:204:        if (fallbackTitle) parsed.title = fallbackTitle;
+apps/server/src/services/miniapp.service.ts:88:  if (resolution?.showcase?.botId) return { botId: resolution.showcase.botId, companyId: resolution.showcase.workspaceId || companyId };
+apps/server/src/services/miniapp.service.ts:102:  const fallback = await prisma.botConfig.findFirst({
+apps/server/src/services/miniapp.service.ts:106:  return { botId: fallback?.id, companyId: fallback?.companyId || companyId };
+apps/server/src/services/templatePreset.service.ts:39:const coalesceText = (value: unknown, fallback: string) => {
+apps/server/src/services/templatePreset.service.ts:41:  return text || fallback;
+apps/server/src/services/templatePreset.service.ts:44:const mergeMiniAppConfig = (fallback: MiniAppConfig, existing: Partial<MiniAppConfig> | undefined): MiniAppConfig => {
+apps/server/src/services/templatePreset.service.ts:46:  const layout = source.layout === 'LIST' || source.layout === 'GRID' ? source.layout : fallback.layout;
+apps/server/src/services/templatePreset.service.ts:49:    : fallback.surfaceMode;
+apps/server/src/services/templatePreset.service.ts:52:    ...fallback,
+apps/server/src/services/templatePreset.service.ts:56:    title: coalesceText(source.title, fallback.title),
+apps/server/src/services/templatePreset.service.ts:57:    welcomeText: coalesceText(source.welcomeText, fallback.welcomeText),
+apps/server/src/services/templatePreset.service.ts:58:    primaryColor: coalesceText(source.primaryColor, fallback.primaryColor),
+apps/server/src/services/templatePreset.service.ts:59:    accentColor: coalesceText(source.accentColor, fallback.accentColor || '#111111'),
+apps/server/src/services/templatePreset.service.ts:60:    actions: Array.isArray(source.actions) && source.actions.length ? source.actions : fallback.actions,
+apps/server/src/services/templatePreset.service.ts:61:    navItems: Array.isArray(source.navItems) && source.navItems.length ? source.navItems : fallback.navItems
+apps/server/src/services/templatePreset.service.ts:846:  fallbackName?: string | null;
+apps/server/src/services/templatePreset.service.ts:865:  const fallbackSlug = sanitizeSlug(input.defaultShowcaseSlug) || sanitizeSlug(config.defaultShowcaseSlug) || sanitizeSlug(config.botUsername) || sanitizeSlug(config.username) || sanitizeSlug(input.fallbackName) || 'system';
+apps/server/src/services/templatePreset.service.ts:867:  const miniAppUrl = buildMiniAppUrl(baseUrl, fallbackSlug);
+apps/server/src/services/templatePreset.service.ts:869:  config.defaultShowcaseSlug = fallbackSlug;
+apps/server/src/services/templatePreset.service.ts:876:    const fallbackMenu = cloneMenu(
+apps/server/src/services/templatePreset.service.ts:882:      config.menuConfig = fallbackMenu;
+apps/server/src/services/templatePreset.service.ts:887:        welcomeMessage: shouldResetWelcome ? fallbackMenu.welcomeMessage : existingWelcome,
+apps/server/src/services/templatePreset.service.ts:888:        buttons: maybePatchMenuLinks(mergePresetButtons(existingButtons, fallbackMenu.buttons), miniAppUrl)
+apps/server/src/services/templatePreset.service.ts:892:    const fallbackMini = buildClientLeadMiniAppConfig(miniAppUrl, fallbackSlug);
+apps/server/src/services/templatePreset.service.ts:894:      config.miniAppConfig = fallbackMini;
+apps/server/src/services/templatePreset.service.ts:897:        ...mergeMiniAppConfig(fallbackMini, config.miniAppConfig || {}),
+apps/server/src/services/templatePreset.service.ts:899:        showcaseSlug: fallbackSlug
+apps/server/src/services/templatePreset.service.ts:907:    const fallbackMenu = cloneMenu(
+apps/server/src/services/templatePreset.service.ts:913:      config.menuConfig = fallbackMenu;
+apps/server/src/services/templatePreset.service.ts:918:        welcomeMessage: shouldResetWelcome ? fallbackMenu.welcomeMessage : existingWelcome,
+apps/server/src/services/templatePreset.service.ts:919:        buttons: maybePatchMenuLinks(mergePresetButtons(existingButtons, fallbackMenu.buttons), miniAppUrl)
+apps/server/src/services/templatePreset.service.ts:923:    const fallbackMini = buildB2BMiniAppConfig(miniAppUrl, fallbackSlug);
+apps/server/src/services/templatePreset.service.ts:925:      config.miniAppConfig = fallbackMini;
+apps/server/src/services/templatePreset.service.ts:928:        ...mergeMiniAppConfig(fallbackMini, config.miniAppConfig || {}),
+apps/server/src/services/templatePreset.service.ts:930:        showcaseSlug: fallbackSlug
+apps/server/src/services/templatePreset.service.ts:961:    showcaseSlug: fallbackSlug,
+apps/web/src/pages/public/MiniApp.tsx:393:        const platform = telegramContext.tg?.platform || (hasTelegramUserAgent() ? 'telegram-ua' : 'url-fallback');
+apps/web/src/pages/public/MiniApp.tsx:450:                console.warn(`[MiniApp] Config missing 'miniapp' payload. Using fallback.`);
+apps/web/src/pages/public/MiniApp.tsx:479:            const fallbackSlug = slug || 'system';
+apps/web/src/pages/public/MiniApp.tsx:480:            setTargetSlug(fallbackSlug);
+apps/web/src/pages/public/MiniApp.tsx:481:            const fallbackMode: MiniAppSurfaceMode = /b2b|cardealer/i.test(String(fallbackSlug)) ? 'B2B' : 'LEAD';
+apps/web/src/pages/public/MiniApp.tsx:482:            setConfig(buildFallbackConfig(fallbackSlug, fallbackMode));
+apps/server/src/services/channel-ingestion.service.ts:389:        const fallbackTitle = `${brand || ''} ${model || ''}`.trim() || parsed.title || firstLine;
+apps/server/src/services/channel-ingestion.service.ts:390:        const title = fallbackTitle || `Car ${parsed.year || ''} ${parsed.price ? `${parsed.price}${parsed.currency || ''}` : ''}`.trim() || 'Unknown Car';
+apps/server/src/services/v41/writeService.ts:24:        const workspaceId = generateULID();
+apps/server/src/services/v41/writeService.ts:29:                id: workspaceId,
+apps/server/src/services/v41/writeService.ts:46:                workspace_id: workspaceId,
+apps/server/src/services/v41/writeService.ts:100:            // We assume companyId === workspaceId
+apps/server/src/services/v41/writeService.ts:101:            const workspaceId = data.companyId;
+apps/server/src/services/v41/writeService.ts:105:                where: { workspace_id: workspaceId }
+apps/server/src/services/v41/writeService.ts:112:                    workspace_id: workspaceId,
+apps/server/src/services/v41/writeService.ts:125:                companyId: workspaceId,
+apps/server/src/services/v41/readService.ts:225:    workspaceId?: string
+apps/server/src/services/v41/readService.ts:230:    if (workspaceId) {
+apps/server/src/services/v41/readService.ts:233:                workspace_id: workspaceId,
+apps/server/src/index.ts:73:app.use('/api/entities', entityRoutes); // Generic fallback for other entities
+apps/server/src/workers/content.worker.ts:285: * Legacy Draft fallback (backfill PublicationJob)
+apps/server/src/modules/Integrations/parsing/parsing.service.ts:95:                            else result[field] = value; // fallback
+apps/web/src/pages/app/Requests.tsx:287:                            B2B bot uses flow-first runtime. Legacy hard-flow fallback is temporary and controlled by server flag.
+apps/web/src/pages/app/TelegramHub.components.tsx:81:            // Auto-generate fallback
+apps/web/src/pages/app/TelegramHub.components.tsx:82:            const fallbackName = 'Новий бот';
+apps/web/src/pages/app/TelegramHub.components.tsx:83:            const fallbackSlug = name.trim() ? name.trim().toLowerCase().replace(/\s+/g, '_') : 'bot';
+apps/web/src/pages/app/TelegramHub.components.tsx:86:            const slug = detectedSlug || fallbackSlug;
+apps/web/src/pages/app/TelegramHub.components.tsx:93:                name: name.trim() || fallbackName, // Backend will likely overwrite this with real TG name
+apps/web/src/pages/app/TelegramHub.components.tsx:218:        const fallbackSlug = draft.defaultShowcaseSlug || 'system';
+apps/web/src/pages/app/TelegramHub.components.tsx:222:        const slug = detectedSlug || fallbackSlug;
+apps/web/src/pages/app/TelegramHub.components.tsx:439:                            const fallbackSlug = form.defaultShowcaseSlug || 'system';
+apps/web/src/pages/app/TelegramHub.components.tsx:442:                            const slug = detectedSlug || fallbackSlug;
+apps/web/src/pages/app/TelegramHub.components.tsx:459:                    <div className="text-[10px] text-[var(--text-secondary)] mt-1">Legacy B2B fallback is optional and controlled by server flag.</div>
+apps/server/src/modules/Integrations/mtproto/mtproto.service.ts:562:        // No demo fallback: require authenticated session
+apps/web/src/pages/app/IntegrationEditor.tsx:148:            // If empty config, try fallback to system settings?
+apps/server/src/modules/Integrations/mtproto/mtproto.utils.ts:72:        const num = parseFloat(valStr.replace(/,/g, '')); // fallback
+apps/server/src/modules/Integrations/telegram/telegramRegistry.service.ts:45:const ensureString = (value: any, fallback = '') => {
+apps/server/src/modules/Integrations/telegram/telegramRegistry.service.ts:47:    return fallback;
+apps/server/src/modules/Marketing/showcase/showcase.service.ts:27:        workspaceId: string;
+apps/server/src/modules/Marketing/showcase/showcase.service.ts:36:                workspaceId: data.workspaceId,
+apps/server/src/modules/Marketing/showcase/showcase.service.ts:75:    async getShowcases(workspaceId: string): Promise<Showcase[]> {
+apps/server/src/modules/Marketing/showcase/showcase.service.ts:77:            where: { workspaceId },
+apps/server/src/modules/Marketing/showcase/showcase.service.ts:102:            companyId: showcase.workspaceId,
+apps/server/src/modules/Marketing/showcase/showcase.controller.ts:62:    const items = await service.getShowcases(user.workspaceId);
+apps/server/src/modules/Marketing/showcase/showcase.controller.ts:75:            workspaceId: user.workspaceId,
+apps/server/src/modules/Marketing/showcase/showcase.controller.ts:92:    if (item.workspaceId !== (req as any).user.workspaceId) return errorResponse(res, 403, 'Forbidden');
+apps/server/src/modules/Marketing/showcase/showcase.controller.ts:103:        if (existing.workspaceId !== user.workspaceId) return errorResponse(res, 403, 'Forbidden');
+apps/server/src/modules/Marketing/showcase/showcase.controller.ts:119:        if (existing.workspaceId !== user.workspaceId) return errorResponse(res, 403, 'Forbidden');
+apps/server/src/modules/Core/superadmin/superadmin.routes.ts:186:        // Phase 3 Fix: Resolve a valid workspaceId/companyId pair.
+apps/server/src/modules/Core/superadmin/superadmin.routes.ts:207:            const systemWorkspace = await getWorkspaceById('company_system') || await getWorkspaceBySlug('system');
+apps/server/src/modules/Core/superadmin/superadmin.routes.ts:208:            resolvedCompanyId = resolvedCompanyId || systemWorkspace?.id || 'company_system';
+apps/server/src/modules/Core/superadmin/superadmin.routes.ts:218:            workspaceId: resolvedWorkspaceId
+apps/server/src/modules/Core/users/user.service.ts:10:    let workspace = await getWorkspaceById('company_system');
+apps/server/src/modules/Core/users/user.service.ts:13:        workspace = await getWorkspaceBySlug('system');
+apps/server/src/modules/Core/users/user.service.ts:16:    // Legacy fallback removed as table is gone.
+apps/server/src/modules/Core/users/user.service.ts:29:    // Ideally we should force ID 'company_system' but writeService generates ID.
+apps/server/src/modules/Core/users/user.service.ts:30:    // For now, let's accept the generated ID or modify writeService if 'company_system' ID is critical.
+apps/server/src/modules/Core/users/user.service.ts:34:    // Note: If we really needed specific ID 'company_system', we should have passed it.
+apps/server/src/modules/Core/system/settings.service.ts:6:    // Default fallbacks if DB is empty/old
+apps/server/src/modules/Core/auth/auth.routes.ts:26:    // Canonical payload: always include companyId + workspaceId.
+apps/server/src/modules/Core/auth/auth.routes.ts:27:    let workspaceId = user.workspace?.id || user.companyId || null;
+apps/server/src/modules/Core/auth/auth.routes.ts:28:    if (!workspaceId) {
+apps/server/src/modules/Core/auth/auth.routes.ts:29:      const systemWorkspace = await getWorkspaceById('company_system') || await getWorkspaceBySlug('system');
+apps/server/src/modules/Core/auth/auth.routes.ts:30:      workspaceId = systemWorkspace?.id || 'company_system';
+apps/server/src/modules/Core/auth/auth.routes.ts:33:    const companyId = user.companyId || workspaceId;
+apps/server/src/modules/Core/auth/auth.routes.ts:41:      workspaceId
+apps/server/src/modules/Communication/telegram/routing/routeMyChatMember.ts:65:            ...(companyId ? { companyId, workspaceId: companyId } : {})
+apps/server/src/modules/Communication/telegram/routing/routeMessage.ts:191:    await showMenu(ctx, lang, 'CLIENT_LEAD', t(lang, 'fallback'));
+apps/server/src/modules/Communication/telegram/routing/routeMessage.ts:328:    await sendMessage(ctx, t(lang, 'fallback'));
+apps/server/src/modules/Communication/telegram/routing/routeMessage.ts:361:    await showMenu(ctx, lang, 'CATALOG', t(lang, 'fallback'));
+apps/server/src/modules/Communication/telegram/routing/routeMessage.ts:572:    await sendMessage(ctx, t(lang, 'fallback'));
+apps/server/src/modules/Communication/telegram/routing/routeMessage.ts:604:    await showMenu(ctx, lang, 'B2B', t(lang, 'fallback'));
+apps/server/src/modules/Communication/telegram/routing/routeMessage.ts:737:    const fallbackName = [message?.from?.first_name, message?.from?.last_name].filter(Boolean).join(' ').trim();
+apps/server/src/modules/Communication/telegram/routing/routeMessage.ts:738:    const fallbackCompany = message?.from?.username ? `@${message.from.username}` : (fallbackName || undefined);
+apps/server/src/modules/Communication/telegram/routing/routeMessage.ts:739:    flow.companyName = isSkip ? (fallbackCompany || flow.companyName) : text.trim();
+apps/server/src/modules/Communication/telegram/routing/routeMessage.ts:765:    await sendMessage(ctx, t(lang, 'fallback'));
+apps/server/src/modules/Communication/telegram/routing/routeMessage.ts:902:  // we could fallback to other logic, OR show the menu again if it looks like navigation?
+apps/server/src/modules/Communication/telegram/routing/routeMessage.ts:931:    logger.info('[TelegramRoute] B2B legacy fallback skipped (flow-first mode)', {
+apps/server/src/modules/Communication/telegram/routing/routeMessage.ts:942:    logger.info('[TelegramRoute] Using B2B legacy fallback path', {
+apps/server/src/modules/Communication/telegram/scenarios/middlewares/resolveBotTenant.ts:23:    // Keep consistent with telegram.routes.ts: allow env fallback for legacy bots.
+apps/web/src/services/botEngine.ts:77:            const fallbackText = `${caption}\n\n(🖼️ Image unavailable)`;
+apps/web/src/services/botEngine.ts:78:            return TelegramAPI.sendMessage(token, chatId, fallbackText, options?.reply_markup);
+apps/web/src/services/botEngine.ts:180:            const fallbackLabel = btn.label || btn.label_uk || btn.label_ru || '';
+apps/web/src/services/botEngine.ts:182:                (lang === 'RU' && btn.label_ru) ? btn.label_ru : fallbackLabel;
+apps/web/src/services/botEngine.ts:957:                    const fallbackFilter = {
+apps/web/src/services/botEngine.ts:962:                    const externalResults = await CarSearchEngine.searchExternal(fallbackFilter);
+apps/web/src/services/botEngine.ts:983:                    const fallbackCar = session.tempResults?.[0];
+apps/web/src/services/botEngine.ts:984:                    const postText = text || (fallbackCar ? formatCarCaptionForTelegram(fallbackCar, session.language || 'EN') : '');
+apps/web/src/services/carService.ts:158:            const fallback = item.textContent?.replace(label, '').trim();
+apps/web/src/services/carService.ts:159:            return fallback || '';
+apps/web/src/services/serverAdapter.ts:380:                const fallback = defaultNavigation.find(n => n.id === 'nav_leads' || n.path === '/leads');
+apps/web/src/services/serverAdapter.ts:381:                if (fallback) mergedNav.push({ ...fallback, visible: true });
+apps/web/src/services/inventoryService.ts:40:        // Handle empty/fallback
+apps/server/src/modules/Communication/telegram/core/leadIdentity.test.ts:86:            clientName: 'John Doe', // Check fallback logic (Client -> John Doe)
+apps/server/src/modules/Communication/telegram/core/leadIdentity.test.ts:95:    it('should fallback to telegramUsername if no name provided', async () => {
+apps/server/src/modules/Communication/telegram/core/utils/telegramText.ts:221:  fallback: {
+apps/server/src/modules/Communication/bots/scenario.engine.ts:189:    const fallbackLabel = btn.label || btn.label_uk || btn.label_ru || '';
+apps/server/src/modules/Communication/bots/scenario.engine.ts:191:      (lang === 'RU' && btn.label_ru) ? btn.label_ru : fallbackLabel;
+apps/server/src/modules/Communication/bots/scenario.engine.ts:831:          const fallbackName = [vars.__telegramFirstName, vars.__telegramLastName].filter(Boolean).join(' ').trim();
+apps/server/src/modules/Communication/bots/scenario.engine.ts:832:          flow.companyName = vars.__telegramUsername ? `@${vars.__telegramUsername}` : (fallbackName || undefined);
+apps/server/src/modules/Communication/bots/scenario.engine.ts:2377:        const fallbackCar = Array.isArray(vars.__tempResults) ? vars.__tempResults[0] : null;
+apps/server/src/modules/Communication/bots/scenario.engine.ts:2378:        const postText = text || (fallbackCar ? renderCarListingCard(fallbackCar, lang) : '');
+apps/server/src/modules/Communication/bots/bot.service.ts:314:            // Legacy fallback path kept behind feature-flag for one release cycle.
+apps/server/src/modules/Sales/requests/requests.routes.ts:24:    const userCompanyId = user.companyId || user.workspaceId;
+apps/server/src/modules/Sales/requests/requests.routes.ts:88:        const userCompanyId = user.companyId || user.workspaceId;
+apps/server/src/modules/Sales/requests/requests.routes.ts:126:        const userCompanyId = user.companyId || user.workspaceId;
+apps/server/src/modules/Sales/requests/requests.routes.ts:133:            if (!existing.companyId && userCompanyId !== 'company_system') return errorResponse(res, 403, 'Forbidden');
+apps/server/src/modules/Sales/requests/requests.routes.ts:162:        const userCompanyId = user.companyId || user.workspaceId;
+apps/server/src/modules/Sales/requests/requests.routes.ts:169:            if (!existing.companyId && userCompanyId !== 'company_system') return errorResponse(res, 403, 'Forbidden');
+apps/server/src/modules/Sales/requests/requests.routes.ts:187:        const userCompanyId = user.companyId || user.workspaceId;
+apps/server/src/modules/Sales/requests/requests.routes.ts:194:            if (!existing.companyId && userCompanyId !== 'company_system') return errorResponse(res, 403, 'Forbidden');
+apps/server/src/modules/Sales/requests/requests.routes.ts:210:        const userCompanyId = user.companyId || user.workspaceId;
+apps/server/src/modules/Sales/requests/requests.routes.ts:217:            if (!existing.companyId && userCompanyId !== 'company_system') return errorResponse(res, 403, 'Forbidden');
+apps/server/src/modules/Sales/requests/requests.routes.ts:231:        const userCompanyId = user.companyId || user.workspaceId;
+apps/server/src/modules/Sales/requests/requests.routes.ts:238:            if (!request.companyId && userCompanyId !== 'company_system') return errorResponse(res, 403, 'Forbidden');
+apps/server/src/modules/Sales/requests/requests.routes.ts:257:        const userCompanyId = user.companyId || user.workspaceId;
+apps/server/src/modules/Sales/requests/requests.routes.ts:264:            if (!request.companyId && userCompanyId !== 'company_system') return errorResponse(res, 403, 'Forbidden');
+apps/server/src/modules/Sales/requests/requests.routes.ts:358:        const userCompanyId = user.companyId || user.workspaceId;
+apps/server/src/modules/Sales/requests/requests.routes.ts:362:            if (!request.companyId && userCompanyId !== 'company_system') return errorResponse(res, 403, 'Forbidden');
+apps/server/src/modules/Sales/requests/requests.routes.ts:421:        const userCompanyId = user.companyId || user.workspaceId;
+apps/server/src/modules/Sales/requests/requests.routes.ts:428:            if (!request.companyId && userCompanyId !== 'company_system') return errorResponse(res, 403, 'Forbidden');
+apps/server/src/modules/Sales/requests/requests.routes.ts:475:        const userCompanyId = user.companyId || user.workspaceId;
+apps/server/src/modules/Sales/requests/requests.routes.ts:482:            if (!request.companyId && userCompanyId !== 'company_system') return errorResponse(res, 403, 'Forbidden');
+apps/web/src/modules/Telegram/ScenarioEditor/MenuDesigner.tsx:57:            const fallbackUrl = base && slug ? `${base}/p/app/${slug}` : '';
+apps/web/src/modules/Telegram/ScenarioEditor/MenuDesigner.tsx:58:            const appUrl = withBuildTag(bot.miniAppConfig?.url || fallbackUrl);
+apps/web/src/App.tsx:42:// <Suspense fallback={<div className="flex h-screen items-center justify-center"><SkeletonLoader /></div>}>
+apps/web/src/App.tsx:75:                  <React.Suspense fallback={<div className="flex h-screen items-center justify-center p-4"><SkeletonLoader /></div>}>
+apps/server/src/repositories/lead.repository.ts:15:    private async getEntityId(slug: string, workspaceId: string): Promise<string | null> {
+apps/server/src/repositories/lead.repository.ts:18:            where: { slug, workspace_id: workspaceId }
+apps/server/src/repositories/lead.repository.ts:23:    // Helper: Resolve workspaceId from companyId/botId (legacy compatibility)
+apps/server/src/repositories/lead.repository.ts:125:            const workspaceId = await this.resolveWorkspace(data.companyId, data.botId);
+apps/server/src/repositories/lead.repository.ts:126:            if (workspaceId) {
+apps/server/src/repositories/lead.repository.ts:133:                        where: { workspace_id: workspaceId, phone_e164: data.phone }
+apps/server/src/repositories/lead.repository.ts:141:                                workspace_id: workspaceId,
+apps/server/src/repositories/lead.repository.ts:154:                            workspace_id: workspaceId,
+apps/server/src/repositories/lead.repository.ts:162:                const dealTypeId = await this.getEntityId('deal', workspaceId);
+apps/server/src/repositories/lead.repository.ts:176:                            workspace_id: workspaceId,
+apps/server/src/modules/Inventory/inventory/inventory.routes.ts:21:    const userCompanyId = user.companyId || user.workspaceId;
+apps/server/src/modules/Inventory/inventory/inventory.routes.ts:88:        const userCompanyId = user.companyId || user.workspaceId;
+apps/server/src/modules/Inventory/inventory/inventory.routes.ts:117:        const userCompanyId = user.companyId || user.workspaceId;
+apps/server/src/modules/Inventory/inventory/inventory.routes.ts:151:        const userCompanyId = user.companyId || user.workspaceId;
+apps/server/src/modules/Inventory/inventory/inventory.routes.ts:158:            if (!existing.companyId && userCompanyId !== 'company_system') return errorResponse(res, 403, 'Forbidden');
+apps/server/src/modules/Inventory/inventory/inventory.routes.ts:177:        const userCompanyId = user.companyId || user.workspaceId;
+apps/server/src/modules/Inventory/inventory/inventory.routes.ts:184:            if (!existing.companyId && userCompanyId !== 'company_system') return errorResponse(res, 403, 'Forbidden');

@@ -1,0 +1,30 @@
+P0-2 Iteration 10 (2026-02-19)
+
+Extracted prompt/interaction node handlers from ScenarioEngine executeNode:
+- apps/server/src/modules/Communication/bots/scenario-engine/actions/node-interaction.actions.ts
+
+Moved node handlers:
+- QUESTION_TEXT
+- QUESTION_CHOICE
+- MENU_REPLY
+- REQUEST_CONTACT
+- QUESTION_PHOTO
+- CONDITION evaluation helper (`resolveConditionNextNodeId`)
+
+ScenarioEngine delegate anchors:
+36-41: imports execute*NodeAction / resolveConditionNextNodeIdAction from node-interaction.actions.ts
+707:        await executeQuestionTextNodeAction({
+718:        await executeQuestionChoiceNodeAction({
+731:        await executeMenuReplyNodeAction({
+743:        await executeRequestContactNodeAction({
+752:        await executeQuestionPhotoNodeAction({
+761:        const nextId = resolveConditionNextNodeIdAction(node, vars);
+
+Line counts after iteration 10:
+  906 apps/server/src/modules/Communication/bots/scenario.engine.ts
+  112 apps/server/src/modules/Communication/bots/scenario-engine/actions/node-interaction.actions.ts
+ 1018 total
+
+Note:
+- This iteration focuses on role separation (coordinator -> interaction actions).
+- Minor line increase in scenario.engine.ts comes from delegate wiring/imports, while node-level logic moved out of core switch body.

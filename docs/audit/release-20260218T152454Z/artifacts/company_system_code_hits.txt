@@ -1,0 +1,28 @@
+apps/server/src/__tests__/superadmin.impersonate.payload.test.ts:65:      if (where?.id === targetWorkspaceId || where?.id === 'company_system') {
+apps/server/src/__tests__/superadmin.impersonate.payload.test.ts:68:          slug: where.id === 'company_system' ? 'system' : 'target-ws',
+apps/server/src/__tests__/superadmin.impersonate.payload.test.ts:69:          name: where.id === 'company_system' ? 'System Workspace' : 'Target Workspace',
+apps/server/src/routes/apiRoutes.ts:56:    const systemWorkspace = await getWorkspaceById('company_system') || await getWorkspaceBySlug('system');
+apps/server/src/routes/apiRoutes.ts:59:    logger.warn('[API] System workspace not found, falling back to ID literal "company_system"');
+apps/server/src/routes/apiRoutes.ts:60:    return 'company_system';
+apps/server/src/routes/apiRoutes.ts:2203:        where.OR = companyId === 'company_system'
+apps/server/src/routes/apiRoutes.ts:2262:            if (!existing.botId && userCompanyId !== 'company_system') return errorResponse(res, 403, 'Forbidden');
+apps/server/src/routes/apiRoutes.ts:2309:            if (!existing.botId && userCompanyId !== 'company_system') return errorResponse(res, 403, 'Forbidden');
+apps/server/src/modules/Core/superadmin/superadmin.routes.ts:207:            const systemWorkspace = await getWorkspaceById('company_system') || await getWorkspaceBySlug('system');
+apps/server/src/modules/Core/superadmin/superadmin.routes.ts:208:            resolvedCompanyId = resolvedCompanyId || systemWorkspace?.id || 'company_system';
+apps/server/src/modules/Core/users/user.service.ts:10:    let workspace = await getWorkspaceById('company_system');
+apps/server/src/modules/Core/users/user.service.ts:29:    // Ideally we should force ID 'company_system' but writeService generates ID.
+apps/server/src/modules/Core/users/user.service.ts:30:    // For now, let's accept the generated ID or modify writeService if 'company_system' ID is critical.
+apps/server/src/modules/Core/users/user.service.ts:34:    // Note: If we really needed specific ID 'company_system', we should have passed it.
+apps/server/src/modules/Core/auth/auth.routes.ts:29:      const systemWorkspace = await getWorkspaceById('company_system') || await getWorkspaceBySlug('system');
+apps/server/src/modules/Core/auth/auth.routes.ts:30:      workspaceId = systemWorkspace?.id || 'company_system';
+apps/server/src/modules/Sales/requests/requests.routes.ts:133:            if (!existing.companyId && userCompanyId !== 'company_system') return errorResponse(res, 403, 'Forbidden');
+apps/server/src/modules/Sales/requests/requests.routes.ts:169:            if (!existing.companyId && userCompanyId !== 'company_system') return errorResponse(res, 403, 'Forbidden');
+apps/server/src/modules/Sales/requests/requests.routes.ts:194:            if (!existing.companyId && userCompanyId !== 'company_system') return errorResponse(res, 403, 'Forbidden');
+apps/server/src/modules/Sales/requests/requests.routes.ts:217:            if (!existing.companyId && userCompanyId !== 'company_system') return errorResponse(res, 403, 'Forbidden');
+apps/server/src/modules/Sales/requests/requests.routes.ts:238:            if (!request.companyId && userCompanyId !== 'company_system') return errorResponse(res, 403, 'Forbidden');
+apps/server/src/modules/Sales/requests/requests.routes.ts:264:            if (!request.companyId && userCompanyId !== 'company_system') return errorResponse(res, 403, 'Forbidden');
+apps/server/src/modules/Sales/requests/requests.routes.ts:362:            if (!request.companyId && userCompanyId !== 'company_system') return errorResponse(res, 403, 'Forbidden');
+apps/server/src/modules/Sales/requests/requests.routes.ts:428:            if (!request.companyId && userCompanyId !== 'company_system') return errorResponse(res, 403, 'Forbidden');
+apps/server/src/modules/Sales/requests/requests.routes.ts:482:            if (!request.companyId && userCompanyId !== 'company_system') return errorResponse(res, 403, 'Forbidden');
+apps/server/src/modules/Inventory/inventory/inventory.routes.ts:158:            if (!existing.companyId && userCompanyId !== 'company_system') return errorResponse(res, 403, 'Forbidden');
+apps/server/src/modules/Inventory/inventory/inventory.routes.ts:184:            if (!existing.companyId && userCompanyId !== 'company_system') return errorResponse(res, 403, 'Forbidden');

@@ -1,0 +1,15 @@
+P0-2 Iteration 5 (2026-02-19)
+
+Cleanup in ScenarioEngine coordinator:
+- Removed duplicated legacy `TASK D` self-setup block from handleUpdate (`/setup_admin`, `/setup_channel`).
+- Kept the active self-setup flow at the beginning of handleUpdate (`setup_mode`-based flow).
+
+Result:
+- Eliminated unreachable/conflicting branch while preserving effective runtime behavior.
+
+Line counts after iteration 5:
+ 1458 apps/server/src/modules/Communication/bots/scenario.engine.ts
+
+Remaining setup entry anchors:
+105:    if (input === '/setup_admin') {
+116:    if (input === '/setup_channel') {

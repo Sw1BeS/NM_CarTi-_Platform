@@ -1,0 +1,23 @@
+P0-2 Iteration 15 (2026-02-19)
+
+Extracted scenario registry loading/dedup logic from ScenarioEngine handleUpdate:
+- apps/server/src/modules/Communication/bots/scenario-engine/runtime/scenario-registry.ts
+
+Moved orchestration-support branch:
+- published scenarios loading for `companyId + botId` scope with fallback scope and trigger-based dedup scoring
+
+Behavior preservation:
+- Keeps scope priority (`companyId+botId` first, fallback to `companyId` with `{botId|botId:null}` when scoped empty).
+- Keeps dedup priority by command key with score (`bot-specific > other bot > null`).
+
+ScenarioEngine delegate anchors:
+37: import { loadPublishedScenarios } from './scenario-engine/runtime/scenario-registry.js';
+99: const scenarios = await loadPublishedScenarios(bot);
+
+Runtime export:
+4: export const loadPublishedScenarios = async (bot: BotRuntime): Promise<ScenarioRecord[]> => {
+
+Line counts after iteration 15:
+  499 apps/server/src/modules/Communication/bots/scenario.engine.ts
+   54 apps/server/src/modules/Communication/bots/scenario-engine/runtime/scenario-registry.ts
+  553 total

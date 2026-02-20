@@ -6,7 +6,7 @@ export const initEventHandlers = () => {
     platformEvents.on(EVENTS.MINIAPP_REQUEST_CREATED, async (data) => {
         try {
             const { requestId, companyId, botId, phone, telegramUserId, payload } = data;
-            console.log(`[Event] Request created: ${requestId}`);
+            console.log(`[Event] Запит створено: ${requestId}`);
 
             if (!botId) return;
 
@@ -14,13 +14,17 @@ export const initEventHandlers = () => {
             if (!botConfig || !botConfig.adminChatId) return;
 
             const adminChatId = botConfig.adminChatId;
-            const requestLink = payload?.slug ? `https://t.me/${(botConfig.config as any)?.username}/app?startapp=${payload.slug}` : 'N/A';
+            const cfg = ((botConfig.config as any) || {}) as Record<string, unknown>;
+            const botUsername = String((cfg.botUsername as string) || (cfg.username as string) || '').replace(/^@/, '').trim();
+            const requestLink = payload?.slug && botUsername
+                ? `https://t.me/${botUsername}/app?startapp=${payload.slug}`
+                : 'н/д';
 
-            const message = `🔔 <b>New Request</b>\n\n` +
-                `📱 Phone: ${phone || 'N/A'}\n` +
-                `👤 User: ${telegramUserId || 'N/A'}\n` +
-                `🆔 Request ID: ${requestId}\n` +
-                `🔗 Link: ${requestLink}\n` +
+            const message = `🔔 <b>Новий запит</b>\n\n` +
+                `📱 Контакт: ${phone || 'н/д'}\n` +
+                `👤 Користувач: ${telegramUserId || 'н/д'}\n` +
+                `🆔 ID запиту: ${requestId}\n` +
+                `🔗 Посилання: ${requestLink}\n` +
                 `⏱ ${new Date().toLocaleString()}`;
 
             await telegramOutbox.sendMessage({
@@ -35,5 +39,5 @@ export const initEventHandlers = () => {
         }
     });
 
-    console.log('[Events] Handlers initialized');
+    console.log('[Events] Обробники ініціалізовано');
 };

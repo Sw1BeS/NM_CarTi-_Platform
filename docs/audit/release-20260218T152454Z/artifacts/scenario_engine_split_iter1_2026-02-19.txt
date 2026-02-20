@@ -1,0 +1,52 @@
+P0-2 Iteration 1 (2026-02-19)
+
+Moved from scenario.engine.ts into dedicated modules:
+- apps/server/src/modules/Communication/bots/scenario-engine/types.ts
+- apps/server/src/modules/Communication/bots/scenario-engine/adapters/telegram.adapter.ts
+- apps/server/src/modules/Communication/bots/scenario-engine/runtime/helpers.ts
+- apps/server/src/modules/Communication/bots/scenario-engine/actions/b2b.actions.ts
+
+Line counts (after split):
+  2266 apps/server/src/modules/Communication/bots/scenario.engine.ts
+    31 apps/server/src/modules/Communication/bots/scenario-engine/types.ts
+    68 apps/server/src/modules/Communication/bots/scenario-engine/adapters/telegram.adapter.ts
+   192 apps/server/src/modules/Communication/bots/scenario-engine/runtime/helpers.ts
+   157 apps/server/src/modules/Communication/bots/scenario-engine/actions/b2b.actions.ts
+  2714 total
+
+Exported symbols:
+apps/server/src/modules/Communication/bots/scenario-engine/runtime/helpers.ts:7:export const normalizeTextCommand = (cmd: string) => cmd?.trim().toLowerCase() || '';
+apps/server/src/modules/Communication/bots/scenario-engine/runtime/helpers.ts:8:export const generatePublicId = () => ulid();
+apps/server/src/modules/Communication/bots/scenario-engine/runtime/helpers.ts:9:export const formatCarCaption = (car: any, lang: string) => renderCarListingCard(car, lang);
+apps/server/src/modules/Communication/bots/scenario-engine/runtime/helpers.ts:11:export const resolveMenuLink = (bot: BotRuntime, rawValue?: string) => {
+apps/server/src/modules/Communication/bots/scenario-engine/runtime/helpers.ts:22:export const isMiniAppLink = (rawValue?: string) => {
+apps/server/src/modules/Communication/bots/scenario-engine/runtime/helpers.ts:29:export const extractNumber = (value: any) => {
+apps/server/src/modules/Communication/bots/scenario-engine/runtime/helpers.ts:38:export const extractYear = (value: any) => {
+apps/server/src/modules/Communication/bots/scenario-engine/runtime/helpers.ts:45:export const normalizeRequestType = (value: any) => {
+apps/server/src/modules/Communication/bots/scenario-engine/runtime/helpers.ts:50:export const mapRequestOutput = (req: any) => ({
+apps/server/src/modules/Communication/bots/scenario-engine/runtime/helpers.ts:56:export const hasContactInfo = (text: string) => {
+apps/server/src/modules/Communication/bots/scenario-engine/runtime/helpers.ts:63:export const getLanguage = (vars: Record<string, any>) => {
+apps/server/src/modules/Communication/bots/scenario-engine/runtime/helpers.ts:71:export const getBotUsername = (bot: BotRuntime) => {
+apps/server/src/modules/Communication/bots/scenario-engine/runtime/helpers.ts:77:export const normalizeOptionalText = (value: any) => {
+apps/server/src/modules/Communication/bots/scenario-engine/runtime/helpers.ts:87:export const normalizeMenuConfig = (menuConfig: any) => {
+apps/server/src/modules/Communication/bots/scenario-engine/runtime/helpers.ts:113:export const getMenuConfig = (bot: BotRuntime) => normalizeMenuConfig(bot.config?.menuConfig);
+apps/server/src/modules/Communication/bots/scenario-engine/runtime/helpers.ts:115:export const buildMainMenuButtons = (bot: BotRuntime, lang: string) => {
+apps/server/src/modules/Communication/bots/scenario-engine/runtime/helpers.ts:146:export const buildWelcomeMessage = (bot: BotRuntime, lang: string, textOverride?: string) => {
+apps/server/src/modules/Communication/bots/scenario-engine/runtime/helpers.ts:156:export const mapRequestForMessage = (req: any) => {
+apps/server/src/modules/Communication/bots/scenario-engine/runtime/helpers.ts:173:export const isLegacyB2BFallbackEnabled = () =>
+apps/server/src/modules/Communication/bots/scenario-engine/runtime/helpers.ts:176:export const emitScenarioCompleted = async (
+apps/server/src/modules/Communication/bots/scenario-engine/types.ts:1:export interface BotRuntime {
+apps/server/src/modules/Communication/bots/scenario-engine/types.ts:10:export interface ScenarioRecord {
+apps/server/src/modules/Communication/bots/scenario-engine/types.ts:21:export interface ScenarioNode {
+apps/server/src/modules/Communication/bots/scenario-engine/types.ts:31:export type ReplyKeyboardButton = string | { text: string; web_app?: { url: string } };
+apps/server/src/modules/Communication/bots/scenario-engine/adapters/telegram.adapter.ts:4:export const sendMessage = async (bot: BotRuntime, chatId: string, text: string, replyMarkup?: any) => {
+apps/server/src/modules/Communication/bots/scenario-engine/adapters/telegram.adapter.ts:15:export const sendPhoto = async (bot: BotRuntime, chatId: string, photo: string, caption: string, replyMarkup?: any) => {
+apps/server/src/modules/Communication/bots/scenario-engine/adapters/telegram.adapter.ts:27:export const answerCallback = async (bot: BotRuntime, callbackId: string, text?: string) => {
+apps/server/src/modules/Communication/bots/scenario-engine/adapters/telegram.adapter.ts:31:export const sendChatAction = async (bot: BotRuntime, chatId: string, action = 'typing') => {
+apps/server/src/modules/Communication/bots/scenario-engine/adapters/telegram.adapter.ts:41:export const sendReplyKeyboard = async (bot: BotRuntime, chatId: string, text: string, keyboard: ReplyKeyboardButton[][]) => {
+apps/server/src/modules/Communication/bots/scenario-engine/adapters/telegram.adapter.ts:48:export const sendContactRequest = async (bot: BotRuntime, chatId: string, text: string) => {
+apps/server/src/modules/Communication/bots/scenario-engine/adapters/telegram.adapter.ts:55:export const sendChoices = async (bot: BotRuntime, chatId: string, text: string, choices: any[], lang: string, hasBack = false) => {
+apps/server/src/modules/Communication/bots/scenario-engine/actions/b2b.actions.ts:8:export const notifyRequestAdmin = async (bot: BotRuntime, request: any) => {
+apps/server/src/modules/Communication/bots/scenario-engine/actions/b2b.actions.ts:21:export const createCarCardKeyboard = (car: any, lang: string) => {
+apps/server/src/modules/Communication/bots/scenario-engine/actions/b2b.actions.ts:40:export const mapDbCar = (car: any) => ({
+apps/server/src/modules/Communication/bots/scenario-engine/actions/b2b.actions.ts:57:export const createVariantAndRoute = async (params: {

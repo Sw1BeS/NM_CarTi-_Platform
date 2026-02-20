@@ -1,0 +1,13 @@
+4.0K	services
+8.0K	env
+12K	.github
+28K	scripts
+68K	infra
+120K	_archive
+424K	verification
+696K	docs
+2.3M	.agent
+20M	_logs
+73M	data
+415M	storage
+533M	apps

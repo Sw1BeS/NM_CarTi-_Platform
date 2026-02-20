@@ -12,13 +12,16 @@ DEFAULT_REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 REPO_DIR="${REPO_DIR:-$DEFAULT_REPO_DIR}"
 PROJECT="${PROJECT:-infra2}"
 COMPOSE_FILE="${COMPOSE_FILE:-$REPO_DIR/infra/docker-compose.cartie2.prod.yml}"
+ENV_FILE="${ENV_FILE:-$REPO_DIR/.env}"
 LOG_DIR="/srv/cartie/_logs"
 TS=$(date -u +%Y-%m-%d_%H%M%S)
 LOG_FILE="$LOG_DIR/deploy_${TS}.log"
+ASSET_MANIFEST_FILE="${ASSET_MANIFEST_FILE:-$LOG_DIR/web_assets_last.txt}"
 ALLOW_DIRTY="${ALLOW_DIRTY:-0}"
 BRANCH="${BRANCH:-main}"
 SKIP_PULL="${SKIP_PULL:-0}"
 RUN_SEED="${RUN_SEED:-1}"
+SYNC_PRESETS="${SYNC_PRESETS:-1}"
 
 # Ensure log directory exists before the first log() call (set -e safe).
 mkdir -p "$LOG_DIR"
@@ -45,6 +48,7 @@ preflight() {
   
   [ -d "$REPO_DIR" ] || die "Repo directory not found: $REPO_DIR"
   [ -f "$COMPOSE_FILE" ] || die "Compose file not found: $COMPOSE_FILE"
+  [ -f "$ENV_FILE" ] || die "ENV file not found: $ENV_FILE"
   
   cd "$REPO_DIR" || die "Cannot cd to $REPO_DIR"
   
@@ -59,8 +63,10 @@ preflight() {
 
   local base_sha
   base_sha="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
+  local dirty_stamp
+  dirty_stamp="$(date -u +%Y%m%d%H%M%S)"
   if [ -n "$dirty" ]; then
-    BUILD_SHA="${base_sha}-dirty"
+    BUILD_SHA="${base_sha}-dirty-${dirty_stamp}"
   else
     BUILD_SHA="$base_sha"
   fi
@@ -70,6 +76,10 @@ preflight() {
   
   # Create log dir
   mkdir -p "$LOG_DIR"
+
+  log "Running security preflight..."
+  bash "$REPO_DIR/infra/security_preflight.sh" --env-file "$ENV_FILE" --run-seed "$RUN_SEED" \
+    || die "Security preflight failed"
   
   log "✅ Pre-flight OK"
 }
@@ -123,18 +133,56 @@ build_images() {
 }
 
 # ========================================
+# Helper: wait for HTTP endpoint
+# ========================================
+wait_for_http() {
+  local url="$1"
+  local label="$2"
+  local retries="${3:-40}"
+  local sleep_sec="${4:-2}"
+
+  while [ "$retries" -gt 0 ]; do
+    if curl --fail --silent --show-error --max-time 3 -o /dev/null "$url"; then
+      log "✅ ${label} is ready (${url})"
+      return 0
+    fi
+    retries=$((retries - 1))
+    sleep "$sleep_sec"
+  done
+
+  return 1
+}
+
+# ========================================
 # STEP 4: Start Services
 # ========================================
 start_services() {
-  log "Starting services (Rolling Update)..."
-  
+  log "Starting services (phased rolling update)..."
+
+  # Keep DB warm and available.
   BUILD_SHA="$BUILD_SHA" BUILD_TIME="$BUILD_TIME" \
-  docker compose -p "$PROJECT" -f "$COMPOSE_FILE" up -d --build --remove-orphans \
-    || die "Docker compose up failed"
-  
-  log "Waiting for containers to initialize (10s)..."
-  sleep 10
-  
+  docker compose -p "$PROJECT" -f "$COMPOSE_FILE" up -d db \
+    || die "Failed to ensure db service"
+
+  # Update API first, wait for readiness, then update WEB.
+  BUILD_SHA="$BUILD_SHA" BUILD_TIME="$BUILD_TIME" \
+  docker compose -p "$PROJECT" -f "$COMPOSE_FILE" up -d --no-deps api \
+    || die "Failed to start api service"
+
+  wait_for_http "http://127.0.0.1:3002/health" "API" 60 2 \
+    || die "API did not become ready in time"
+
+  BUILD_SHA="$BUILD_SHA" BUILD_TIME="$BUILD_TIME" \
+  docker compose -p "$PROJECT" -f "$COMPOSE_FILE" up -d --no-deps web \
+    || die "Failed to start web service"
+
+  wait_for_http "http://127.0.0.1:8082/api/health" "WEB proxy" 60 2 \
+    || die "WEB did not become ready in time"
+
+  BUILD_SHA="$BUILD_SHA" BUILD_TIME="$BUILD_TIME" \
+  docker compose -p "$PROJECT" -f "$COMPOSE_FILE" up -d --remove-orphans \
+    || die "Final reconcile failed"
+
   log "✅ Services started"
 }
 
@@ -182,6 +230,24 @@ seed_data() {
     || warn "Seed failed (might be OK if data already exists)"
   
   log "✅ Seed complete"
+}
+
+# ========================================
+# STEP 6.5: Sync Bot Presets/Commands
+# ========================================
+sync_bot_presets() {
+  if [ "$SYNC_PRESETS" != "1" ]; then
+    warn "SYNC_PRESETS=$SYNC_PRESETS, skipping bot preset sync."
+    return
+  fi
+
+  log "Syncing bot presets and Telegram commands..."
+
+  local api_container="${PROJECT}-api-1"
+  docker exec "$api_container" npm run preset:sync \
+    || warn "Preset sync failed (continuing deploy)"
+
+  log "✅ Preset sync step complete"
 }
 
 # ========================================
@@ -254,6 +320,44 @@ verify_asset_routing() {
   if [ "$missing_code" = "200" ]; then
     die "Missing asset is returning 200 (SPA fallback misconfigured)"
   fi
+
+  # Keep a rolling manifest of assets to ensure old hashed files are not served
+  # from origin after deploy.
+  local web_container="${PROJECT}-web-1"
+  local current_assets
+  current_assets="$(
+    docker exec "$web_container" sh -lc 'ls -1 /srv/www/assets 2>/dev/null' \
+      | sed 's#^#assets/#' \
+      | sort -u \
+      || true
+  )"
+  if [ -z "$current_assets" ]; then
+    # Fallback parser from index if listing inside container is unavailable.
+    current_assets="$(printf "%s" "$index_html" | grep -o 'assets/[A-Za-z0-9._-]*\.\(js\|css\)' | sort -u || true)"
+  fi
+  [ -n "$current_assets" ] || die "Could not parse current asset manifest from index"
+
+  if [ -f "$ASSET_MANIFEST_FILE" ]; then
+    while IFS= read -r old_asset; do
+      [ -z "$old_asset" ] && continue
+      if ! printf "%s\n" "$current_assets" | grep -Fx -- "$old_asset" >/dev/null; then
+        local old_code
+        old_code="$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:8082/${old_asset}")"
+        if [ "$old_code" = "200" ]; then
+          die "Stale asset is still served from origin: /${old_asset}"
+        fi
+
+        # Best-effort public edge check: CDN may keep immutable files cached.
+        local public_old_code
+        public_old_code="$(curl -s -o /dev/null -w "%{http_code}" "https://cartie2.umanoff-analytics.space/${old_asset}" || true)"
+        if [ "$public_old_code" = "200" ]; then
+          warn "Public edge still serves stale asset /${old_asset} (likely CDN cache hit)"
+        fi
+      fi
+    done < "$ASSET_MANIFEST_FILE"
+  fi
+
+  printf "%s\n" "$current_assets" > "$ASSET_MANIFEST_FILE"
 
   log "✅ Asset routing verified"
 }
@@ -347,6 +451,7 @@ main() {
   start_services
   run_migrations
   seed_data
+  sync_bot_presets
   health_checks
   verify_asset_routing
   verify_build_metadata

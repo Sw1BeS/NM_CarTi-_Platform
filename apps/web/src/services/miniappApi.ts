@@ -86,10 +86,12 @@ export type MiniAppConfigResponse = {
   companyId: string;
   botId: string;
   publicSlug: string;
+  template?: string;
   miniapp?: any;
   botUsername?: string;
   appName?: string;
   modeHints?: {
+    requiresTelegram?: boolean;
     previewReadOnly?: boolean;
     requiresInitDataForWrites?: boolean;
   };

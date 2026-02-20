@@ -1,0 +1,122 @@
+🔍 Verifying Route Definitions...
+
+✅ Entity Routes Loaded:
+   GET    /api/entities/meta
+   POST   /api/entities/definitions
+   PUT    /api/entities/definitions/:slug
+   POST   /api/entities/definitions/:slug/archive
+   GET    /api/entities/:slug/records
+   POST   /api/entities/:slug/records
+   GET    /api/entities/:slug/records/:id
+   PATCH  /api/entities/:slug/records/:id
+   PUT    /api/entities/:slug/records/:id
+   DELETE /api/entities/:slug/records/:id
+
+✅ Public Routes Loaded:
+   GET    /api/public/:slug/inventory
+   POST   /api/public/:slug/requests
+   GET    /api/public/:slug/request-status
+   POST   /api/public/leads
+   POST   /api/public/requests
+   POST   /api/public/requests/:id/variants
+   POST   /api/public/dealer/session
+   GET    /api/public/bots
+   GET    /api/public/requests
+   GET    /api/public/proposals/:id
+   POST   /api/public/proposals/:id/view
+   POST   /api/public/proposals/:id/feedback
+
+✅ QA Routes Loaded:
+   GET    /api/qa/parse
+   POST   /api/qa/parse/profile
+   GET    /api/qa/simulate/start
+   POST   /api/qa/simulate/message
+   GET    /api/qa/telegram/token
+   GET    /api/qa/telegram/webhook
+   GET    /api/qa/media/check
+
+✅ Legacy Admin Routes Loaded:
+   GET    /api/settings
+   POST   /api/settings
+   GET    /api/users
+   POST   /api/users
+   PUT    /api/users/:id
+   DELETE /api/users/:id
+   GET    /api/logs
+   POST   /api/storage/upload
+
+✅ Legacy Messaging Routes Loaded:
+   GET    /api/messages
+   GET    /api/messages/logs
+   POST   /api/messages/logs
+   POST   /api/messages
+   GET    /api/inbox/macros
+   POST   /api/inbox/macros
+   PUT    /api/inbox/macros/:id
+   DELETE /api/inbox/macros/:id
+   GET    /api/inbox/notes
+   POST   /api/inbox/notes
+   POST   /api/messages/send
+
+✅ Legacy Analytics Routes Loaded:
+   GET    /api/events
+   GET    /api/metrics/dashboard
+   GET    /api/metrics/telegram
+   POST   /api/search/parse
+   GET    /api/search/jobs
+
+✅ Legacy Telegram Proxy Routes Loaded:
+   POST   /api/telegram/call
+   GET    /api/telegram/file
+   POST   /api/telegram/file/cache
+
+✅ Legacy Scenarios Routes Loaded:
+   GET    /api/scenarios/templates
+   GET    /api/scenarios
+   POST   /api/scenarios
+   DELETE /api/scenarios/:id
+
+✅ Legacy Campaigns Routes Loaded:
+   GET    /api/campaigns
+   POST   /api/campaigns
+   GET    /api/destinations
+   GET    /api/proxy
+
+✅ Legacy Drafts Routes Loaded:
+   POST   /api/drafts/import
+   GET    /api/drafts
+   POST   /api/drafts
+   PUT    /api/drafts/:id
+   DELETE /api/drafts/:id
+
+✅ Legacy Leads Routes Loaded:
+   GET    /api/leads
+   POST   /api/leads
+   PUT    /api/leads/:id
+   POST   /api/leads/merge
+   DELETE /api/leads/:id
+
+✅ Legacy Bots Routes Loaded:
+   GET    /api/bots
+   POST   /api/bots
+   PUT    /api/bots/:id
+   POST   /api/bots/:id/webhook
+   DELETE /api/bots/:id/webhook
+   DELETE /api/bots/:id
+
+✅ Legacy Content Routes Loaded:
+   GET    /api/content/templates
+   POST   /api/content/templates
+   PUT    /api/content/templates/:id
+   DELETE /api/content/templates/:id
+   POST   /api/content/templates/preview
+   GET    /api/content/publication-jobs
+   POST   /api/content/publication-jobs
+   POST   /api/content/publication-jobs/:id/retry
+   GET    /api/content/publication-jobs/:id/results
+   DELETE /api/content/publication-jobs/:id
+
+✅ Main API Routes Loaded:
+   (Router loaded but no direct routes visible - likely sub-routers)
+
+🏁 Total Visible Root Routes: 90

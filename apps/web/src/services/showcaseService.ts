@@ -1,43 +1,32 @@
-import axios from 'axios';
-const API_URL = import.meta.env.VITE_API_URL || '/api';
+import { ApiClient } from './apiClient';
 
 export const ShowcaseService = {
     getShowcases: async () => {
-        const token = localStorage.getItem('cartie_token');
-        const res = await axios.get(`${API_URL}/showcase`, {
-            headers: { Authorization: `Bearer ${token}` }
-        });
+        const res = await ApiClient.get('showcase');
+        if (!res.ok) throw new Error(res.message || 'Failed to load showcases');
         return res.data;
     },
 
     getShowcase: async (id: string) => {
-        const token = localStorage.getItem('cartie_token');
-        const res = await axios.get(`${API_URL}/showcase/${id}`, {
-            headers: { Authorization: `Bearer ${token}` }
-        });
+        const res = await ApiClient.get(`showcase/${id}`);
+        if (!res.ok) throw new Error(res.message || 'Failed to load showcase');
         return res.data;
     },
 
     createShowcase: async (data: any) => {
-        const token = localStorage.getItem('cartie_token');
-        const res = await axios.post(`${API_URL}/showcase`, data, {
-            headers: { Authorization: `Bearer ${token}` }
-        });
+        const res = await ApiClient.post('showcase', data);
+        if (!res.ok) throw new Error(res.message || 'Failed to create showcase');
         return res.data;
     },
 
     updateShowcase: async (id: string, data: any) => {
-        const token = localStorage.getItem('cartie_token');
-        const res = await axios.put(`${API_URL}/showcase/${id}`, data, {
-            headers: { Authorization: `Bearer ${token}` }
-        });
+        const res = await ApiClient.put(`showcase/${id}`, data);
+        if (!res.ok) throw new Error(res.message || 'Failed to update showcase');
         return res.data;
     },
 
     deleteShowcase: async (id: string) => {
-        const token = localStorage.getItem('cartie_token');
-        await axios.delete(`${API_URL}/showcase/${id}`, {
-            headers: { Authorization: `Bearer ${token}` }
-        });
+        const res = await ApiClient.delete(`showcase/${id}`);
+        if (!res.ok) throw new Error(res.message || 'Failed to delete showcase');
     }
 };
