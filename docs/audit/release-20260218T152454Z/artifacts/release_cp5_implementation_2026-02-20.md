@@ -1,8 +1,8 @@
 # CP5 Implementation Release (2026-02-20)
 
 - Branch: `main`
-- Runtime commit deployed: `e93f5fed24fd34cbe79343bfade4ff66ca9aecf0`
-- Deploy timestamp (UTC): `2026-02-20T14:37:42Z`
+- Runtime commit deployed: `1b343fb79735cf94b614a867dd0fe15c3131548e`
+- Deploy timestamp (UTC): `2026-02-20T14:40:43Z`
 
 ## Gates
 - `npm --prefix apps/server test` — PASS
@@ -19,12 +19,14 @@
 - Deploy logs:
   - `docs/audit/release-20260218T152454Z/artifacts/deploy_2026-02-20_143505.log`
   - `docs/audit/release-20260218T152454Z/artifacts/deploy_2026-02-20_143742.log`
+  - `docs/audit/release-20260218T152454Z/artifacts/deploy_2026-02-20_144043.log`
 
 ## Post-deploy verify
 - `infra/prod_verify.sh` — PASS
 - Verify logs:
   - `docs/audit/release-20260218T152454Z/artifacts/prod_verify_2026-02-20_post_impl.txt`
   - `docs/audit/release-20260218T152454Z/artifacts/prod_verify_2026-02-20_post_docs_commit.txt`
+  - `docs/audit/release-20260218T152454Z/artifacts/prod_verify_2026-02-20_post_push_deploy.txt`
 
 ## Rollback pointer
 - Previous baseline tag: `release-baseline-20260220`

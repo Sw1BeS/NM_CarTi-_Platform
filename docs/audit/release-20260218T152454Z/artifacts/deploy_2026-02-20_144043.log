@@ -1,0 +1,66 @@
+[0;32m[DEPLOY][0m =========================================
+[0;32m[DEPLOY][0m CARTIE PRODUCTION DEPLOYMENT
+[0;32m[DEPLOY][0m Timestamp: 2026-02-20T14:40:43Z
+[0;32m[DEPLOY][0m Project: infra2
+[0;32m[DEPLOY][0m Branch: main
+[0;32m[DEPLOY][0m SKIP_PULL: 0
+[0;32m[DEPLOY][0m RUN_SEED: 1
+[0;32m[DEPLOY][0m Compose: /srv/cartie/infra/docker-compose.cartie2.prod.yml
+[0;32m[DEPLOY][0m Log: /srv/cartie/_logs/deploy_2026-02-20_144043.log
+[0;32m[DEPLOY][0m =========================================
+[0;32m[DEPLOY][0m Pre-flight checks...
+[0;32m[DEPLOY][0m Build metadata: sha=1b343fb79735cf94b614a867dd0fe15c3131548e time=2026-02-20T14:40:43Z
+[0;32m[DEPLOY][0m Running security preflight...
+[0;32m[DEPLOY][0m ✅ Pre-flight OK
+[0;32m[DEPLOY][0m Using rolling update (no downtime)...
+[0;32m[DEPLOY][0m ✅ Skipping 'down' to keep services running
+[0;32m[DEPLOY][0m Pulling latest code...
+[0;32m[DEPLOY][0m Fetching origin/main...
+[0;32m[DEPLOY][0m Merging origin/main (fast-forward only)...
+[0;32m[DEPLOY][0m ✅ Code updated
+[0;32m[DEPLOY][0m Building Docker images...
+[0;32m[DEPLOY][0m ✅ Images built
+[0;32m[DEPLOY][0m Starting services (phased rolling update)...
+[0;32m[DEPLOY][0m ✅ API is ready (http://127.0.0.1:3002/health)
+[0;32m[DEPLOY][0m ✅ WEB proxy is ready (http://127.0.0.1:8082/api/health)
+[0;32m[DEPLOY][0m ✅ Services started
+[0;32m[DEPLOY][0m Running database migrations...
+[0;32m[DEPLOY][0m ✅ Migrations complete
+[0;32m[DEPLOY][0m Seeding production data...
+[0;32m[DEPLOY][0m ✅ Seed complete
+[0;32m[DEPLOY][0m Syncing bot presets and Telegram commands...
+[0;32m[DEPLOY][0m ✅ Preset sync step complete
+[0;32m[DEPLOY][0m Running health checks...
+[0;32m[DEPLOY][0m ✅ infra2-db-1 is running
+[0;32m[DEPLOY][0m ✅ infra2-api-1 is running
+[0;32m[DEPLOY][0m ✅ infra2-web-1 is running
+[0;32m[DEPLOY][0m Checking API health...
+[0;32m[DEPLOY][0m ✅ API health OK (http://127.0.0.1:3002/health)
+[0;32m[DEPLOY][0m Checking WEB health...
+[0;32m[DEPLOY][0m ✅ WEB health OK (http://127.0.0.1:8082/api/health)
+[0;32m[DEPLOY][0m Checking public health (optional)...
+[0;32m[DEPLOY][0m ✅ Public health OK (https://cartie2.umanoff-analytics.space/api/health)
+[0;32m[DEPLOY][0m ✅ All health checks passed
+[0;32m[DEPLOY][0m Verifying web asset routing (anti-stale)...
+[0;32m[DEPLOY][0m ✅ Asset routing verified
+[0;32m[DEPLOY][0m Verifying running build metadata...
+[0;32m[DEPLOY][0m ✅ Running build metadata verified
+[0;32m[DEPLOY][0m Running Telegram smoke check...
+[0;32m[DEPLOY][0m ✅ Telegram smoke check passed
+[0;32m[DEPLOY][0m Cleaning up unused Docker images...
+[0;32m[DEPLOY][0m ✅ Docker cleanup complete
+[0;32m[DEPLOY][0m =========================================
+[0;32m[DEPLOY][0m ✅ DEPLOYMENT COMPLETE
+[0;32m[DEPLOY][0m =========================================
+[0;32m[DEPLOY][0m Log saved to: /srv/cartie/_logs/deploy_2026-02-20_144043.log
+[0;32m[DEPLOY][0m 
+[0;32m[DEPLOY][0m Services:
+[0;32m[DEPLOY][0m   DB:  postgres://127.0.0.1:5433
+[0;32m[DEPLOY][0m   API: http://127.0.0.1:3002
+[0;32m[DEPLOY][0m   WEB: http://127.0.0.1:8082
+[0;32m[DEPLOY][0m   PROD: https://cartie2.umanoff-analytics.space
+[0;32m[DEPLOY][0m 
+[0;32m[DEPLOY][0m Next steps:
+[0;32m[DEPLOY][0m   - Verify login: https://cartie2.umanoff-analytics.space/#/login
+[0;32m[DEPLOY][0m   - Check logs: docker logs infra2-api-1 --tail 50
+[0;32m[DEPLOY][0m   - Monitor: docker ps --filter name=infra2
