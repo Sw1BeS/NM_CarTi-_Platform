@@ -1244,8 +1244,12 @@ export const routeMessage = async (ctx: PipelineContext) => {
   }
 
   // 2. Dynamic Menu Logic (Prioritized over legacy templates)
-  const isDynamicHandled = await handleDynamicMenu(ctx, text);
-  if (isDynamicHandled) return true;
+  // For B2B legacy fallback mode we intentionally skip dynamic scenarios
+  // so message handling goes through the explicit fallback flow.
+  if (!(isB2BTemplate && legacyB2BFallbackEnabled)) {
+    const isDynamicHandled = await handleDynamicMenu(ctx, text);
+    if (isDynamicHandled) return true;
+  }
 
   if (isB2BTemplate && !legacyB2BFallbackEnabled) {
     logger.info('[TelegramRoute] B2B legacy fallback skipped (flow-first mode)', {
