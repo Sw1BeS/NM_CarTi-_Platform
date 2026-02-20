@@ -21,7 +21,7 @@ export const PublicRequest = () => {
         budgetMax: '',
         name: '',
         phone: '',
-        city: 'Kyiv'
+        city: 'Київ'
     });
 
     const t = (key: string) => TRANSLATIONS[lang][key] || key;
@@ -122,7 +122,7 @@ export const PublicRequest = () => {
                 goal: `${data.brand} ${data.model} (${data.yearMin}+)`,
                 status: LeadStatus.NEW,
                 language: lang,
-                notes: `Budget: ${data.budgetMax || 'N/A'}\nCity: ${data.city}\nVia Mini App`,
+                notes: `Бюджет: ${data.budgetMax || '—'}\nМісто: ${data.city}\nЧерез Mini App`,
                 initData
             } as any);
 
@@ -133,7 +133,7 @@ export const PublicRequest = () => {
                     budgetMax: Number(data.budgetMax) || 0,
                     yearMin: Number(data.yearMin),
                     city: data.city,
-                    description: `Generated from Telegram Mini App\nLead ID: ${lead.id}`,
+                    description: `Створено через Telegram Mini App\nLead ID: ${lead.id}`,
                     status: RequestStatus.COLLECTING_VARIANTS,
                     priority: 'HIGH',
                     clientChatId: userTgId,
@@ -254,7 +254,7 @@ export const PublicRequest = () => {
                         {step === 2 && (
                             <div className="space-y-6 animate-slide-up">
                                 <button type="button" onClick={() => setStep(1)} className={`text-sm mb-2 flex items-center gap-1 ${isTWA ? 'text-[var(--tg-theme-link-color)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}>
-                                    <ArrowLeft size={16}/> Back
+                                    <ArrowLeft size={16}/> Назад
                                 </button>
                                 
                                 <div className="text-center mb-6">
@@ -298,7 +298,7 @@ export const PublicRequest = () => {
                 
                 {!isTWA && (
                     <div className="text-center mt-8 text-[var(--text-secondary)] text-xs opacity-50">
-                        &copy; 2024 CarTié Automotive. All rights reserved.
+                        &copy; 2024 CarTié Automotive. Усі права захищено.
                     </div>
                 )}
             </div>

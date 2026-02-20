@@ -81,7 +81,7 @@ export const ClientProposal = () => {
                             <h3 className="text-lg font-bold text-gray-900 mb-2">{v.title}</h3>
                             <div className="flex gap-4 text-sm text-gray-500 mb-4">
                                 <span className="flex items-center gap-1"><Calendar size={14}/> {v.year}</span>
-                                <span className="flex items-center gap-1"><Gauge size={14}/> {(v.mileage/1000).toFixed(0)}k km</span>
+                                <span className="flex items-center gap-1"><Gauge size={14}/> {(v.mileage/1000).toFixed(0)} тис. км</span>
                                 <span className="flex items-center gap-1"><MapPin size={14}/> {v.location}</span>
                             </div>
                             
@@ -125,7 +125,7 @@ export const ClientProposal = () => {
                     </button>
                 </div>
                 <div className="mt-8 text-xs text-gray-300">
-                    &copy; 2024 Cartie Automotive Concierge
+                    &copy; 2024 CarTié Automotive Concierge. Усі права захищено.
                 </div>
             </div>
         </div>
