@@ -42,6 +42,10 @@ export const handleInputRuntime = async ({
   executeNode,
   persistSession
 }: HandleInputRuntimeContext): Promise<boolean> => {
+  if (vars.__form) {
+    return false;
+  }
+
   if (!vars.__activeScenarioId || !vars.__currentNodeId) {
     if (vars.__activeScenarioId && !vars.__currentNodeId) {
       logger.warn(`[ScenarioEngine] Missing current node for scenario ${vars.__activeScenarioId} (session ${session?.id || 'unknown'})`);

@@ -4,6 +4,7 @@ import { telegramOutbox } from '../../../telegram/messaging/outbox/telegramOutbo
 import { answerCallback, sendMessage } from '../adapters/telegram.adapter.js';
 import type { BotRuntime } from '../types.js';
 import { b2bRoutingService } from '../../../../../services/b2bRouting.service.js';
+import { handleFormCallbackInput } from './form.actions.js';
 
 interface CallbackHandlerContext {
   bot: BotRuntime;
@@ -23,6 +24,7 @@ interface CallbackHandlerContext {
   handleAddToCatalog: (carId: string) => Promise<void>;
   resetFlow: () => void;
   sendMainMenu: () => Promise<void>;
+  onFormSubmission?: (submission: any) => Promise<void>;
 }
 
 export const handleCallbackQuery = async ({
@@ -30,6 +32,7 @@ export const handleCallbackQuery = async ({
   update,
   chatId,
   lang,
+  vars,
   saveSession,
   buildStatusHistory,
   handleInput,
@@ -38,12 +41,29 @@ export const handleCallbackQuery = async ({
   handleAddToRequest,
   handleAddToCatalog,
   resetFlow,
-  sendMainMenu
+  sendMainMenu,
+  onFormSubmission
 }: CallbackHandlerContext): Promise<boolean> => {
   if (!update.callback_query) return false;
 
   await answerCallback(bot, update.callback_query.id);
   const cbData = update.callback_query.data || '';
+
+  if (cbData.startsWith('FORM:')) {
+    const formResult = await handleFormCallbackInput({
+      bot,
+      chatId,
+      vars,
+      callbackData: cbData
+    });
+    if (formResult.handled) {
+      if (formResult.submission && typeof onFormSubmission === 'function') {
+        await onFormSubmission(formResult.submission);
+      }
+      await saveSession();
+      return true;
+    }
+  }
 
   if (cbData.startsWith('B2BVAR:')) {
     const parts = cbData.split(':');

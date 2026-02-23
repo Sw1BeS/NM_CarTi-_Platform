@@ -1,5 +1,6 @@
 import { sendChoices, sendContactRequest, sendMessage, sendReplyKeyboard } from '../adapters/telegram.adapter.js';
 import type { BotRuntime, ScenarioNode } from '../types.js';
+import { FORM_SKIP_TEXT } from './form.actions.js';
 
 interface NodeInteractionContext {
   bot: BotRuntime;
@@ -15,12 +16,16 @@ interface NodeInteractionContext {
 export const executeQuestionTextNode = async ({
   bot,
   session,
-  vars,
-  history,
+  node,
   text,
   persistSession
-}: Omit<NodeInteractionContext, 'node' | 'lang'>) => {
-  await sendMessage(bot, session.chatId, text);
+}: Omit<NodeInteractionContext, 'vars' | 'history' | 'lang'>) => {
+  const isOptional = node.content?.optional === true;
+  if (isOptional) {
+    await sendReplyKeyboard(bot, session.chatId, text, [[FORM_SKIP_TEXT]]);
+  } else {
+    await sendMessage(bot, session.chatId, text);
+  }
   await persistSession();
 };
 

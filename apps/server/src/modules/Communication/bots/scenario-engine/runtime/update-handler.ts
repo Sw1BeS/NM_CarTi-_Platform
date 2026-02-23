@@ -17,6 +17,7 @@ import {
   handleWebAppData as handleWebAppDataAction
 } from '../actions/entry.actions.js';
 import { handleSetupCommands as handleSetupCommandsAction } from '../actions/setup.actions.js';
+import { handleFormMessageInput, hasActiveForm } from '../actions/form.actions.js';
 import { clearActiveScenario } from './lifecycle.js';
 import { loadPublishedScenarios } from './scenario-registry.js';
 import type { BotRuntime, ScenarioRecord } from '../types.js';
@@ -78,6 +79,9 @@ export const handleUpdateRuntime = async ({
   const hasStartPayload = !!(startPayloadRaw && parseStartPayload(startPayloadRaw));
   const isDealerFlow = vars.role === 'DEALER' || vars.dealer_invite_id || vars.ref_request_id;
   const saveSession = async () => persistSession(vars, history);
+  const onFormSubmission = async (submission: any) => {
+    vars.__formSubmission = submission;
+  };
 
   // Manager Actions
   if (inputRaw.startsWith('REQ:')) {
@@ -95,6 +99,22 @@ export const handleUpdateRuntime = async ({
     saveSession
   });
   if (handledSetup) return true;
+
+  if (hasActiveForm(vars) && update.message) {
+    const formResult = await handleFormMessageInput({
+      bot,
+      chatId,
+      vars,
+      update
+    });
+    if (formResult.handled) {
+      if (formResult.submission) {
+        await onFormSubmission(formResult.submission);
+      }
+      await saveSession();
+      return true;
+    }
+  }
 
   const scenarios = await loadPublishedScenarios(bot);
   const menuConfig = getMenuConfig(bot);
@@ -231,7 +251,8 @@ export const handleUpdateRuntime = async ({
       handleAddToRequest: (carId: string) => handleAddToRequest(vars, carId),
       handleAddToCatalog: (carId: string) => handleAddToCatalog(vars, carId),
       resetFlow,
-      sendMainMenu: () => sendMainMenu()
+      sendMainMenu: () => sendMainMenu(),
+      onFormSubmission
     });
     if (handledCallback) return true;
   }

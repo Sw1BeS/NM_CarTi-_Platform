@@ -147,8 +147,7 @@ export const executeNodeRuntime = async ({
       await executeQuestionTextNodeAction({
         bot,
         session,
-        vars,
-        history,
+        node,
         text,
         persistSession
       });
