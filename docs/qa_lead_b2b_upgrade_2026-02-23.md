@@ -83,9 +83,15 @@
 - [ ] `Інформація` в обох ботах відповідає актуальним правилам (контакти не публікувати).
 
 ## 4) Rollout команди
-- [ ] `npm --prefix apps/server run prisma:generate`
-- [ ] `npm --prefix apps/server run prisma:migrate`
-- [ ] `npm --prefix apps/server run backfill:partner-codes-showcases -- --apply`
-- [ ] `npm --prefix apps/server run preset:sync`
-- [ ] `npm --prefix apps/server run test`
-- [ ] `npm --prefix apps/web run build`
+- [x] `npm --prefix apps/server run prisma:generate`
+- [x] `npm --prefix apps/server run prisma:migrate`
+- [x] `npm --prefix apps/server run backfill:partner-codes-showcases -- --apply`
+- [x] `npm --prefix apps/server run preset:sync`
+- [x] `npm --prefix apps/server run test`
+- [x] `npm --prefix apps/web run build`
+
+## 5) Поточний статус виконання
+- [x] DB міграція `20260223195500_lead_b2b_upgrade_core` застосована локально.
+- [x] Backfill партнерів застосовано: оновлено `partnerCode/showcaseSlug`, ролі OWNER/AGENT синхронізовано.
+- [x] Cleanup зовнішніх hidden listing (TTL 14 днів) виконано: кандидатів до видалення не знайдено.
+- [ ] Manual Telegram smoke ще не виконано в цьому середовищі (потрібен живий DM/channel шлях з реальними ботами).
