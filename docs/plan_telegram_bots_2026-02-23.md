@@ -162,3 +162,83 @@ Verification runs in this workspace:
 3. Central queue uses relay via `@Cartie_Client_Bot` because B2B bot lacks access to `-1003785260526`.
 4. Contacts never posted to channel/group, admin-only where required.
 5. Minimal architecture changes only.
+
+---
+
+## Recheck Implementation Status (2026-02-23)
+
+### C01 — Re-audit docs + runtime evidence
+- Added: `docs/audit_telegram_bots_recheck_2026-02-23.md`
+- Status: done
+
+### C02 — Deploy gate hardening
+- Updated:
+  - `infra/deploy_prod.sh` (post-migrate sync + live verify gates)
+  - `infra/prod_verify.sh` (all enabled bots + live verify chaining)
+  - `infra/verify_telegram_live.sh` (new hard gate script)
+  - `docs/qa_telegram_release_gates_2026-02-23.md`
+- Status: done
+
+### C03 — B2B hard cut (remove dual-mode runtime path)
+- Updated:
+  - `apps/server/src/config/env.ts`
+  - `apps/server/src/modules/Communication/telegram/routing/routeMessage.ts`
+  - `apps/server/src/modules/Communication/telegram/routing/routeCallback.ts`
+  - `apps/server/src/modules/Communication/bots/scenario-engine/runtime/update-handler.ts`
+  - `apps/server/src/modules/Communication/bots/scenario-engine/actions/entry.actions.ts`
+  - `apps/server/src/modules/Communication/bots/scenario-engine/runtime/helpers.ts`
+  - `apps/server/src/modules/Communication/bots/bot.service.ts`
+- Status: done
+
+### C04 — B2B routing/privacy enforcement
+- Updated:
+  - `apps/server/src/services/b2bRouting.service.ts`
+  - `apps/server/src/modules/Communication/bots/scenario-engine/actions/b2b.actions.ts`
+  - `apps/server/src/modules/Communication/bots/scenario-engine/actions/dealer-flow.actions.ts`
+  - `apps/server/src/modules/Communication/bots/scenario-engine/actions/callback.actions.ts`
+  - Tests:
+    - `apps/server/src/services/b2bRouting.service.test.ts`
+    - `apps/server/src/services/cardRenderer.test.ts`
+- Status: done
+
+### C05 — Identity quality + backfill
+- Updated:
+  - `apps/server/src/services/dto.ts`
+  - `apps/server/src/routes/legacyMessaging.routes.ts`
+  - `apps/server/scripts/backfill_telegram_identity.ts` (new)
+  - `apps/server/package.json` script: `telegram:backfill-identity`
+- Runtime:
+  - executed `npm run telegram:backfill-identity -- --apply`
+  - last 14 days `missing telegramName` reduced to `0`
+- Status: done
+
+### C06 — MiniApp wave 1 (raw cleanup + UX polish)
+- Updated:
+  - `apps/web/src/pages/public/MiniApp.tsx` (removed `alert`/debug logs/mock profile activity)
+  - `apps/web/src/pages/public/DealerPortal.tsx` (removed `alert` + event/toast feedback)
+  - `apps/web/src/pages/public/miniapp/telegramViewport.ts`
+  - `apps/web/src/index.css`
+  - `apps/web/src/components/ui/Toast.tsx` (new)
+- Status: done
+
+### C07 — MiniApp wave 2 (structure)
+- Added:
+  - `apps/web/src/pages/public/miniapp/MiniAppShell.tsx`
+  - `apps/web/src/pages/public/miniapp/views/ProfileView.tsx`
+  - `apps/web/src/pages/public/miniapp/views/RequestView.tsx`
+- Updated:
+  - `apps/web/src/pages/public/MiniApp.tsx` as orchestrator + composed views/shell
+- Status: done
+
+### C08 — Final QA + release report
+- Added:
+  - `docs/qa_telegram_bots_2026-02-23-recheck.md`
+- Status: done
+
+## Recheck command results
+1. `cd apps/server && npm test` — PASS (`28` files, `70` tests)
+2. `cd apps/web && npm run build` — PASS
+3. `bash infra/verify_telegram_live.sh` — PASS
+4. `bash infra/prod_verify.sh` — PASS
+5. `cd apps/server && npm run telegram:backfill-identity -- --dry-run` — PASS
+6. `cd apps/server && npm run telegram:backfill-identity -- --apply` — PASS
