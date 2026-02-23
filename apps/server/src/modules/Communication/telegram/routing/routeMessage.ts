@@ -1224,21 +1224,16 @@ export const handleDynamicMenu = async (ctx: PipelineContext, text: string) => {
 export const routeMessage = async (ctx: PipelineContext) => {
   if (!ctx.bot || !ctx.session) return false;
 
-  const isB2BTemplate = ctx.bot.template === 'B2B';
-  const legacyB2BFallbackEnabled = String(process.env.TELEGRAM_B2B_LEGACY_FALLBACK || 'false').toLowerCase() === 'true';
-
-  if (!(isB2BTemplate && legacyB2BFallbackEnabled)) {
-    const handledScenario = await ScenarioEngine.handleUpdate(ctx.bot as any, ctx.session, ctx.update).catch((error) => {
-      logger.error('[TelegramRoute] ScenarioEngine error', {
-        botId: ctx.bot?.id,
-        template: ctx.bot?.template,
-        chatId: ctx.chatId,
-        error: error instanceof Error ? error.message : String(error)
-      });
-      return false;
+  const handledScenario = await ScenarioEngine.handleUpdate(ctx.bot as any, ctx.session, ctx.update).catch((error) => {
+    logger.error('[TelegramRoute] ScenarioEngine error', {
+      botId: ctx.bot?.id,
+      template: ctx.bot?.template,
+      chatId: ctx.chatId,
+      error: error instanceof Error ? error.message : String(error)
     });
-    if (handledScenario) return true;
-  }
+    return false;
+  });
+  if (handledScenario) return true;
 
   const message = ctx.update?.message;
   const text = message?.text || '';
@@ -1260,32 +1255,12 @@ export const routeMessage = async (ctx: PipelineContext) => {
   }
 
   // 2. Dynamic Menu Logic (Prioritized over legacy templates)
-  // For B2B legacy fallback mode we intentionally skip dynamic scenarios
-  // so message handling goes through the explicit fallback flow.
-  if (!(isB2BTemplate && legacyB2BFallbackEnabled)) {
-    const isDynamicHandled = await handleDynamicMenu(ctx, text);
-    if (isDynamicHandled) return true;
-  }
-
-  if (isB2BTemplate && !legacyB2BFallbackEnabled) {
-    logger.info('[TelegramRoute] B2B legacy fallback skipped (flow-first mode)', {
-      botId: ctx.bot.id,
-      chatId: ctx.chatId
-    });
-    return false;
-  }
+  const isDynamicHandled = await handleDynamicMenu(ctx, text);
+  if (isDynamicHandled) return true;
 
   // 3. Legacy Templates (Fallback)
   if (ctx.bot.template === 'CLIENT_LEAD') return handleClientLead(ctx, text);
   if (ctx.bot.template === 'CATALOG') return handleCatalog(ctx, text);
-  if (ctx.bot.template === 'B2B') {
-    logger.info('[TelegramRoute] Using B2B legacy fallback path', {
-      botId: ctx.bot.id,
-      chatId: ctx.chatId,
-      state: ctx.session.state || 'unknown'
-    });
-    return handleB2B(ctx, text);
-  }
 
   return false;
 };
@@ -1695,7 +1670,14 @@ export const finalizeB2BRequest = async (ctx: PipelineContext) => {
 
   // Notify partner queue + central queue (relay), with source-admin fallback.
   const managerChatId = (ctx.bot.config as any)?.b2bManagerChatId || ctx.bot.adminChatId;
-  const requestCard = renderRequestCard({
+  const requestCardPartner = renderRequestCard({
+    ...request,
+    payload: {
+      ...(request.payload as any || {}),
+      companyName: requesterCompanyName || flow.companyName
+    }
+  }, { includeContact: false });
+  const requestCardAdmin = renderRequestCard({
     ...request,
     payload: {
       ...(request.payload as any || {}),
@@ -1705,7 +1687,8 @@ export const finalizeB2BRequest = async (ctx: PipelineContext) => {
   const botUsername = (ctx.bot.config as any)?.botUsername || (ctx.bot.config as any)?.username;
   const link = botUsername ? generateRequestLink(botUsername, request.publicId || request.id) : '';
   const header = `📝 New B2B request ${request.publicId || request.id}`;
-  const msg = link ? `${header}\n${requestCard}\n\n🔗 ${link}` : `${header}\n${requestCard}`;
+  const partnerMsg = link ? `${header}\n${requestCardPartner}\n\n🔗 ${link}` : `${header}\n${requestCardPartner}`;
+  const adminMsg = link ? `${header}\n${requestCardAdmin}\n\n🔗 ${link}` : `${header}\n${requestCardAdmin}`;
   const adminReplyMarkup = link
     ? { inline_keyboard: [[{ text: 'Відкрити в CRM', url: link }]] }
     : undefined;
@@ -1716,7 +1699,9 @@ export const finalizeB2BRequest = async (ctx: PipelineContext) => {
     sourceBotToken: ctx.bot.token,
     sourceBotAdminChatId: managerChatId ? String(managerChatId) : null,
     requesterPartnerId: requesterPartnerId || null,
-    text: msg,
+    text: partnerMsg,
+    centralText: adminMsg,
+    sourceAdminText: adminMsg,
     replyMarkup: adminReplyMarkup,
     includeSourceAdminFallback: true
   });

@@ -7,7 +7,6 @@ import {
   buildWelcomeMessage,
   getLanguage,
   getMenuConfig,
-  isLegacyB2BFallbackEnabled,
   normalizeTextCommand,
   resolveMenuLink
 } from './helpers.js';
@@ -78,7 +77,6 @@ export const handleUpdateRuntime = async ({
   const startPayloadRaw = messageTextRaw.startsWith('/start') ? messageTextRaw.split(' ')[1] : '';
   const hasStartPayload = !!(startPayloadRaw && parseStartPayload(startPayloadRaw));
   const isDealerFlow = vars.role === 'DEALER' || vars.dealer_invite_id || vars.ref_request_id;
-  const legacyB2BFallbackEnabled = isLegacyB2BFallbackEnabled();
   const saveSession = async () => persistSession(vars, history);
 
   // Manager Actions
@@ -192,7 +190,7 @@ export const handleUpdateRuntime = async ({
   });
   if (handledWebAppData) return true;
 
-  if (!scenarios.length && !hasMenuButtons && !(legacyB2BFallbackEnabled && isDealerFlow) && !hasStartPayload) {
+  if (!scenarios.length && !hasMenuButtons && !isDealerFlow && !hasStartPayload) {
     return false;
   }
 
@@ -209,7 +207,7 @@ export const handleUpdateRuntime = async ({
   };
 
   // Dealer flow handling
-  if (isDealerFlow && legacyB2BFallbackEnabled) {
+  if (isDealerFlow) {
     const handledDealer = await handleDealerFlow();
     if (handledDealer) return true;
   }
@@ -250,7 +248,6 @@ export const handleUpdateRuntime = async ({
     sendMainMenu,
     startScenarioByCommand,
     handleDealerFlow,
-    legacyB2BFallbackEnabled,
     resetFlow,
     session
   });

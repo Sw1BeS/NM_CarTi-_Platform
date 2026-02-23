@@ -51,12 +51,8 @@ export const routeCallback = async (ctx: PipelineContext) => {
 
   await telegramOutbox.answerCallback({ token: ctx.bot.token, callbackId: cb.id }).catch(() => null);
 
-  const isB2BTemplate = ctx.bot.template === 'B2B';
-  const legacyB2BFallbackEnabled = String(process.env.TELEGRAM_B2B_LEGACY_FALLBACK || 'false').toLowerCase() === 'true';
-  if (!(isB2BTemplate && legacyB2BFallbackEnabled)) {
-    const handledScenario = await ScenarioEngine.handleUpdate(ctx.bot as any, ctx.session, ctx.update).catch(() => false);
-    if (handledScenario) return true;
-  }
+  const handledScenario = await ScenarioEngine.handleUpdate(ctx.bot as any, ctx.session, ctx.update).catch(() => false);
+  if (handledScenario) return true;
 
   const data = String(cb.data || '');
   const parsed = parseCallbackData(data);

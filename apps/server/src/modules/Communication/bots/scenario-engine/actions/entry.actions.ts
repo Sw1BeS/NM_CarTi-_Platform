@@ -32,7 +32,6 @@ interface StartCommandContext {
   sendMainMenu: (textOverride?: string) => Promise<void>;
   startScenarioByCommand: (rawCommand: string) => Promise<boolean>;
   handleDealerFlow: () => Promise<boolean>;
-  legacyB2BFallbackEnabled: boolean;
   resetFlow: () => void;
   session: any;
 }
@@ -152,7 +151,6 @@ export const handleStartCommand = async ({
   sendMainMenu,
   startScenarioByCommand,
   handleDealerFlow,
-  legacyB2BFallbackEnabled,
   resetFlow,
   session
 }: StartCommandContext): Promise<boolean> => {
@@ -237,7 +235,7 @@ export const handleStartCommand = async ({
   const parsedPayload = payloadText ? parseStartPayload(payloadText) : null;
   const requestPayload = parsedPayload && (parsedPayload.type === 'request' || parsedPayload.type === 'offer');
   if (requestPayload) {
-    if (legacyB2BFallbackEnabled && vars.dealer_state === 'INIT') {
+    if (vars.dealer_state === 'INIT') {
       await handleDealerFlow();
       return true;
     }

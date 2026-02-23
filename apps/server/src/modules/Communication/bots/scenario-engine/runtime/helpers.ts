@@ -170,9 +170,6 @@ export const mapRequestForMessage = (req: any) => {
   ].filter(Boolean).join('\n');
 };
 
-export const isLegacyB2BFallbackEnabled = () =>
-  String(process.env.TELEGRAM_B2B_LEGACY_FALLBACK || 'false').toLowerCase() === 'true';
-
 export const emitScenarioCompleted = async (
   bot: BotRuntime,
   chatId: string,

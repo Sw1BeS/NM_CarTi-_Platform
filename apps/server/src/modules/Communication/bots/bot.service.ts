@@ -234,8 +234,7 @@ class BotInstance {
                 addCommand(value, label);
             }
 
-            const enableLegacyB2BCommands = String(process.env.TELEGRAM_B2B_LEGACY_FALLBACK || 'false').toLowerCase() === 'true';
-            if (this.config.template === 'B2B' && enableLegacyB2BCommands) {
+            if (this.config.template === 'B2B') {
                 if (!commandMap.has('request')) {
                     commandMap.set('request', 'Створити запит');
                 }
