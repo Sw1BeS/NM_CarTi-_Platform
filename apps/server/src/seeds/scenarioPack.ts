@@ -27,28 +27,27 @@ export const SCENARIO_TEMPLATE_PACK = [
   },
   {
     id: 'tpl_sell_tradein',
-    name: 'Продаж / Trade-in (UA/RU)',
-    category: 'B2B',
-    description: 'Збирає параметри продажу/trade-in та створює B2B-запит.',
+    name: 'Продати авто (Lead form v2)',
+    category: 'LEAD_GEN',
+    description: 'Запускає form flow продажу авто з фото, summary/edit і адмін-діями.',
     isPremium: false,
     structure: {
       triggerCommand: 'sell',
       keywords: ['sell', 'продати', 'продать', 'trade-in'],
       entryNodeId: 'start',
       nodes: [
-        { id: 'start', type: 'START', content: { text: '' }, nextNodeId: 'greet' },
-        { id: 'greet', type: 'MESSAGE', content: { text: '👋 Оцінимо ваше авто.', text_uk: '👋 Оцінимо ваше авто.', text_ru: '👋 Оценим ваш автомобиль.' }, nextNodeId: 'ask_brand' },
-        { id: 'ask_brand', type: 'QUESTION_TEXT', content: { text: 'Марка?', text_uk: 'Марка?', text_ru: 'Марка?', variableName: 'brand' }, nextNodeId: 'ask_model' },
-        { id: 'ask_model', type: 'QUESTION_TEXT', content: { text: 'Яка модель?', text_uk: 'Модель?', text_ru: 'Модель?', variableName: 'model' }, nextNodeId: 'ask_year' },
-        { id: 'ask_year', type: 'QUESTION_TEXT', content: { text: 'Рік?', text_uk: 'Рік?', text_ru: 'Год?', variableName: 'year' }, nextNodeId: 'ask_mileage' },
-        { id: 'ask_mileage', type: 'QUESTION_TEXT', content: { text: 'Пробіг (км)?', text_uk: 'Пробіг (км)?', text_ru: 'Пробег (км)?', variableName: 'mileage' }, nextNodeId: 'ask_vin' },
-        { id: 'ask_vin', type: 'QUESTION_TEXT', content: { text: 'VIN (необовʼязково)?', text_uk: 'VIN (необовʼязково)?', text_ru: 'VIN (необязательно)?', variableName: 'vin' }, nextNodeId: 'ask_price' },
-        { id: 'ask_price', type: 'QUESTION_TEXT', content: { text: 'Очікувана ціна (USD)?', text_uk: 'Очікувана ціна (USD)?', text_ru: 'Ожидаемая цена (USD)?', variableName: 'budget' }, nextNodeId: 'ask_city' },
-        { id: 'ask_city', type: 'QUESTION_TEXT', content: { text: 'Місто?', text_uk: 'Місто?', text_ru: 'Город?', variableName: 'city' }, nextNodeId: 'ask_contact' },
-        { id: 'ask_contact', type: 'REQUEST_CONTACT', content: { text: 'Поділіться контактом.', text_uk: 'Поділіться контактом.', text_ru: 'Поделитесь контактом.' }, nextNodeId: 'create_lead' },
-        { id: 'create_lead', type: 'ACTION', content: { actionType: 'CREATE_LEAD', leadType: 'SELL' }, nextNodeId: 'create_request' },
-        { id: 'create_request', type: 'ACTION', content: { actionType: 'CREATE_REQUEST', requestType: 'SELL' }, nextNodeId: 'confirm' },
-        { id: 'confirm', type: 'MESSAGE', content: { text: '✅ Дякуємо! Звʼяжемося з пропозицією.', text_uk: '✅ Дякуємо! Звʼяжемося з пропозицією.', text_ru: '✅ Спасибо! Свяжемся с предложением.' } }
+        { id: 'start', type: 'START', content: { text: '' }, nextNodeId: 'form_intro' },
+        {
+          id: 'form_intro',
+          type: 'MESSAGE',
+          content: {
+            text: '👋 Заповніть форму продажу авто. Після підтвердження заявка піде адміну.',
+            text_uk: '👋 Заповніть форму продажу авто. Після підтвердження заявка піде адміну.',
+            text_ru: '👋 Заповніть форму продажу авто. Після підтвердження заявка піде адміну.'
+          },
+          nextNodeId: 'start_form'
+        },
+        { id: 'start_form', type: 'ACTION', content: { actionType: 'START_LEAD_SELL_FORM' } }
       ]
     }
   },

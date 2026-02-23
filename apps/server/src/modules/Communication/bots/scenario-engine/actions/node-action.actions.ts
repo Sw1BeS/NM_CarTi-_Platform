@@ -15,6 +15,7 @@ import {
 } from '../runtime/helpers.js';
 import { createVariantAndRoute, notifyRequestAdmin } from './b2b.actions.js';
 import { startLeadBuyFlow } from './client-buy.actions.js';
+import { startLeadSellFlow } from './client-sell.actions.js';
 import type { BotRuntime, ScenarioNode } from '../types.js';
 
 export type ActionExecutionResult = 'continue' | 'halt';
@@ -50,6 +51,15 @@ export const executeActionNode = async ({
 
   if (actionType === 'START_LEAD_BUY_FORM') {
     await startLeadBuyFlow({
+      bot,
+      chatId: session.chatId,
+      vars
+    });
+    return 'halt';
+  }
+
+  if (actionType === 'START_LEAD_SELL_FORM') {
+    await startLeadSellFlow({
       bot,
       chatId: session.chatId,
       vars

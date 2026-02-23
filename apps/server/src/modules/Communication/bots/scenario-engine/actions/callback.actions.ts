@@ -6,6 +6,7 @@ import type { BotRuntime } from '../types.js';
 import { b2bRoutingService } from '../../../../../services/b2bRouting.service.js';
 import { handleFormCallbackInput } from './form.actions.js';
 import { handleLeadBuyCallback } from './client-buy.actions.js';
+import { handleLeadSellCallback } from './client-sell.actions.js';
 
 interface CallbackHandlerContext {
   bot: BotRuntime;
@@ -76,6 +77,18 @@ export const handleCallbackQuery = async ({
       callbackData: cbData
     });
     if (handledLeadBuy) {
+      await saveSession();
+      return true;
+    }
+  }
+
+  if (cbData.startsWith('LEADSELL:')) {
+    const handledLeadSell = await handleLeadSellCallback({
+      bot,
+      chatId,
+      callbackData: cbData
+    });
+    if (handledLeadSell) {
       await saveSession();
       return true;
     }
