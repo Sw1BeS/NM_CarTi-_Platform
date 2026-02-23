@@ -103,14 +103,17 @@ export const handleCallbackQuery = async ({
           }).catch(() => null);
         }
 
-        const variantCard = renderVariantCard(variant as any, { includeContact: true });
+        const variantCardPartner = renderVariantCard(variant as any, { includeContact: false });
+        const variantCardAdmin = renderVariantCard(variant as any, { includeContact: true });
         await b2bRoutingService.notifyQueues({
           companyId: bot.companyId || null,
           sourceBotId: bot.id,
           sourceBotToken: bot.token,
           sourceBotAdminChatId: bot.adminChatId || null,
           requesterPartnerId: variant.request?.requesterPartnerId || null,
-          text: `✅ Заявка схвалена!\n\n${variantCard}\n\n🔗 Запит: ${variant.request?.title || variant.requestId}`,
+          text: `✅ Заявка схвалена!\n\n${variantCardPartner}\n\n🔗 Запит: ${variant.request?.title || variant.requestId}`,
+          centralText: `✅ Заявка схвалена!\n\n${variantCardAdmin}\n\n🔗 Запит: ${variant.request?.title || variant.requestId}`,
+          sourceAdminText: `✅ Заявка схвалена!\n\n${variantCardAdmin}\n\n🔗 Запит: ${variant.request?.title || variant.requestId}`,
           includeSourceAdminFallback: true
         });
 

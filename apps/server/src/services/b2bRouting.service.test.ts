@@ -27,7 +27,7 @@ describe('b2bRouting.service', () => {
     sendMessageMock.mockResolvedValue({ ok: true });
   });
 
-  it('routes to partner group and central queue via relay bot', async () => {
+  it('routes to partner group and central queue via relay bot with isolated message payloads', async () => {
     findPartnerCompanyMock.mockResolvedValueOnce({
       id: 'partner_1',
       name: 'Dealer Lviv',
@@ -66,17 +66,23 @@ describe('b2bRouting.service', () => {
       sourceBotId: 'b2b_bot',
       sourceBotToken: 'b2b_token',
       requesterPartnerId: 'partner_1',
-      text: 'request.created'
+      text: 'request.created.default',
+      partnerText: 'partner.redacted',
+      centralText: 'central.with.contact'
     });
 
     expect(sendMessageMock).toHaveBeenCalledTimes(2);
 
-    const first = sendMessageMock.mock.calls[0][0];
-    const second = sendMessageMock.mock.calls[1][0];
+    const sent = sendMessageMock.mock.calls.map((call: any[]) => call[0]);
+    const partnerMsg = sent.find((item: any) => item.chatId === '-1003702407477');
+    const centralMsg = sent.find((item: any) => item.chatId === '-1003785260526');
 
-    expect([first.chatId, second.chatId]).toContain('-1003702407477');
-    expect([first.chatId, second.chatId]).toContain('-1003785260526');
-    expect([first.botId, second.botId]).toContain('relay_bot');
+    expect(partnerMsg).toBeTruthy();
+    expect(centralMsg).toBeTruthy();
+    expect(centralMsg.botId).toBe('relay_bot');
+    expect(partnerMsg.text).toBe('partner.redacted');
+    expect(centralMsg.text).toContain('🏢 Партнер: Dealer Lviv');
+    expect(centralMsg.text).toContain('central.with.contact');
   });
 
   it('sends only central queue when partner group is missing', async () => {
@@ -124,5 +130,57 @@ describe('b2bRouting.service', () => {
     expect(sendMessageMock).toHaveBeenCalledTimes(1);
     expect(sendMessageMock.mock.calls[0][0].chatId).toBe('-1003785260526');
     expect(sendMessageMock.mock.calls[0][0].botId).toBe('relay_bot');
+  });
+
+  it('uses source admin fallback text when partner queue is missing and fallback is enabled', async () => {
+    findPartnerCompanyMock.mockResolvedValueOnce({
+      id: 'partner_3',
+      name: 'No Group Partner',
+      adminGroupChatId: null
+    });
+
+    findBotConfigMock.mockImplementation(async ({ where }: any) => {
+      if (where.id === 'b2b_bot') {
+        return {
+          id: 'b2b_bot',
+          token: 'b2b_token',
+          companyId: 'cmp_1',
+          isEnabled: true,
+          config: {
+            b2b: {
+              centralQueueChatId: '-1003785260526',
+              centralRelayBotId: 'relay_bot'
+            }
+          }
+        };
+      }
+      if (where.id === 'relay_bot') {
+        return {
+          id: 'relay_bot',
+          token: 'relay_token',
+          companyId: 'cmp_1',
+          isEnabled: true
+        };
+      }
+      return null;
+    });
+
+    const { b2bRoutingService } = await import('./b2bRouting.service.js');
+    await b2bRoutingService.notifyQueues({
+      companyId: 'cmp_1',
+      sourceBotId: 'b2b_bot',
+      sourceBotToken: 'b2b_token',
+      sourceBotAdminChatId: '-1009991112223',
+      requesterPartnerId: 'partner_3',
+      text: 'default',
+      sourceAdminText: 'admin.only',
+      includeSourceAdminFallback: true
+    });
+
+    const sent = sendMessageMock.mock.calls.map((call: any[]) => call[0]);
+    expect(sent.length).toBe(2);
+    const fallback = sent.find((item: any) => item.chatId === '-1009991112223');
+    expect(fallback).toBeTruthy();
+    expect(fallback.text).toBe('admin.only');
   });
 });

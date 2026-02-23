@@ -13,6 +13,42 @@ const truncateText = (value?: string, max = 220) => {
   return `${clean.slice(0, max)}…`;
 };
 
+const contactLineKeywords = [
+  'контакт',
+  'contact',
+  'телефон',
+  'phone',
+  'telegram',
+  'телеграм',
+  'whatsapp',
+  'viber',
+  't.me/',
+  'tg://'
+];
+
+const redactSensitiveText = (value?: string, includeContact = false) => {
+  if (!value) return '';
+  const text = String(value).trim();
+  if (!text || includeContact) return text;
+
+  const redactedLines = text
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .filter((line) => {
+      const lower = line.toLowerCase();
+      return !contactLineKeywords.some((keyword) => lower.includes(keyword));
+    })
+    .map((line) =>
+      line
+        .replace(/(?:\+?\d[\d\s()\-]{6,}\d)/g, '[hidden]')
+        .replace(/@[a-zA-Z0-9_]{4,}/g, '@hidden')
+        .replace(/https?:\/\/(?:t\.me|wa\.me)\/\S+/gi, '[hidden-link]')
+    );
+
+  return redactedLines.join('\n').trim();
+};
+
 export const renderVariantCard = (variant: any, opts: { includeContact?: boolean } = {}) => {
   const priceObj = variant.price && typeof variant.price === 'object' ? variant.price : { amount: variant.price };
   const price = priceObj?.amount ? Number(priceObj.amount) : 0;
@@ -25,7 +61,8 @@ export const renderVariantCard = (variant: any, opts: { includeContact?: boolean
   const drive = variant.specs?.drive;
   const engine = variant.specs?.engine;
   const color = variant.specs?.color;
-  const note = truncateText(variant.specs?.note);
+  const note = truncateText(redactSensitiveText(variant.specs?.note, Boolean(opts.includeContact)));
+  const sourceUrl = redactSensitiveText(variant.sourceUrl, Boolean(opts.includeContact));
   const parts = [
     `🚗 <b>${(variant.title || 'Варіант').toUpperCase()}</b>`,
     price ? `💰 ${price.toLocaleString()} ${currency}` : null,
@@ -39,7 +76,7 @@ export const renderVariantCard = (variant: any, opts: { includeContact?: boolean
     condition ? `🛠 ${condition}` : null,
     variant.location ? `📍 ${variant.location}` : null,
     variant.specs?.vin ? `🔑 VIN: ${variant.specs.vin}` : null,
-    variant.sourceUrl ? `🔗 ${variant.sourceUrl}` : null,
+    sourceUrl ? `🔗 ${sourceUrl}` : null,
     note ? `📝 ${note}` : null,
     opts.includeContact && companyName ? `🏢 ${companyName}` : null,
     opts.includeContact && contact ? `📞 ${contact}` : null
@@ -57,6 +94,7 @@ export const renderRequestCard = (req: any, opts: { includeContact?: boolean } =
   const mileageMax = payloadReq?.mileageMax ?? payload?.mileageMax;
   const mileageText = payloadReq?.mileageText ?? payload?.mileageText;
   const fuel = payloadReq?.fuel ?? payload?.fuel;
+  const description = redactSensitiveText(req.description, Boolean(opts.includeContact));
 
   const mileagePart = mileageText
     ? `🛣 ${mileageText}`
@@ -74,7 +112,7 @@ export const renderRequestCard = (req: any, opts: { includeContact?: boolean } =
     mileagePart,
     fuel ? `⛽ ${fuel}` : null,
     req.city ? `📍 ${req.city}` : null,
-    req.description ? `📝 ${req.description}` : null,
+    description ? `📝 ${description}` : null,
     opts.includeContact && companyName ? `🏢 ${companyName}` : null,
     opts.includeContact && contact ? `📞 ${contact}` : null,
     req.publicId ? `ID: ${req.publicId}` : null

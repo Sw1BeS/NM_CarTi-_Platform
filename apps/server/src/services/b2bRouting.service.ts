@@ -11,6 +11,9 @@ export type NotifyB2bQueuesInput = {
   sourceBotAdminChatId?: string | null;
   requesterPartnerId?: string | null;
   text: string;
+  partnerText?: string;
+  centralText?: string;
+  sourceAdminText?: string;
   replyMarkup?: any;
   includeSourceAdminFallback?: boolean;
 };
@@ -93,6 +96,9 @@ class B2bRoutingService {
     });
 
     const targets: Array<{ botId: string; token: string; companyId?: string | null; chatId: string; text: string }> = [];
+    const partnerText = input.partnerText || input.text;
+    const centralBaseText = input.centralText || input.text;
+    const sourceAdminText = input.sourceAdminText || input.text;
 
     if (partnerChatId) {
       targets.push({
@@ -100,7 +106,7 @@ class B2bRoutingService {
         token: input.sourceBotToken,
         companyId: input.companyId || null,
         chatId: partnerChatId,
-        text: input.text
+        text: partnerText
       });
     }
 
@@ -110,7 +116,7 @@ class B2bRoutingService {
         token: centralTarget.token,
         companyId: centralTarget.companyId,
         chatId: centralTarget.chatId,
-        text: withPartnerPrefix(partner?.name, input.text)
+        text: withPartnerPrefix(partner?.name, centralBaseText)
       });
     }
 
@@ -122,7 +128,7 @@ class B2bRoutingService {
           token: input.sourceBotToken,
           companyId: input.companyId || null,
           chatId: fallbackChatId,
-          text: input.text
+          text: sourceAdminText
         });
       }
     }

@@ -382,12 +382,16 @@ export const handleDealerFlow = async ({
         }
       }
 
+      const partnerQueueText = `📨 Новий варіант по запиту ${request?.publicId || requestId}\n${renderVariantCard(variant as any, { includeContact: false })}`;
+      const adminQueueText = `📨 Новий варіант по запиту ${request?.publicId || requestId}\n${renderVariantCard(variant as any, { includeContact: true })}`;
       await b2bRoutingService.notifyQueues({
         companyId: bot.companyId || null,
         sourceBotId: bot.id,
         sourceBotToken: bot.token,
         requesterPartnerId: request?.requesterPartnerId || null,
-        text: `📨 Новий варіант по запиту ${request?.publicId || requestId}\n${renderVariantCard(variant as any, { includeContact: true })}`,
+        text: partnerQueueText,
+        centralText: adminQueueText,
+        sourceAdminText: adminQueueText,
         replyMarkup: managerActionsKeyboard(variant.id)
       });
       return true;

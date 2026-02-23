@@ -7,7 +7,8 @@ import type { BotRuntime } from '../types.js';
 import { b2bRoutingService } from '../../../../../services/b2bRouting.service.js';
 
 export const notifyRequestAdmin = async (bot: BotRuntime, request: any) => {
-  const text = `📄 Новий запит\n${renderRequestCard(request, { includeContact: true })}`;
+  const partnerText = `📄 Новий запит\n${renderRequestCard(request, { includeContact: false })}`;
+  const adminText = `📄 Новий запит\n${renderRequestCard(request, { includeContact: true })}`;
   const keyboard = {
     inline_keyboard: [
       [{ text: '🔍 Znayty Variant', callback_data: `REQ:${request.id}:FIND` }],
@@ -21,7 +22,9 @@ export const notifyRequestAdmin = async (bot: BotRuntime, request: any) => {
     sourceBotToken: bot.token,
     sourceBotAdminChatId: bot.adminChatId || null,
     requesterPartnerId: request.requesterPartnerId || null,
-    text,
+    text: partnerText,
+    centralText: adminText,
+    sourceAdminText: adminText,
     replyMarkup: keyboard,
     includeSourceAdminFallback: true
   });
@@ -158,13 +161,16 @@ export const createVariantAndRoute = async (params: {
     }
   }
 
+  const partnerCaption = `📨 Новий варіант по запиту ${request.publicId || request.id}\n${renderVariantCard(variant as any, { includeContact: false })}`;
   const adminCaption = `📨 Новий варіант по запиту ${request.publicId || request.id}\n${renderVariantCard(variant as any, { includeContact: true })}`;
   await b2bRoutingService.notifyQueues({
     companyId: params.bot.companyId || null,
     sourceBotId: params.bot.id,
     sourceBotToken: params.bot.token,
     requesterPartnerId: request.requesterPartnerId || null,
-    text: adminCaption,
+    text: partnerCaption,
+    centralText: adminCaption,
+    sourceAdminText: adminCaption,
     replyMarkup: managerActionsKeyboard(variant.id)
   });
 
