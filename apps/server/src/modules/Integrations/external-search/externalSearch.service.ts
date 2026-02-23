@@ -72,6 +72,10 @@ export type ExternalSearchListing = {
 
 const SEARCH_CACHE_TTL_MS = 45 * 60 * 1000;
 const USER_AGENT = 'CartieBot/1.0 (+https://cartie.local)';
+const logExternalEvent = (event: string, meta: Record<string, unknown> = {}) => {
+  // Observability must stay PII-safe: provider/state/count only (no contacts, no user payload).
+  logger.info(`[external-search] ${event}`, meta);
+};
 
 const cleanText = (value: unknown) => String(value || '').replace(/\s+/g, ' ').trim();
 const toNum = (value: unknown) => {
@@ -173,13 +177,18 @@ class ExternalSearchService {
     criteria: ExternalSearchCriteria,
     maxResults: number
   ): Promise<ExternalSearchCandidate[]> {
+    logExternalEvent('provider_start', {
+      provider: provider.key,
+      maxResults
+    });
+
     const searchUrl = provider.getSearchUrl(criteria);
     if (!searchUrl) return [];
 
     const robots = await isRobotsAllowed(searchUrl);
     if (!robots.allowed) {
       this.disabledProviders.add(provider.key);
-      logger.info('[external-search] provider disabled by robots', {
+      logExternalEvent('provider_disabled_by_robots', {
         provider: provider.key,
         reason: robots.reason
       });
@@ -198,6 +207,12 @@ class ExternalSearchService {
     if (result.blocked) {
       logger.warn('[external-search] provider blocked/dynamic page', { provider: provider.key });
     }
+
+    logExternalEvent('provider_done', {
+      provider: provider.key,
+      count: result.items?.length || 0,
+      blocked: Boolean(result.blocked)
+    });
 
     return (result.items || [])
       .map((item) => sanitizeCandidate(item))
@@ -295,7 +310,7 @@ class ExternalSearchService {
         const chunk = await this.runProvider(provider, criteria, maxResults - candidates.length);
         if (chunk.length > 0) {
           candidates.push(...chunk);
-          logger.info('[external-search] provider results', {
+          logExternalEvent('provider_results', {
             provider: provider.key,
             count: chunk.length
           });
@@ -320,6 +335,14 @@ class ExternalSearchService {
       const persisted = await this.upsertCandidate(item, opts.companyId || null);
       if (persisted) saved.push(persisted);
     }
+
+    logExternalEvent('search_completed', {
+      providersTotal: this.providers.length,
+      providersDisabled: this.disabledProviders.size,
+      candidates: candidates.length,
+      deduped: deduped.size,
+      persisted: saved.length
+    });
 
     return saved;
   }
