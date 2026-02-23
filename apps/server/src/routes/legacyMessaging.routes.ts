@@ -162,7 +162,8 @@ router.get('/messages', requireRole(['OWNER', 'ADMIN', 'MANAGER', 'OPERATOR']), 
             const fromName = fromPayload.first_name || fromPayload.username || (row.direction === 'OUTGOING' ? 'Bot' : 'User');
             const telegramUserId = fromPayload.id ? String(fromPayload.id) : undefined;
             const telegramUsername = fromPayload.username || undefined;
-            const telegramName = [fromPayload.first_name, fromPayload.last_name].filter(Boolean).join(' ').trim() || undefined;
+            const telegramName = [fromPayload.first_name, fromPayload.last_name].filter(Boolean).join(' ').trim()
+                || (telegramUsername ? `@${telegramUsername}` : undefined);
 
             const inlineKeyboard = Array.isArray(payload?.markup?.inline_keyboard) ? payload.markup.inline_keyboard : [];
             const flatButtons = Array.isArray(inlineKeyboard)

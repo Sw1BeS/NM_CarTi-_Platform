@@ -17,6 +17,7 @@
     "migrate:v4:leads": "tsx scripts/migrate_leads.ts",
     "media:reconcile": "tsx scripts/reconcile_media.ts",
     "telegram:normalize-chat-ids": "tsx scripts/telegram_normalize_chat_ids.ts",
+    "telegram:backfill-identity": "tsx scripts/backfill_telegram_identity.ts",
     "test": "vitest --run",
     "test:watch": "vitest",
     "b2b:backfill-partner-admin-groups": "tsx scripts/backfill_partner_admin_groups.ts"

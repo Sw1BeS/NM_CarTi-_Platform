@@ -170,7 +170,11 @@ export const mapLeadOutput = (lead: any) => {
     telegramChatId: payload.telegramChatId || lead.userTgId,
     telegramUserId: payload.telegramUserId || lead.userTgId,
     telegramUsername: payload.telegramUsername,
-    telegramName: payload.telegramName || payload.name || lead.clientName || undefined,
+    telegramName: payload.telegramName
+      || payload.name
+      || (payload.telegramUsername ? `@${payload.telegramUsername}` : undefined)
+      || lead.clientName
+      || undefined,
     phone: lead.phone || payload.phone,
     email: payload.email,
     goal: lead.request || payload.goal,
