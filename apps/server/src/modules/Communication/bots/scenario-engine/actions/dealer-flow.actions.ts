@@ -33,7 +33,7 @@ export const handleDealerFlow = async ({
   const requestId = await resolveRequestId(vars);
   const flow = vars.dealer_flow || {};
 
-  const summaryCard = (override?: any, opts?: { includeContact?: boolean }) => {
+  const summaryCard = (override?: any, opts?: { includeContact?: boolean; includeCompany?: boolean }) => {
     const variantData = {
       title: flow.title || flow.details || 'Пропозиція',
       price: flow.price,
@@ -49,7 +49,7 @@ export const handleDealerFlow = async ({
       ...(override || {})
     };
     const photoCount = (vars.dealer_photos || []).length || 0;
-    return `${renderVariantCard(variantData, opts)}\n🖼 Фото: ${photoCount}`;
+    return `${renderVariantCard(variantData, { includeCompany: true, ...(opts || {}) })}\n🖼 Фото: ${photoCount}`;
   };
 
   if (dealerState === 'INIT') {
@@ -338,13 +338,12 @@ export const handleDealerFlow = async ({
       const requesterChatId = request?.chatId;
 
       if (requesterChatId) {
-        const specsWithoutContact = variant.specs ? { ...(variant.specs as any), contact: undefined, companyName: undefined } : {};
+        const specsWithoutContact = variant.specs ? { ...(variant.specs as any), contact: undefined } : {};
         const variantCardForRequester = renderVariantCard({
           ...variant,
           contact: undefined,
-          companyName: undefined,
           specs: specsWithoutContact
-        } as any);
+        } as any, { includeCompany: true });
 
         await sendMessage(
           bot,
@@ -382,7 +381,7 @@ export const handleDealerFlow = async ({
         }
       }
 
-      const partnerQueueText = `📨 Новий варіант по запиту ${request?.publicId || requestId}\n${renderVariantCard(variant as any, { includeContact: false })}`;
+      const partnerQueueText = `📨 Новий варіант по запиту ${request?.publicId || requestId}\n${renderVariantCard(variant as any, { includeContact: false, includeCompany: true })}`;
       const adminQueueText = `📨 Новий варіант по запиту ${request?.publicId || requestId}\n${renderVariantCard(variant as any, { includeContact: true })}`;
       await b2bRoutingService.notifyQueues({
         companyId: bot.companyId || null,

@@ -22,6 +22,7 @@ import { submitLeadBuyForm } from '../actions/client-buy.actions.js';
 import { submitLeadSellForm } from '../actions/client-sell.actions.js';
 import { submitSupportForm } from '../actions/support.actions.js';
 import { ensureB2BRegistrationGate, submitB2BRegistrationForm } from '../actions/b2b-registration.actions.js';
+import { submitB2BInventoryForm } from '../actions/b2b-inventory.actions.js';
 import { clearActiveScenario } from './lifecycle.js';
 import { loadPublishedScenarios } from './scenario-registry.js';
 import type { BotRuntime, ScenarioRecord } from '../types.js';
@@ -114,6 +115,15 @@ export const handleUpdateRuntime = async ({
     }
     if (submission?.confirmAction?.startsWith?.('B2BREG:') && submission?.status === 'CONFIRMED') {
       await submitB2BRegistrationForm({
+        bot,
+        chatId,
+        userId,
+        vars,
+        submission
+      });
+    }
+    if (submission?.confirmAction?.startsWith?.('B2BINV:') && submission?.status === 'CONFIRMED') {
+      await submitB2BInventoryForm({
         bot,
         chatId,
         userId,

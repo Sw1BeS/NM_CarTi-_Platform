@@ -21,6 +21,7 @@ export class CarRepository extends BaseRepository<CarListing> {
         description?: string | null;
         status?: string;
         companyId?: string;
+        partnerCompanyId?: string;
         currency?: string;
     }): Promise<CarListing> {
         const carId = `car_${generateULID()}`;
@@ -41,7 +42,8 @@ export class CarRepository extends BaseRepository<CarListing> {
                 mediaUrls: data.mediaUrls || [],
                 specs: data.specs ?? undefined,
                 description: data.description ?? undefined,
-                companyId: data.companyId
+                companyId: data.companyId,
+                partnerCompanyId: data.partnerCompanyId
             }
         });
     }
@@ -99,6 +101,7 @@ export class CarRepository extends BaseRepository<CarListing> {
 
     async findCars(filters: {
         companyId?: string;
+        partnerCompanyId?: string;
         status?: string;
         priceMin?: number;
         priceMax?: number;
@@ -111,6 +114,7 @@ export class CarRepository extends BaseRepository<CarListing> {
         const where: any = {};
 
         if (filters.companyId) where.companyId = filters.companyId;
+        if (filters.partnerCompanyId) where.partnerCompanyId = filters.partnerCompanyId;
         if (filters.status && filters.status !== 'ALL') where.status = filters.status;
 
         if (filters.priceMin !== undefined || filters.priceMax !== undefined) {
@@ -162,6 +166,7 @@ export class CarRepository extends BaseRepository<CarListing> {
         status?: string;
         currency?: string;
         companyId?: string;
+        partnerCompanyId?: string;
         originalRaw?: Prisma.InputJsonValue;
         postedAt?: Date;
     }>): Promise<CarListing> {

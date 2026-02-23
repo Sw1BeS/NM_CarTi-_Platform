@@ -4,6 +4,7 @@ import { CarRepository } from '../../../repositories/car.repository.js';
 
 interface ShowcaseRules {
     mode: 'FILTER' | 'MANUAL' | 'HYBRID';
+    partnerCompanyId?: string;
     filters?: {
         status?: string[];
         priceMin?: number;
@@ -11,6 +12,7 @@ interface ShowcaseRules {
         yearMin?: number;
         yearMax?: number;
         makes?: string[]; // search or tag based
+        partnerCompanyId?: string;
     };
     includeIds?: string[];
     excludeIds?: string[];
@@ -102,6 +104,10 @@ export class ShowcaseService {
             companyId: showcase.workspaceId,
             status: 'AVAILABLE'
         };
+        const scopedPartnerCompanyId = String((rules as any)?.partnerCompanyId || (rules?.filters as any)?.partnerCompanyId || '').trim();
+        if (scopedPartnerCompanyId) {
+            where.partnerCompanyId = scopedPartnerCompanyId;
+        }
 
         // --- Apply Runtime Options (User Search/Filter) ---
         if (options.search) {
@@ -177,6 +183,9 @@ export class ShowcaseService {
         if (mode === 'HYBRID' && rules.includeIds && rules.includeIds.length > 0) {
             // Fetch explicit items
             const explicitWhere: any = { id: { in: rules.includeIds } };
+            if (scopedPartnerCompanyId) {
+                explicitWhere.partnerCompanyId = scopedPartnerCompanyId;
+            }
             // Apply runtime filters to them too?
             // If I search "BMW", I probably don't want to see the pinned Audi.
             if (options.search) {

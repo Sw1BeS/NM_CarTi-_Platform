@@ -8,7 +8,7 @@ import type { BotRuntime } from '../types.js';
 import { b2bRoutingService } from '../../../../../services/b2bRouting.service.js';
 
 export const notifyRequestAdmin = async (bot: BotRuntime, request: any) => {
-  const partnerText = `[B2B REQUEST]\n📄 Новий запит\n${renderRequestCard(request, { includeContact: false })}`;
+  const partnerText = `[B2B REQUEST]\n📄 Новий запит\n${renderRequestCard(request, { includeContact: false, includeCompany: true })}`;
   const adminText = `[B2B REQUEST]\n📄 Новий запит\n${renderRequestCard(request, { includeContact: true })}`;
   const keyboard = {
     inline_keyboard: [
@@ -141,14 +141,13 @@ export const createVariantAndRoute = async (params: {
 
   if (request.chatId) {
     const specsWithoutContact = variant.specs
-      ? { ...(variant.specs as any), contact: undefined, companyName: undefined }
+      ? { ...(variant.specs as any), contact: undefined }
       : {};
     const requesterCard = renderVariantCard({
       ...variant,
       contact: undefined,
-      companyName: undefined,
       specs: specsWithoutContact
-    } as any);
+    } as any, { includeCompany: true });
     const requesterActions = {
       inline_keyboard: [
         [
@@ -210,7 +209,7 @@ export const createVariantAndRoute = async (params: {
     }
   }
 
-  const partnerCaption = `[B2B REQUEST]\n📨 Новий варіант по запиту ${request.publicId || request.id}\n${renderVariantCard(variant as any, { includeContact: false })}`;
+  const partnerCaption = `[B2B REQUEST]\n📨 Новий варіант по запиту ${request.publicId || request.id}\n${renderVariantCard(variant as any, { includeContact: false, includeCompany: true })}`;
   const adminCaption = `[B2B REQUEST]\n📨 Новий варіант по запиту ${request.publicId || request.id}\n${renderVariantCard(variant as any, { includeContact: true })}`;
   await b2bRoutingService.notifyQueues({
     companyId: params.bot.companyId || null,

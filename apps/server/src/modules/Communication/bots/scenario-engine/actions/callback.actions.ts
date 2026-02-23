@@ -9,6 +9,7 @@ import { handleLeadBuyCallback } from './client-buy.actions.js';
 import { handleLeadSellCallback } from './client-sell.actions.js';
 import { handleSupportCallback } from './support.actions.js';
 import { handleB2BRegistrationCallback } from './b2b-registration.actions.js';
+import { handleB2BInventoryCallback } from './b2b-inventory.actions.js';
 
 interface CallbackHandlerContext {
   bot: BotRuntime;
@@ -110,6 +111,20 @@ export const handleCallbackQuery = async ({
     }
   }
 
+  if (cbData.startsWith('B2BINV:')) {
+    const handledB2BInv = await handleB2BInventoryCallback({
+      bot,
+      chatId,
+      userId,
+      vars,
+      callbackData: cbData
+    });
+    if (handledB2BInv) {
+      await saveSession();
+      return true;
+    }
+  }
+
   if (cbData.startsWith('SUPPORT:')) {
     const handledSupport = await handleSupportCallback({
       bot,
@@ -181,7 +196,7 @@ export const handleCallbackQuery = async ({
           }).catch(() => null);
         }
 
-        const variantCardPartner = renderVariantCard(variant as any, { includeContact: false });
+        const variantCardPartner = renderVariantCard(variant as any, { includeContact: false, includeCompany: true });
         const variantCardAdmin = renderVariantCard(variant as any, { includeContact: true });
         await b2bRoutingService.notifyQueues({
           companyId: bot.companyId || null,

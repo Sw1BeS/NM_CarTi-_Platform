@@ -13,6 +13,34 @@ import { renderCarCardForBot } from '../../../services/carCardRenderer.v2.js';
 const router = Router();
 const carRepo = new CarRepository(prisma);
 
+const readPartnerCompanyId = (source: any) => {
+    const value = typeof source?.partnerCompanyId === 'string' ? source.partnerCompanyId.trim() : '';
+    return value || undefined;
+};
+
+const readPartnerOwnerTgId = (source: any) => {
+    const value = typeof source?.partnerOwnerTgId === 'string' ? source.partnerOwnerTgId.trim() : '';
+    return value || undefined;
+};
+
+const ensurePartnerOwnerAccess = async (params: {
+    companyId?: string | null;
+    partnerCompanyId?: string;
+    partnerOwnerTgId?: string;
+}) => {
+    if (!params.partnerCompanyId || !params.partnerOwnerTgId) return true;
+    const partnerUser = await prisma.partnerUser.findFirst({
+        where: {
+            telegramId: params.partnerOwnerTgId,
+            partnerId: params.partnerCompanyId,
+            role: 'OWNER',
+            ...(params.companyId ? { companyId: params.companyId } : {})
+        },
+        select: { id: true }
+    });
+    return Boolean(partnerUser);
+};
+
 const resolveBot = async (companyId: string | null, botId?: string) => {
     if (botId) {
         const bot = await prisma.botConfig.findUnique({ where: { id: botId } });
@@ -105,6 +133,7 @@ router.get('/', async (req, res) => {
 
     const search = req.query.search as string;
     const status = req.query.status as string;
+    const partnerCompanyId = readPartnerCompanyId(req.query);
 
     // Range Filters
     const priceMin = req.query.priceMin ? Number(req.query.priceMin) : undefined;
@@ -145,7 +174,8 @@ router.get('/', async (req, res) => {
         search,
         skip,
         take: limit,
-        companyId: companyId || undefined
+        companyId: companyId || undefined,
+        partnerCompanyId
     });
 
     res.json({
@@ -167,6 +197,16 @@ router.post('/', requireRole(['ADMIN', 'MANAGER']), async (req, res) => {
         if (!companyId && !isSuperadmin) return errorResponse(res, 400, 'Company context required', 'COMPANY_REQUIRED');
 
         const mapped = mapInventoryInput(req.body || {});
+        const partnerCompanyId = readPartnerCompanyId(req.body || {});
+        const partnerOwnerTgId = readPartnerOwnerTgId(req.body || {});
+        if (partnerCompanyId) {
+            const allowed = await ensurePartnerOwnerAccess({
+                companyId: companyId || null,
+                partnerCompanyId,
+                partnerOwnerTgId
+            });
+            if (!allowed && partnerOwnerTgId) return errorResponse(res, 403, 'Partner owner access required');
+        }
         const { id: _id, title, price, year, mileage, ...rest } = mapped;
         if (!title || price === undefined || year === undefined || mileage === undefined) {
             return errorResponse(res, 400, 'title, price, year, mileage are required', 'INVALID_INPUT');
@@ -177,7 +217,8 @@ router.post('/', requireRole(['ADMIN', 'MANAGER']), async (req, res) => {
             price,
             year,
             mileage,
-            companyId: companyId || undefined
+            companyId: companyId || undefined,
+            ...(partnerCompanyId ? { partnerCompanyId } : {})
         });
         res.json(mapInventoryOutput(car));
     } catch (e: any) {
@@ -199,15 +240,29 @@ router.post('/bulk', requireRole(['ADMIN', 'MANAGER']), async (req, res) => {
         if (!ids.length) return errorResponse(res, 400, 'ids[] is required', 'INVALID_INPUT');
 
         const updateData = mapInventoryInput((req.body || {}).updates || {});
+        const partnerCompanyId = readPartnerCompanyId((req.body || {}).updates || req.body || {});
+        const partnerOwnerTgId = readPartnerOwnerTgId(req.body || {});
+        if (partnerCompanyId) {
+            const allowed = await ensurePartnerOwnerAccess({
+                companyId: companyId || null,
+                partnerCompanyId,
+                partnerOwnerTgId
+            });
+            if (!allowed && partnerOwnerTgId) return errorResponse(res, 403, 'Partner owner access required');
+        }
         if (!Object.keys(updateData).length) {
             return errorResponse(res, 400, 'updates is required', 'INVALID_INPUT');
         }
         delete (updateData as any).id;
+        if (partnerCompanyId) {
+            (updateData as any).partnerCompanyId = partnerCompanyId;
+        }
 
         const result = await prisma.carListing.updateMany({
             where: {
                 id: { in: ids },
-                ...(companyId ? { companyId } : {})
+                ...(companyId ? { companyId } : {}),
+                ...(partnerCompanyId ? { partnerCompanyId } : {})
             },
             data: updateData
         });
@@ -236,6 +291,20 @@ router.put('/:id', requireRole(['ADMIN', 'MANAGER']), async (req, res) => {
 
         const { id: _id, createdAt, updatedAt, ...raw } = req.body;
         const updateData = mapInventoryInput(raw);
+        const partnerCompanyId = readPartnerCompanyId(req.body || {});
+        const partnerOwnerTgId = readPartnerOwnerTgId(req.body || {});
+        const scopedPartnerCompanyId = existing.partnerCompanyId || partnerCompanyId;
+        if (scopedPartnerCompanyId) {
+            const allowed = await ensurePartnerOwnerAccess({
+                companyId: existing.companyId || userCompanyId || null,
+                partnerCompanyId: scopedPartnerCompanyId,
+                partnerOwnerTgId
+            });
+            if (!allowed && partnerOwnerTgId) return errorResponse(res, 403, 'Partner owner access required');
+        }
+        if (partnerCompanyId) {
+            (updateData as any).partnerCompanyId = partnerCompanyId;
+        }
 
         const car = await carRepo.updateCar(id, updateData);
         res.json(mapInventoryOutput(car));

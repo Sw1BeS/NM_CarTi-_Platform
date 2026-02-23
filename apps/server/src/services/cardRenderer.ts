@@ -49,11 +49,12 @@ const redactSensitiveText = (value?: string, includeContact = false) => {
   return redactedLines.join('\n').trim();
 };
 
-export const renderVariantCard = (variant: any, opts: { includeContact?: boolean } = {}) => {
+export const renderVariantCard = (variant: any, opts: { includeContact?: boolean; includeCompany?: boolean } = {}) => {
   const priceObj = variant.price && typeof variant.price === 'object' ? variant.price : { amount: variant.price };
   const price = priceObj?.amount ? Number(priceObj.amount) : 0;
   const currency = priceObj?.currency || variant.currency || 'USD';
   const companyName = variant.companyName || variant.company || variant.specs?.companyName;
+  const representative = variant.specs?.representative || variant.representative;
   const contact = variant.contact || variant.specs?.contact;
   const fuel = variant.specs?.fuel;
   const condition = variant.specs?.condition;
@@ -63,6 +64,7 @@ export const renderVariantCard = (variant: any, opts: { includeContact?: boolean
   const color = variant.specs?.color;
   const note = truncateText(redactSensitiveText(variant.specs?.note, Boolean(opts.includeContact)));
   const sourceUrl = redactSensitiveText(variant.sourceUrl, Boolean(opts.includeContact));
+  const includeCompany = Boolean(opts.includeCompany || opts.includeContact);
   const parts = [
     `🚗 <b>${(variant.title || 'Варіант').toUpperCase()}</b>`,
     price ? `💰 ${price.toLocaleString()} ${currency}` : null,
@@ -78,16 +80,18 @@ export const renderVariantCard = (variant: any, opts: { includeContact?: boolean
     variant.specs?.vin ? `🔑 VIN: ${variant.specs.vin}` : null,
     sourceUrl ? `🔗 ${sourceUrl}` : null,
     note ? `📝 ${note}` : null,
-    opts.includeContact && companyName ? `🏢 ${companyName}` : null,
+    includeCompany && companyName ? `🏢 Компанія: ${companyName}` : null,
+    includeCompany && representative ? `👤 Представник: ${representative}` : null,
     opts.includeContact && contact ? `📞 ${contact}` : null
   ].filter(Boolean);
   return parts.join('\n');
 };
 
-export const renderRequestCard = (req: any, opts: { includeContact?: boolean } = {}) => {
+export const renderRequestCard = (req: any, opts: { includeContact?: boolean; includeCompany?: boolean } = {}) => {
   const payload = req?.payload || {};
   const payloadReq = payload?.request || {};
   const companyName = req?.companyName || payload?.companyName || payloadReq?.companyName;
+  const representative = payload?.representative || payloadReq?.representative;
   const contact = req?.contact || payload?.contact || payloadReq?.contact || payloadReq?.phone || payload?.phone;
 
   const mileageMin = payloadReq?.mileageMin ?? payload?.mileageMin;
@@ -105,6 +109,7 @@ export const renderRequestCard = (req: any, opts: { includeContact?: boolean } =
   const budgetPart = req.budgetMin || req.budgetMax
     ? `💰 ${req.budgetMin ? req.budgetMin.toLocaleString() : '0'} - ${req.budgetMax ? req.budgetMax.toLocaleString() : '∞'} ${req.currency || 'USD'}`
     : null;
+  const includeCompany = Boolean(opts.includeCompany || opts.includeContact);
   const parts = [
     `📄 <b>${req.title || 'Запит'}</b>`,
     budgetPart,
@@ -113,7 +118,8 @@ export const renderRequestCard = (req: any, opts: { includeContact?: boolean } =
     fuel ? `⛽ ${fuel}` : null,
     req.city ? `📍 ${req.city}` : null,
     description ? `📝 ${description}` : null,
-    opts.includeContact && companyName ? `🏢 ${companyName}` : null,
+    includeCompany && companyName ? `🏢 Компанія: ${companyName}` : null,
+    includeCompany && representative ? `👤 Представник: ${representative}` : null,
     opts.includeContact && contact ? `📞 ${contact}` : null,
     req.publicId ? `ID: ${req.publicId}` : null
   ].filter(Boolean);

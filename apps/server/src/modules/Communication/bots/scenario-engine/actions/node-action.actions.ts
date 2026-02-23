@@ -18,6 +18,7 @@ import { startLeadBuyFlow } from './client-buy.actions.js';
 import { startLeadSellFlow } from './client-sell.actions.js';
 import { startSupportFlow } from './support.actions.js';
 import { ensureB2BRegistrationGate } from './b2b-registration.actions.js';
+import { startB2BInventoryFlow } from './b2b-inventory.actions.js';
 import type { BotRuntime, ScenarioNode } from '../types.js';
 
 export type ActionExecutionResult = 'continue' | 'halt';
@@ -75,6 +76,50 @@ export const executeActionNode = async ({
       chatId: session.chatId,
       vars,
       userId: vars.__telegramUserId
+    });
+    return 'halt';
+  }
+
+  if (actionType === 'START_B2B_INVENTORY_MY') {
+    await startB2BInventoryFlow({
+      bot,
+      chatId: session.chatId,
+      userId: vars.__telegramUserId,
+      vars,
+      mode: 'MY'
+    });
+    return 'halt';
+  }
+
+  if (actionType === 'START_B2B_INVENTORY_ADD') {
+    await startB2BInventoryFlow({
+      bot,
+      chatId: session.chatId,
+      userId: vars.__telegramUserId,
+      vars,
+      mode: 'ADD'
+    });
+    return 'halt';
+  }
+
+  if (actionType === 'START_B2B_INVENTORY_PRICE') {
+    await startB2BInventoryFlow({
+      bot,
+      chatId: session.chatId,
+      userId: vars.__telegramUserId,
+      vars,
+      mode: 'PRICE'
+    });
+    return 'halt';
+  }
+
+  if (actionType === 'START_B2B_INVENTORY_SOLD') {
+    await startB2BInventoryFlow({
+      bot,
+      chatId: session.chatId,
+      userId: vars.__telegramUserId,
+      vars,
+      mode: 'SOLD'
     });
     return 'halt';
   }
@@ -144,8 +189,11 @@ export const executeActionNode = async ({
     const yearMax = extractYear(vars.requestYearMax ?? vars.yearMax);
     const city = normalizeOptionalText(vars.requestCity || vars.city);
     const requestContact = normalizeOptionalText(vars.contact || vars.phone);
+    const representativeName = normalizeOptionalText(
+      [vars.__telegramFirstName, vars.__telegramLastName].filter(Boolean).join(' ')
+    ) || normalizeOptionalText(vars.__telegramUsername ? `@${vars.__telegramUsername}` : undefined);
     const requestCompanyName =
-      normalizeOptionalText(vars.companyName || vars.clientName)
+      normalizeOptionalText(vars.b2bPartnerName || vars.companyName || vars.clientName)
       || (vars.__telegramUsername ? `@${vars.__telegramUsername}` : undefined);
     const mileageRaw = normalizeOptionalText(vars.mileage || vars.requestMileage);
     const mileageMin = extractNumber(vars.requestMileageMin ?? vars.mileageMin);
@@ -205,11 +253,13 @@ export const executeActionNode = async ({
         publicId: generatePublicId(),
         companyId: bot.companyId || null,
         botId: bot.id,
+        requesterPartnerId: vars.b2bPartnerId || null,
         leadId: vars.leadId || null,
         payload: {
           source: requestType === 'BUY' ? 'telegram_b2b' : 'telegram_flow',
           contact: requestContact || undefined,
           companyName: requestCompanyName || undefined,
+          representative: representativeName || undefined,
           request: {
             mileageMin: mileageMin ?? undefined,
             mileageMax: mileageMax ?? undefined,
@@ -217,7 +267,8 @@ export const executeActionNode = async ({
             fuel: fuel || undefined,
             comment: requestComment || undefined,
             contact: requestContact || undefined,
-            companyName: requestCompanyName || undefined
+            companyName: requestCompanyName || undefined,
+            representative: representativeName || undefined
           }
         }
       }
@@ -272,10 +323,14 @@ export const executeActionNode = async ({
     const color = normalizeOptionalText(vars.offerColor || vars.color);
     const vin = normalizeOptionalText(vars.offerVin || vars.vin)?.toUpperCase();
     const companyName = normalizeOptionalText(
-      vars.offerCompanyName
+      vars.b2bPartnerName
+      || vars.offerCompanyName
       || vars.companyName
       || (vars.__telegramUsername ? `@${vars.__telegramUsername}` : undefined)
     );
+    const representative = normalizeOptionalText(
+      [vars.__telegramFirstName, vars.__telegramLastName].filter(Boolean).join(' ')
+    ) || normalizeOptionalText(vars.__telegramUsername ? `@${vars.__telegramUsername}` : undefined);
     const contact = normalizeOptionalText(vars.offerContact || vars.contact || vars.phone);
     const location = normalizeOptionalText(vars.offerLocation || vars.city || vars.location);
     const sourceUrl = normalizeOptionalText(vars.offerUrl || vars.url || vars.sourceUrl);
@@ -334,7 +389,8 @@ export const executeActionNode = async ({
           transmission: transmission || parsed.transmission,
           drive: drive || parsed.drive,
           engine: engine || parsed.engine,
-          color: color || parsed.color
+          color: color || parsed.color,
+          representative
         },
         companyName,
         contact,
@@ -388,7 +444,7 @@ export const executeActionNode = async ({
 
     const requestText = [
       '📝 <b>Новий запит на авто</b>',
-      renderRequestCard(request),
+      renderRequestCard(request, { includeCompany: true }),
       '',
       'Натисніть кнопку нижче, якщо маєте варіант.'
     ].join('\n');

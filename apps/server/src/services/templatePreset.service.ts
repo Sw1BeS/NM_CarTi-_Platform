@@ -131,7 +131,17 @@ const buildMiniAppUrl = (baseUrl: string, slug: string) => {
 };
 
 const LEAD_BUTTON_IDS = new Set(['btn_buy', 'btn_sell', 'btn_support', 'btn_info', 'btn_app']);
-const B2B_BUTTON_IDS = new Set(['btn_b2b_req', 'btn_b2b_offer', 'btn_b2b_app', 'btn_b2b_help', 'btn_b2b_menu']);
+const B2B_BUTTON_IDS = new Set([
+  'btn_b2b_req',
+  'btn_b2b_offer',
+  'btn_b2b_app',
+  'btn_b2b_help',
+  'btn_b2b_menu',
+  'btn_b2b_inv_my',
+  'btn_b2b_inv_add',
+  'btn_b2b_inv_price',
+  'btn_b2b_inv_sold'
+]);
 
 const inferPresetTemplate = (config: BotConfigShape): 'CLIENT_LEAD' | 'B2B' | 'CATALOG' | null => {
   const explicit = toKnownTemplate((config as Record<string, any>)?.presetTemplate);
@@ -280,12 +290,12 @@ const baseLeadButtons = (scenarioIds: Record<string, string>, miniAppUrl: string
   { id: 'btn_app', label: '📱 Відкрити MiniApp', label_uk: '📱 Відкрити MiniApp', label_ru: '📱 Відкрити MiniApp', type: 'WEB_APP', value: miniAppUrl, row: 2, col: 0 }
 ];
 
-const baseB2BButtons = (scenarioIds: Record<string, string>, miniAppUrl: string): MenuButton[] => [
-  { id: 'btn_b2b_req', label: '📝 Створити запит', label_uk: '📝 Створити запит', label_ru: '📝 Створити запит', type: 'SCENARIO', value: scenarioIds.request || 'scn_b2b_request', row: 0, col: 0 },
-  { id: 'btn_b2b_offer', label: '💼 Подати варіант', label_uk: '💼 Подати варіант', label_ru: '💼 Подати варіант', type: 'SCENARIO', value: scenarioIds.offer || 'scn_b2b_offer', row: 0, col: 1 },
-  { id: 'btn_b2b_app', label: '📱 Застосунок', label_uk: '📱 Застосунок', label_ru: '📱 Застосунок', type: 'WEB_APP', value: miniAppUrl, row: 1, col: 0 },
-  { id: 'btn_b2b_help', label: 'ℹ️ Правила', label_uk: 'ℹ️ Правила', label_ru: 'ℹ️ Правила', type: 'SCENARIO', value: scenarioIds.help || 'scn_b2b_help', row: 1, col: 1 },
-  { id: 'btn_b2b_menu', label: '🏠 Меню', label_uk: '🏠 Меню', label_ru: '🏠 Меню', type: 'TEXT', value: '/menu', row: 2, col: 0 }
+const baseB2BButtons = (scenarioIds: Record<string, string>, _miniAppUrl: string): MenuButton[] => [
+  { id: 'btn_b2b_inv_my', label: '🚘 Мій інвентар', label_uk: '🚘 Мій інвентар', label_ru: '🚘 Мій інвентар', type: 'SCENARIO', value: scenarioIds.inv_my || 'scn_b2b_inv_my', row: 0, col: 0 },
+  { id: 'btn_b2b_inv_add', label: '➕ Додати авто', label_uk: '➕ Додати авто', label_ru: '➕ Додати авто', type: 'SCENARIO', value: scenarioIds.inv_add || 'scn_b2b_inv_add', row: 0, col: 1 },
+  { id: 'btn_b2b_inv_price', label: '💲 Змінити ціну', label_uk: '💲 Змінити ціну', label_ru: '💲 Змінити ціну', type: 'SCENARIO', value: scenarioIds.inv_price || 'scn_b2b_inv_price', row: 1, col: 0 },
+  { id: 'btn_b2b_inv_sold', label: '✅ Позначити продано', label_uk: '✅ Позначити продано', label_ru: '✅ Позначити продано', type: 'SCENARIO', value: scenarioIds.inv_sold || 'scn_b2b_inv_sold', row: 1, col: 1 },
+  { id: 'btn_b2b_help', label: 'ℹ️ Інформація / Правила', label_uk: 'ℹ️ Інформація / Правила', label_ru: 'ℹ️ Інформація / Правила', type: 'SCENARIO', value: scenarioIds.help || 'scn_b2b_help', row: 2, col: 0 }
 ];
 
 const maybePatchMenuLinks = (buttons: MenuButton[] | undefined, miniAppUrl: string): MenuButton[] => {
@@ -606,6 +616,50 @@ const b2bScenarioBlueprints = [
         }
       }
     ]
+  },
+  {
+    key: 'inv_my',
+    triggerCommand: 'inventory_my',
+    name: 'B2B Мій інвентар',
+    keywords: ['інвентар', 'мій інвентар', 'inventory'],
+    entryNodeId: 'start',
+    nodes: [
+      { id: 'start', type: 'START', content: { text: '' }, nextNodeId: 'run' },
+      { id: 'run', type: 'ACTION', content: { actionType: 'START_B2B_INVENTORY_MY' } }
+    ]
+  },
+  {
+    key: 'inv_add',
+    triggerCommand: 'inventory_add',
+    name: 'B2B Додати авто',
+    keywords: ['додати авто', 'add inventory'],
+    entryNodeId: 'start',
+    nodes: [
+      { id: 'start', type: 'START', content: { text: '' }, nextNodeId: 'run' },
+      { id: 'run', type: 'ACTION', content: { actionType: 'START_B2B_INVENTORY_ADD' } }
+    ]
+  },
+  {
+    key: 'inv_price',
+    triggerCommand: 'inventory_price',
+    name: 'B2B Змінити ціну',
+    keywords: ['змінити ціну', 'price update'],
+    entryNodeId: 'start',
+    nodes: [
+      { id: 'start', type: 'START', content: { text: '' }, nextNodeId: 'run' },
+      { id: 'run', type: 'ACTION', content: { actionType: 'START_B2B_INVENTORY_PRICE' } }
+    ]
+  },
+  {
+    key: 'inv_sold',
+    triggerCommand: 'inventory_sold',
+    name: 'B2B Позначити продано',
+    keywords: ['продано', 'mark sold'],
+    entryNodeId: 'start',
+    nodes: [
+      { id: 'start', type: 'START', content: { text: '' }, nextNodeId: 'run' },
+      { id: 'run', type: 'ACTION', content: { actionType: 'START_B2B_INVENTORY_SOLD' } }
+    ]
   }
 ] as const;
 
@@ -806,11 +860,13 @@ export const getTemplatePresetStatus = async (input: {
   if (template === 'B2B') {
     const values = new Set(menuButtons.map(btn => String(btn.value || '').trim().toLowerCase()));
     const scenarioButtons = menuButtons.filter(btn => btn.type === 'SCENARIO');
-    const hasRequestEntry = values.has('/request') || scenarioButtons.some(btn => btn.id === 'btn_b2b_req');
-    const hasOfferEntry = values.has('/offer') || scenarioButtons.some(btn => btn.id === 'btn_b2b_offer');
+    const hasInventoryMy = scenarioButtons.some(btn => btn.id === 'btn_b2b_inv_my');
+    const hasInventoryAdd = scenarioButtons.some(btn => btn.id === 'btn_b2b_inv_add');
+    const hasInventoryPrice = scenarioButtons.some(btn => btn.id === 'btn_b2b_inv_price');
+    const hasInventorySold = scenarioButtons.some(btn => btn.id === 'btn_b2b_inv_sold');
     const hasHelpEntry = scenarioButtons.some(btn => btn.id === 'btn_b2b_help');
-    const hasMenu = hasRequestEntry && hasOfferEntry && hasHelpEntry && values.has('/menu');
-    const required = ['request', 'offer', 'help'];
+    const hasMenu = hasInventoryMy && hasInventoryAdd && hasInventoryPrice && hasInventorySold && hasHelpEntry;
+    const required = ['request', 'offer', 'help', 'inventory_my', 'inventory_add', 'inventory_price', 'inventory_sold'];
     const available = await prisma.scenario.findMany({
       where: {
         companyId: input.companyId,
@@ -822,11 +878,12 @@ export const getTemplatePresetStatus = async (input: {
       select: { triggerCommand: true }
     });
     const commandSet = new Set(available.map(item => String(item.triggerCommand || '').toLowerCase()));
+    const hasCommands = commandSet.has('request') && commandSet.has('offer');
     const hasScenarios = required.every(cmd => commandSet.has(cmd));
     const hasAdmin = Boolean(String(input.adminChatId || '').trim());
     const hasChannel = Boolean(String(input.channelId || '').trim());
-    if (hasMenu && hasMini && hasAdmin && hasChannel && hasScenarios) return 'ready';
-    const score = [hasMenu, hasMini, hasAdmin, hasChannel, hasScenarios].filter(Boolean).length;
+    if (hasMenu && hasCommands && hasMini && hasAdmin && hasChannel && hasScenarios) return 'ready';
+    const score = [hasMenu, hasCommands, hasMini, hasAdmin, hasChannel, hasScenarios].filter(Boolean).length;
     if (score === 0) return 'missing';
     return 'partial';
   }
@@ -905,7 +962,7 @@ export const applyTemplatePreset = async (input: {
     await disableConflictingTemplateCommands(input.companyId, input.botId, ['buy', 'sell', 'status', 'lang', 'lead', 'support']);
     const scenarioIds = await ensureB2BScenarios(input.companyId, forcePreset, input.botId);
     const fallbackMenu = cloneMenu(
-      "🤝 CarDealer Lviv B2B\n\nСтворюйте структурований запит та отримуйте пропозиції через кнопку «Є авто».",
+      "🤝 CarDealer Lviv B2B\n\nКеруйте партнерським інвентарем, оновлюйте ціни та позначайте продані авто.",
       baseB2BButtons(scenarioIds, miniAppUrl)
     );
     const existingButtons = Array.isArray(config.menuConfig?.buttons) ? config.menuConfig.buttons : [];
