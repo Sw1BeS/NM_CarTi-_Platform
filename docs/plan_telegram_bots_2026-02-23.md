@@ -140,6 +140,22 @@
 4. `cd apps/server && npm run telegram:normalize-chat-ids -- --dry-run`
 5. `cd apps/server && npm run telegram:normalize-chat-ids -- --apply`
 
+## Execution status (2026-02-23)
+1. Commit 01: `8d5cb06` (done)
+2. Commit 02: `da70f42` (done)
+3. Commit 03: `ed567fa` (done)
+4. Commit 04: `ac87680` (done)
+5. Commit 05: `b3f8584` (done)
+6. Commit 06: `0b5d50e` (done)
+7. Commit 07: done (this commit)
+
+Verification runs in this workspace:
+1. `npm run prisma:generate && npm run prisma:migrate` — PASS (`No pending migrations to apply`)
+2. `npm test` — PASS (`27` files, `67` tests)
+3. `npm run telegram:normalize-chat-ids -- --dry-run` — PASS (idempotent)
+4. `npm run telegram:normalize-chat-ids -- --apply` — PASS (idempotent)
+5. `cd apps/web && npm run build` — PASS
+
 ## Constraints / defaults
 1. Canonical IDs only from live verification (`getChat` + updates).
 2. Webhook contract preserved; no forced mode switch from polling.
