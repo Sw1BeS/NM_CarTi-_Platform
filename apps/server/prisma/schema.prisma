@@ -76,6 +76,21 @@ enum AccessRequestStatus {
   REJECTED
 }
 
+enum ExternalSourceProvider {
+  AUTO_RIA
+  OLX
+}
+
+enum PartnerUserRole {
+  OWNER
+  AGENT
+}
+
+enum SupportTicketStatus {
+  OPEN
+  CLOSED
+}
+
 enum DraftSource {
   EXTENSION
   MANUAL
@@ -250,6 +265,7 @@ model BotConfig {
   scenarios       Scenario[]
   quotaUsages     QuotaUsage[]
   accessRequests  B2bAccessRequest[]
+  supportTickets  SupportTicket[]
 
   @@index([companyId])
 }
@@ -581,6 +597,29 @@ model QuotaUsage {
   @@index([scope, periodKey])
 }
 
+model SupportTicket {
+  id        String              @id @default(cuid())
+  companyId String?
+  workspace Workspace?          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  botId     String?
+  bot       BotConfig?          @relation(fields: [botId], references: [id], onDelete: SetNull)
+  tgUserId  String
+  chatId    String?
+  text      String
+  context   Json?               @db.JsonB
+  status    SupportTicketStatus @default(OPEN)
+  closedAt  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([botId])
+  @@index([tgUserId])
+  @@index([status])
+  @@index([tgUserId, status, createdAt])
+}
+
 model B2bAccessRequest {
   id        String              @id @default(cuid())
   companyId String?
@@ -638,6 +677,8 @@ model CarListing {
   id          String   @id
   source      String   @default("MANUAL")
   sourceUrl   String?
+  sourceProvider ExternalSourceProvider?
+  external    Boolean  @default(false)
   title       String
   price       Int
   currency    String   @default("USD")
@@ -651,6 +692,8 @@ model CarListing {
   description String?
   status      String   @default("AVAILABLE") // AVAILABLE, RESERVED, SOLD, PENDING, HIDDEN
   companyId   String?
+  partnerCompanyId String?
+  partnerCompany PartnerCompany? @relation(fields: [partnerCompanyId], references: [id], onDelete: SetNull)
   postedAt    DateTime @default(now())
 
   // MTProto Sync Fields
@@ -671,8 +714,12 @@ model CarListing {
   @@index([companyId])
   @@index([companyId, status])
   @@index([companyId, status, createdAt])
+  @@index([partnerCompanyId])
+  @@index([partnerCompanyId, status])
   @@index([year, price])
   @@index([source])
+  @@index([sourceProvider])
+  @@index([external])
 }
 
 model MiniAppFavorite {
@@ -881,11 +928,15 @@ model PartnerCompany {
   city      String?
   contact   String?
   notes     String?
+  partnerCode String?  @unique
+  showcaseSlug String? @unique
+  crmUrl    String?
   adminGroupChatId String?
   companyId String?
   workspace Workspace? @relation(fields: [companyId], references: [id], onDelete: SetNull)
 
   users     PartnerUser[]
+  carListings CarListing[]
   requesterRequests B2bRequest[]    @relation("RequesterPartnerRequests")
   sellerVariants   RequestVariant[] @relation("SellerPartnerVariants")
   createdAt DateTime      @default(now())
@@ -897,6 +948,7 @@ model PartnerCompany {
 model PartnerUser {
   id         String          @id @default(cuid())
   name       String
+  role       PartnerUserRole @default(AGENT)
   telegramId String?         @unique
   phone      String?
   partnerId  String?
@@ -1138,6 +1190,7 @@ model Workspace {
   integrationEventLogs IntegrationEventLog[]
   quotaUsages          QuotaUsage[]
   b2bAccessRequests    B2bAccessRequest[]
+  supportTickets       SupportTicket[]
   chatMacros           ChatMacro[]
   chatNotes            ChatNote[]
   parsingJobs          ParsingJob[]
