@@ -1,13 +1,12 @@
 import { prisma } from '../../../../../services/prisma.js';
 import { mapVariantInput } from '../../../../../services/dto.js';
-import { renderCarCardForBot } from '../../../../../services/carCardRenderer.v2.js';
 import { createDeepLinkKeyboard, generateRequestLink } from '../../../../../utils/deeplink.utils.js';
 // @ts-ignore
 import { createOrMergeLead } from '../../../telegram/core/leadService.js';
-// @ts-ignore
-import { searchAutoRia } from '../../../../Integrations/autoria.service.js';
-import { sendMessage, sendPhoto } from '../adapters/telegram.adapter.js';
+import { externalSearchService } from '../../../../Integrations/external-search/externalSearch.service.js';
+import { sendMessage } from '../adapters/telegram.adapter.js';
 import { createCarCardKeyboard } from './b2b.actions.js';
+import { sendCarCardWithMedia } from './car-card.actions.js';
 import { getBotUsername, getLanguage, mapRequestForMessage } from '../runtime/helpers.js';
 import type { BotRuntime } from '../types.js';
 
@@ -180,31 +179,49 @@ export const handleManagerRequestAction = async (
     const req = await prisma.b2bRequest.findUnique({ where: { id: reqId } });
     if (!req) return;
 
-    await sendMessage(bot, chatId, '🔍 Searching AutoRia...');
-    const results = await searchAutoRia({
-      brand: req.title.split(' ')[0],
-      yearMin: req.yearMin,
-      priceMax: req.budgetMax
+    await sendMessage(bot, chatId, '🔍 Шукаю варіанти...');
+    const [brandRaw, modelRaw] = String(req.title || '').split(/\\s+/);
+    const results = await externalSearchService.searchAndPersist({
+      brand: brandRaw,
+      model: modelRaw,
+      city: req.city || undefined,
+      yearMin: req.yearMin || undefined,
+      budgetMax: req.budgetMax || undefined
+    }, {
+      companyId: bot.companyId || null,
+      maxResults: 6
     });
 
     if (results.length === 0) {
-      await sendMessage(bot, chatId, '⚠️ No results found.');
+      await sendMessage(bot, chatId, '⚠️ Нічого не знайдено.');
       return;
     }
 
-    for (const car of results.slice(0, 3)) {
-      const caption = await renderCarCardForBot({
+    for (const item of results.slice(0, 3)) {
+      const car = {
+        canonicalId: item.id,
+        sourceId: undefined,
+        source: item.source,
+        sourceUrl: item.sourceUrl,
+        title: item.title,
+        price: { amount: item.price, currency: item.currency || 'USD' },
+        year: item.year,
+        mileage: item.mileage,
+        location: item.location,
+        thumbnail: item.thumbnail,
+        mediaUrls: item.mediaUrls || [],
+        specs: item.specs || {},
+        status: item.status || 'HIDDEN',
+        postedAt: new Date().toISOString()
+      };
+      const keyboard = createCarCardKeyboard(car, 'UK');
+      await sendCarCardWithMedia({
+        bot,
+        chatId,
         car,
         lang: 'UK',
-        companyId: bot.companyId || null,
-        botId: bot.id
+        replyMarkup: keyboard
       });
-      const keyboard = createCarCardKeyboard(car, 'UK');
-      if (car.thumbnail) {
-        await sendPhoto(bot, chatId, car.thumbnail, caption, keyboard);
-      } else {
-        await sendMessage(bot, chatId, caption, keyboard);
-      }
     }
   }
 };

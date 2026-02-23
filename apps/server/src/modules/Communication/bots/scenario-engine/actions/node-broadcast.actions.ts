@@ -5,8 +5,7 @@ import {
   generateOfferLink,
   generateRequestLink
 } from '../../../../../utils/deeplink.utils.js';
-// @ts-ignore
-import { searchAutoRia } from '../../../../Integrations/autoria.service.js';
+import { externalSearchService } from '../../../../Integrations/external-search/externalSearch.service.js';
 import { sendMessage, sendPhoto } from '../adapters/telegram.adapter.js';
 import { getBotUsername, mapRequestForMessage } from '../runtime/helpers.js';
 import { mapDbCar } from './b2b.actions.js';
@@ -24,19 +23,43 @@ interface ScenarioNodeContext {
   scenarioId: string;
 }
 
-export const executeSearchCarsNode = async ({ vars }: Pick<ScenarioNodeContext, 'vars'>) => {
+const mapExternalToCard = (item: any) => ({
+  canonicalId: item.id,
+  sourceId: undefined,
+  source: item.source || `EXTERNAL_${item.sourceProvider || 'AUTO_RIA'}`,
+  sourceUrl: item.sourceUrl,
+  title: item.title,
+  price: { amount: item.price || 0, currency: item.currency || 'USD' },
+  year: item.year || 0,
+  mileage: item.mileage || 0,
+  location: item.location || '',
+  thumbnail: item.thumbnail || '',
+  mediaUrls: item.mediaUrls || [],
+  specs: item.specs || {},
+  status: item.status || 'HIDDEN',
+  postedAt: new Date().toISOString()
+});
+
+export const executeSearchCarsNode = async ({
+  vars,
+  bot
+}: Pick<ScenarioNodeContext, 'vars' | 'bot'>) => {
   const filter = {
     brand: vars.brand,
     model: vars.model,
-    priceMax: Number(vars.budget || 0),
-    yearMin: Number(vars.year || 0)
+    priceMax: Number(vars.budget || vars.budgetMax || 0),
+    yearMin: Number(vars.year || vars.yearMin || 0),
+    city: vars.city,
+    mileageMax: Number(vars.mileage || vars.mileageMax || 0),
+    fuel: vars.fuel
   };
 
   const internal = await prisma.carListing.findMany({
     where: {
       status: 'AVAILABLE',
       ...(filter.brand ? { title: { contains: String(filter.brand), mode: 'insensitive' } } : {}),
-      ...(filter.priceMax ? { price: { lte: filter.priceMax } } : {})
+      ...(filter.priceMax ? { price: { lte: filter.priceMax } } : {}),
+      ...(filter.yearMin ? { year: { gte: filter.yearMin } } : {})
     },
     orderBy: { createdAt: 'desc' },
     take: 10
@@ -50,9 +73,21 @@ export const executeSearchCarsNode = async ({ vars }: Pick<ScenarioNodeContext, 
 
   let merged = mapped;
   if (mapped.length < 3) {
-    const external = await searchAutoRia(filter);
+    const external = await externalSearchService.searchAndPersist({
+      brand: filter.brand,
+      model: filter.model,
+      city: filter.city,
+      yearMin: filter.yearMin || undefined,
+      budgetMax: filter.priceMax || undefined,
+      mileageMax: filter.mileageMax || undefined,
+      fuel: filter.fuel
+    }, {
+      companyId: bot.companyId || null,
+      maxResults: 6
+    });
+    const externalCards = external.map(mapExternalToCard);
     const seen = new Set(mapped.map(c => c.canonicalId || c.sourceUrl));
-    const deduped = external.filter((car: any) => {
+    const deduped = externalCards.filter((car: any) => {
       const key = car.canonicalId || car.sourceUrl;
       if (!key || seen.has(key)) return false;
       seen.add(key);
@@ -65,17 +100,35 @@ export const executeSearchCarsNode = async ({ vars }: Pick<ScenarioNodeContext, 
   vars.found_count = merged.length;
 };
 
-export const executeSearchFallbackNode = async ({ vars }: Pick<ScenarioNodeContext, 'vars'>) => {
+export const executeSearchFallbackNode = async ({
+  vars,
+  bot
+}: Pick<ScenarioNodeContext, 'vars' | 'bot'>) => {
   const filter = {
     brand: vars.brand,
     model: vars.model,
-    priceMax: Number(vars.budget || 0),
-    yearMin: Number(vars.year || 0)
+    priceMax: Number(vars.budget || vars.budgetMax || 0),
+    yearMin: Number(vars.year || vars.yearMin || 0),
+    city: vars.city,
+    mileageMax: Number(vars.mileage || vars.mileageMax || 0),
+    fuel: vars.fuel
   };
 
-  const external = await searchAutoRia(filter);
-  vars.__tempResults = external.slice(0, 5);
-  vars.found_count = external.length;
+  const external = await externalSearchService.searchAndPersist({
+    brand: filter.brand,
+    model: filter.model,
+    city: filter.city,
+    yearMin: filter.yearMin || undefined,
+    budgetMax: filter.priceMax || undefined,
+    mileageMax: filter.mileageMax || undefined,
+    fuel: filter.fuel
+  }, {
+    companyId: bot.companyId || null,
+    maxResults: 6
+  });
+  const mapped = external.map(mapExternalToCard);
+  vars.__tempResults = mapped.slice(0, 5);
+  vars.found_count = mapped.length;
 };
 
 export const executeChannelPostNode = async ({

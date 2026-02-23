@@ -239,14 +239,14 @@ export const executeNodeRuntime = async ({
     }
 
     case 'SEARCH_CARS': {
-      await executeSearchCarsNodeAction({ vars });
+      await executeSearchCarsNodeAction({ vars, bot });
 
       await continueToNextOrComplete();
       break;
     }
 
     case 'SEARCH_FALLBACK': {
-      await executeSearchFallbackNodeAction({ vars });
+      await executeSearchFallbackNodeAction({ vars, bot });
 
       await continueToNextOrComplete();
       break;
