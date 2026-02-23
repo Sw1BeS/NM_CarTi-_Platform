@@ -99,6 +99,17 @@ export const renderCarCardV2 = (car: any, settings: CarCardSettings) => {
   const address = String(settings.address || '');
   const mapLinkLine = String(settings.mapLinkLine || '').trim();
   const socialLinksLine = String(settings.socialLinksLine || '').trim();
+  const includeContacts = Boolean((settings as any).includeContacts);
+
+  const contactsSection = includeContacts
+    ? `☎️ Зв’язатись з нами:
+Менеджери:
+По авто в наявності та в дорозі:
+${settings.manager1Phone} - ${settings.manager1Name}
+По підбору та пригону:
+${settings.manager2Phone} - ${settings.manager2Name}
+`
+    : '';
 
   return `${flag}${makeModelYear}
 ⏳#${status.statusTag} (${status.statusText})
@@ -117,13 +128,7 @@ ${priceNote}
 ${address}
 ${mapLinkLine}
 
-☎️ Зв’язатись з нами:
-Менеджери:
-По авто в наявності та в дорозі:
-${settings.manager1Phone} - ${settings.manager1Name}
-По підбору та пригону:
-${settings.manager2Phone} - ${settings.manager2Name}
-
+${contactsSection}
 Підписуйся на нас в соцмережах⬇️
 ${socialLinksLine}
 🚗Авто в наявності`;
@@ -138,6 +143,8 @@ export const renderCarCardForBot = async (params: {
   botId?: string | null;
   showcaseId?: string | null;
   showcaseSlug?: string | null;
+  includeContacts?: boolean;
+  audience?: 'PUBLIC' | 'ADMIN';
 }) => {
   if (!isCarCardV2Enabled()) {
     return renderCarListingCard(params.car, params.lang || 'UK');
@@ -150,5 +157,8 @@ export const renderCarCardForBot = async (params: {
     showcaseSlug: params.showcaseSlug
   });
 
-  return renderCarCardV2(params.car, settings);
+  return renderCarCardV2(params.car, {
+    ...settings,
+    includeContacts: Boolean(params.includeContacts || params.audience === 'ADMIN')
+  } as CarCardSettings);
 };
