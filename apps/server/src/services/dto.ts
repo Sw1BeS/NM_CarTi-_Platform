@@ -14,6 +14,40 @@ const toString = (value: any) => {
   return NormalizationService.cleanString(value) || undefined;
 };
 
+const normalizeSpecLabel = (key: 'fuel' | 'transmission' | 'drive' | 'condition', value: any) => {
+  const raw = toString(value);
+  if (!raw) return undefined;
+  const norm = raw.toLowerCase();
+
+  if (key === 'fuel') {
+    if (/diesel|дизел/.test(norm)) return 'Дизель';
+    if (/petrol|gasoline|бензин/.test(norm)) return 'Бензин';
+    if (/hybrid|гібрид|гибрид/.test(norm)) return 'Гібрид';
+    if (/electric|elektro|electro|ev|електро|электро/.test(norm)) return 'Електро';
+    if (/lpg|газ/.test(norm)) return 'Газ';
+  }
+
+  if (key === 'transmission') {
+    if (/automat|автомат|at\b/.test(norm)) return 'Автомат';
+    if (/manual|механ|mt\b/.test(norm)) return 'Механіка';
+    if (/cvt|варіатор/.test(norm)) return 'Варіатор';
+    if (/robot|робот/.test(norm)) return 'Робот';
+  }
+
+  if (key === 'drive') {
+    if (/awd|4wd|quattro|повн/.test(norm)) return 'Повний';
+    if (/fwd|front|передн/.test(norm)) return 'Передній';
+    if (/rwd|rear|задн/.test(norm)) return 'Задній';
+  }
+
+  if (key === 'condition') {
+    if (/in[\s-_]?transit|дороз|в\s+дороз/.test(norm)) return 'В дорозі';
+    if (/available|наяв|в\s+наяв/.test(norm)) return 'В наявності';
+  }
+
+  return raw;
+};
+
 const LEAD_STATUS_TO_DB: Record<string, DbLeadStatus> = {
   NEW: DbLeadStatus.NEW,
   CONTACTED: DbLeadStatus.CONTACTED,
@@ -430,7 +464,9 @@ export const mapInventoryOutput = (car: Record<string, unknown>) => ({
       ...baseSpecs
     };
 
+    if (!mergedSpecs.brand && (baseSpecs as any).make !== undefined) mergedSpecs.brand = (baseSpecs as any).make;
     if (!mergedSpecs.brand && parsed.brand !== undefined) mergedSpecs.brand = parsed.brand;
+    if (!mergedSpecs.model && (baseSpecs as any).trim !== undefined) mergedSpecs.model = (baseSpecs as any).trim;
     if (!mergedSpecs.model && parsed.model !== undefined) mergedSpecs.model = parsed.model;
 
     const parsedSpecKeys = ['engine', 'fuel', 'transmission', 'drive', 'vin', 'color', 'condition'] as const;
@@ -440,13 +476,24 @@ export const mapInventoryOutput = (car: Record<string, unknown>) => ({
       }
     }
 
+    if (mergedSpecs.fuel) mergedSpecs.fuel = normalizeSpecLabel('fuel', mergedSpecs.fuel);
+    if (mergedSpecs.transmission) mergedSpecs.transmission = normalizeSpecLabel('transmission', mergedSpecs.transmission);
+    if (mergedSpecs.drive) mergedSpecs.drive = normalizeSpecLabel('drive', mergedSpecs.drive);
+    if (mergedSpecs.condition) mergedSpecs.condition = normalizeSpecLabel('condition', mergedSpecs.condition);
+
     const mediaUrls = Array.isArray(car.mediaUrls)
-      ? (car.mediaUrls as unknown[]).filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+      ? Array.from(new Set((car.mediaUrls as unknown[])
+        .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+        .map(value => value.trim())))
       : [];
     const mediaItems = Array.isArray(car.mediaItems)
       ? (car.mediaItems as unknown[])
       : [];
-    const thumbnail = toString(car.thumbnail) || mediaUrls[0] || '';
+    const thumbnail = toString(car.thumbnail)
+      || toString((mediaItems[0] as any)?.url)
+      || toString((mediaItems[0] as any)?.previewUrl)
+      || mediaUrls[0]
+      || '';
     const year = toNumber(car.year) ?? toNumber(parsed.year) ?? 0;
     const mileage = toNumber(car.mileage) ?? toNumber(parsed.mileage) ?? 0;
     const location = toString(car.location) || toString(parsed.location) || '';
@@ -456,7 +503,12 @@ export const mapInventoryOutput = (car: Record<string, unknown>) => ({
     const modelLooksNoisy = /(?:color|condition|пробіг|пробег|ціна|цена|price|бюджет|грн|usd|eur)/i.test(modelFromSource)
       || modelFromSource.split(/\s+/).length > 5;
     const model = (modelFromSource && !modelLooksNoisy) ? modelFromSource : (modelFromParsed || modelFromSource);
-    const brand = toString((car as any).brand) || toString((mergedSpecs as any).brand) || toString(parsed.brand) || '';
+    const brand = toString((car as any).brand)
+      || toString((car as any).make)
+      || toString((mergedSpecs as any).brand)
+      || toString((mergedSpecs as any).make)
+      || toString(parsed.brand)
+      || '';
 
     return {
       ...car,
