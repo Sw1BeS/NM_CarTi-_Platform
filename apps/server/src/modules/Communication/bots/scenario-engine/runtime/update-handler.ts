@@ -82,8 +82,44 @@ export const handleUpdateRuntime = async ({
   const lang = getLanguage(vars);
   const startPayloadRaw = messageTextRaw.startsWith('/start') ? messageTextRaw.split(' ')[1] : '';
   const hasStartPayload = !!(startPayloadRaw && parseStartPayload(startPayloadRaw));
-  const isDealerFlow = vars.role === 'DEALER' || vars.dealer_invite_id || vars.ref_request_id;
   const saveSession = async () => persistSession(vars, history);
+  const hasActiveDealerFlow = () => {
+    const dealerState = String(vars.dealer_state || '').trim().toUpperCase();
+    const activeDealerStates = new Set([
+      'INIT',
+      'AWAIT_CONTACT',
+      'AWAIT_COMPANY',
+      'AWAIT_TITLE',
+      'AWAIT_PHOTOS',
+      'AWAIT_PRICE',
+      'AWAIT_YEAR',
+      'AWAIT_MILEAGE',
+      'AWAIT_FUEL',
+      'AWAIT_CONDITION',
+      'AWAIT_VIN',
+      'AWAIT_URL',
+      'AWAIT_DETAILS',
+      'CONFIRM'
+    ]);
+    const hasDealerReference = Boolean(
+      vars.dealer_invite_id
+      || vars.ref_request_id
+      || vars.ref_offer_id
+      || vars.requestId
+      || vars.requestPublicId
+    );
+    return activeDealerStates.has(dealerState) && hasDealerReference;
+  };
+  const clearDealerFlowContext = () => {
+    delete vars.dealer_flow;
+    delete vars.dealer_state;
+    delete vars.dealer_photos;
+    delete vars.dealer_invite_id;
+    delete vars.ref_request_id;
+    delete vars.ref_offer_id;
+    delete vars.requestId;
+    delete vars.requestPublicId;
+  };
   const onFormSubmission = async (submission: any) => {
     vars.__formSubmission = submission;
     if (submission?.confirmAction === 'LEADBUY:FORM_SUBMIT' && submission?.status === 'CONFIRMED') {
@@ -136,7 +172,9 @@ export const handleUpdateRuntime = async ({
   const interruptInputs = new Set([
     '/start', '/menu', 'menu', 'меню', 'в меню', '🏠 menu', 'main menu', 'reset',
     '/cancel', 'cancel', 'stop', 'скасувати', 'відміна', 'отмена',
-    '/back', 'back', 'назад', '⬅️ back', 'cmd:back'
+    '/back', 'back', 'назад', '⬅️ back', 'cmd:back',
+    'купити авто', 'продати авто', 'підтримка', 'інформація', 'відкрити miniapp',
+    'мій інвентар', 'додати авто', 'змінити ціну', 'позначити продано', 'інформація / правила'
   ]);
   const shouldInterruptInteractiveFlow = interruptInputs.has(input);
 
@@ -162,6 +200,11 @@ export const handleUpdateRuntime = async ({
     delete vars.__formSubmission;
     clearActiveScenario(vars, history);
     delete vars.__tempResults;
+    await saveSession();
+  }
+
+  if (hasActiveDealerFlow() && update.message && shouldInterruptInteractiveFlow) {
+    clearDealerFlowContext();
     await saveSession();
   }
 
@@ -293,7 +336,7 @@ export const handleUpdateRuntime = async ({
   });
   if (handledWebAppData) return true;
 
-  if (!scenarios.length && !hasMenuButtons && !isDealerFlow && !hasStartPayload) {
+  if (!scenarios.length && !hasMenuButtons && !hasActiveDealerFlow() && !hasStartPayload) {
     return false;
   }
 
@@ -310,7 +353,7 @@ export const handleUpdateRuntime = async ({
   };
 
   // Dealer flow handling
-  if (isDealerFlow) {
+  if (hasActiveDealerFlow()) {
     const handledDealer = await handleDealerFlow();
     if (handledDealer) return true;
   }
