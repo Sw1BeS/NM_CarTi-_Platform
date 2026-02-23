@@ -213,6 +213,23 @@ run_migrations() {
 }
 
 # ========================================
+# STEP 5.5: Post-Migrate Telegram/B2B Sync
+# ========================================
+post_migrate_sync() {
+  log "Running post-migrate Telegram/B2B sync..."
+
+  local api_container="${PROJECT}-api-1"
+
+  docker exec "$api_container" npm run telegram:normalize-chat-ids -- --apply \
+    || die "telegram:normalize-chat-ids --apply failed"
+
+  docker exec "$api_container" npm run b2b:backfill-partner-admin-groups \
+    || die "b2b:backfill-partner-admin-groups failed"
+
+  log "✅ Post-migrate sync complete"
+}
+
+# ========================================
 # STEP 6: Seed Production Data
 # ========================================
 seed_data() {
@@ -419,6 +436,20 @@ telegram_smoke_check() {
 }
 
 # ========================================
+# STEP 7.6: Telegram Live Verify
+# ========================================
+telegram_live_verify() {
+  log "Running Telegram live verification..."
+  if [ -x "$REPO_DIR/infra/verify_telegram_live.sh" ]; then
+    PROJECT="$PROJECT" bash "$REPO_DIR/infra/verify_telegram_live.sh" \
+      || die "Telegram live verification failed"
+    log "✅ Telegram live verification passed"
+  else
+    die "verify_telegram_live.sh not found or not executable"
+  fi
+}
+
+# ========================================
 # STEP 8: Cleanup Docker Artifacts
 # ========================================
 cleanup_docker() {
@@ -450,12 +481,14 @@ main() {
   build_images
   start_services
   run_migrations
+  post_migrate_sync
   seed_data
   sync_bot_presets
   health_checks
   verify_asset_routing
   verify_build_metadata
   telegram_smoke_check
+  telegram_live_verify
   cleanup_docker
   
   log "========================================="
