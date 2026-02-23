@@ -44,17 +44,19 @@
   body {
     margin: 0;
     background: #000;
+    font-family: "Manrope", "SF Pro Display", "Segoe UI", sans-serif;
   }
 
   body.telegram-miniapp {
     overflow: hidden;
     overscroll-behavior: none;
     touch-action: pan-x pan-y;
+    background: radial-gradient(circle at 15% 0%, #1a1a1a 0%, #000 52%);
   }
 
   .telegram-miniapp-shell {
-    height: var(--tg-viewport-height);
-    max-height: var(--tg-viewport-height);
+    height: var(--tg-viewport-stable-height);
+    max-height: var(--tg-viewport-stable-height);
   }
 }
 

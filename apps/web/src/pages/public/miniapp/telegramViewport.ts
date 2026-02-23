@@ -4,6 +4,7 @@ const setViewportVars = (tg?: any) => {
 
   document.documentElement.style.setProperty('--tg-viewport-height', `${viewportHeight}px`);
   document.documentElement.style.setProperty('--tg-viewport-stable-height', `${stableHeight}px`);
+  document.body.style.height = `${stableHeight}px`;
 };
 
 export const initTelegramViewport = (tg?: any) => {
@@ -15,7 +16,11 @@ export const initTelegramViewport = (tg?: any) => {
   tg?.ready?.();
   tg?.expand?.();
   tg?.enableClosingConfirmation?.();
-  tg?.disableVerticalSwipes?.();
+  try {
+    tg?.disableVerticalSwipes?.();
+  } catch {
+    // unsupported on old Telegram clients
+  }
 
   setViewportVars(tg);
 
@@ -26,5 +31,6 @@ export const initTelegramViewport = (tg?: any) => {
     tg?.offEvent?.('viewportChanged', onViewportChanged);
     window.removeEventListener('resize', onResize);
     document.body.classList.remove('telegram-miniapp');
+    document.body.style.height = '';
   };
 };

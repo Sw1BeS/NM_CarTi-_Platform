@@ -6,6 +6,17 @@ import { ImageUtils } from '../../services/imageUtils';
 import { addPublicVariant, createDealerSession, getPublicRequests } from '../../services/publicApi';
 import { Briefcase, ChevronRight, X, DollarSign, Calendar, MapPin, Search, Plus, CheckCircle, Zap, Loader, ExternalLink, RefreshCw, Car, Upload, Image as ImageIcon, Camera, ArrowLeft } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
+import { ToastStack, useToasts } from '../../components/ui/Toast';
+
+const emitDealerEvent = (level: 'info' | 'warn' | 'error', message: string, meta?: Record<string, unknown>) => {
+    try {
+        window.dispatchEvent(new CustomEvent('cartie:dealer_portal:event', {
+            detail: { at: new Date().toISOString(), level, message, meta: meta || {} }
+        }));
+    } catch {
+        // no-op
+    }
+};
 
 export const DealerPortal = () => {
     const [user, setUser] = useState<User | null>(null);
@@ -20,6 +31,7 @@ export const DealerPortal = () => {
     // View State
     const [selectedReq, setSelectedReq] = useState<B2BRequest | null>(null);
     const [formOpen, setFormOpen] = useState(false);
+    const { toasts, pushToast, dismissToast } = useToasts();
 
     const [searchParams] = useSearchParams();
 
@@ -40,7 +52,7 @@ export const DealerPortal = () => {
             setUser(session.user);
             setCompany(null);
         } catch (err: any) {
-            console.error(err);
+            emitDealerEvent('error', 'Failed to create dealer session', { error: err?.message || String(err) });
             setAccessError("Partner Access Only.");
             setIsLoading(false);
             return;
@@ -91,7 +103,7 @@ export const DealerPortal = () => {
                 tg.close();
             });
         } else {
-            alert('Offer submitted!');
+            pushToast('Offer submitted!', 'success');
             setFormOpen(false);
             setSelectedReq(null);
         }
@@ -116,11 +128,17 @@ export const DealerPortal = () => {
     }
 
     if (formOpen && selectedReq) {
-        return <SubmissionForm request={selectedReq} onSubmit={handleSubmitVariant} onCancel={() => setFormOpen(false)} />;
+        return (
+            <>
+                <ToastStack items={toasts} onDismiss={dismissToast} />
+                <SubmissionForm request={selectedReq} onSubmit={handleSubmitVariant} onCancel={() => setFormOpen(false)} pushToast={pushToast} />
+            </>
+        );
     }
 
     return (
         <div className="min-h-screen bg-[var(--bg-app)] pb-20 font-sans">
+            <ToastStack items={toasts} onDismiss={dismissToast} />
             <div className="bg-[var(--bg-surface)] p-4 sticky top-0 z-10 border-b border-[var(--border-color)]">
                 <div className="flex justify-between items-center mb-1">
                     <h1 className="text-lg font-bold text-[var(--text-primary)] flex items-center gap-2">
@@ -168,7 +186,7 @@ export const DealerPortal = () => {
     );
 };
 
-const SubmissionForm = ({ request, onSubmit, onCancel }: any) => {
+const SubmissionForm = ({ request, onSubmit, onCancel, pushToast }: any) => {
     const [link, setLink] = useState('');
     const [isParsing, setIsParsing] = useState(false);
     const [thumbnail, setThumbnail] = useState('');
@@ -198,7 +216,8 @@ const SubmissionForm = ({ request, onSubmit, onCancel }: any) => {
             });
             if (parsed.thumbnail) setThumbnail(parsed.thumbnail);
         } catch (e) {
-            alert("Could not auto-fill. Please enter details manually.");
+            pushToast("Could not auto-fill. Please enter details manually.", 'error');
+            emitDealerEvent('warn', 'Smart parse failed', { error: e instanceof Error ? e.message : String(e) });
             setData({ ...data, url: link });
         } finally {
             setIsParsing(false);
@@ -212,13 +231,17 @@ const SubmissionForm = ({ request, onSubmit, onCancel }: any) => {
                 const compressed = await ImageUtils.compress(base64);
                 setThumbnail(compressed);
             } catch (err) {
-                alert("Failed to process image");
+                pushToast("Failed to process image", 'error');
+                emitDealerEvent('warn', 'Image processing failed', { error: err instanceof Error ? err.message : String(err) });
             }
         }
     };
 
     const submit = () => {
-        if (!data.title || !data.price) return alert("Title and Price are required.");
+        if (!data.title || !data.price) {
+            pushToast("Title and Price are required.", 'error');
+            return;
+        }
         onSubmit({
             title: data.title,
             price: { amount: parseInt(data.price), currency: 'USD' },

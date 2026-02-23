@@ -5,13 +5,32 @@ import { Bot, MiniAppConfig, CarListing } from '../../types';
 import { getPublicBots, getShowcaseInventory } from '../../services/publicApi';
 import { createMiniAppRequest, getMiniAppConfig, getMiniAppFavorites, getMiniAppRequestStatus, toggleMiniAppFavorite, type MiniAppTrackingMeta } from '../../services/miniappApi';
 import {
-    Search, LayoutGrid, User, Plus, Filter, ArrowRight, DollarSign,
+    Search, LayoutGrid, User, Plus, Filter, DollarSign,
     MessageSquare, Zap, List as ListIcon, Star, Phone, Home, Heart, ClipboardList,
     ChevronRight, MapPin, Calendar, CheckCircle, SlidersHorizontal,
-    X, ChevronLeft, ChevronRight as ChevronRightIcon, Image as ImageIcon, History, ShieldCheck, LogOut
+    X, ChevronLeft, ChevronRight as ChevronRightIcon, Image as ImageIcon
 } from 'lucide-react';
 import { initTelegramViewport } from './miniapp/telegramViewport';
 import { popViewHistory, pushViewHistory } from './miniapp/navigation';
+import { ToastStack, useToasts } from '../../components/ui/Toast';
+import { MiniAppShell } from './miniapp/MiniAppShell';
+import { ProfileView } from './miniapp/views/ProfileView';
+import { RequestView } from './miniapp/views/RequestView';
+
+const emitMiniAppEvent = (level: 'info' | 'warn' | 'error', message: string, meta?: Record<string, unknown>) => {
+    try {
+        window.dispatchEvent(new CustomEvent('cartie:miniapp:event', {
+            detail: {
+                at: new Date().toISOString(),
+                level,
+                message,
+                meta: meta || {}
+            }
+        }));
+    } catch {
+        // no-op
+    }
+};
 
 class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean; error: Error | null; errorInfo: React.ErrorInfo | null }> {
     constructor(props: { children: React.ReactNode }) {
@@ -24,7 +43,10 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
     }
 
     componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-        console.error("MiniApp ErrorBoundary caught error:", error, errorInfo);
+        emitMiniAppEvent('error', 'MiniApp ErrorBoundary caught error', {
+            error: String(error),
+            componentStack: errorInfo.componentStack || ''
+        });
         this.setState({ errorInfo });
     }
 
@@ -232,6 +254,7 @@ const MiniAppContent = () => {
     const [statusResult, setStatusResult] = useState<any>(null);
     const [trackingMeta, setTrackingMeta] = useState<MiniAppTrackingMeta>({});
     const [reqComment, setReqComment] = useState('');
+    const { toasts, pushToast, dismissToast } = useToasts();
     const hasTelegramInit = Boolean(initData);
     const viewHistoryRef = useRef<MiniAppView[]>(['HOME']);
     const suppressHistoryPushRef = useRef(false);
@@ -284,7 +307,7 @@ const MiniAppContent = () => {
             setFavorites(res.ids || []);
             setFavoriteItems(res.items || []);
         } catch (e) {
-            console.error('Failed to load favorites', e);
+            emitMiniAppEvent('warn', 'Failed to load favorites', { error: e instanceof Error ? e.message : String(e) });
         }
     };
 
@@ -312,7 +335,8 @@ const MiniAppContent = () => {
                 });
             }
         } catch (e) {
-            console.error('Failed to toggle favorite', e);
+            emitMiniAppEvent('warn', 'Failed to toggle favorite', { error: e instanceof Error ? e.message : String(e), carId: id });
+            pushToast('Не вдалося оновити обране. Спробуйте ще раз.', 'error');
         }
     };
 
@@ -396,7 +420,7 @@ const MiniAppContent = () => {
         setInitError(null);
         setRequiresTelegram(false);
         const requestId = Math.random().toString(36).substring(7);
-        console.log(`[MiniApp] Init started. RequestId: ${requestId}, Slug: ${slug}`);
+        emitMiniAppEvent('info', 'MiniApp init started', { requestId, slug });
         setConfigWarning(null);
 
         // 1. Initialize Telegram Web App & Extract start_param
@@ -406,7 +430,7 @@ const MiniAppContent = () => {
         const resolvedUser = telegramContext.user;
 
         if (!telegramContext.isTelegramContext) {
-            console.log(`[MiniApp] Telegram WebApp NOT detected. Telegram-only gate enabled.`);
+            emitMiniAppEvent('warn', 'Telegram WebApp context not detected');
             setRequiresTelegram(true);
             setInitData(undefined);
             setTgUser(null);
@@ -418,7 +442,11 @@ const MiniAppContent = () => {
 
         const platform = telegramContext.tg?.platform || (hasTelegramUserAgent() ? 'telegram-ua' : 'url-fallback');
         const version = telegramContext.tg?.version || 'n/a';
-        console.log(`[MiniApp] Telegram context detected. Platform: ${platform}, Version: ${version}, hasInitData: ${Boolean(telegramContext.initData)}`);
+        emitMiniAppEvent('info', 'Telegram context detected', {
+            platform,
+            version,
+            hasInitData: Boolean(telegramContext.initData)
+        });
         setTgUser(resolvedUser);
         setInitData(telegramContext.initData);
         if (!telegramContext.initData) {
@@ -447,13 +475,11 @@ const MiniAppContent = () => {
         // 2. Determine Target Slug (priority: URL slug > start_param > system)
         const rawSlug = slug || startParam || 'system';
         const resolvedSlug = normalizeSlug(rawSlug) || 'system';
-        console.log(`[MiniApp] Resolved slug: ${resolvedSlug} (Raw: ${rawSlug})`);
+        emitMiniAppEvent('info', 'Resolved target slug', { resolvedSlug, rawSlug });
 
         // 3. Load Mini App Configuration
         try {
-            console.log(`[MiniApp] Fetching config for slug: ${resolvedSlug}`);
             const conf = await getMiniAppConfig(resolvedSlug);
-            console.log(`[MiniApp] Config loaded:`, conf);
 
             if (!conf || (!conf.publicSlug && !conf.companyId)) {
                 throw new Error('Некоректна конфігурація з сервера');
@@ -473,7 +499,7 @@ const MiniAppContent = () => {
                     surfaceMode: conf.miniapp.surfaceMode || resolvedMode
                 });
             } else {
-                console.warn(`[MiniApp] Config missing 'miniapp' payload. Using fallback.`);
+                emitMiniAppEvent('warn', 'Miniapp config missing nested payload, using fallback', { resolvedSlug });
                 setConfigWarning('Конфігурація Mini App порожня. Використано базовий вигляд.');
                 // Fallback local config if empty
                 setConfig(buildFallbackConfig(conf.publicSlug, resolvedMode));
@@ -491,14 +517,13 @@ const MiniAppContent = () => {
             }
 
             // Load favorites
-            console.log(`[MiniApp] Loading favorites...`);
             await loadFavorites(conf.publicSlug, {
                 tgUserId: resolvedUser?.id ? String(resolvedUser.id) : undefined,
                 visitorId
             });
 
         } catch (e) {
-            console.error('MiniApp init failed', e);
+            emitMiniAppEvent('error', 'MiniApp init failed', { error: e instanceof Error ? e.message : String(e) });
             const reason = e instanceof Error ? e.message : String(e);
             setInitError(`Не вдалося завантажити конфігурацію застосунку. ${reason}.`);
             setConfigWarning('Конфігурація недоступна. Використано базовий вигляд.');
@@ -634,7 +659,8 @@ useEffect(() => {
                 setCars(res.items);
             }
         } catch (e) {
-            console.error("Fetch inventory failed", e);
+            emitMiniAppEvent('warn', 'Fetch inventory failed', { error: e instanceof Error ? e.message : String(e) });
+            pushToast('Не вдалося завантажити інвентар.', 'error');
         }
     };
     const debounce = setTimeout(fetchCars, 500);
@@ -1353,196 +1379,44 @@ const handleNextStep = async () => {
                 setReqStep(3);
             }
         } catch (e) {
-            console.error(e);
+            emitMiniAppEvent('error', 'MiniApp request submit failed', { error: e instanceof Error ? e.message : String(e) });
             const message = e instanceof Error ? e.message : 'Не вдалося надіслати запит.';
-            alert(message);
+            pushToast(message, 'error');
         }
     }
 };
 
 const renderRequest = () => (
-    <div className="animate-fade-in pb-24 p-6 h-full overflow-y-auto flex flex-col justify-center bg-black">
-        {reqStep === 3 ? (
-            <div className="text-center animate-slide-up">
-                <div className="w-24 h-24 rounded-full bg-green-500/20 text-green-500 flex items-center justify-center mx-auto mb-6 shadow-[0_0_30px_rgba(34,197,94,0.3)]">
-                    <CheckCircle size={48} />
-                </div>
-                <h2 className="text-2xl font-bold text-white mb-2">Запит відправлено!</h2>
-                <p className="text-white/50 mb-8">Ми отримали ваш запит. Менеджер перевірить ринок і скоро зв’яжеться з вами.</p>
-                <button onClick={() => { setReqStep(1); setView('HOME'); }} className="btn-primary w-full py-4 rounded-xl font-bold text-lg" style={{ backgroundColor: primaryColor, color: '#000' }}>
-                    На головну
-                </button>
-            </div>
-        ) : (
-            <>
-                <h2 className="text-3xl font-bold text-white mb-2">{surfaceMode === 'B2B' ? 'Створити B2B запит' : 'Пошук авто'}</h2>
-                <p className="text-white/50 mb-8">
-                    {surfaceMode === 'B2B'
-                        ? 'Заповніть структурований запит для партнерської мережі.'
-                        : 'Опишіть, яке авто вам потрібно.'}
-                </p>
-
-                <div className="space-y-6">
-                    {reqStep === 1 && (
-                        <div className="space-y-5 animate-slide-up">
-                            <div>
-                                <label className="text-xs font-bold text-white/70 uppercase mb-2 block">Марка та модель</label>
-                                <input className="w-full bg-[#1c1c1e] text-white p-4 rounded-xl outline-none border border-white/10 focus:border-yellow-500 transition-colors" placeholder="Напр. BMW X5" value={reqData.brand} onChange={e => setReqData({ ...reqData, brand: e.target.value })} />
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="text-xs font-bold text-white/70 uppercase mb-2 block">Рік від</label>
-                                    <input type="number" className="w-full bg-[#1c1c1e] text-white p-4 rounded-xl outline-none border border-white/10" placeholder="2018" value={reqData.year} onChange={e => setReqData({ ...reqData, year: e.target.value })} />
-                                </div>
-                                <div>
-                                    <label className="text-xs font-bold text-white/70 uppercase mb-2 block">Бюджет до</label>
-                                    <input type="number" className="w-full bg-[#1c1c1e] text-white p-4 rounded-xl outline-none border border-white/10" placeholder="50000" value={reqData.budget} onChange={e => setReqData({ ...reqData, budget: e.target.value })} />
-                                </div>
-                            </div>
-                            {surfaceMode === 'B2B' && (
-                                <>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="text-xs font-bold text-white/70 uppercase mb-2 block">Бажаний пробіг</label>
-                                            <input type="text" className="w-full bg-[#1c1c1e] text-white p-4 rounded-xl outline-none border border-white/10" placeholder="до 120000 км" value={reqMileage} onChange={e => setReqMileage(e.target.value)} />
-                                        </div>
-                                        <div>
-                                            <label className="text-xs font-bold text-white/70 uppercase mb-2 block">Тип пального</label>
-                                            <input type="text" className="w-full bg-[#1c1c1e] text-white p-4 rounded-xl outline-none border border-white/10" placeholder="дизель / бензин / гібрид" value={reqFuel} onChange={e => setReqFuel(e.target.value)} />
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <label className="text-xs font-bold text-white/70 uppercase mb-2 block">Компанія, яка шукає</label>
-                                        <input type="text" className="w-full bg-[#1c1c1e] text-white p-4 rounded-xl outline-none border border-white/10" placeholder="Назва компанії" value={reqCompany} onChange={e => setReqCompany(e.target.value)} />
-                                    </div>
-                                </>
-                            )}
-                            <div>
-                                <label className="text-xs font-bold text-white/70 uppercase mb-2 block">{surfaceMode === 'B2B' ? 'Контакт (обовʼязково)' : 'Телефон (для статусів)'}</label>
-                                <input type="tel" className="w-full bg-[#1c1c1e] text-white p-4 rounded-xl outline-none border border-white/10" placeholder="+380 67 123 45 67" value={reqPhone} onChange={e => setReqPhone(e.target.value)} />
-                            </div>
-                            <div>
-                                <label className="text-xs font-bold text-white/70 uppercase mb-2 block">Коментар (опційно)</label>
-                                <textarea className="w-full bg-[#1c1c1e] text-white p-4 rounded-xl outline-none border border-white/10 min-h-[96px]" placeholder="Деталі, побажання, важливі умови" value={reqComment} onChange={e => setReqComment(e.target.value)} />
-                            </div>
-                        </div>
-                    )}
-
-                    {reqStep === 2 && (
-                        <div className="space-y-4 animate-slide-up">
-                            <div className="bg-[#1c1c1e] p-6 rounded-xl border border-white/10 text-white/80 text-sm space-y-2">
-                                <p className="font-bold text-white mb-4 text-lg border-b border-white/10 pb-2">Підсумок</p>
-                                <div className="flex justify-between"><span>Авто:</span> <span className="font-bold text-white">{reqData.brand}</span></div>
-                                <div className="flex justify-between"><span>Рік:</span> <span className="font-bold text-white">{reqData.year}+</span></div>
-                                <div className="flex justify-between"><span>Бюджет:</span> <span className="font-bold text-white" style={{ color: primaryColor }}>${reqData.budget}</span></div>
-                                {surfaceMode === 'B2B' && (
-                                    <>
-                                        <div className="flex justify-between"><span>Пробіг:</span> <span className="font-bold text-white">{reqMileage || '—'}</span></div>
-                                        <div className="flex justify-between"><span>Пальне:</span> <span className="font-bold text-white">{reqFuel || '—'}</span></div>
-                                        <div className="flex justify-between"><span>Компанія:</span> <span className="font-bold text-white">{reqCompany || '—'}</span></div>
-                                    </>
-                                )}
-                                <div className="flex justify-between"><span>Контакт:</span> <span className="font-bold text-white">{reqPhone || '—'}</span></div>
-                                <div className="flex justify-between"><span>Коментар:</span> <span className="font-bold text-white">{reqComment || '—'}</span></div>
-                            </div>
-                            <p className="text-xs text-white/50 text-center px-4">
-                                {surfaceMode === 'B2B'
-                                    ? 'Після надсилання запит буде опубліковано в приватному каналі без ваших відкритих контактів.'
-                                    : 'Після надсилання менеджер зв’яжеться з вами у цьому чаті.'}
-                            </p>
-                            {!hasTelegramInit && (
-                                <div className="text-xs text-yellow-300 bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-3 text-center">
-                                    Відкрийте цю сторінку з Telegram, щоб надіслати запит.
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    <div className="pt-4">
-                        <button
-                            onClick={handleNextStep}
-                            disabled={reqStep === 1 && (!reqData.brand || (surfaceMode === 'B2B' && (!reqPhone || !reqCompany)))}
-                            className="w-full py-4 rounded-xl font-bold text-black flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-50 disabled:scale-100 shadow-lg"
-                            style={{ backgroundColor: primaryColor }}
-                        >
-                            {reqStep === 1 ? 'Продовжити' : (hasTelegramInit ? 'Надіслати запит' : 'Відкрити в Telegram для надсилання')} <ArrowRight size={18} />
-                        </button>
-                    </div>
-                </div>
-            </>
-        )}
-    </div>
+    <RequestView
+        reqStep={reqStep}
+        reqData={reqData}
+        setReqData={setReqData}
+        reqMileage={reqMileage}
+        setReqMileage={setReqMileage}
+        reqFuel={reqFuel}
+        setReqFuel={setReqFuel}
+        reqCompany={reqCompany}
+        setReqCompany={setReqCompany}
+        reqPhone={reqPhone}
+        setReqPhone={setReqPhone}
+        reqComment={reqComment}
+        setReqComment={setReqComment}
+        hasTelegramInit={hasTelegramInit}
+        primaryColor={primaryColor}
+        surfaceMode={surfaceMode}
+        onNextStep={handleNextStep}
+        onHome={() => { setReqStep(1); setView('HOME'); }}
+    />
 );
 
 const renderProfile = () => (
-    <div className="animate-fade-in pb-24 h-full overflow-y-auto bg-black">
-        <div className="p-6 pt-10 rounded-b-[40px] shadow-lg relative overflow-hidden" style={{ background: `linear-gradient(135deg, ${primaryColor}20 0%, #000000 100%)` }}>
-            <div className="flex flex-col items-center">
-                <div className="w-24 h-24 rounded-full border-4 border-white/10 shadow-2xl bg-[#1c1c1e] flex items-center justify-center overflow-hidden mb-4 relative">
-                    {tgUser?.photo_url ? (
-                        <img src={tgUser.photo_url} className="w-full h-full object-cover" />
-                    ) : (
-                        <User size={40} className="text-white/50" />
-                    )}
-                    <div className="absolute bottom-0 right-0 w-6 h-6 bg-green-500 rounded-full border-2 border-black"></div>
-                </div>
-                <h2 className="text-2xl font-bold text-white">{tgUser?.first_name} {tgUser?.last_name}</h2>
-                <p className="text-white/50 text-sm mb-4">@{tgUser?.username || 'user'}</p>
-
-                <div className="flex gap-2">
-                    <span className="px-3 py-1 rounded-full bg-white/10 border border-white/5 text-[10px] text-white font-bold flex items-center gap-1">
-                        <ShieldCheck size={12} className="text-green-500" /> Верифікований профіль
-                    </span>
-                    <span className="px-3 py-1 rounded-full bg-white/10 border border-white/5 text-[10px] text-white font-bold">
-                        ID: {tgUser?.id}
-                    </span>
-                </div>
-            </div>
-        </div>
-
-        <div className="px-4 mt-6 space-y-4">
-            <div className="bg-[#1c1c1e] rounded-xl p-4 border border-white/5">
-                <h3 className="font-bold text-white text-sm mb-4 flex items-center gap-2">
-                    <History size={16} style={{ color: primaryColor }} /> Остання активність
-                </h3>
-
-                {/* Mock Activity Data */}
-                <div className="space-y-4">
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-500">
-                            <Search size={18} />
-                        </div>
-                        <div className="flex-1">
-                            <div className="text-xs text-white/50 mb-0.5">Сьогодні, 10:23</div>
-                            <div className="text-sm font-medium text-white">Пошук: "BMW X5 2020"</div>
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-purple-500/10 flex items-center justify-center text-purple-500">
-                            <MessageSquare size={18} />
-                        </div>
-                        <div className="flex-1">
-                            <div className="text-xs text-white/50 mb-0.5">Вчора, 14:45</div>
-                            <div className="text-sm font-medium text-white">Розпочато чат з менеджером</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div className="bg-[#1c1c1e] rounded-xl p-4 border border-white/5">
-                <h3 className="font-bold text-white text-sm mb-4 flex items-center gap-2">
-                    <Star size={16} style={{ color: primaryColor }} /> Збережені авто
-                </h3>
-                <div className="text-center py-6 text-white/30 text-xs">
-                    Поки що немає збережених авто.
-                </div>
-            </div>
-
-            <button onClick={() => (window as any).Telegram?.WebApp?.close()} className="w-full py-4 rounded-xl bg-red-500/10 text-red-500 font-bold flex items-center justify-center gap-2 border border-red-500/20 hover:bg-red-500/20 transition-colors">
-                <LogOut size={18} /> Закрити застосунок
-            </button>
-        </div>
-    </div>
+    <ProfileView
+        tgUser={tgUser}
+        primaryColor={primaryColor}
+        favoriteCount={favoriteItems.length}
+        createdRequestCount={reqStep >= 3 ? 1 : 0}
+        onCloseApp={() => (window as any).Telegram?.WebApp?.close?.()}
+    />
 );
 
 const AppIcon = ({ name, size = 24 }: { name: string; size?: number }) => {
@@ -1578,25 +1452,29 @@ const renderIcon = (icon?: string, size = 22) => {
     return <AppIcon name={icon} size={size} />;
 };
 
+const shellNavItems = navItems.map(item => ({
+    id: String(item.id),
+    value: String(item.value || ''),
+    label: String(item.label || ''),
+    icon: renderIcon(item.icon, 24)
+}));
+
 return (
-    <div className="telegram-miniapp-shell relative mx-auto flex h-[var(--tg-viewport-height)] min-h-[var(--tg-viewport-height)] w-full max-w-md flex-col overflow-hidden border-x border-[#1c1c1e] bg-black font-sans text-white shadow-2xl">
-        {configWarning && (
-            <div className="bg-yellow-500/15 text-yellow-300 text-[10px] uppercase font-bold text-center py-1 border-b border-yellow-500/30">
-                {configWarning}
-            </div>
-        )}
-
-        <div className="relative flex-1 min-h-0">
-            {showBackArrow && (
-                <button
-                    onClick={goBack}
-                    className="absolute left-4 top-4 z-40 flex items-center gap-1 rounded-full bg-black/60 px-3 py-2 text-xs font-bold text-white/90 backdrop-blur border border-white/10"
-                >
-                    <ChevronLeft size={16} />
-                    Назад
-                </button>
-            )}
-
+    <>
+        <ToastStack items={toasts} onDismiss={dismissToast} />
+        <MiniAppShell
+            configWarning={configWarning}
+            showBackArrow={showBackArrow}
+            onBack={goBack}
+            showBottomNav={showBottomNav}
+            navItems={shellNavItems}
+            activeView={view}
+            onNavigate={(value) => {
+                const target = navItems.find(item => String(item.value || '') === value);
+                if (!target) return;
+                handleAction(target as any);
+            }}
+        >
             {view === 'HOME' && renderHome()}
             {view === 'INVENTORY' && renderInventory()}
             {view === 'FAVORITES' && renderFavorites()}
@@ -1605,7 +1483,6 @@ return (
             {view === 'STATUS' && renderStatus()}
             {view === 'PROFILE' && renderProfile()}
 
-            {/* Gallery Lightbox */}
             {lightboxCar && (
                 <div className="absolute inset-0 bg-black z-[100] flex flex-col">
                     {(() => {
@@ -1656,32 +1533,8 @@ return (
                     })()}
                 </div>
             )}
-        </div>
-
-        {showBottomNav && (
-            <div className="relative z-40 bg-[#000000]/90 backdrop-blur-md border-t border-white/10 pb-6 pt-2 px-6">
-                <div className="flex justify-between items-center max-w-sm mx-auto">
-                    {navItems.map(item => {
-                        const isActive = view === item.value;
-                        return (
-                            <button
-                                key={item.id}
-                                onClick={() => handleAction(item)}
-                                className={`flex flex-col items-center gap-1 transition-all duration-200 ${isActive ? 'text-white scale-105' : 'text-white/40 hover:text-white/60'}`}
-                            >
-                                <div className={`p-1.5 rounded-xl ${isActive ? 'bg-white/10' : ''}`}>
-                                    {renderIcon(item.icon, 24)}
-                                </div>
-                                <span className={`text-[10px] font-medium ${isActive ? 'text-white' : 'text-white/40'}`}>
-                                    {item.label}
-                                </span>
-                            </button>
-                        );
-                    })}
-                </div>
-            </div>
-        )}
-    </div>
+        </MiniAppShell>
+    </>
 );
 };
 
