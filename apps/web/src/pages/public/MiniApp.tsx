@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Bot, MiniAppConfig, CarListing } from '../../types';
 import { getPublicBots, getShowcaseInventory } from '../../services/publicApi';
@@ -10,6 +10,8 @@ import {
     ChevronRight, MapPin, Calendar, CheckCircle, SlidersHorizontal,
     X, ChevronLeft, ChevronRight as ChevronRightIcon, Image as ImageIcon, History, ShieldCheck, LogOut
 } from 'lucide-react';
+import { initTelegramViewport } from './miniapp/telegramViewport';
+import { popViewHistory, pushViewHistory } from './miniapp/navigation';
 
 class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean; error: Error | null; errorInfo: React.ErrorInfo | null }> {
     constructor(props: { children: React.ReactNode }) {
@@ -29,7 +31,7 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
     render() {
         if (this.state.hasError) {
             return (
-                <div className="h-screen flex items-center justify-center text-white bg-black px-6 text-center">
+                <div className="h-[var(--tg-viewport-height)] min-h-[var(--tg-viewport-height)] flex items-center justify-center text-white bg-black px-6 text-center">
                     <div>
                         <div className="text-xl font-bold mb-2 text-red-500">Сталася помилка</div>
                         <div className="text-white/70 text-sm mb-4 break-words font-mono bg-white/5 p-4 rounded-lg text-left max-h-60 overflow-y-auto">
@@ -73,6 +75,7 @@ type TelegramBootstrapContext = {
 };
 
 type MiniAppSurfaceMode = 'LEAD' | 'B2B';
+type MiniAppView = 'HOME' | 'INVENTORY' | 'LISTING' | 'FAVORITES' | 'REQUEST' | 'STATUS' | 'PROFILE';
 
 const readTelegramLaunchValue = (key: string): string => {
     const sources = [window.location.search, window.location.hash.startsWith('#') ? `?${window.location.hash.slice(1)}` : ''];
@@ -175,8 +178,7 @@ const MiniAppContent = () => {
     const { slug } = useParams();
     const [activeBot, setActiveBot] = useState<Bot | null>(null);
     const [config, setConfig] = useState<MiniAppConfig | null>(null);
-    const [view, setView] = useState<'HOME' | 'INVENTORY' | 'LISTING' | 'FAVORITES' | 'REQUEST' | 'STATUS' | 'PROFILE'>('HOME');
-    const [lastListingView, setLastListingView] = useState<'HOME' | 'INVENTORY' | 'FAVORITES'>('INVENTORY');
+    const [view, setView] = useState<MiniAppView>('HOME');
     const [selectedCar, setSelectedCar] = useState<CarListing | null>(null);
     const [favorites, setFavorites] = useState<string[]>([]);
     const [favoriteItems, setFavoriteItems] = useState<CarListing[]>([]);
@@ -231,6 +233,26 @@ const MiniAppContent = () => {
     const [trackingMeta, setTrackingMeta] = useState<MiniAppTrackingMeta>({});
     const [reqComment, setReqComment] = useState('');
     const hasTelegramInit = Boolean(initData);
+    const viewHistoryRef = useRef<MiniAppView[]>(['HOME']);
+    const suppressHistoryPushRef = useRef(false);
+
+    const goBack = useCallback(() => {
+        if (lightboxCar) {
+            setLightboxCar(null);
+            return;
+        }
+
+        if (view === 'REQUEST' && reqStep > 1) {
+            setReqStep(prev => Math.max(1, prev - 1));
+            return;
+        }
+
+        const target = popViewHistory(viewHistoryRef.current, 'HOME');
+        if (target !== view) {
+            suppressHistoryPushRef.current = true;
+            setView(target);
+        }
+    }, [lightboxCar, reqStep, view]);
 
     const normalizeSlug = (value?: string | null) => {
         if (!value) return '';
@@ -295,8 +317,6 @@ const MiniAppContent = () => {
     };
 
     const openListing = (car: CarListing) => {
-        const origin = view === 'HOME' || view === 'FAVORITES' || view === 'INVENTORY' ? view : 'INVENTORY';
-        setLastListingView(origin);
         setSelectedCar(car);
         setView('LISTING');
     };
@@ -366,7 +386,12 @@ const MiniAppContent = () => {
     const buildVersion = meta.env?.VITE_BUILD_ID || meta.env?.MODE || 'dev';
 
     useEffect(() => {
+        let cleanupViewport: (() => void) | undefined;
         const load = async () => {
+        viewHistoryRef.current = ['HOME'];
+        suppressHistoryPushRef.current = true;
+        setView('HOME');
+        setReqStep(1);
         setIsConfigLoading(true);
         setInitError(null);
         setRequiresTelegram(false);
@@ -376,6 +401,7 @@ const MiniAppContent = () => {
 
         // 1. Initialize Telegram Web App & Extract start_param
         const telegramContext = await resolveTelegramBootstrapContext();
+        cleanupViewport = initTelegramViewport(telegramContext.tg);
         let startParam = telegramContext.startParam || '';
         const resolvedUser = telegramContext.user;
 
@@ -486,7 +512,38 @@ const MiniAppContent = () => {
         }
         };
         load();
+        return () => {
+            cleanupViewport?.();
+        };
     }, [slug]);
+
+    useEffect(() => {
+        if (suppressHistoryPushRef.current) {
+            suppressHistoryPushRef.current = false;
+            return;
+        }
+        pushViewHistory(viewHistoryRef.current, view);
+    }, [view]);
+
+    useEffect(() => {
+        const tg = (window as any).Telegram?.WebApp;
+        const backButton = tg?.BackButton;
+        if (!backButton) return;
+
+        const handleBack = () => goBack();
+        const shouldShowBack = view !== 'HOME' || reqStep > 1;
+        if (shouldShowBack) {
+            backButton.show?.();
+            backButton.onClick?.(handleBack);
+        } else {
+            backButton.hide?.();
+            backButton.offClick?.(handleBack);
+        }
+
+        return () => {
+            backButton.offClick?.(handleBack);
+        };
+    }, [goBack, reqStep, view]);
 
 const handleAction = (act: MiniAppConfig['actions'][number]) => {
     const tg = (window as any).Telegram?.WebApp;
@@ -586,7 +643,7 @@ useEffect(() => {
 
 if (isConfigLoading && !config) {
     return (
-        <div className="h-screen flex items-center justify-center text-white bg-black">
+        <div className="h-[var(--tg-viewport-height)] min-h-[var(--tg-viewport-height)] flex items-center justify-center text-white bg-black">
             <div className="flex flex-col items-center gap-2">
                 <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                 <div className="text-white/50 text-sm">Завантаження Mini App...</div>
@@ -597,7 +654,7 @@ if (isConfigLoading && !config) {
 
 if (requiresTelegram) {
     return (
-        <div className="h-screen flex items-center justify-center text-white bg-black px-6 text-center">
+        <div className="h-[var(--tg-viewport-height)] min-h-[var(--tg-viewport-height)] flex items-center justify-center text-white bg-black px-6 text-center">
             <div className="max-w-sm">
                 <div className="text-xl font-bold mb-2">Потрібен Telegram</div>
                 <div className="text-white/70 text-sm">
@@ -610,7 +667,7 @@ if (requiresTelegram) {
 
 if (!config) {
     return (
-        <div className="h-screen flex items-center justify-center text-white bg-black px-6 text-center">
+        <div className="h-[var(--tg-viewport-height)] min-h-[var(--tg-viewport-height)] flex items-center justify-center text-white bg-black px-6 text-center">
             <div>
                 <div className="text-xl font-bold mb-2">Mini App недоступний</div>
                 <div className="text-white/70 text-sm">{initError || 'Конфігурацію застосунку не знайдено.'}</div>
@@ -634,6 +691,8 @@ const navItems = (config.navItems && config.navItems.length > 0)
         { id: 'nav_stock', label: 'Склад', icon: 'LayoutGrid', actionType: 'VIEW', value: 'INVENTORY' },
         { id: 'nav_saved', label: 'Обране', icon: 'Heart', actionType: 'VIEW', value: 'FAVORITES' }
     ];
+const showBottomNav = view !== 'LISTING' && view !== 'REQUEST' && view !== 'STATUS';
+const showBackArrow = ((view !== 'HOME' && view !== 'LISTING') || reqStep > 1) && !lightboxCar;
 
 const applyFiltersAndSort = () => {
     let filtered = [...cars];
@@ -723,7 +782,7 @@ const isTransitCar = (car: CarListing) => {
 const getStatusLabel = (car: CarListing) => isTransitCar(car) ? 'В дорозі' : 'В наявності';
 
 const renderHome = () => (
-    <div className="animate-fade-in pb-24">
+    <div className="animate-fade-in pb-24 h-full overflow-y-auto">
         {/* Header */}
         <div className="pt-8 pb-8 px-6 rounded-b-[40px] shadow-lg relative overflow-hidden" style={{ background: `linear-gradient(135deg, ${primaryColor}30 0%, #000000 100%)` }}>
             <div className="relative z-10">
@@ -1095,9 +1154,9 @@ const renderListing = () => {
     const cover = images[0];
 
     return (
-        <div className="animate-fade-in pb-24 h-full bg-black">
+        <div className="animate-fade-in pb-24 h-full overflow-y-auto bg-black">
             <div className="p-4 flex items-center gap-3 border-b border-white/10 bg-[#000000]/90 backdrop-blur-md">
-                <button onClick={() => setView(lastListingView)} className="text-white/70 text-sm">← Назад</button>
+                <button onClick={goBack} className="text-white/70 text-sm">← Назад</button>
                 <h2 className="text-white font-bold truncate">{selectedCar.title}</h2>
             </div>
             <div className="p-4 space-y-4">
@@ -1168,7 +1227,7 @@ const renderListing = () => {
 };
 
 const renderStatus = () => (
-    <div className="animate-fade-in pb-24 p-6 min-h-screen flex flex-col bg-black">
+    <div className="animate-fade-in pb-24 p-6 h-full overflow-y-auto flex flex-col bg-black">
         <h2 className="text-2xl font-bold text-white mb-2">Статус запиту</h2>
         <p className="text-white/50 mb-6">Перевірте запит за ID, номером телефону або Telegram.</p>
 
@@ -1302,7 +1361,7 @@ const handleNextStep = async () => {
 };
 
 const renderRequest = () => (
-    <div className="animate-fade-in pb-24 p-6 min-h-screen flex flex-col justify-center bg-black">
+    <div className="animate-fade-in pb-24 p-6 h-full overflow-y-auto flex flex-col justify-center bg-black">
         {reqStep === 3 ? (
             <div className="text-center animate-slide-up">
                 <div className="w-24 h-24 rounded-full bg-green-500/20 text-green-500 flex items-center justify-center mx-auto mb-6 shadow-[0_0_30px_rgba(34,197,94,0.3)]">
@@ -1416,7 +1475,7 @@ const renderRequest = () => (
 );
 
 const renderProfile = () => (
-    <div className="animate-fade-in pb-24 h-full bg-black">
+    <div className="animate-fade-in pb-24 h-full overflow-y-auto bg-black">
         <div className="p-6 pt-10 rounded-b-[40px] shadow-lg relative overflow-hidden" style={{ background: `linear-gradient(135deg, ${primaryColor}20 0%, #000000 100%)` }}>
             <div className="flex flex-col items-center">
                 <div className="w-24 h-24 rounded-full border-4 border-white/10 shadow-2xl bg-[#1c1c1e] flex items-center justify-center overflow-hidden mb-4 relative">
@@ -1520,103 +1579,114 @@ const renderIcon = (icon?: string, size = 22) => {
 };
 
 return (
-    <div className="min-h-screen bg-black font-sans text-white max-w-md mx-auto relative shadow-2xl overflow-hidden border-x border-[#1c1c1e]">
+    <div className="telegram-miniapp-shell relative mx-auto flex h-[var(--tg-viewport-height)] min-h-[var(--tg-viewport-height)] w-full max-w-md flex-col overflow-hidden border-x border-[#1c1c1e] bg-black font-sans text-white shadow-2xl">
         {configWarning && (
             <div className="bg-yellow-500/15 text-yellow-300 text-[10px] uppercase font-bold text-center py-1 border-b border-yellow-500/30">
                 {configWarning}
             </div>
         )}
 
-        {view === 'HOME' && renderHome()}
-        {view === 'INVENTORY' && renderInventory()}
-        {view === 'FAVORITES' && renderFavorites()}
-        {view === 'LISTING' && renderListing()}
-        {view === 'REQUEST' && renderRequest()}
-        {view === 'STATUS' && renderStatus()}
-        {view === 'PROFILE' && renderProfile()}
+        <div className="relative flex-1 min-h-0">
+            {showBackArrow && (
+                <button
+                    onClick={goBack}
+                    className="absolute left-4 top-4 z-40 flex items-center gap-1 rounded-full bg-black/60 px-3 py-2 text-xs font-bold text-white/90 backdrop-blur border border-white/10"
+                >
+                    <ChevronLeft size={16} />
+                    Назад
+                </button>
+            )}
 
-        {/* Gallery Lightbox */}
-        {lightboxCar && (
-            <div className="fixed inset-0 bg-black z-[100] flex flex-col">
-                {(() => {
-                    const lightboxImages = getCarImages(lightboxCar);
-                    const hasMultiple = lightboxImages.length > 1;
-                    return (
-                        <>
-                            <div className="p-4 flex justify-between items-center">
-                                <h3 className="text-white font-bold truncate">{lightboxCar.title}</h3>
-                                <button
-                                    onClick={() => setLightboxCar(null)}
-                                    className="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center"
-                                >
-                                    <X size={20} className="text-white" />
-                                </button>
-                            </div>
-                            <div className="flex-1 relative flex items-center justify-center">
-                                <img
-                                    src={lightboxImages[lightboxImageIndex] || lightboxCar.thumbnail || PLACEHOLDER_IMAGE}
-                                    className="max-w-full max-h-full object-contain"
-                                />
-                                {hasMultiple && (
-                                    <>
-                                        {lightboxImageIndex > 0 && (
-                                            <button
-                                                onClick={() => setLightboxImageIndex(lightboxImageIndex - 1)}
-                                                className="absolute left-4 w-12 h-12 bg-black/50 backdrop-blur rounded-full flex items-center justify-center"
-                                            >
-                                                <ChevronLeft size={24} className="text-white" />
-                                            </button>
-                                        )}
-                                        {lightboxImageIndex < lightboxImages.length - 1 && (
-                                            <button
-                                                onClick={() => setLightboxImageIndex(lightboxImageIndex + 1)}
-                                                className="absolute right-4 w-12 h-12 bg-black/50 backdrop-blur rounded-full flex items-center justify-center"
-                                            >
-                                                <ChevronRightIcon size={24} className="text-white" />
-                                            </button>
-                                        )}
-                                        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/50 backdrop-blur px-3 py-1 rounded-full text-xs text-white">
-                                            {lightboxImageIndex + 1} / {lightboxImages.length}
-                                        </div>
-                                    </>
-                                )}
-                            </div>
-                        </>
-                    );
-                })()}
+            {view === 'HOME' && renderHome()}
+            {view === 'INVENTORY' && renderInventory()}
+            {view === 'FAVORITES' && renderFavorites()}
+            {view === 'LISTING' && renderListing()}
+            {view === 'REQUEST' && renderRequest()}
+            {view === 'STATUS' && renderStatus()}
+            {view === 'PROFILE' && renderProfile()}
+
+            {/* Gallery Lightbox */}
+            {lightboxCar && (
+                <div className="absolute inset-0 bg-black z-[100] flex flex-col">
+                    {(() => {
+                        const lightboxImages = getCarImages(lightboxCar);
+                        const hasMultiple = lightboxImages.length > 1;
+                        return (
+                            <>
+                                <div className="p-4 flex justify-between items-center">
+                                    <h3 className="text-white font-bold truncate">{lightboxCar.title}</h3>
+                                    <button
+                                        onClick={() => setLightboxCar(null)}
+                                        className="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center"
+                                    >
+                                        <X size={20} className="text-white" />
+                                    </button>
+                                </div>
+                                <div className="flex-1 relative flex items-center justify-center">
+                                    <img
+                                        src={lightboxImages[lightboxImageIndex] || lightboxCar.thumbnail || PLACEHOLDER_IMAGE}
+                                        className="max-w-full max-h-full object-contain"
+                                    />
+                                    {hasMultiple && (
+                                        <>
+                                            {lightboxImageIndex > 0 && (
+                                                <button
+                                                    onClick={() => setLightboxImageIndex(lightboxImageIndex - 1)}
+                                                    className="absolute left-4 w-12 h-12 bg-black/50 backdrop-blur rounded-full flex items-center justify-center"
+                                                >
+                                                    <ChevronLeft size={24} className="text-white" />
+                                                </button>
+                                            )}
+                                            {lightboxImageIndex < lightboxImages.length - 1 && (
+                                                <button
+                                                    onClick={() => setLightboxImageIndex(lightboxImageIndex + 1)}
+                                                    className="absolute right-4 w-12 h-12 bg-black/50 backdrop-blur rounded-full flex items-center justify-center"
+                                                >
+                                                    <ChevronRightIcon size={24} className="text-white" />
+                                                </button>
+                                            )}
+                                            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/50 backdrop-blur px-3 py-1 rounded-full text-xs text-white">
+                                                {lightboxImageIndex + 1} / {lightboxImages.length}
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            </>
+                        );
+                    })()}
+                </div>
+            )}
+        </div>
+
+        {showBottomNav && (
+            <div className="relative z-40 bg-[#000000]/90 backdrop-blur-md border-t border-white/10 pb-6 pt-2 px-6">
+                <div className="flex justify-between items-center max-w-sm mx-auto">
+                    {navItems.map(item => {
+                        const isActive = view === item.value;
+                        return (
+                            <button
+                                key={item.id}
+                                onClick={() => handleAction(item)}
+                                className={`flex flex-col items-center gap-1 transition-all duration-200 ${isActive ? 'text-white scale-105' : 'text-white/40 hover:text-white/60'}`}
+                            >
+                                <div className={`p-1.5 rounded-xl ${isActive ? 'bg-white/10' : ''}`}>
+                                    {renderIcon(item.icon, 24)}
+                                </div>
+                                <span className={`text-[10px] font-medium ${isActive ? 'text-white' : 'text-white/40'}`}>
+                                    {item.label}
+                                </span>
+                            </button>
+                        );
+                    })}
+                </div>
             </div>
         )}
-
-                {/* Bottom Navigation */}
-                {view !== 'LISTING' && view !== 'REQUEST' && view !== 'STATUS' && (
-                    <div className="fixed bottom-0 left-0 right-0 bg-[#000000]/90 backdrop-blur-md border-t border-white/10 pb-6 pt-2 px-6 z-40">
-                        <div className="flex justify-between items-center max-w-sm mx-auto">
-                            {navItems.map(item => {
-                                const isActive = view === item.value;
-                                return (
-                                    <button
-                                        key={item.id}
-                                        onClick={() => handleAction(item)}
-                                        className={`flex flex-col items-center gap-1 transition-all duration-200 ${isActive ? 'text-white scale-105' : 'text-white/40 hover:text-white/60'}`}
-                                    >
-                                        <div className={`p-1.5 rounded-xl ${isActive ? 'bg-white/10' : ''}`}>
-                                            {renderIcon(item.icon, 24)}
-                                        </div>
-                                        <span className={`text-[10px] font-medium ${isActive ? 'text-white' : 'text-white/40'}`}>
-                                            {item.label}
-                                        </span>
-                                    </button>
-                                );
-                            })}
-                        </div>
-                    </div>
-                )}
-            </div>
-        );
+    </div>
+);
 };
 
 export const MiniApp = () => (
-        <ErrorBoundary>
-            <MiniAppContent />
-        </ErrorBoundary>
-        );
+    <ErrorBoundary>
+        <MiniAppContent />
+    </ErrorBoundary>
+);

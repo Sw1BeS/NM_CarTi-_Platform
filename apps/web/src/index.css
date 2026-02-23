@@ -33,6 +33,28 @@
     --ring: 212.7 26.8% 83.9%;
     
     --radius: 0.5rem;
+    --tg-viewport-height: 100vh;
+    --tg-viewport-stable-height: 100vh;
+  }
+
+  html, body, #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background: #000;
+  }
+
+  body.telegram-miniapp {
+    overflow: hidden;
+    overscroll-behavior: none;
+    touch-action: pan-x pan-y;
+  }
+
+  .telegram-miniapp-shell {
+    height: var(--tg-viewport-height);
+    max-height: var(--tg-viewport-height);
   }
 }
 
