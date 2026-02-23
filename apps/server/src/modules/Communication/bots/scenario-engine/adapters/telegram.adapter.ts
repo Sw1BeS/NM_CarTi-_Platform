@@ -1,13 +1,19 @@
 import { telegramOutbox } from '../../../telegram/messaging/outbox/telegramOutbox.js';
 import type { BotRuntime, ReplyKeyboardButton } from '../types.js';
+import { resolveReplyMarkupForChat } from '../../../telegram/core/utils/telegramReplyMarkup.js';
 
 export const sendMessage = async (bot: BotRuntime, chatId: string, text: string, replyMarkup?: any) => {
+  const normalizedReplyMarkup = resolveReplyMarkupForChat({
+    replyMarkup,
+    bot,
+    chatId
+  });
   return telegramOutbox.sendMessage({
     botId: bot.id,
     token: bot.token,
     chatId,
     text,
-    replyMarkup,
+    replyMarkup: normalizedReplyMarkup,
     companyId: bot.companyId || null
   });
 };

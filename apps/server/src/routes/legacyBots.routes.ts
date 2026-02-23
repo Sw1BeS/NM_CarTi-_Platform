@@ -10,12 +10,27 @@ import { callTelegram } from './legacyTelegramProxy.shared.js';
 import { logger } from '../utils/logger.js';
 import { errorResponse } from '../utils/errorResponse.js';
 import { normalizeBotConfigChatId } from '../modules/Communication/telegram/core/utils/telegramChatId.js';
+import { buildMiniAppUrl } from '../modules/Communication/telegram/core/utils/miniappUrl.js';
 
 const router = Router();
 const resolveCompanyId = async (requestedCompanyId?: string | null, userCompanyId?: string | null) => {
     if (requestedCompanyId) return requestedCompanyId;
     if (userCompanyId) return userCompanyId;
     return null;
+};
+
+const syncMenuButton = async (bot: any) => {
+    if (!bot?.token) return;
+    const miniAppUrl = buildMiniAppUrl(bot, {});
+    if (!miniAppUrl) return;
+    const menuText = String((bot?.config as any)?.menuButtonText || 'Відкрити застосунок').trim() || 'Відкрити застосунок';
+    await callTelegram(bot.token, 'setChatMenuButton', {
+        menu_button: {
+            type: 'web_app',
+            text: menuText.slice(0, 64),
+            web_app: { url: miniAppUrl }
+        }
+    });
 };
 
 // --- Bot Management (CRUD) ---
@@ -215,6 +230,7 @@ router.post('/bots', requireRole(['OWNER', 'ADMIN']), async (req, res) => {
 
         // Fire and forget restart to avoid blocking the UI response
         botManager.restartBot(newBot.id).catch(e => logger.error("Async Bot Restart Failed:", e));
+        syncMenuButton(finalBot).catch((e: any) => logger.warn(`[Bot Create] setChatMenuButton failed: ${e?.message || e}`));
 
         // Return the enriched object so UI updates immediately
         const output = mapBotOutput(finalBot);
@@ -305,6 +321,7 @@ router.put('/bots/:id', requireRole(['OWNER', 'ADMIN']), async (req, res) => {
 
         // Fire and forget
         botManager.restartBot(id).catch(e => logger.error("Async Bot Update Failed:", e));
+        syncMenuButton(updated).catch((e: any) => logger.warn(`[Bot Update] setChatMenuButton failed: ${e?.message || e}`));
 
         const output = mapBotOutput(updated) as any;
         output.presetStatus = presetApplied.presetStatus;
@@ -343,6 +360,25 @@ router.post('/bots/:id/webhook', requireRole(['OWNER', 'ADMIN']), async (req, re
     } catch (e: any) {
         logger.error('[Webhook] Set error:', e.message || e);
         errorResponse(res, 500, e.message || 'Failed to set webhook');
+    }
+});
+
+router.post('/bots/:id/menu-button/sync', requireRole(['OWNER', 'ADMIN']), async (req, res) => {
+    try {
+        const { id } = req.params;
+        const user = (req as any).user || {};
+        const isSuperadmin = user.role === 'SUPER_ADMIN';
+        const userCompanyId = user.companyId || user.workspaceId;
+        const bot = await prisma.botConfig.findUnique({ where: { id } });
+        if (!bot) return errorResponse(res, 404, 'Bot not found');
+        if (!isSuperadmin && !userCompanyId) return errorResponse(res, 400, 'Company context required');
+        if (!isSuperadmin && bot.companyId !== userCompanyId) return errorResponse(res, 403, 'Forbidden');
+
+        await syncMenuButton(bot);
+        res.json({ ok: true });
+    } catch (e: any) {
+        logger.error('[MenuButton] Sync error:', e.message || e);
+        errorResponse(res, 500, e.message || 'Failed to sync menu button');
     }
 });
 

@@ -147,6 +147,19 @@ class BotInstance {
         if (this.timeoutHandle) clearTimeout(this.timeoutHandle);
     }
 
+    private async syncChatMenuButton() {
+        const miniAppUrl = buildMiniAppUrl(this.config as any, {});
+        if (!miniAppUrl) return;
+        const menuText = String((this.config.config as any)?.menuButtonText || 'Відкрити застосунок').trim() || 'Відкрити застосунок';
+        await axios.post(`https://api.telegram.org/bot${this.config.token}/setChatMenuButton`, {
+            menu_button: {
+                type: 'web_app',
+                text: menuText.slice(0, 64),
+                web_app: { url: miniAppUrl }
+            }
+        });
+    }
+
     private async registerCommands() {
         try {
             const commandMap = new Map<string, string>([
@@ -238,17 +251,7 @@ class BotInstance {
             await axios.post(`https://api.telegram.org/bot${this.config.token}/setMyCommands`, { commands });
 
             // Keep Telegram chat menu button aligned with current mini app URL.
-            const miniAppUrl = buildMiniAppUrl(this.config as any, {});
-            if (miniAppUrl) {
-                const menuText = String((this.config.config as any)?.menuButtonText || 'Відкрити застосунок').trim() || 'Відкрити застосунок';
-                await axios.post(`https://api.telegram.org/bot${this.config.token}/setChatMenuButton`, {
-                    menu_button: {
-                        type: 'web_app',
-                        text: menuText.slice(0, 64),
-                        web_app: { url: miniAppUrl }
-                    }
-                });
-            }
+            await this.syncChatMenuButton();
         } catch (e: any) {
             const status = e?.response?.status;
             if (status === 401 || status === 404) {

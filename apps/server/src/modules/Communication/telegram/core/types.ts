@@ -1,6 +1,7 @@
 import type { BotConfig, BotSession } from '@prisma/client';
 
 type UpdateType = 'message' | 'callback' | 'inline_query' | 'web_app' | 'unknown';
+type ChatType = 'private' | 'group' | 'supergroup' | 'channel' | 'unknown';
 
 type NormalizedFields = {
   phone?: string;
@@ -16,6 +17,7 @@ export type PipelineContext = {
   companyId?: string | null;
   session?: BotSession | null;
   chatId?: string;
+  chatType?: ChatType;
   userId?: string;
   locale?: string;
   featureFlags?: Record<string, any>;

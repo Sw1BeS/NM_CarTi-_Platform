@@ -19,6 +19,7 @@ import { quotaService } from '../../../../services/quota.service.js';
 import { getEnvInt, isEnvFlagEnabled } from '../../../../services/featureFlags.js';
 import { logger } from '../../../../utils/logger.js';
 import { buildTelegramChannelPostUrl, normalizeBotConfigChatId } from '../core/utils/telegramChatId.js';
+import { resolveReplyMarkupForChat } from '../core/utils/telegramReplyMarkup.js';
 
 
 const parseRange = (input: string) => {
@@ -88,12 +89,19 @@ const sendMessage = async (ctx: PipelineContext, text: string, replyMarkup?: any
   if (!ctx.bot) return;
   const chatId = targetChatId || ctx.chatId;
   if (!chatId) return;
+  const effectiveChatType = targetChatId ? (String(targetChatId).startsWith('-') ? 'supergroup' : 'private') : ctx.chatType;
+  const normalizedReplyMarkup = resolveReplyMarkupForChat({
+    replyMarkup,
+    bot: ctx.bot,
+    chatType: effectiveChatType,
+    chatId
+  });
   await telegramOutbox.sendMessage({
     botId: ctx.bot.id,
     token: ctx.bot.token,
     chatId,
     text,
-    replyMarkup,
+    replyMarkup: normalizedReplyMarkup,
     companyId: ctx.companyId,
     userId: ctx.userId || undefined
   });
@@ -103,13 +111,20 @@ const sendPhoto = async (ctx: PipelineContext, photo: string, caption: string, r
   if (!ctx.bot) return;
   const chatId = targetChatId || ctx.chatId;
   if (!chatId) return;
+  const effectiveChatType = targetChatId ? (String(targetChatId).startsWith('-') ? 'supergroup' : 'private') : ctx.chatType;
+  const normalizedReplyMarkup = resolveReplyMarkupForChat({
+    replyMarkup,
+    bot: ctx.bot,
+    chatType: effectiveChatType,
+    chatId
+  });
   await telegramOutbox.sendPhoto({
     botId: ctx.bot.id,
     token: ctx.bot.token,
     chatId,
     photo,
     caption,
-    replyMarkup,
+    replyMarkup: normalizedReplyMarkup,
     companyId: ctx.companyId,
     userId: ctx.userId || undefined
   });

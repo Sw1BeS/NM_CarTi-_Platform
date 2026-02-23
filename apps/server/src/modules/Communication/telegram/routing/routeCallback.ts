@@ -7,6 +7,7 @@ import { parseCallbackData } from '../core/utils/callbackUtils.js';
 import { button, resolveLang, t } from '../core/utils/telegramText.js';
 import { finalizeB2BRequest, finalizeCatalogSell, finalizeClientLead, handleDynamicMenu } from './routeMessage.js';
 import { b2bWhitelistService } from '../../../../services/b2bWhitelist.service.js';
+import { resolveReplyMarkupForChat } from '../core/utils/telegramReplyMarkup.js';
 
 const updateSession = async (ctx: PipelineContext, state: string, variables: Record<string, any>) => {
   if (!ctx.session) return;
@@ -24,12 +25,19 @@ const sendMessage = async (ctx: PipelineContext, text: string, replyMarkup?: any
   if (!ctx.bot) return;
   const chatId = targetChatId || ctx.chatId;
   if (!chatId) return;
+  const effectiveChatType = targetChatId ? (String(targetChatId).startsWith('-') ? 'supergroup' : 'private') : ctx.chatType;
+  const normalizedReplyMarkup = resolveReplyMarkupForChat({
+    replyMarkup,
+    bot: ctx.bot,
+    chatType: effectiveChatType,
+    chatId
+  });
   await telegramOutbox.sendMessage({
     botId: ctx.bot.id,
     token: ctx.bot.token,
     chatId,
     text,
-    replyMarkup,
+    replyMarkup: normalizedReplyMarkup,
     companyId: ctx.companyId,
     userId: ctx.userId || undefined
   });

@@ -1,6 +1,7 @@
 import { prisma } from '../../../../../services/prisma.js';
 import type { PipelineContext, PipelineMiddleware } from '../../core/types.js';
 import { logger } from '../../../../../utils/logger.js';
+import { resolveChatTypeFromUpdate } from '../../core/utils/telegramReplyMarkup.js';
 
 const getUpdateType = (update: any) => {
   if (update?.inline_query) return 'inline_query';
@@ -64,6 +65,7 @@ export const enrichContext: PipelineMiddleware = async (ctx: PipelineContext, ne
   const inline = update?.inline_query;
 
   ctx.updateType = getUpdateType(update);
+  ctx.chatType = resolveChatTypeFromUpdate(update);
 
   const chatId = message?.chat?.id || callback?.message?.chat?.id || null;
   const userId = message?.from?.id || callback?.from?.id || inline?.from?.id || null;
