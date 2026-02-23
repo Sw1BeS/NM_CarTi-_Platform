@@ -3,6 +3,7 @@ import { logger } from '../../../../utils/logger.js';
 import { channelIngestionService, type MediaItem } from '../../../../services/channel-ingestion.service.js';
 import { MediaLimitError, saveTelegramBotFile } from '../../../../services/mediaStorage.service.js';
 import { logIntegrationEvent } from '../../../../services/integrationEventLog.service.js';
+import { buildTelegramChannelPostUrl } from '../core/utils/telegramChatId.js';
 
 /**
  * routeChannelPost - Handles channel_post updates
@@ -130,6 +131,12 @@ export const routeChannelPost: PipelineMiddleware = async (ctx, next) => {
     }
 
     try {
+        const sourceUrl = buildTelegramChannelPostUrl({
+            chatId: channelId,
+            messageId: post.message_id,
+            username: post.chat?.username
+        }) || `https://t.me/c/${channelId.replace('-100', '')}/${post.message_id}`;
+
         const normalized = channelIngestionService.normalizeMessage({
             chatId: channelId,
             messageId: post.message_id,
@@ -139,7 +146,7 @@ export const routeChannelPost: PipelineMiddleware = async (ctx, next) => {
             mediaItems,
             mediaGroupKey: post.media_group_id?.toString(),
             channelTitle: post.chat.title,
-            sourceUrl: `https://t.me/c/${channelId.replace('-100', '')}/${post.message_id}`,
+            sourceUrl,
             sourceType: 'BOTAPI'
         });
 

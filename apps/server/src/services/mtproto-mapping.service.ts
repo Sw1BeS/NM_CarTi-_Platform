@@ -13,6 +13,7 @@ import { prisma } from './prisma.js';
 import type { ChannelSource } from '@prisma/client';
 import { logger } from '../utils/logger.js';
 import { channelIngestionService, type CarData, type IngestionResult, type MediaItem } from './channel-ingestion.service.js';
+import { buildTelegramChannelPostUrl } from '../modules/Communication/telegram/core/utils/telegramChatId.js';
 
 interface TelegramMessage {
     chatId: string;
@@ -33,7 +34,7 @@ export interface PreviewResult {
 }
 
 const buildSourceUrl = (chatId: string, messageId: number) =>
-    `https://t.me/c/${chatId.replace('-100', '')}/${messageId}`;
+    buildTelegramChannelPostUrl({ chatId, messageId }) || `https://t.me/c/${chatId.replace('-100', '')}/${messageId}`;
 
 /**
  * Main processor: parse message and create CarListing

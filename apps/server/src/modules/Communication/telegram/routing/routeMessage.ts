@@ -18,6 +18,7 @@ import { b2bWhitelistService } from '../../../../services/b2bWhitelist.service.j
 import { quotaService } from '../../../../services/quota.service.js';
 import { getEnvInt, isEnvFlagEnabled } from '../../../../services/featureFlags.js';
 import { logger } from '../../../../utils/logger.js';
+import { buildTelegramChannelPostUrl, normalizeBotConfigChatId } from '../core/utils/telegramChatId.js';
 
 
 const parseRange = (input: string) => {
@@ -1542,7 +1543,7 @@ export const finalizeB2BRequest = async (ctx: PipelineContext) => {
   await sendMessage(ctx, t(lang, 'b2bSent'));
 
   // AUTO-POST TO CHANNEL (Task B)
-  const channelId = ctx.bot.channelId;
+  const channelId = normalizeBotConfigChatId(ctx.bot.channelId);
 
   if (channelId) {
     try {
@@ -1597,10 +1598,11 @@ export const finalizeB2BRequest = async (ctx: PipelineContext) => {
 
       // Create ChannelPost record for tracking
       if (sent?.message_id) {
-        const channelIdStr = String(channelId);
-        const channelPostUrl = channelIdStr.startsWith('-100')
-          ? `https://t.me/c/${channelIdStr.slice(4)}/${sent.message_id}`
-          : `https://t.me/${botUsername}/${sent.message_id}`;
+        const channelPostUrl = buildTelegramChannelPostUrl({
+          chatId: String(channelId),
+          messageId: sent.message_id,
+          username: botUsername
+        }) || `https://t.me/${botUsername}/${sent.message_id}`;
 
         await prisma.channelPost.create({
           data: {

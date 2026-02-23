@@ -9,6 +9,7 @@ import { setWebhookForBot, deleteWebhookForBot } from '../modules/Communication/
 import { callTelegram } from './legacyTelegramProxy.shared.js';
 import { logger } from '../utils/logger.js';
 import { errorResponse } from '../utils/errorResponse.js';
+import { normalizeBotConfigChatId } from '../modules/Communication/telegram/core/utils/telegramChatId.js';
 
 const router = Router();
 const resolveCompanyId = async (requestedCompanyId?: string | null, userCompanyId?: string | null) => {
@@ -63,8 +64,12 @@ router.post('/bots', requireRole(['OWNER', 'ADMIN']), async (req, res) => {
     const forcePreset = req.body?.forcePreset === true;
 
     // MIGRATION: Sanitize optional fields
-    const cleanChannelId = data.channelId && String(data.channelId).trim() !== '' ? String(data.channelId).trim() : null;
-    const cleanAdminChatId = data.adminChatId && String(data.adminChatId).trim() !== '' ? String(data.adminChatId).trim() : null;
+    const cleanChannelId = data.channelId && String(data.channelId).trim() !== ''
+        ? normalizeBotConfigChatId(String(data.channelId).trim())
+        : null;
+    const cleanAdminChatId = data.adminChatId && String(data.adminChatId).trim() !== ''
+        ? normalizeBotConfigChatId(String(data.adminChatId).trim())
+        : null;
 
     try {
         const user = (req as any).user || {};
@@ -248,10 +253,10 @@ router.put('/bots/:id', requireRole(['OWNER', 'ADMIN']), async (req, res) => {
     const hasChannelIdField = Object.prototype.hasOwnProperty.call(data, 'channelId');
     const hasAdminChatIdField = Object.prototype.hasOwnProperty.call(data, 'adminChatId');
     const cleanChannelId = hasChannelIdField
-        ? (data.channelId && String(data.channelId).trim() !== '' ? String(data.channelId).trim() : null)
+        ? (data.channelId && String(data.channelId).trim() !== '' ? normalizeBotConfigChatId(String(data.channelId).trim()) : null)
         : undefined;
     const cleanAdminChatId = hasAdminChatIdField
-        ? (data.adminChatId && String(data.adminChatId).trim() !== '' ? String(data.adminChatId).trim() : null)
+        ? (data.adminChatId && String(data.adminChatId).trim() !== '' ? normalizeBotConfigChatId(String(data.adminChatId).trim()) : null)
         : undefined;
 
     try {

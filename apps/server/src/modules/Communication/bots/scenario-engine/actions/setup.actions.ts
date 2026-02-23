@@ -1,6 +1,7 @@
 import { prisma } from '../../../../../services/prisma.js';
 import { sendMessage } from '../adapters/telegram.adapter.js';
 import type { BotRuntime } from '../types.js';
+import { normalizeBotConfigChatId } from '../../../telegram/core/utils/telegramChatId.js';
 
 interface SetupContext {
   bot: BotRuntime;
@@ -20,12 +21,13 @@ export const handleSetupCommands = async ({
   saveSession
 }: SetupContext): Promise<boolean> => {
   if (input === '/setup_admin') {
+    const normalizedAdminChatId = normalizeBotConfigChatId(chatId) || chatId;
     await prisma.botConfig.update({
       where: { id: bot.id },
-      data: { adminChatId: chatId }
+      data: { adminChatId: normalizedAdminChatId }
     });
-    bot.adminChatId = chatId;
-    await sendMessage(bot, chatId, `✅ Admin chat configured: ${chatId}`);
+    bot.adminChatId = normalizedAdminChatId;
+    await sendMessage(bot, chatId, `✅ Admin chat configured: ${normalizedAdminChatId}`);
     return true;
   }
 
@@ -38,7 +40,8 @@ export const handleSetupCommands = async ({
 
   if (vars.setup_mode === 'CHANNEL') {
     if (update.message?.forward_from_chat) {
-      const channelId = String(update.message.forward_from_chat.id);
+      const channelIdRaw = String(update.message.forward_from_chat.id);
+      const channelId = normalizeBotConfigChatId(channelIdRaw) || channelIdRaw;
       const channelTitle = update.message.forward_from_chat.title || 'Channel';
 
       await prisma.botConfig.update({

@@ -16,6 +16,7 @@
     "migrate:v4:inventory": "tsx scripts/migrate_inventory.ts",
     "migrate:v4:leads": "tsx scripts/migrate_leads.ts",
     "media:reconcile": "tsx scripts/reconcile_media.ts",
+    "telegram:normalize-chat-ids": "tsx scripts/telegram_normalize_chat_ids.ts",
     "test": "vitest --run",
     "test:watch": "vitest"
   },
