@@ -4,9 +4,9 @@ import { managerActionsKeyboard, renderRequestCard, renderVariantCard } from '..
 import { telegramOutbox } from '../../../telegram/messaging/outbox/telegramOutbox.js';
 import { sendMessage } from '../adapters/telegram.adapter.js';
 import type { BotRuntime } from '../types.js';
+import { b2bRoutingService } from '../../../../../services/b2bRouting.service.js';
 
 export const notifyRequestAdmin = async (bot: BotRuntime, request: any) => {
-  if (!bot.adminChatId) return;
   const text = `📄 Новий запит\n${renderRequestCard(request, { includeContact: true })}`;
   const keyboard = {
     inline_keyboard: [
@@ -15,7 +15,16 @@ export const notifyRequestAdmin = async (bot: BotRuntime, request: any) => {
       [{ text: '❌ Close', callback_data: `REQ:${request.id}:CLOSE` }]
     ]
   };
-  await sendMessage(bot, bot.adminChatId, text, keyboard);
+  await b2bRoutingService.notifyQueues({
+    companyId: bot.companyId || null,
+    sourceBotId: bot.id,
+    sourceBotToken: bot.token,
+    sourceBotAdminChatId: bot.adminChatId || null,
+    requesterPartnerId: request.requesterPartnerId || null,
+    text,
+    replyMarkup: keyboard,
+    includeSourceAdminFallback: true
+  });
 };
 
 export const createCarCardKeyboard = (car: any, lang: string) => {
@@ -148,6 +157,16 @@ export const createVariantAndRoute = async (params: {
       await sendMessage(params.bot, String(params.bot.adminChatId), adminCaption, managerActionsKeyboard(variant.id));
     }
   }
+
+  const adminCaption = `📨 Новий варіант по запиту ${request.publicId || request.id}\n${renderVariantCard(variant as any, { includeContact: true })}`;
+  await b2bRoutingService.notifyQueues({
+    companyId: params.bot.companyId || null,
+    sourceBotId: params.bot.id,
+    sourceBotToken: params.bot.token,
+    requesterPartnerId: request.requesterPartnerId || null,
+    text: adminCaption,
+    replyMarkup: managerActionsKeyboard(variant.id)
+  });
 
   return {
     ok: true as const,

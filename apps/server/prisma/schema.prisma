@@ -881,6 +881,7 @@ model PartnerCompany {
   city      String?
   contact   String?
   notes     String?
+  adminGroupChatId String?
   companyId String?
   workspace Workspace? @relation(fields: [companyId], references: [id], onDelete: SetNull)
 
@@ -889,6 +890,8 @@ model PartnerCompany {
   sellerVariants   RequestVariant[] @relation("SellerPartnerVariants")
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
+
+  @@index([adminGroupChatId])
 }
 
 model PartnerUser {

@@ -20,6 +20,7 @@ import { getEnvInt, isEnvFlagEnabled } from '../../../../services/featureFlags.j
 import { logger } from '../../../../utils/logger.js';
 import { buildTelegramChannelPostUrl, normalizeBotConfigChatId } from '../core/utils/telegramChatId.js';
 import { resolveReplyMarkupForChat } from '../core/utils/telegramReplyMarkup.js';
+import { b2bRoutingService } from '../../../../services/b2bRouting.service.js';
 
 
 const parseRange = (input: string) => {
@@ -323,7 +324,7 @@ const handleClientLead = async (ctx: PipelineContext, text: string) => {
     }
     await sendMessage(ctx, t(lang, 'supportReceived'));
     if (ctx.bot?.adminChatId) {
-      await sendMessage(ctx, `🆘 Support request from ${message?.from?.first_name || 'User'}: ${text}`);
+      await sendMessage(ctx, `🆘 Support request from ${message?.from?.first_name || 'User'}: ${text}`, undefined, String(ctx.bot.adminChatId));
     }
     await showMenu(ctx, lang, 'CLIENT_LEAD');
     return true;
@@ -1692,22 +1693,33 @@ export const finalizeB2BRequest = async (ctx: PipelineContext) => {
     );
   }
 
-  // Notify admin (existing logic)
+  // Notify partner queue + central queue (relay), with source-admin fallback.
   const managerChatId = (ctx.bot.config as any)?.b2bManagerChatId || ctx.bot.adminChatId;
-  if (managerChatId) {
-    const requestCard = renderRequestCard({
-      ...request,
-      payload: {
-        ...(request.payload as any || {}),
-        companyName: requesterCompanyName || flow.companyName
-      }
-    }, { includeContact: true });
-    const botUsername = (ctx.bot.config as any)?.botUsername || (ctx.bot.config as any)?.username;
-    const link = botUsername ? generateRequestLink(botUsername, request.publicId || request.id) : '';
-    const header = `📝 New B2B request ${request.publicId || request.id}`;
-    const msg = link ? `${header}\n${requestCard}\n\n🔗 ${link}` : `${header}\n${requestCard}`;
-    await sendMessage(ctx, msg, undefined, String(managerChatId));
-  }
+  const requestCard = renderRequestCard({
+    ...request,
+    payload: {
+      ...(request.payload as any || {}),
+      companyName: requesterCompanyName || flow.companyName
+    }
+  }, { includeContact: true });
+  const botUsername = (ctx.bot.config as any)?.botUsername || (ctx.bot.config as any)?.username;
+  const link = botUsername ? generateRequestLink(botUsername, request.publicId || request.id) : '';
+  const header = `📝 New B2B request ${request.publicId || request.id}`;
+  const msg = link ? `${header}\n${requestCard}\n\n🔗 ${link}` : `${header}\n${requestCard}`;
+  const adminReplyMarkup = link
+    ? { inline_keyboard: [[{ text: 'Відкрити в CRM', url: link }]] }
+    : undefined;
+
+  await b2bRoutingService.notifyQueues({
+    companyId: ctx.companyId || null,
+    sourceBotId: ctx.bot.id,
+    sourceBotToken: ctx.bot.token,
+    sourceBotAdminChatId: managerChatId ? String(managerChatId) : null,
+    requesterPartnerId: requesterPartnerId || null,
+    text: msg,
+    replyMarkup: adminReplyMarkup,
+    includeSourceAdminFallback: true
+  });
 
   await showMenu(ctx, lang, 'B2B');
 };

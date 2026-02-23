@@ -25,7 +25,7 @@ export type ParsedCallback = {
 
 export const buildCallbackData = (action: string, id?: string) => {
   const safeAction = sanitize(action, 24);
-  const safeId = id ? sanitize(id, 24) : undefined;
+  const safeId = id ? sanitize(id, 48) : undefined;
   let data = buildV1(safeAction, safeId);
 
   if (Buffer.byteLength(data, 'utf8') <= MAX_CALLBACK_BYTES) return data;

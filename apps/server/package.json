@@ -18,7 +18,8 @@
     "media:reconcile": "tsx scripts/reconcile_media.ts",
     "telegram:normalize-chat-ids": "tsx scripts/telegram_normalize_chat_ids.ts",
     "test": "vitest --run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "b2b:backfill-partner-admin-groups": "tsx scripts/backfill_partner_admin_groups.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.10.2",

@@ -3,11 +3,12 @@ import { prisma } from '../../../../services/prisma.js';
 import type { PipelineContext } from '../core/types.js';
 import { ScenarioEngine } from '../../bots/scenario.engine.js';
 import { telegramOutbox } from '../messaging/outbox/telegramOutbox.js';
-import { parseCallbackData } from '../core/utils/callbackUtils.js';
+import { buildCallbackData, parseCallbackData } from '../core/utils/callbackUtils.js';
 import { button, resolveLang, t } from '../core/utils/telegramText.js';
 import { finalizeB2BRequest, finalizeCatalogSell, finalizeClientLead, handleDynamicMenu } from './routeMessage.js';
 import { b2bWhitelistService } from '../../../../services/b2bWhitelist.service.js';
 import { resolveReplyMarkupForChat } from '../core/utils/telegramReplyMarkup.js';
+import { b2bRoutingService } from '../../../../services/b2bRouting.service.js';
 
 const updateSession = async (ctx: PipelineContext, state: string, variables: Record<string, any>) => {
   if (!ctx.session) return;
@@ -98,6 +99,11 @@ export const routeCallback = async (ctx: PipelineContext) => {
       case 'b2b_access_request': {
         const from = cb.from;
         const fullName = [from?.first_name, from?.last_name].filter(Boolean).join(' ').trim() || undefined;
+        const reason = [
+          'telegram_callback_request_access',
+          ctx.chatId ? `chatId=${ctx.chatId}` : '',
+          ctx.chatType ? `chatType=${ctx.chatType}` : ''
+        ].filter(Boolean).join(';');
         const result = await b2bWhitelistService.ensureAccess({
           tgUserId: String(from?.id || ctx.userId || ctx.chatId || ''),
           username: from?.username || null,
@@ -105,24 +111,91 @@ export const routeCallback = async (ctx: PipelineContext) => {
         }, {
           companyId: ctx.companyId || null,
           botId: ctx.bot.id
-        }, 'telegram_callback_request_access');
+        }, reason);
 
         if (result.allowed) {
           await sendMessage(ctx, '✅ Доступ вже активний. Скористайтесь меню для створення запиту.');
         } else {
           await sendMessage(ctx, '✅ Запит на доступ надіслано адміну. Очікуйте підтвердження.');
-          if (ctx.bot.adminChatId) {
-          await sendMessage(
-              ctx,
+
+          const accessRequestId = result.accessRequest?.id || '';
+          const adminMarkup = accessRequestId
+            ? {
+              inline_keyboard: [
+                [
+                  { text: '✅ Approve', callback_data: buildCallbackData('b2b_access_approve', accessRequestId) },
+                  { text: '❌ Reject', callback_data: buildCallbackData('b2b_access_reject', accessRequestId) }
+                ]
+              ]
+            }
+            : undefined;
+
+          await b2bRoutingService.notifyQueues({
+            companyId: ctx.companyId || null,
+            sourceBotId: ctx.bot.id,
+            sourceBotToken: ctx.bot.token,
+            sourceBotAdminChatId: ctx.bot.adminChatId || null,
+            text:
               `🔐 Новий запит на доступ B2B\n` +
-              `ID: ${result.accessRequest?.id}\n` +
+              `ID: ${accessRequestId || '—'}\n` +
               `tgUserId: ${from?.id || ctx.userId}\n` +
               `username: ${from?.username ? `@${from.username}` : '—'}\n` +
-              `name: ${fullName || '—'}`,
-              undefined,
-              String(ctx.bot.adminChatId)
-            );
+              `name: ${fullName || '—'}\n` +
+              `chatId: ${ctx.chatId || '—'}\n` +
+              `chatType: ${ctx.chatType || 'unknown'}`,
+            replyMarkup: adminMarkup,
+            includeSourceAdminFallback: true
+          });
+        }
+        return true;
+      }
+      case 'b2b_access_approve':
+      case 'b2b_access_reject': {
+        const accessRequestId = parsed.id ? String(parsed.id) : '';
+        if (!accessRequestId) {
+          await sendMessage(ctx, '⚠️ Некоректний запит доступу.');
+          return true;
+        }
+
+        const decision = parsed.action === 'b2b_access_approve' ? 'APPROVE' : 'REJECT';
+        const reviewedBy = String(cb.from?.id || ctx.userId || 'unknown');
+        const reviewed = await b2bWhitelistService.reviewAccessRequest({
+          accessRequestId,
+          decision,
+          reviewedBy
+        });
+
+        if (!reviewed) {
+          await sendMessage(ctx, '⚠️ Запит доступу не знайдено.');
+          return true;
+        }
+
+        const targetUserId = String(reviewed.accessRequest.tgUserId || '').trim();
+        if (decision === 'APPROVE') {
+          await sendMessage(ctx, `✅ Доступ підтверджено: ${accessRequestId}`);
+          if (targetUserId) {
+            await sendMessage(ctx, '✅ Ваш доступ до B2B підтверджено. Скористайтесь меню бота.', undefined, targetUserId);
           }
+        } else {
+          await sendMessage(ctx, `❌ Доступ відхилено: ${accessRequestId}`);
+          if (targetUserId) {
+            await sendMessage(ctx, '❌ Запит на доступ до B2B відхилено. Зверніться до адміністратора.', undefined, targetUserId);
+          }
+        }
+
+        const message = cb.message;
+        if (message?.chat?.id && message?.message_id) {
+          const statusLine = decision === 'APPROVE' ? '✅ APPROVED' : '❌ REJECTED';
+          const baseText = String(message.text || message.caption || '').split('\\n\\n').slice(0, 1).join('\\n');
+          await telegramOutbox.editMessageText({
+            botId: ctx.bot.id,
+            token: ctx.bot.token,
+            chatId: String(message.chat.id),
+            messageId: message.message_id,
+            text: `${baseText}\\n${statusLine}`,
+            companyId: ctx.companyId,
+            userId: ctx.userId || undefined
+          }).catch(() => null);
         }
         return true;
       }

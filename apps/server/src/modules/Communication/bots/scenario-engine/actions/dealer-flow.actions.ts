@@ -8,6 +8,7 @@ import { hasContactInfo } from '../runtime/helpers.js';
 import { resolveRequestId } from './session.actions.js';
 import { getEnvInt } from '../../../../../services/featureFlags.js';
 import type { BotRuntime } from '../types.js';
+import { b2bRoutingService } from '../../../../../services/b2bRouting.service.js';
 
 interface DealerFlowContext {
   bot: BotRuntime;
@@ -380,6 +381,15 @@ export const handleDealerFlow = async ({
           await sendMessage(bot, bot.adminChatId, caption, managerActionsKeyboard(variant.id));
         }
       }
+
+      await b2bRoutingService.notifyQueues({
+        companyId: bot.companyId || null,
+        sourceBotId: bot.id,
+        sourceBotToken: bot.token,
+        requesterPartnerId: request?.requesterPartnerId || null,
+        text: `📨 Новий варіант по запиту ${request?.publicId || requestId}\n${renderVariantCard(variant as any, { includeContact: true })}`,
+        replyMarkup: managerActionsKeyboard(variant.id)
+      });
       return true;
     }
   }

@@ -3,6 +3,7 @@ import { renderVariantCard } from '../../../../../services/cardRenderer.js';
 import { telegramOutbox } from '../../../telegram/messaging/outbox/telegramOutbox.js';
 import { answerCallback, sendMessage } from '../adapters/telegram.adapter.js';
 import type { BotRuntime } from '../types.js';
+import { b2bRoutingService } from '../../../../../services/b2bRouting.service.js';
 
 interface CallbackHandlerContext {
   bot: BotRuntime;
@@ -102,14 +103,16 @@ export const handleCallbackQuery = async ({
           }).catch(() => null);
         }
 
-        if (bot.adminChatId) {
-          const variantCard = renderVariantCard(variant as any, { includeContact: true });
-          await sendMessage(
-            bot,
-            bot.adminChatId,
-            `✅ Заявка схвалена!\n\n${variantCard}\n\n🔗 Запит: ${variant.request?.title || variant.requestId}`
-          );
-        }
+        const variantCard = renderVariantCard(variant as any, { includeContact: true });
+        await b2bRoutingService.notifyQueues({
+          companyId: bot.companyId || null,
+          sourceBotId: bot.id,
+          sourceBotToken: bot.token,
+          sourceBotAdminChatId: bot.adminChatId || null,
+          requesterPartnerId: variant.request?.requesterPartnerId || null,
+          text: `✅ Заявка схвалена!\n\n${variantCard}\n\n🔗 Запит: ${variant.request?.title || variant.requestId}`,
+          includeSourceAdminFallback: true
+        });
 
         await sendMessage(bot, chatId, '✅ Ви схвалили варіант. Менеджер отримав контакт дилера.');
       } else if (action === 'NO') {
