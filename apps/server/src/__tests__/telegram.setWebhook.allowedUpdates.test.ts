@@ -46,7 +46,7 @@ describe('Telegram setWebhook allowed updates', () => {
     });
   });
 
-  it('includes channel and membership updates in allowed_updates', async () => {
+  it('includes channel, membership and join-request updates in allowed_updates', async () => {
     await setWebhookForBot('bot-1', {
       publicBaseUrl: 'https://example.com'
     });
@@ -55,7 +55,7 @@ describe('Telegram setWebhook allowed updates', () => {
 
     const [, payload] = axiosPostMock.mock.calls[0];
     expect(payload.allowed_updates).toEqual(
-      expect.arrayContaining(['channel_post', 'my_chat_member'])
+      expect.arrayContaining(['channel_post', 'my_chat_member', 'chat_join_request'])
     );
   });
 });

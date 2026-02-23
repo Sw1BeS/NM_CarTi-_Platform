@@ -2,6 +2,7 @@ import { b2bRegistrationService } from '../../../../../services/b2bRegistration.
 import { sendMessage } from '../adapters/telegram.adapter.js';
 import { startFormFlow, type FormSubmission } from './form.actions.js';
 import type { BotRuntime } from '../types.js';
+import { telegramInviteService } from '../../../telegram/core/telegramInvite.service.js';
 
 type RegistrationDraft = {
   mode?: 'new_partner' | 'agent';
@@ -144,10 +145,24 @@ const startAgentUserForm = async (params: {
   });
 };
 
-const resolveInviteHint = (bot: BotRuntime) => {
+const resolveInviteHint = async (bot: BotRuntime) => {
   const cfg = ((bot.config || {}) as Record<string, any>);
   const direct = clean(cfg?.b2bInviteLink || cfg?.inviteLink || cfg?.b2b?.inviteLink);
-  return direct || '';
+  if (direct) return direct;
+
+  const inviteChatId = clean(
+    cfg?.b2b?.channelId
+    || cfg?.b2bChannelId
+    || bot.channelId
+  );
+  if (!inviteChatId) return '';
+
+  return telegramInviteService.buildBestEffortInviteLink({
+    token: bot.token,
+    chatId: inviteChatId,
+    createsJoinRequest: true,
+    name: 'B2B Partner Invite'
+  }).catch(() => '');
 };
 
 const notifyRegistrationAdmin = async (params: {
@@ -270,7 +285,7 @@ export const handleB2BRegistrationCallback = async (params: {
     const payload = approved.payload;
     const applicantChatId = clean(payload?.chatId || approved.accessRequest.tgUserId);
     const partnerCode = clean(approved.partnerCompany.partnerCode);
-    const inviteHint = resolveInviteHint(params.bot);
+    const inviteHint = await resolveInviteHint(params.bot);
 
     if (applicantChatId) {
       const ownerMessage = [

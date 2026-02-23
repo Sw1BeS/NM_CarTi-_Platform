@@ -12,6 +12,7 @@ import { routeWebApp } from '../routing/routeWebApp.js';
 import { routeInline } from '../routing/routeInline.js';
 import { routeMyChatMember } from '../routing/routeMyChatMember.js';
 import { routeChannelPost } from '../routing/routeChannelPost.js';
+import { routeChatJoinRequest } from '../routing/routeChatJoinRequest.js';
 
 type PipelineInput = {
   update: any;
@@ -61,6 +62,7 @@ const pipeline = compose([
   normalize,
   saveMessage,
   routeMyChatMember,
+  routeChatJoinRequest,
   routeUpdate,
   emitEvent
 ]);

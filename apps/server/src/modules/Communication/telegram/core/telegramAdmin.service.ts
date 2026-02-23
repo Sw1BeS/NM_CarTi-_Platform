@@ -30,7 +30,7 @@ export const setWebhookForBot = async (botId: string, opts: { publicBaseUrl?: st
     secret_token: secret,
     drop_pending_updates: true,
     // Include channel and membership updates because the pipeline handles them.
-    allowed_updates: ['message', 'callback_query', 'inline_query', 'channel_post', 'my_chat_member']
+    allowed_updates: ['message', 'callback_query', 'inline_query', 'channel_post', 'my_chat_member', 'chat_join_request']
   }, { timeout: 15000 });
 
   if (!response.data?.ok) {
