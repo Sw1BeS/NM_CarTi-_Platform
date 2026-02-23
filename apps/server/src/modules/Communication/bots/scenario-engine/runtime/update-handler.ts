@@ -133,6 +133,13 @@ export const handleUpdateRuntime = async ({
     }
   };
 
+  const interruptInputs = new Set([
+    '/start', '/menu', 'menu', 'меню', 'в меню', '🏠 menu', 'main menu', 'reset',
+    '/cancel', 'cancel', 'stop', 'скасувати', 'відміна', 'отмена',
+    '/back', 'back', 'назад', '⬅️ back', 'cmd:back'
+  ]);
+  const shouldInterruptInteractiveFlow = interruptInputs.has(input);
+
   // Manager Actions
   if (inputRaw.startsWith('REQ:')) {
     await handleManagerRequestAction(inputRaw, userId);
@@ -150,7 +157,15 @@ export const handleUpdateRuntime = async ({
   });
   if (handledSetup) return true;
 
-  if (hasActiveForm(vars) && update.message) {
+  if (hasActiveForm(vars) && update.message && shouldInterruptInteractiveFlow) {
+    delete vars.__form;
+    delete vars.__formSubmission;
+    clearActiveScenario(vars, history);
+    delete vars.__tempResults;
+    await saveSession();
+  }
+
+  if (hasActiveForm(vars) && update.message && !shouldInterruptInteractiveFlow) {
     const formResult = await handleFormMessageInput({
       bot,
       chatId,
@@ -437,7 +452,12 @@ export const handleUpdateRuntime = async ({
   const activeNodes = Array.isArray(activeScenario?.nodes) ? activeScenario?.nodes : [];
   const activeNode = activeNodes.find((n: any) => n.id === vars.__currentNodeId);
 
-  const bypassPhotoNodeInput = ['/back', 'back', 'назад', '⬅️ back', 'cmd:back', '/menu', 'menu', 'меню', 'в меню', '🏠 menu', 'main menu'].includes(input);
+  const bypassPhotoNodeInput = [
+    '/back', 'back', 'назад', '⬅️ back', 'cmd:back',
+    '/menu', 'menu', 'меню', 'в меню', '🏠 menu', 'main menu',
+    '/start', 'reset',
+    '/cancel', 'cancel', 'stop', 'скасувати', 'відміна', 'отмена'
+  ].includes(input);
   if (activeNode?.type === 'QUESTION_PHOTO' && !bypassPhotoNodeInput) {
     const variableName = String(activeNode.content?.variableName || 'photos');
     const doneValues = ['done', 'готово', '/done', 'skip', 'пропустити', 'пропустить'];
