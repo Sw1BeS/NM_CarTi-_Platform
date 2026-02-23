@@ -32,6 +32,7 @@ export type MiniAppRequestPayload = {
   phone?: string;
   comment?: string;
   carListingId?: string;
+  carListingIds?: string[];
   tracking?: MiniAppTrackingMeta;
   telegram?: {
     userId?: string;

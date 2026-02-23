@@ -647,7 +647,10 @@ router.post('/requests', async (req, res) => {
       botId: config.botId || null,
       hasInitData: Boolean(initData),
       hasPhone: Boolean(readString(body.phone)),
-      hasCarListingId: Boolean(readString(body.carListingId))
+      hasCarListingId: Boolean(readString(body.carListingId)),
+      carListingIdsCount: Array.isArray(body.carListingIds)
+        ? body.carListingIds.filter((item) => typeof item === 'string' && item.trim()).length
+        : 0
     });
 
     const request = await miniAppService.createRequest({
@@ -659,6 +662,9 @@ router.post('/requests', async (req, res) => {
       phone: readString(body.phone),
       comment: readString(body.comment),
       carListingId: readString(body.carListingId),
+      carListingIds: Array.isArray(body.carListingIds)
+        ? body.carListingIds.map((item) => readString(item)).filter((item): item is string => Boolean(item))
+        : undefined,
       tracking: (body.tracking as Record<string, unknown>) || undefined,
       telegram: (body.telegram as Record<string, unknown>) || undefined,
       payload: (body.payload as Record<string, unknown>) || undefined

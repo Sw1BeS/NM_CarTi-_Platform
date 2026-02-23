@@ -217,6 +217,7 @@ const MiniAppContent = () => {
     const [config, setConfig] = useState<MiniAppConfig | null>(null);
     const [view, setView] = useState<MiniAppView>('HOME');
     const [selectedCar, setSelectedCar] = useState<CarListing | null>(null);
+    const [selectedRequestCarIds, setSelectedRequestCarIds] = useState<string[]>([]);
     const [favorites, setFavorites] = useState<string[]>([]);
     const [favoriteItems, setFavoriteItems] = useState<CarListing[]>([]);
     const [tgUser, setTgUser] = useState<TgUser | null>(null);
@@ -315,6 +316,23 @@ const MiniAppContent = () => {
     const getCarId = (car?: CarListing | null) => car?.canonicalId || car?.id || '';
 
     const isFavorite = (carId: string) => favorites.includes(carId);
+    const isSelectedForRequest = (carId: string) => selectedRequestCarIds.includes(carId);
+
+    const toggleRequestSelection = (car: CarListing) => {
+        const carId = getCarId(car);
+        if (!carId) return;
+        setSelectedRequestCarIds(prev => prev.includes(carId) ? prev.filter(id => id !== carId) : [...prev, carId]);
+    };
+
+    const clearRequestSelection = () => setSelectedRequestCarIds([]);
+
+    const selectedRequestCars = React.useMemo(() => {
+        if (!selectedRequestCarIds.length) return [] as CarListing[];
+        const source = [selectedCar, ...cars, ...favoriteItems]
+            .filter((item): item is CarListing => Boolean(item));
+        const map = new Map(source.map(item => [getCarId(item), item]));
+        return selectedRequestCarIds.map(id => map.get(id)).filter((item): item is CarListing => Boolean(item));
+    }, [cars, favoriteItems, selectedCar, selectedRequestCarIds]);
 
     const loadFavorites = async (slug: string, identity: { tgUserId?: string; visitorId?: string }) => {
         try {
@@ -361,6 +379,7 @@ const MiniAppContent = () => {
     };
 
     const prefillRequestFromCar = (car: CarListing) => {
+        const carId = getCarId(car);
         const specs = getCarSpecs(car);
         setReqData({
             brand: car.title || '',
@@ -370,6 +389,23 @@ const MiniAppContent = () => {
         setReqMileage(String(toNumberSafe(car.mileage) || ''));
         setReqFuel(specs.fuel || '');
         setReqComment('');
+        if (carId) {
+            setSelectedRequestCarIds([carId]);
+        }
+        setReqStep(1);
+        setView('REQUEST');
+    };
+
+    const openRequestForSelectedCars = () => {
+        if (!selectedRequestCarIds.length) return;
+        if (!reqData.brand && selectedRequestCars[0]) {
+            const first = selectedRequestCars[0];
+            setReqData({
+                brand: first.title || '',
+                budget: String(first.price?.amount || ''),
+                year: String(first.year || '')
+            });
+        }
         setReqStep(1);
         setView('REQUEST');
     };
@@ -431,6 +467,7 @@ const MiniAppContent = () => {
         suppressHistoryPushRef.current = true;
         setView('HOME');
         setReqStep(1);
+        setSelectedRequestCarIds([]);
         setIsConfigLoading(true);
         setInitError(null);
         setRequiresTelegram(false);
@@ -1068,9 +1105,10 @@ const renderInventory = () => {
                     const cover = images[0];
                     const specs = getCarSpecs(car);
                     const cardActionLabel = surfaceMode === 'B2B' ? 'Створити B2B запит' : 'Запит на підбір';
+                    const carId = getCarId(car);
 
                     return (
-                        <div key={getCarId(car) || `inventory_${car.title}_${car.year}`} className="bg-[#1c1c1e] rounded-2xl overflow-hidden border border-white/5 flex flex-col shadow-lg">
+                        <div key={carId || `inventory_${car.title}_${car.year}`} className={`bg-[#1c1c1e] rounded-2xl overflow-hidden border flex flex-col shadow-lg ${isSelectedForRequest(carId) ? 'border-yellow-400/60' : 'border-white/5'}`}>
                             <div className="h-48 bg-gray-800 relative cursor-pointer" onClick={() => { setLightboxCar(car); setLightboxImageIndex(0); }}>
                                 {cover ? (
                                     <img src={cover} className="w-full h-full object-cover" />
@@ -1097,7 +1135,7 @@ const renderInventory = () => {
                                     onClick={(e) => { e.stopPropagation(); toggleFavorite(car); }}
                                     className="absolute top-2 right-2 w-9 h-9 rounded-full bg-black/60 flex items-center justify-center"
                                 >
-                                    <Heart size={16} className={isFavorite(getCarId(car)) ? 'text-red-400 fill-red-400' : 'text-white/70'} />
+                                    <Heart size={16} className={isFavorite(carId) ? 'text-red-400 fill-red-400' : 'text-white/70'} />
                                 </button>
                             </div>
                             <div className="p-4">
@@ -1117,6 +1155,12 @@ const renderInventory = () => {
                                     style={{ backgroundColor: primaryColor }}
                                 >
                                     <MessageSquare size={18} /> {cardActionLabel}
+                                </button>
+                                <button
+                                    onClick={() => toggleRequestSelection(car)}
+                                    className="w-full mt-2 py-2 rounded-xl font-bold text-xs border border-white/10 text-white/80"
+                                >
+                                    {isSelectedForRequest(carId) ? '✅ У виборі для запиту' : '➕ Додати до мультивибору'}
                                 </button>
                                 <button
                                     onClick={() => openListing(car)}
@@ -1148,8 +1192,9 @@ const renderFavorites = () => {
                 {favCars.map(car => {
                     const images = getCarImages(car);
                     const cover = images[0];
+                    const carId = getCarId(car);
                     return (
-                        <div key={getCarId(car) || `fav_${car.title}_${car.year}`} className="bg-[#1c1c1e] rounded-2xl overflow-hidden border border-white/5 flex flex-col shadow-lg">
+                        <div key={carId || `fav_${car.title}_${car.year}`} className={`bg-[#1c1c1e] rounded-2xl overflow-hidden border flex flex-col shadow-lg ${isSelectedForRequest(carId) ? 'border-yellow-400/60' : 'border-white/5'}`}>
                             <div className="h-40 bg-gray-800 relative cursor-pointer" onClick={() => openListing(car)}>
                                 {cover ? (
                                     <img src={cover} className="w-full h-full object-cover" />
@@ -1171,6 +1216,12 @@ const renderFavorites = () => {
                                 <div className="mt-2 font-bold" style={{ color: primaryColor }}>
                                     {formatPrice(car.price)}
                                 </div>
+                                <button
+                                    onClick={() => toggleRequestSelection(car)}
+                                    className="w-full mt-3 py-2 rounded-xl font-bold text-xs border border-white/10 text-white/80"
+                                >
+                                    {isSelectedForRequest(carId) ? '✅ У виборі для запиту' : '➕ Додати до мультивибору'}
+                                </button>
                             </div>
                         </div>
                     );
@@ -1262,6 +1313,12 @@ const renderListing = () => {
                 >
                     <MessageSquare size={18} /> {surfaceMode === 'B2B' ? 'Створити B2B запит' : 'Запит на це авто'}
                 </button>
+                <button
+                    onClick={() => toggleRequestSelection(selectedCar)}
+                    className="w-full py-2 rounded-xl font-bold text-xs border border-white/10 text-white/80"
+                >
+                    {isSelectedForRequest(getCarId(selectedCar)) ? '✅ Авто у мультивиборі' : '➕ Додати авто до мультивибору'}
+                </button>
             </div>
         </div>
     );
@@ -1348,7 +1405,12 @@ const handleNextStep = async () => {
 
         try {
             const slug = targetSlug || 'system';
-            const listingId = getCarId(selectedCar) || undefined;
+            const fallbackListingId = getCarId(selectedCar);
+            const selectedListingIds = selectedRequestCarIds.length
+                ? selectedRequestCarIds
+                : (fallbackListingId ? [fallbackListingId] : []);
+            const selectedTitles = selectedRequestCars.map(car => car.title).filter(Boolean);
+            const listingId = selectedListingIds[0] || undefined;
             const descriptionParts = [
                 reqData.brand ? `Марка/модель: ${reqData.brand}` : null,
                 reqData.year ? `Рік: ${reqData.year}+` : null,
@@ -1357,26 +1419,31 @@ const handleNextStep = async () => {
                 reqFuel ? `Пальне: ${reqFuel}` : null,
                 reqCompany ? `Компанія: ${reqCompany}` : null,
                 reqComment ? `Коментар: ${reqComment}` : null,
-                reqPhone ? `Контакт: ${reqPhone}` : null
+                reqPhone ? `Контакт: ${reqPhone}` : null,
+                selectedTitles.length > 1 ? `Обрані авто: ${selectedTitles.join(', ')}` : null
             ].filter(Boolean);
 
             const requestPayload = {
                 slug,
                 initData,
-                title: listingId && selectedCar?.title
-                    ? `${isB2BMode ? 'B2B запит' : 'Запит'}: ${selectedCar.title}`
-                    : `${isB2BMode ? 'B2B запит' : 'Запит'}: ${reqData.brand || 'Авто'} ${reqData.year || ''}`.trim(),
+                title: selectedTitles.length > 1
+                    ? `${isB2BMode ? 'B2B запит' : 'Запит'}: ${selectedTitles.length} авто`
+                    : (listingId && selectedCar?.title
+                        ? `${isB2BMode ? 'B2B запит' : 'Запит'}: ${selectedCar.title}`
+                        : `${isB2BMode ? 'B2B запит' : 'Запит'}: ${reqData.brand || 'Авто'} ${reqData.year || ''}`.trim()),
                 description: descriptionParts.length ? descriptionParts.join('\n') : undefined,
                 budgetMax: reqData.budget ? Number(reqData.budget) : undefined,
                 yearMin: reqData.year ? Number(reqData.year) : undefined,
                 phone: reqPhone || undefined,
                 comment: reqComment || undefined,
                 carListingId: listingId || undefined,
+                carListingIds: selectedListingIds.length ? selectedListingIds : undefined,
                 payload: {
                     mode: isB2BMode ? 'B2B' : 'LEAD',
                     mileage: reqMileage || undefined,
                     fuel: reqFuel || undefined,
-                    companyName: reqCompany || undefined
+                    companyName: reqCompany || undefined,
+                    selectedCars: selectedTitles.length ? selectedTitles : undefined
                 },
                 tracking: trackingMeta,
                 telegram: {
@@ -1387,6 +1454,7 @@ const handleNextStep = async () => {
             };
 
             await createMiniAppRequest(requestPayload);
+            clearRequestSelection();
 
             if (tg && tg.initData) {
                 tg.close();
@@ -1416,6 +1484,9 @@ const renderRequest = () => (
         setReqPhone={setReqPhone}
         reqComment={reqComment}
         setReqComment={setReqComment}
+        selectedCarsCount={selectedRequestCarIds.length}
+        selectedCarsPreview={selectedRequestCars.map(car => car.title).filter(Boolean).slice(0, 3)}
+        onClearSelectedCars={clearRequestSelection}
         hasTelegramInit={hasTelegramInit}
         primaryColor={primaryColor}
         surfaceMode={surfaceMode}
@@ -1433,6 +1504,35 @@ const renderProfile = () => (
         onCloseApp={() => (window as any).Telegram?.WebApp?.close?.()}
     />
 );
+
+const renderSelectionBar = () => {
+    if (!selectedRequestCarIds.length) return null;
+    if (view === 'REQUEST' || view === 'STATUS') return null;
+    return (
+        <div className="absolute bottom-20 left-4 right-4 z-30">
+            <div className="bg-[#111214] border border-white/10 rounded-2xl p-3 shadow-2xl backdrop-blur">
+                <div className="text-xs text-white/60 mb-2">
+                    Обрано авто: <span className="text-white font-bold">{selectedRequestCarIds.length}</span>
+                </div>
+                <div className="flex gap-2">
+                    <button
+                        onClick={openRequestForSelectedCars}
+                        className="flex-1 py-2.5 rounded-xl font-bold text-black text-sm"
+                        style={{ backgroundColor: primaryColor }}
+                    >
+                        Надіслати запит
+                    </button>
+                    <button
+                        onClick={clearRequestSelection}
+                        className="px-3 py-2.5 rounded-xl font-bold text-xs border border-white/10 text-white/80"
+                    >
+                        Очистити
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 const AppIcon = ({ name, size = 24 }: { name: string; size?: number }) => {
     const props = { size };
@@ -1497,6 +1597,7 @@ return (
             {view === 'REQUEST' && renderRequest()}
             {view === 'STATUS' && renderStatus()}
             {view === 'PROFILE' && renderProfile()}
+            {renderSelectionBar()}
 
             {lightboxCar && (
                 <div className="absolute inset-0 bg-black z-[100] flex flex-col">

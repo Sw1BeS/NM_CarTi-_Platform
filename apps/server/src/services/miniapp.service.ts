@@ -28,6 +28,7 @@ export type MiniAppRequestInput = {
   phone?: string;
   comment?: string;
   carListingId?: string;
+  carListingIds?: string[];
   tracking?: MiniAppTracking;
   telegram?: MiniAppTelegram;
   payload?: Record<string, unknown>;
@@ -197,17 +198,34 @@ export class MiniAppService {
     const phone = toOptionalString(input.phone);
     const comment = toOptionalString(input.comment);
     const carListingId = toOptionalString(input.carListingId);
+    const carListingIds = Array.isArray(input.carListingIds)
+      ? input.carListingIds.map((item) => toOptionalString(item)).filter((item): item is string => Boolean(item))
+      : [];
+    const selectedCarIds = Array.from(new Set([carListingId, ...carListingIds].filter((item): item is string => Boolean(item))));
 
     let listingTitle: string | undefined;
-    if (carListingId) {
-      const listing = await prisma.carListing.findUnique({ where: { id: carListingId } });
-      listingTitle = listing?.title || undefined;
+    let listingTitles: string[] = [];
+    if (selectedCarIds.length) {
+      const listings = await prisma.carListing.findMany({
+        where: { id: { in: selectedCarIds } },
+        select: { id: true, title: true }
+      });
+      const titleMap = new Map(listings.map((item) => [item.id, item.title]));
+      listingTitles = selectedCarIds.map((id) => titleMap.get(id)).filter((item): item is string => Boolean(item));
+      listingTitle = listingTitles[0];
     }
 
-    const title = titleFromInput || (listingTitle ? `Запит: ${listingTitle}` : 'Запит з Mini App');
+    const title = titleFromInput
+      || (listingTitles.length > 1
+        ? `Запит: ${listingTitles.length} авто`
+        : (listingTitle ? `Запит: ${listingTitle}` : 'Запит з Mini App'));
 
     const descriptionParts: string[] = [];
-    if (listingTitle) descriptionParts.push(`Картка: ${listingTitle}`);
+    if (listingTitles.length > 1) {
+      descriptionParts.push(`Картки: ${listingTitles.join(', ')}`);
+    } else if (listingTitle) {
+      descriptionParts.push(`Картка: ${listingTitle}`);
+    }
     if (comment) descriptionParts.push(`Коментар: ${comment}`);
     if (phone) descriptionParts.push(`Контакт: ${phone}`);
     const description = descriptionFromInput || (descriptionParts.length ? descriptionParts.join('\n') : undefined);
@@ -224,6 +242,7 @@ export class MiniAppService {
       telegram,
       request: {
         carListingId: carListingId || undefined,
+        carListingIds: selectedCarIds.length ? selectedCarIds : undefined,
         phone: phone || undefined,
         comment: comment || undefined
       }

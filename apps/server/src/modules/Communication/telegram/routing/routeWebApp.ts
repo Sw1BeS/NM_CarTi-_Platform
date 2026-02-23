@@ -68,6 +68,8 @@ export const routeWebApp = async (ctx: PipelineContext) => {
 
   const payload = parsed.payload;
   const fields = payload.fields || {};
+  const payloadCarIds = Array.isArray(payload.carIds) ? payload.carIds.map((id) => String(id || '').trim()).filter(Boolean) : [];
+  const primaryCarId = payload.carId || payloadCarIds[0];
   const langOverride = (payload.meta as any)?.lang || fields.lang || fields.language;
   const lang = langOverride
     ? resolveLang({ ...ctx, locale: String(langOverride) } as PipelineContext)
@@ -83,7 +85,12 @@ export const routeWebApp = async (ctx: PipelineContext) => {
       eventType: 'miniapp.opened',
       userId: ctx.userId,
       chatId: ctx.chatId,
-      payload: { type: payload.type, carId: payload.carId || undefined, meta: payload.meta || undefined }
+      payload: {
+        type: payload.type,
+        carId: primaryCarId || undefined,
+        carIds: payloadCarIds.length ? payloadCarIds : undefined,
+        meta: payload.meta || undefined
+      }
     });
     return true;
   }
@@ -95,9 +102,12 @@ export const routeWebApp = async (ctx: PipelineContext) => {
   const city = await normalizeCity(fields.city || '', { companyId: ctx.companyId });
 
   let requestTitle = [brand, model].filter(Boolean).join(' ').trim();
-  if (!requestTitle && payload.carId) {
-    const car = await prisma.carListing.findUnique({ where: { id: payload.carId } });
+  if (!requestTitle && primaryCarId) {
+    const car = await prisma.carListing.findUnique({ where: { id: primaryCarId } });
     if (car) requestTitle = car.title || requestTitle;
+  }
+  if (!requestTitle && payloadCarIds.length > 1) {
+    requestTitle = `Запит по ${payloadCarIds.length} авто`;
   }
 
   const leadResult = await createOrMergeLead({
@@ -116,7 +126,8 @@ export const routeWebApp = async (ctx: PipelineContext) => {
       model,
       city,
       meta: payload.meta || undefined,
-      carId: payload.carId || undefined
+      carId: primaryCarId || undefined,
+      carIds: payloadCarIds.length ? payloadCarIds : undefined
     },
     leadType: payload.type === 'sell_submit' ? 'SELL' : 'BUY',
     createRequest: payload.type !== 'sell_submit',
@@ -138,7 +149,12 @@ export const routeWebApp = async (ctx: PipelineContext) => {
     eventType: 'miniapp.submitted',
     userId: ctx.userId,
     chatId: ctx.chatId,
-    payload: { type: payload.type, carId: payload.carId || undefined, valid: true }
+    payload: {
+      type: payload.type,
+      carId: primaryCarId || undefined,
+      carIds: payloadCarIds.length ? payloadCarIds : undefined,
+      valid: true
+    }
   });
 
   if (leadResult.isDuplicate) {
@@ -158,7 +174,8 @@ export const routeWebApp = async (ctx: PipelineContext) => {
     const header = leadResult.isDuplicate
       ? '♻️ Duplicate lead merged'
       : (payload.type === 'sell_submit' ? '💵 MiniApp Sell' : '📥 MiniApp Lead');
-    await sendMessage(ctx, `${header}\n\n${leadCard}${reqCard ? `\n\n${reqCard}` : ''}`, undefined, String(ctx.bot.adminChatId));
+    const selectedLine = payloadCarIds.length > 1 ? `\n🚗 Обрано авто: ${payloadCarIds.length}` : '';
+    await sendMessage(ctx, `${header}${selectedLine}\n\n${leadCard}${reqCard ? `\n\n${reqCard}` : ''}`, undefined, String(ctx.bot.adminChatId));
   }
 
   return true;

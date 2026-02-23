@@ -17,6 +17,9 @@ type RequestViewProps = {
   setReqPhone: (value: string) => void;
   reqComment: string;
   setReqComment: (value: string) => void;
+  selectedCarsCount: number;
+  selectedCarsPreview: string[];
+  onClearSelectedCars: () => void;
   hasTelegramInit: boolean;
   primaryColor: string;
   surfaceMode: MiniAppSurfaceMode;
@@ -38,6 +41,9 @@ export const RequestView = ({
   setReqPhone,
   reqComment,
   setReqComment,
+  selectedCarsCount,
+  selectedCarsPreview,
+  onClearSelectedCars,
   hasTelegramInit,
   primaryColor,
   surfaceMode,
@@ -69,6 +75,17 @@ export const RequestView = ({
           <div className="space-y-6">
             {reqStep === 1 && (
               <div className="space-y-5 animate-slide-up">
+                {selectedCarsCount > 0 && (
+                  <div className="bg-[#1c1c1e] border border-white/10 rounded-xl p-3 text-xs text-white/80">
+                    <div className="flex items-center justify-between gap-2">
+                      <span>Мультивибір: {selectedCarsCount} авто</span>
+                      <button onClick={onClearSelectedCars} className="text-white/60 underline">Очистити</button>
+                    </div>
+                    {selectedCarsPreview.length > 0 && (
+                      <div className="text-white/50 mt-1 truncate">{selectedCarsPreview.join(', ')}</div>
+                    )}
+                  </div>
+                )}
                 <div>
                   <label className="text-xs font-bold text-white/70 uppercase mb-2 block">Марка та модель</label>
                   <input className="w-full bg-[#1c1c1e] text-white p-4 rounded-xl outline-none border border-white/10 focus:border-yellow-500 transition-colors" placeholder="Напр. BMW X5" value={reqData.brand} onChange={e => setReqData({ ...reqData, brand: e.target.value })} />
@@ -128,6 +145,9 @@ export const RequestView = ({
                   )}
                   <div className="flex justify-between"><span>Контакт:</span> <span className="font-bold text-white">{reqPhone || '—'}</span></div>
                   <div className="flex justify-between"><span>Коментар:</span> <span className="font-bold text-white">{reqComment || '—'}</span></div>
+                  {selectedCarsCount > 0 && (
+                    <div className="flex justify-between"><span>Обрані авто:</span> <span className="font-bold text-white">{selectedCarsCount}</span></div>
+                  )}
                 </div>
                 <p className="text-xs text-white/50 text-center px-4">
                   {surfaceMode === 'B2B'
