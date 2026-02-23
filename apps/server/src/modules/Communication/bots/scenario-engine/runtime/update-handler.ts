@@ -287,6 +287,34 @@ export const handleUpdateRuntime = async ({
     return true;
   }
 
+  if (input === '/help_admin' || input === 'help_admin') {
+    const adminChatId = String(bot.adminChatId || '').trim();
+    if (!adminChatId || chatId !== adminChatId) {
+      await sendMessage(bot, chatId, '⚠️ Команда доступна лише в адмін-чаті.');
+      return true;
+    }
+
+    const helpText = [
+      '🛠 Довідка адміністратора',
+      '',
+      'Префікси подій:',
+      '[LEAD BUY], [LEAD SELL], [SUPPORT], [B2B REG], [B2B AGENT], [B2B REQUEST], [B2B FIT], [EXTERNAL]',
+      '',
+      'Обробка заявок:',
+      '1) Перевірити підсумок заявки та контекст користувача.',
+      '2) Діяти через inline-кнопки в повідомленні (ідемпотентні дії).',
+      '3) Не публікувати контакти продавців/майданчиків у канал або B2B-пости.',
+      '',
+      'Політики:',
+      '• Inventory-first: CarListing — джерело правди, Showcase — лише view/filter.',
+      '• Контакти тільки адміну.',
+      '• External parsing працює best-effort з robots/rate-limit/backoff.'
+    ].join('\\n');
+
+    await sendMessage(bot, chatId, helpText);
+    return true;
+  }
+
   if (input.startsWith('/') && input !== '/start') {
     const handledCommand = await startScenarioByCommand(input);
     if (handledCommand) return true;

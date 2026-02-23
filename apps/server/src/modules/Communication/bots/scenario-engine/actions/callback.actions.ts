@@ -131,9 +131,9 @@ export const handleCallbackQuery = async ({
           sourceBotToken: bot.token,
           sourceBotAdminChatId: bot.adminChatId || null,
           requesterPartnerId: variant.request?.requesterPartnerId || null,
-          text: `✅ Заявка схвалена!\n\n${variantCardPartner}\n\n🔗 Запит: ${variant.request?.title || variant.requestId}`,
-          centralText: `✅ Заявка схвалена!\n\n${variantCardAdmin}\n\n🔗 Запит: ${variant.request?.title || variant.requestId}`,
-          sourceAdminText: `✅ Заявка схвалена!\n\n${variantCardAdmin}\n\n🔗 Запит: ${variant.request?.title || variant.requestId}`,
+          text: `[B2B FIT]\n✅ Заявка схвалена!\n\n${variantCardPartner}\n\n🔗 Запит: ${variant.request?.title || variant.requestId}`,
+          centralText: `[B2B FIT]\n✅ Заявка схвалена!\n\n${variantCardAdmin}\n\n🔗 Запит: ${variant.request?.title || variant.requestId}`,
+          sourceAdminText: `[B2B FIT]\n✅ Заявка схвалена!\n\n${variantCardAdmin}\n\n🔗 Запит: ${variant.request?.title || variant.requestId}`,
           includeSourceAdminFallback: true
         });
 

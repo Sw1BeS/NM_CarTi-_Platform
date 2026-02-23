@@ -99,7 +99,9 @@ export const handleWebAppData = async ({
         await notifyRequestAdmin(bot, leadResult.request);
       }
 
-      const notifyHeader = leadResult.isDuplicate ? '♻️ Duplicate lead merged' : '📥 <b>MiniApp Lead</b>';
+      const notifyHeader = leadResult.isDuplicate
+        ? '[LEAD BUY] ♻️ Дубль обʼєднано'
+        : '[LEAD BUY] 📥 MiniApp заявка';
       const notifyText = [
         notifyHeader,
         webData.name ? `👤 ${webData.name}` : undefined,

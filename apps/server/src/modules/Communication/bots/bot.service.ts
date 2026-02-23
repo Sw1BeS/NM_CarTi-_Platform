@@ -234,6 +234,10 @@ class BotInstance {
                 addCommand(value, label);
             }
 
+            if (!commandMap.has('help_admin')) {
+                commandMap.set('help_admin', 'Довідка для адміна');
+            }
+
             if (this.config.template === 'B2B') {
                 if (!commandMap.has('request')) {
                     commandMap.set('request', 'Створити запит');

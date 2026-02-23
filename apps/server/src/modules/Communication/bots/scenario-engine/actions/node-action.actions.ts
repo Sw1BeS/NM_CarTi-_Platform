@@ -407,7 +407,9 @@ export const executeActionNode = async ({
   }
 
   if (actionType === 'NOTIFY_ADMIN' && bot.adminChatId) {
-    await sendMessage(bot, bot.adminChatId, text || '🔔 Notification');
+    const message = text || '🔔 Повідомлення';
+    const prefixed = message.includes('[') ? message : `[SUPPORT] ${message}`;
+    await sendMessage(bot, bot.adminChatId, prefixed);
   }
 
   // For unknown or successfully processed action types, proceed with scenario graph.

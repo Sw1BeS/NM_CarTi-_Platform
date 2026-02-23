@@ -130,7 +130,7 @@ const buildMiniAppUrl = (baseUrl: string, slug: string) => {
   }
 };
 
-const LEAD_BUTTON_IDS = new Set(['btn_buy', 'btn_sell', 'btn_app', 'btn_sup', 'btn_lang']);
+const LEAD_BUTTON_IDS = new Set(['btn_buy', 'btn_sell', 'btn_support', 'btn_info', 'btn_app']);
 const B2B_BUTTON_IDS = new Set(['btn_b2b_req', 'btn_b2b_offer', 'btn_b2b_app', 'btn_b2b_help', 'btn_b2b_menu']);
 
 const inferPresetTemplate = (config: BotConfigShape): 'CLIENT_LEAD' | 'B2B' | 'CATALOG' | null => {
@@ -150,7 +150,7 @@ const inferPresetTemplate = (config: BotConfigShape): 'CLIENT_LEAD' | 'B2B' | 'C
   if (Array.from(B2B_BUTTON_IDS).some(id => ids.has(id))) b2bScore += 2;
 
   if (values.has('/request') || values.has('/offer') || values.has('/menu')) b2bScore += 1;
-  if (values.has('/buy') || values.has('/sell') || values.has('/status') || values.has('/lang')) leadScore += 1;
+  if (values.has('/buy') || values.has('/sell') || values.has('/support') || values.has('/info')) leadScore += 1;
 
   if (miniTitle.includes('cardealer lviv') || menuWelcome.includes('cardealer lviv')) b2bScore += 1;
   if (miniTitle.includes('cartié premium') || menuWelcome.includes('concierge')) leadScore += 1;
@@ -275,9 +275,9 @@ const buildB2BMiniAppConfig = (url: string, showcaseSlug: string): MiniAppConfig
 const baseLeadButtons = (scenarioIds: Record<string, string>, miniAppUrl: string): MenuButton[] => [
   { id: 'btn_buy', label: '🚗 Купити авто', label_uk: '🚗 Купити авто', label_ru: '🚗 Купити авто', type: 'SCENARIO', value: scenarioIds.buy || 'scn_buy', row: 0, col: 0 },
   { id: 'btn_sell', label: '💰 Продати авто', label_uk: '💰 Продати авто', label_ru: '💰 Продати авто', type: 'SCENARIO', value: scenarioIds.sell || 'scn_sell', row: 0, col: 1 },
-  { id: 'btn_app', label: '📱 Додаток', label_uk: '📱 Додаток', label_ru: '📱 Додаток', type: 'WEB_APP', value: miniAppUrl, row: 1, col: 0 },
-  { id: 'btn_sup', label: '📞 Підтримка', label_uk: '📞 Підтримка', label_ru: '📞 Підтримка', type: 'SCENARIO', value: scenarioIds.support || 'scn_support', row: 2, col: 0 },
-  { id: 'btn_lang', label: '🌐 Мова', label_uk: '🌐 Мова', label_ru: '🌐 Мова', type: 'SCENARIO', value: scenarioIds.lang || 'scn_lang', row: 2, col: 1 }
+  { id: 'btn_support', label: '📞 Підтримка', label_uk: '📞 Підтримка', label_ru: '📞 Підтримка', type: 'SCENARIO', value: scenarioIds.support || 'scn_support', row: 1, col: 0 },
+  { id: 'btn_info', label: 'ℹ️ Інформація', label_uk: 'ℹ️ Інформація', label_ru: 'ℹ️ Інформація', type: 'SCENARIO', value: scenarioIds.info || 'scn_info', row: 1, col: 1 },
+  { id: 'btn_app', label: '📱 Відкрити MiniApp', label_uk: '📱 Відкрити MiniApp', label_ru: '📱 Відкрити MiniApp', type: 'WEB_APP', value: miniAppUrl, row: 2, col: 0 }
 ];
 
 const baseB2BButtons = (scenarioIds: Record<string, string>, miniAppUrl: string): MenuButton[] => [
@@ -301,8 +301,8 @@ const maybePatchMenuLinks = (buttons: MenuButton[] | undefined, miniAppUrl: stri
 const clientLeadScenarioSpecs = [
   { key: 'buy', templateId: 'tpl_buy_request', triggerCommand: 'buy' },
   { key: 'sell', templateId: 'tpl_sell_tradein', triggerCommand: 'sell' },
-  { key: 'support', templateId: 'tpl_status_support', triggerCommand: 'status' },
-  { key: 'lang', templateId: 'tpl_lang_select', triggerCommand: 'lang' }
+  { key: 'support', templateId: 'tpl_status_support', triggerCommand: 'support' },
+  { key: 'info', templateId: 'tpl_info_rules', triggerCommand: 'info' }
 ] as const;
 
 const b2bScenarioBlueprints = [

@@ -1,14 +1,15 @@
 import { prisma } from '../../../../../services/prisma.js';
 import { mapVariantInput } from '../../../../../services/dto.js';
 import { managerActionsKeyboard, renderRequestCard, renderVariantCard } from '../../../../../services/cardRenderer.js';
+import { buildTelegramPhotoMedia, collectCarMediaSources } from '../../../telegram/core/utils/carMedia.js';
 import { telegramOutbox } from '../../../telegram/messaging/outbox/telegramOutbox.js';
 import { sendMessage } from '../adapters/telegram.adapter.js';
 import type { BotRuntime } from '../types.js';
 import { b2bRoutingService } from '../../../../../services/b2bRouting.service.js';
 
 export const notifyRequestAdmin = async (bot: BotRuntime, request: any) => {
-  const partnerText = `📄 Новий запит\n${renderRequestCard(request, { includeContact: false })}`;
-  const adminText = `📄 Новий запит\n${renderRequestCard(request, { includeContact: true })}`;
+  const partnerText = `[B2B REQUEST]\n📄 Новий запит\n${renderRequestCard(request, { includeContact: false })}`;
+  const adminText = `[B2B REQUEST]\n📄 Новий запит\n${renderRequestCard(request, { includeContact: true })}`;
   const keyboard = {
     inline_keyboard: [
       [{ text: '🔍 Znayty Variant', callback_data: `REQ:${request.id}:FIND` }],
@@ -113,6 +114,31 @@ export const createVariantAndRoute = async (params: {
     }
   }).catch(() => null);
 
+  const mergeUniqueMedia = (...groups: string[][]) => {
+    const seen = new Set<string>();
+    const merged: string[] = [];
+    for (const group of groups) {
+      for (const raw of group) {
+        const item = String(raw || '').trim();
+        if (!item || seen.has(item)) continue;
+        seen.add(item);
+        merged.push(item);
+        if (merged.length >= 10) return merged;
+      }
+    }
+    return merged;
+  };
+
+  const submittedMedia = (params.photoFileIds || []).map(v => String(v || '').trim()).filter(Boolean);
+  const variantMedia = mergeUniqueMedia(
+    submittedMedia,
+    collectCarMediaSources({
+      thumbnail: (variant as any).thumbnail,
+      mediaUrls: (variant as any).mediaUrls || [],
+      mediaItems: (variant as any).mediaItems || []
+    }, 10)
+  );
+
   if (request.chatId) {
     const specsWithoutContact = variant.specs
       ? { ...(variant.specs as any), contact: undefined, companyName: undefined }
@@ -123,46 +149,69 @@ export const createVariantAndRoute = async (params: {
       companyName: undefined,
       specs: specsWithoutContact
     } as any);
-
-    await sendMessage(
-      params.bot,
-      String(request.chatId),
-      `🚗 Новий варіант для вашого запиту "${request.title}":\n\n${requesterCard}`,
-      {
-        inline_keyboard: [
-          [
-            { text: '✅ Підходить', callback_data: `B2BVAR:${variant.id}:FIT` },
-            { text: '❌ Не підходить', callback_data: `B2BVAR:${variant.id}:NO` }
-          ]
+    const requesterActions = {
+      inline_keyboard: [
+        [
+          { text: '✅ Підходить', callback_data: `B2BVAR:${variant.id}:FIT` },
+          { text: '❌ Не підходить', callback_data: `B2BVAR:${variant.id}:NO` }
         ]
-      }
-    );
+      ]
+    };
+
+    const requesterCaption = `🚗 Новий варіант для вашого запиту "${request.title}":\n\n${requesterCard}`;
+    const requesterChatId = String(request.chatId);
+    if (variantMedia.length > 1) {
+      await telegramOutbox.sendMediaGroup({
+        botId: params.bot.id,
+        token: params.bot.token,
+        chatId: requesterChatId,
+        media: buildTelegramPhotoMedia(variantMedia, requesterCaption),
+        companyId: params.bot.companyId || null
+      });
+      await sendMessage(params.bot, requesterChatId, '⬇️ Оберіть рішення по варіанту:', requesterActions);
+    } else if (variantMedia.length === 1) {
+      await telegramOutbox.sendPhoto({
+        botId: params.bot.id,
+        token: params.bot.token,
+        chatId: requesterChatId,
+        photo: variantMedia[0],
+        caption: requesterCaption,
+        replyMarkup: requesterActions,
+        companyId: params.bot.companyId || null
+      });
+    } else {
+      await sendMessage(params.bot, requesterChatId, requesterCaption, requesterActions);
+    }
   }
 
   if (params.bot.adminChatId) {
-    const adminCaption = `📨 Новий варіант по запиту ${request.publicId || request.id}\n${renderVariantCard(variant as any, { includeContact: true })}`;
-    const media = (params.photoFileIds || []).filter(Boolean).slice(0, 10);
-    if (media.length) {
+    const adminCaption = `[B2B REQUEST]\n📨 Новий варіант по запиту ${request.publicId || request.id}\n${renderVariantCard(variant as any, { includeContact: true })}`;
+    if (variantMedia.length > 1) {
       await telegramOutbox.sendMediaGroup({
         botId: params.bot.id,
         token: params.bot.token,
         chatId: String(params.bot.adminChatId),
-        media: media.map((fileId, idx) => ({
-          type: 'photo',
-          media: fileId,
-          caption: idx === 0 ? adminCaption : undefined,
-          parse_mode: 'HTML'
-        })),
+        media: buildTelegramPhotoMedia(variantMedia, adminCaption),
         companyId: params.bot.companyId || null
       }).catch(() => null);
       await sendMessage(params.bot, String(params.bot.adminChatId), 'Дії з варіантом:', managerActionsKeyboard(variant.id));
+    } else if (variantMedia.length === 1) {
+      await telegramOutbox.sendPhoto({
+        botId: params.bot.id,
+        token: params.bot.token,
+        chatId: String(params.bot.adminChatId),
+        photo: variantMedia[0],
+        caption: adminCaption,
+        replyMarkup: managerActionsKeyboard(variant.id),
+        companyId: params.bot.companyId || null
+      }).catch(() => null);
     } else {
       await sendMessage(params.bot, String(params.bot.adminChatId), adminCaption, managerActionsKeyboard(variant.id));
     }
   }
 
-  const partnerCaption = `📨 Новий варіант по запиту ${request.publicId || request.id}\n${renderVariantCard(variant as any, { includeContact: false })}`;
-  const adminCaption = `📨 Новий варіант по запиту ${request.publicId || request.id}\n${renderVariantCard(variant as any, { includeContact: true })}`;
+  const partnerCaption = `[B2B REQUEST]\n📨 Новий варіант по запиту ${request.publicId || request.id}\n${renderVariantCard(variant as any, { includeContact: false })}`;
+  const adminCaption = `[B2B REQUEST]\n📨 Новий варіант по запиту ${request.publicId || request.id}\n${renderVariantCard(variant as any, { includeContact: true })}`;
   await b2bRoutingService.notifyQueues({
     companyId: params.bot.companyId || null,
     sourceBotId: params.bot.id,
