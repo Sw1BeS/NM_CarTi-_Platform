@@ -20,6 +20,7 @@ import { handleSetupCommands as handleSetupCommandsAction } from '../actions/set
 import { handleFormMessageInput, hasActiveForm } from '../actions/form.actions.js';
 import { submitLeadBuyForm } from '../actions/client-buy.actions.js';
 import { submitLeadSellForm } from '../actions/client-sell.actions.js';
+import { submitSupportForm } from '../actions/support.actions.js';
 import { clearActiveScenario } from './lifecycle.js';
 import { loadPublishedScenarios } from './scenario-registry.js';
 import type { BotRuntime, ScenarioRecord } from '../types.js';
@@ -94,6 +95,15 @@ export const handleUpdateRuntime = async ({
     }
     if (submission?.confirmAction === 'LEADSELL:FORM_SUBMIT' && submission?.status === 'CONFIRMED') {
       await submitLeadSellForm({
+        bot,
+        chatId,
+        userId,
+        vars,
+        submission
+      });
+    }
+    if (submission?.confirmAction === 'SUPPORT:FORM_SUBMIT' && submission?.status === 'CONFIRMED') {
+      await submitSupportForm({
         bot,
         chatId,
         userId,

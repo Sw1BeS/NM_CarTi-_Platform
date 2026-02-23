@@ -16,6 +16,7 @@ import {
 import { createVariantAndRoute, notifyRequestAdmin } from './b2b.actions.js';
 import { startLeadBuyFlow } from './client-buy.actions.js';
 import { startLeadSellFlow } from './client-sell.actions.js';
+import { startSupportFlow } from './support.actions.js';
 import type { BotRuntime, ScenarioNode } from '../types.js';
 
 export type ActionExecutionResult = 'continue' | 'halt';
@@ -63,6 +64,16 @@ export const executeActionNode = async ({
       bot,
       chatId: session.chatId,
       vars
+    });
+    return 'halt';
+  }
+
+  if (actionType === 'START_SUPPORT_FORM') {
+    await startSupportFlow({
+      bot,
+      chatId: session.chatId,
+      vars,
+      userId: vars.__telegramUserId
     });
     return 'halt';
   }

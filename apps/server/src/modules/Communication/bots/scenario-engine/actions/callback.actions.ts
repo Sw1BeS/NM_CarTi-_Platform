@@ -7,6 +7,7 @@ import { b2bRoutingService } from '../../../../../services/b2bRouting.service.js
 import { handleFormCallbackInput } from './form.actions.js';
 import { handleLeadBuyCallback } from './client-buy.actions.js';
 import { handleLeadSellCallback } from './client-sell.actions.js';
+import { handleSupportCallback } from './support.actions.js';
 
 interface CallbackHandlerContext {
   bot: BotRuntime;
@@ -89,6 +90,19 @@ export const handleCallbackQuery = async ({
       callbackData: cbData
     });
     if (handledLeadSell) {
+      await saveSession();
+      return true;
+    }
+  }
+
+  if (cbData.startsWith('SUPPORT:')) {
+    const handledSupport = await handleSupportCallback({
+      bot,
+      chatId,
+      vars,
+      callbackData: cbData
+    });
+    if (handledSupport) {
       await saveSession();
       return true;
     }

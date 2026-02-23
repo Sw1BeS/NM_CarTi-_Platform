@@ -103,21 +103,25 @@ export const SCENARIO_TEMPLATE_PACK = [
     id: 'tpl_status_support',
     name: 'Підтримка / Статус (UA/RU)',
     category: 'SUPPORT',
-    description: 'Перевіряє статус заявки або створює звернення в підтримку.',
+    description: 'Запускає форму звернення в підтримку з OPEN/new гілкою.',
     isPremium: false,
     structure: {
       triggerCommand: 'support',
       keywords: ['status', 'support', 'статус', 'підтримка', 'поддержка'],
       entryNodeId: 'start',
       nodes: [
-        { id: 'start', type: 'START', content: { text: '' }, nextNodeId: 'ask_lookup' },
-        { id: 'ask_lookup', type: 'QUESTION_TEXT', content: { text: 'Введіть ID заявки або телефон.', text_uk: 'Введіть ID заявки або телефон.', text_ru: 'Введите ID заявки или телефон.', variableName: 'lookup' }, nextNodeId: 'lookup_action' },
-        { id: 'lookup_action', type: 'ACTION', content: { actionType: 'LOOKUP_REQUEST', lookupVar: 'lookup' }, nextNodeId: 'check_found' },
-        { id: 'check_found', type: 'CONDITION', content: { conditionVariable: 'lookup_found', conditionOperator: 'HAS_VALUE', trueNodeId: 'show_status', falseNodeId: 'not_found' } },
-        { id: 'show_status', type: 'MESSAGE', content: { text: '✅ Статус заявки #{requestPublicId}: {request_status}. Менеджер: {request_manager}', text_uk: '✅ Статус заявки #{requestPublicId}: {request_status}. Менеджер: {request_manager}', text_ru: '✅ Статус заявки #{requestPublicId}: {request_status}. Менеджер: {request_manager}' } },
-        { id: 'not_found', type: 'MESSAGE', content: { text: 'Не знайшли заявку. Створюємо запит у підтримку...', text_uk: 'Не знайшли заявку. Створюємо запит у підтримку...', text_ru: 'Не нашли заявку. Создаем запрос в поддержку...' }, nextNodeId: 'support_lead' },
-        { id: 'support_lead', type: 'ACTION', content: { actionType: 'CREATE_LEAD', leadType: 'SUPPORT' }, nextNodeId: 'notify_admin' },
-        { id: 'notify_admin', type: 'ACTION', content: { actionType: 'NOTIFY_ADMIN', text: '🔔 Запит у підтримку від {lookup}' } }
+        { id: 'start', type: 'START', content: { text: '' }, nextNodeId: 'intro' },
+        {
+          id: 'intro',
+          type: 'MESSAGE',
+          content: {
+            text: '👋 Підтримка CarTié. Опишіть звернення у формі, і менеджер звʼяжеться з вами.',
+            text_uk: '👋 Підтримка CarTié. Опишіть звернення у формі, і менеджер звʼяжеться з вами.',
+            text_ru: '👋 Підтримка CarTié. Опишіть звернення у формі, і менеджер звʼяжеться з вами.'
+          },
+          nextNodeId: 'start_form'
+        },
+        { id: 'start_form', type: 'ACTION', content: { actionType: 'START_SUPPORT_FORM' } }
       ]
     }
   },
