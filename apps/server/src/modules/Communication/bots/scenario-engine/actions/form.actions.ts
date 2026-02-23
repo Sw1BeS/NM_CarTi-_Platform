@@ -17,6 +17,8 @@ export type FormFieldDefinition = {
   type?: FormFieldType;
   minPhotos?: number;
   maxPhotos?: number;
+  quickReplies?: string[];
+  manualLabel?: string;
 };
 
 export type ActiveFormState = {
@@ -136,6 +138,18 @@ const editKeyboard = (form: ActiveFormState) => ({
 const buildFieldKeyboard = (field: FormFieldDefinition) => {
   const rows: any[][] = [];
 
+  const quickReplies = Array.isArray(field.quickReplies)
+    ? field.quickReplies.map((item) => String(item || '').trim()).filter(Boolean).slice(0, 9)
+    : [];
+
+  for (let i = 0; i < quickReplies.length; i += 3) {
+    rows.push(quickReplies.slice(i, i + 3).map((label) => ({ text: label })));
+  }
+
+  if (field.manualLabel) {
+    rows.push([{ text: field.manualLabel }]);
+  }
+
   if (field.type === 'contact') {
     rows.push([{ text: 'Надіслати контакт', request_contact: true }]);
   }
@@ -151,7 +165,34 @@ const buildFieldKeyboard = (field: FormFieldDefinition) => {
   return rows.length ? { keyboard: rows, resize_keyboard: true } : undefined;
 };
 
+const LEADBUY_POPULAR_MODELS: Record<string, string[]> = {
+  bmw: ['X5', 'X3', '3 Series'],
+  audi: ['Q7', 'Q5', 'A6'],
+  mercedes: ['GLE', 'E-Class', 'C-Class'],
+  toyota: ['Camry', 'RAV4', 'Corolla'],
+  volkswagen: ['Passat', 'Touareg', 'Tiguan'],
+  skoda: ['Octavia', 'Kodiaq', 'Superb'],
+  honda: ['CR-V', 'Civic', 'Accord'],
+  nissan: ['Qashqai', 'X-Trail', 'Leaf'],
+  kia: ['Sportage', 'Sorento', 'Ceed'],
+  hyundai: ['Tucson', 'Santa Fe', 'Elantra']
+};
+
+const applyDynamicFieldOptions = (form: ActiveFormState, field: FormFieldDefinition) => {
+  if (form.namespace !== 'LEADBUY' || field.key !== 'model') return field;
+  if (field.quickReplies && field.quickReplies.length > 0) return field;
+
+  const brand = String(form.values.brand || '').trim().toLowerCase();
+  const matched = Object.entries(LEADBUY_POPULAR_MODELS).find(([key]) => brand.includes(key));
+  if (!matched) return field;
+
+  field.quickReplies = matched[1];
+  field.manualLabel = field.manualLabel || 'Ввести вручну';
+  return field;
+};
+
 const sendFieldPrompt = async (ctx: FormContext, form: ActiveFormState, field: FormFieldDefinition) => {
+  applyDynamicFieldOptions(form, field);
   const keyboard = buildFieldKeyboard(field);
   await sendMessage(ctx.bot, ctx.chatId, field.prompt, keyboard);
 };
@@ -350,6 +391,11 @@ export const handleFormMessageInput = async (ctx: FormContext & { update: any })
 
   if (!textInput) {
     await sendMessage(ctx.bot, ctx.chatId, 'Введіть значення поля.');
+    return { handled: true };
+  }
+
+  if (field.manualLabel && textInput === field.manualLabel) {
+    await sendMessage(ctx.bot, ctx.chatId, 'Введіть значення вручну.');
     return { handled: true };
   }
 

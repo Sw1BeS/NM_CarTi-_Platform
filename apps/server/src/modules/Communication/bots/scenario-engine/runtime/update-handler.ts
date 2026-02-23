@@ -18,6 +18,7 @@ import {
 } from '../actions/entry.actions.js';
 import { handleSetupCommands as handleSetupCommandsAction } from '../actions/setup.actions.js';
 import { handleFormMessageInput, hasActiveForm } from '../actions/form.actions.js';
+import { submitLeadBuyForm } from '../actions/client-buy.actions.js';
 import { clearActiveScenario } from './lifecycle.js';
 import { loadPublishedScenarios } from './scenario-registry.js';
 import type { BotRuntime, ScenarioRecord } from '../types.js';
@@ -81,6 +82,15 @@ export const handleUpdateRuntime = async ({
   const saveSession = async () => persistSession(vars, history);
   const onFormSubmission = async (submission: any) => {
     vars.__formSubmission = submission;
+    if (submission?.confirmAction === 'LEADBUY:FORM_SUBMIT' && submission?.status === 'CONFIRMED') {
+      await submitLeadBuyForm({
+        bot,
+        chatId,
+        userId,
+        vars,
+        submission
+      });
+    }
   };
 
   // Manager Actions

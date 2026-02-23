@@ -5,6 +5,7 @@ import { answerCallback, sendMessage } from '../adapters/telegram.adapter.js';
 import type { BotRuntime } from '../types.js';
 import { b2bRoutingService } from '../../../../../services/b2bRouting.service.js';
 import { handleFormCallbackInput } from './form.actions.js';
+import { handleLeadBuyCallback } from './client-buy.actions.js';
 
 interface CallbackHandlerContext {
   bot: BotRuntime;
@@ -31,6 +32,7 @@ export const handleCallbackQuery = async ({
   bot,
   update,
   chatId,
+  userId,
   lang,
   vars,
   saveSession,
@@ -60,6 +62,20 @@ export const handleCallbackQuery = async ({
       if (formResult.submission && typeof onFormSubmission === 'function') {
         await onFormSubmission(formResult.submission);
       }
+      await saveSession();
+      return true;
+    }
+  }
+
+  if (cbData.startsWith('LEADBUY:')) {
+    const handledLeadBuy = await handleLeadBuyCallback({
+      bot,
+      chatId,
+      userId,
+      vars,
+      callbackData: cbData
+    });
+    if (handledLeadBuy) {
       await saveSession();
       return true;
     }

@@ -1,26 +1,27 @@
 export const SCENARIO_TEMPLATE_PACK = [
   {
     id: 'tpl_buy_request',
-    name: 'Запит на купівлю (UA/RU)',
-    category: 'B2B',
-    description: 'Збирає параметри запиту на купівлю та створює B2B-запит.',
+    name: 'Купити авто (Lead form v2)',
+    category: 'LEAD_GEN',
+    description: 'Запускає form flow покупки авто з summary/edit та підбором батчами.',
     isPremium: false,
     structure: {
       triggerCommand: 'buy',
       keywords: ['buy', 'купити', 'купить'],
       entryNodeId: 'start',
       nodes: [
-        { id: 'start', type: 'START', content: { text: '' }, nextNodeId: 'greet' },
-        { id: 'greet', type: 'MESSAGE', content: { text: '👋 Вітаємо! Допоможемо підібрати авто.', text_uk: '👋 Вітаємо! Допоможемо підібрати авто.', text_ru: '👋 Здравствуйте! Поможем подобрать авто.' }, nextNodeId: 'ask_brand' },
-        { id: 'ask_brand', type: 'QUESTION_TEXT', content: { text: 'Яка марка вас цікавить?', text_uk: 'Яка марка вас цікавить?', text_ru: 'Какая марка интересует?', variableName: 'brand' }, nextNodeId: 'ask_model' },
-        { id: 'ask_model', type: 'QUESTION_TEXT', content: { text: 'Яка модель?', text_uk: 'Яка модель?', text_ru: 'Какая модель?', variableName: 'model' }, nextNodeId: 'ask_budget' },
-        { id: 'ask_budget', type: 'QUESTION_TEXT', content: { text: 'Бюджет (USD)?', text_uk: 'Бюджет (USD)?', text_ru: 'Бюджет (USD)?', variableName: 'budget' }, nextNodeId: 'ask_year' },
-        { id: 'ask_year', type: 'QUESTION_TEXT', content: { text: 'Рік (наприклад 2019+)?', text_uk: 'Рік (наприклад 2019+)?', text_ru: 'Год (например 2019+)?', variableName: 'year' }, nextNodeId: 'ask_city' },
-        { id: 'ask_city', type: 'QUESTION_TEXT', content: { text: 'Місто?', text_uk: 'Місто?', text_ru: 'Город?', variableName: 'city' }, nextNodeId: 'ask_contact' },
-        { id: 'ask_contact', type: 'REQUEST_CONTACT', content: { text: 'Поділіться контактом для звʼязку.', text_uk: 'Поділіться контактом для звʼязку.', text_ru: 'Поделитесь контактом для связи.' }, nextNodeId: 'create_lead' },
-        { id: 'create_lead', type: 'ACTION', content: { actionType: 'CREATE_LEAD', leadType: 'BUY' }, nextNodeId: 'create_request' },
-        { id: 'create_request', type: 'ACTION', content: { actionType: 'CREATE_REQUEST', requestType: 'BUY' }, nextNodeId: 'confirm' },
-        { id: 'confirm', type: 'MESSAGE', content: { text: '✅ Запит створено. Звʼяжемося найближчим часом.', text_uk: '✅ Запит створено. Звʼяжемося найближчим часом.', text_ru: '✅ Запрос создан. Свяжемся в ближайшее время.' } }
+        { id: 'start', type: 'START', content: { text: '' }, nextNodeId: 'form_intro' },
+        {
+          id: 'form_intro',
+          type: 'MESSAGE',
+          content: {
+            text: '👋 Допоможу підібрати авто. Заповніть форму, далі покажу релевантні варіанти.',
+            text_uk: '👋 Допоможу підібрати авто. Заповніть форму, далі покажу релевантні варіанти.',
+            text_ru: '👋 Допоможу підібрати авто. Заповніть форму, далі покажу релевантні варіанти.'
+          },
+          nextNodeId: 'start_form'
+        },
+        { id: 'start_form', type: 'ACTION', content: { actionType: 'START_LEAD_BUY_FORM' } }
       ]
     }
   },

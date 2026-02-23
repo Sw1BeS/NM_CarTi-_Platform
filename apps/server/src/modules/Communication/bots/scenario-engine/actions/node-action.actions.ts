@@ -14,6 +14,7 @@ import {
   normalizeRequestType
 } from '../runtime/helpers.js';
 import { createVariantAndRoute, notifyRequestAdmin } from './b2b.actions.js';
+import { startLeadBuyFlow } from './client-buy.actions.js';
 import type { BotRuntime, ScenarioNode } from '../types.js';
 
 export type ActionExecutionResult = 'continue' | 'halt';
@@ -45,6 +46,15 @@ export const executeActionNode = async ({
         ? 'RU'
         : 'EN';
     vars.language = clean;
+  }
+
+  if (actionType === 'START_LEAD_BUY_FORM') {
+    await startLeadBuyFlow({
+      bot,
+      chatId: session.chatId,
+      vars
+    });
+    return 'halt';
   }
 
   if (actionType === 'NORMALIZE_REQUEST') {
