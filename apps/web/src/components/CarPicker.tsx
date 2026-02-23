@@ -6,9 +6,10 @@ import { Search, X, Check, Car } from 'lucide-react';
 interface CarPickerProps {
     onSelect: (car: CarListing) => void;
     onClose: () => void;
+    disabled?: boolean;
 }
 
-export const CarPicker: React.FC<CarPickerProps> = ({ onSelect, onClose }) => {
+export const CarPicker: React.FC<CarPickerProps> = ({ onSelect, onClose, disabled = false }) => {
     const [cars, setCars] = useState<CarListing[]>([]);
     const [search, setSearch] = useState('');
     const [loading, setLoading] = useState(false);
@@ -61,8 +62,11 @@ export const CarPicker: React.FC<CarPickerProps> = ({ onSelect, onClose }) => {
                     {filtered.map(car => (
                         <div
                             key={car.id}
-                            onClick={() => onSelect(car)}
-                            className="p-3 rounded-lg hover:bg-[var(--bg-input)] border border-transparent hover:border-[var(--border-color)] cursor-pointer flex gap-3 group transition-colors"
+                            onClick={() => {
+                                if (disabled) return;
+                                onSelect(car);
+                            }}
+                            className={`p-3 rounded-lg border border-transparent flex gap-3 group transition-colors ${disabled ? 'opacity-60 cursor-not-allowed' : 'hover:bg-[var(--bg-input)] hover:border-[var(--border-color)] cursor-pointer'}`}
                         >
                             <div className="w-16 h-12 bg-black/20 rounded overflow-hidden flex-shrink-0">
                                 {car.thumbnail ? (
@@ -78,7 +82,7 @@ export const CarPicker: React.FC<CarPickerProps> = ({ onSelect, onClose }) => {
                                     <span className="font-mono text-gold-500">{car.price.amount.toLocaleString()} {car.price.currency}</span>
                                 </div>
                             </div>
-                            <button className="opacity-0 group-hover:opacity-100 text-green-500 p-2"><Check size={18} /></button>
+                            <button className={`text-green-500 p-2 ${disabled ? 'opacity-30' : 'opacity-0 group-hover:opacity-100'}`}><Check size={18} /></button>
                         </div>
                     ))}
                 </div>

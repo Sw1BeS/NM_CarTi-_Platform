@@ -71,5 +71,11 @@ export const InventoryService = {
         const res = await ApiClient.post<{ count: number }>('inventory/bulk', payload);
         if (!res.ok) throw new Error(res.message);
         return res.data as { count: number };
+    },
+
+    async sendCarToTelegram(carId: string, payload: { chatId: string; botId?: string; showcaseSlug?: string }) {
+        const res = await ApiClient.post(`inventory/${encodeURIComponent(carId)}/send-telegram`, attachSuperadminCompany(payload as any));
+        if (!res.ok) throw new Error(res.message || 'Failed to send car to Telegram');
+        return res.data;
     }
 };

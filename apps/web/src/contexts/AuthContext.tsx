@@ -67,7 +67,14 @@ export const AuthProvider = ({ children }: React.PropsWithChildren) => {
     }, []);
 
     useEffect(() => {
-        const onAuthError = () => logout();
+        const onAuthError = () => {
+            if (window.location.pathname.startsWith('/p/')) {
+                localStorage.removeItem('cartie_token');
+                setUser(null);
+                return;
+            }
+            logout();
+        };
         window.addEventListener('auth-error', onAuthError);
         return () => window.removeEventListener('auth-error', onAuthError);
     }, [logout]);

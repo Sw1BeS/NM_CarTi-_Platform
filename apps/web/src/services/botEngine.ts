@@ -13,6 +13,7 @@ import { ContentGenerator } from './contentGenerator';
 import { buildDeepLink, createDeepLinkKeyboard } from './deeplink';
 import { DraftsService } from './draftsService';
 import { getApiOrigin } from './apiConfig';
+import { InventoryService } from './inventoryService';
 
 // Platform Adapter Interface
 interface PlatformAdapter {
@@ -69,14 +70,8 @@ const TelegramAdapter = (token: string): PlatformAdapter => ({
         return TelegramAPI.sendMessage(token, chatId, text, options?.reply_markup);
     },
     sendPhoto: async (chatId, photo, caption, options) => {
-        try {
-            const resolved = resolvePublicUrl(photo);
-            return await TelegramAPI.sendPhoto(token, chatId, resolved, caption, options?.reply_markup);
-        } catch (e) {
-            console.warn("[Adapter] Photo failed, falling back to text:", e);
-            const fallbackText = `${caption}\n\n(🖼️ Image unavailable)`;
-            return TelegramAPI.sendMessage(token, chatId, fallbackText, options?.reply_markup);
-        }
+        const resolved = resolvePublicUrl(photo);
+        return TelegramAPI.sendPhoto(token, chatId, resolved, caption, options?.reply_markup);
     },
     sendMediaGroup: async (chatId, mediaUrls, caption) => {
         const media = mediaUrls.slice(0, 10).map((url, i) => ({
@@ -146,11 +141,7 @@ const TelegramAdapter = (token: string): PlatformAdapter => ({
         }
 
         if (finalPhoto && (finalPhoto.startsWith('http') || finalPhoto.length < 1024)) {
-            try {
-                return await TelegramAPI.sendPhoto(token, chatId, finalPhoto, caption, keyboard);
-            } catch (e) {
-                return await TelegramAPI.sendMessage(token, chatId, caption, keyboard);
-            }
+            return TelegramAPI.sendPhoto(token, chatId, finalPhoto, caption, keyboard);
         }
         return TelegramAPI.sendMessage(token, chatId, caption, keyboard);
     },
@@ -1253,15 +1244,9 @@ export class BotEngine {
 
     // --- NEW: Send Car Card ---
     static async sendCar(chatId: string, car: CarListing, botId?: string) {
-        const bots = await Data.getBots();
-        const active = botId ? bots.find(b => b.id === botId) : bots.find(b => b.active) || bots[0];
-        if (!active) throw new Error('No active bot configured');
-
-        const adapter = TelegramAdapter(active.token);
-        const session = await Data.getSession(chatId);
-        const lang = session?.language || 'EN';
-
-        await adapter.sendCarCard(chatId, car, lang);
+        const carId = String(car?.canonicalId || car?.id || '').trim();
+        if (!carId) throw new Error('Car ID is required');
+        await InventoryService.sendCarToTelegram(carId, { chatId, botId });
         Data._notify('UPDATE_MESSAGES');
     }
 }

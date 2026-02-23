@@ -23,7 +23,40 @@ interface ChatInfo {
     internalNote?: string;
     requestId?: string;
     unreadCount: number;
+    peerName?: string;
+    peerUsername?: string;
+    peerTelegramUserId?: string;
+    peerIdentityIncomingAt?: string;
+    peerIdentityAnyAt?: string;
 }
+
+type ChatIdentity = {
+    name: string;
+    username?: string;
+    telegramUserId?: string;
+};
+
+const extractMessageIdentity = (message?: TelegramMessage | null): ChatIdentity => {
+    const username = message?.telegramUsername || message?.username;
+    const telegramUserId = message?.telegramUserId || message?.fromId;
+    const rawName = message?.telegramName
+        || [message?.firstName, message?.lastName].filter(Boolean).join(' ').trim()
+        || message?.from;
+    const name = (rawName && rawName.trim()) || (username ? `@${username}` : (telegramUserId ? `TG ${telegramUserId}` : 'Chat'));
+    return { name, username, telegramUserId };
+};
+
+const resolveChatIdentity = (chat?: ChatInfo | null): ChatIdentity => {
+    if (!chat) return { name: 'Chat' };
+    if (chat.peerName || chat.peerUsername || chat.peerTelegramUserId) {
+        return {
+            name: chat.peerName || (chat.peerUsername ? `@${chat.peerUsername}` : (chat.peerTelegramUserId ? `TG ${chat.peerTelegramUserId}` : 'Chat')),
+            username: chat.peerUsername,
+            telegramUserId: chat.peerTelegramUserId
+        };
+    }
+    return extractMessageIdentity(chat.lastMsg);
+};
 
 export const InboxPage = () => {
     const [msgs, setMsgs] = useState<TelegramMessage[]>([]);
@@ -46,6 +79,7 @@ export const InboxPage = () => {
     const [bots, setBots] = useState<any[]>([]);
     const [selectedBotId, setSelectedBotId] = useState<string | undefined>(undefined);
     const [showCarPicker, setShowCarPicker] = useState(false);
+    const [carSending, setCarSending] = useState(false);
     const [loading, setLoading] = useState(false);
     const [loadError, setLoadError] = useState<string | null>(null);
     const [showAttachment, setShowAttachment] = useState(false);
@@ -130,6 +164,17 @@ export const InboxPage = () => {
 
                 finalMessages.forEach(m => {
                     const linkedReq = reqMap[m.chatId];
+                    const msgIdentity = extractMessageIdentity(m);
+                    const hasIdentity = Boolean(
+                        m.telegramName
+                        || m.firstName
+                        || m.lastName
+                        || m.telegramUsername
+                        || m.username
+                        || m.telegramUserId
+                        || m.fromId
+                    );
+                    const msgTime = new Date(m.date).getTime();
                     if (!chatMap.has(m.chatId)) {
                         chatMap.set(m.chatId, {
                             chatId: m.chatId,
@@ -138,13 +183,40 @@ export const InboxPage = () => {
                             assignedTo: linkedReq?.assigneeId,
                             internalNote: linkedReq?.internalNote,
                             requestId: linkedReq?.id,
-                            unreadCount: 0
+                            unreadCount: 0,
+                            peerName: hasIdentity ? msgIdentity.name : undefined,
+                            peerUsername: hasIdentity ? msgIdentity.username : undefined,
+                            peerTelegramUserId: hasIdentity ? msgIdentity.telegramUserId : undefined,
+                            peerIdentityIncomingAt: m.direction === 'INCOMING' && hasIdentity ? m.date : undefined,
+                            peerIdentityAnyAt: hasIdentity ? m.date : undefined
                         });
                     } else {
                         const existing = chatMap.get(m.chatId)!;
                         if (new Date(m.date) > new Date(existing.lastMsg.date)) {
                             existing.lastMsg = m;
                             existing.botId = m.botId || existing.botId;
+                        }
+
+                        if (hasIdentity) {
+                            if (m.direction === 'INCOMING') {
+                                const prevIncoming = existing.peerIdentityIncomingAt ? new Date(existing.peerIdentityIncomingAt).getTime() : 0;
+                                if (msgTime >= prevIncoming) {
+                                    existing.peerName = msgIdentity.name;
+                                    existing.peerUsername = msgIdentity.username;
+                                    existing.peerTelegramUserId = msgIdentity.telegramUserId;
+                                    existing.peerIdentityIncomingAt = m.date;
+                                }
+                            } else if (!existing.peerIdentityIncomingAt) {
+                                const prevAny = existing.peerIdentityAnyAt ? new Date(existing.peerIdentityAnyAt).getTime() : 0;
+                                if (msgTime >= prevAny) {
+                                    existing.peerName = msgIdentity.name;
+                                    existing.peerUsername = msgIdentity.username;
+                                    existing.peerTelegramUserId = msgIdentity.telegramUserId;
+                                }
+                            }
+                            if (!existing.peerIdentityAnyAt || msgTime >= new Date(existing.peerIdentityAnyAt).getTime()) {
+                                existing.peerIdentityAnyAt = m.date;
+                            }
                         }
                     }
                 });
@@ -255,10 +327,11 @@ export const InboxPage = () => {
     };
 
     const handleCarSelect = async (car: any) => {
-        if (!activeChatId) return;
+        if (!activeChatId || carSending) return;
         const active = chats.find(c => c.chatId === activeChatId);
         const resolvedBotId = active?.lastMsg?.botId || selectedBotId;
         if (!resolvedBotId) return;
+        setCarSending(true);
         try {
             await BotEngine.sendCar(activeChatId, car, resolvedBotId);
             if (activeRequest?.id) {
@@ -274,6 +347,8 @@ export const InboxPage = () => {
             setShowCarPicker(false);
         } catch (e: any) {
             showToast(formatSendError(e), 'error');
+        } finally {
+            setCarSending(false);
         }
     };
 
@@ -374,11 +449,15 @@ export const InboxPage = () => {
     const createLead = async () => {
         if (!activeChat || !selectedBotId) return;
         try {
+            const identity = resolveChatIdentity(activeChat);
             await LeadsService.createLead({
-                clientName: activeChat.lastMsg.from,
+                clientName: identity.name,
                 source: 'Telegram',
                 botId: selectedBotId,
                 userTgId: activeChatId || undefined,
+                telegramUserId: identity.telegramUserId,
+                telegramUsername: identity.username,
+                telegramName: identity.name,
                 status: 'NEW'
             });
             showToast('Lead created', 'success');
@@ -572,16 +651,7 @@ export const InboxPage = () => {
     const visibleChats = filteredChats.slice(0, visibleCount);
     const activeChat = chats.find(c => c.chatId === activeChatId);
     const activeRequest = activeChatId ? requestByChat[activeChatId] : undefined;
-    const getMessageIdentity = (message?: TelegramMessage | null) => {
-        const name = message?.telegramName
-            || [message?.firstName, message?.lastName].filter(Boolean).join(' ').trim()
-            || message?.from
-            || 'Chat';
-        const username = message?.telegramUsername || message?.username;
-        const telegramUserId = message?.telegramUserId || message?.fromId;
-        return { name, username, telegramUserId };
-    };
-    const activeIdentity = getMessageIdentity(activeChat?.lastMsg);
+    const activeIdentity = resolveChatIdentity(activeChat);
     const renderMessageText = (text: string) => {
         const lines = String(text || '').split('\n');
         return lines.map((line, idx) => {
@@ -806,7 +876,7 @@ export const InboxPage = () => {
                 </div>
                 <div className="flex-1 overflow-y-auto">
                     {visibleChats.map(c => {
-                        const identity = getMessageIdentity(c.lastMsg);
+                        const identity = resolveChatIdentity(c);
                         return (
                         <div key={c.chatId} onClick={() => setActiveChatId(c.chatId)} className={`p-4 border-b border-[var(--border-color)] cursor-pointer hover:bg-[var(--bg-input)] transition-colors ${activeChatId === c.chatId ? 'bg-gold-500/10 border-l-4 border-l-gold-500' : 'border-l-4 border-l-transparent'}`}>
                             <div className="flex justify-between mb-1">
@@ -968,7 +1038,7 @@ export const InboxPage = () => {
 
                             {activeChat && (
                                 <div className="px-4 pt-3 text-xs text-[var(--text-secondary)] flex items-center gap-2">
-                                    Replying to <span className="font-bold text-[var(--text-primary)]">{activeChat.lastMsg.from}</span>
+                                    Replying to <span className="font-bold text-[var(--text-primary)]">{activeIdentity.name}</span>
                                     {activeRequest && <span className="px-2 py-1 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px]">Linked request</span>}
                                 </div>
                             )}
@@ -1014,7 +1084,7 @@ export const InboxPage = () => {
                 )}
             </div>
 
-            {showCarPicker && <CarPicker onSelect={handleCarSelect} onClose={() => setShowCarPicker(false)} />}
+            {showCarPicker && <CarPicker onSelect={handleCarSelect} onClose={() => setShowCarPicker(false)} disabled={carSending} />}
 
             {showRequestModal && (
                 <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50">
