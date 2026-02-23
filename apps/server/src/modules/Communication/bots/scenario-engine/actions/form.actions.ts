@@ -107,7 +107,7 @@ const formatValue = (field: FormFieldDefinition, value: any) => {
   return String(value);
 };
 
-const buildSummaryText = (form: ActiveFormState) => {
+export const buildSummaryText = (form: ActiveFormState) => {
   const lines = form.fields.map((field) => `• ${field.label}: ${formatValue(field, form.values[field.key])}`);
   return [
     `📋 ${form.title}`,
@@ -126,16 +126,21 @@ const summaryKeyboard = {
   ]]
 };
 
-const editKeyboard = (form: ActiveFormState) => ({
-  inline_keyboard: [
-    ...form.fields.map((field) => [
-      { text: `Змінити ${field.label}`, callback_data: `FORM:EDIT:${field.key}` }
-    ]),
-    [{ text: '⬅️ Назад до підсумку', callback_data: 'FORM:SUMMARY' }]
-  ]
-});
+export const buildEditLabels = (form: ActiveFormState) => form.fields.map((field) => `Змінити ${field.label}`);
 
-const buildFieldKeyboard = (field: FormFieldDefinition) => {
+const editKeyboard = (form: ActiveFormState) => {
+  const labels = buildEditLabels(form);
+  return {
+    inline_keyboard: [
+      ...form.fields.map((field, index) => [
+        { text: labels[index] || `Змінити ${field.label}`, callback_data: `FORM:EDIT:${field.key}` }
+      ]),
+      [{ text: '⬅️ Назад до підсумку', callback_data: 'FORM:SUMMARY' }]
+    ]
+  };
+};
+
+export const buildFieldKeyboard = (field: FormFieldDefinition) => {
   const rows: any[][] = [];
 
   const quickReplies = Array.isArray(field.quickReplies)

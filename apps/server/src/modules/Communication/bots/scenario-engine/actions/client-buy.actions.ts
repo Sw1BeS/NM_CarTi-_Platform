@@ -25,6 +25,32 @@ type LeadBuyState = {
   favorites: string[];
 };
 
+export const buildLeadBuyBatch = (resultIds: string[], cursor: number, batchSize = 3) => {
+  const safeSize = Math.max(1, Math.min(3, Number(batchSize) || 3));
+  const safeCursor = Math.max(0, Number(cursor) || 0);
+  const ids = resultIds.slice(safeCursor, safeCursor + safeSize);
+  return {
+    ids,
+    nextCursor: safeCursor + ids.length,
+    hasMore: safeCursor + ids.length < resultIds.length
+  };
+};
+
+export const updateLeadBuyFavorites = (favorites: string[], carId: string, action: 'add' | 'remove') => {
+  const next = Array.isArray(favorites) ? [...favorites] : [];
+  const id = String(carId || '').trim();
+  if (!id) return next;
+  if (action === 'add') {
+    if (!next.includes(id)) next.push(id);
+    return next;
+  }
+  return next.filter((item) => item !== id);
+};
+
+export const aggregateLeadBuySelectedIds = (ids: string[]) => {
+  return Array.from(new Set((ids || []).map((item) => String(item || '').trim()).filter(Boolean)));
+};
+
 const toNum = (value: unknown) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : undefined;
@@ -118,7 +144,8 @@ const sendBatch = async (params: {
   }
 
   const batchSize = Math.max(1, Math.min(3, Number(params.batchSize || 3)));
-  const batchIds = state.resultIds.slice(state.cursor, state.cursor + batchSize);
+  const batch = buildLeadBuyBatch(state.resultIds, state.cursor, batchSize);
+  const batchIds = batch.ids;
 
   if (!batchIds.length) {
     await sendMessage(params.bot, params.chatId, 'Більше варіантів не знайдено. Спробуйте «Шукати ще».', inlineBatchControls);
@@ -137,7 +164,7 @@ const sendBatch = async (params: {
     });
   }
 
-  state.cursor += batchCars.length;
+  state.cursor = batch.nextCursor;
   writeState(params.vars, state);
   await sendMessage(params.bot, params.chatId, 'Керування результатами:', inlineBatchControls);
 };
@@ -399,7 +426,7 @@ export const handleLeadBuyCallback = async (params: {
 
   if (action === 'FAV' && carId) {
     if (!state.favorites.includes(carId)) {
-      state.favorites.push(carId);
+      state.favorites = updateLeadBuyFavorites(state.favorites, carId, 'add');
       writeState(params.vars, state);
       await sendMessage(params.bot, params.chatId, '⭐ Авто додано в обране.');
     } else {
@@ -429,14 +456,15 @@ export const handleLeadBuyCallback = async (params: {
   }
 
   if (action === 'DEL_FAV' && carId) {
-    state.favorites = state.favorites.filter((id) => id !== carId);
+    state.favorites = updateLeadBuyFavorites(state.favorites, carId, 'remove');
     writeState(params.vars, state);
     await sendMessage(params.bot, params.chatId, '🗑 Видалено з обраного.');
     return true;
   }
 
   if (action === 'CONTACT_FAVORITES') {
-    if (!state.favorites.length) {
+    const selectedIds = aggregateLeadBuySelectedIds(state.favorites);
+    if (!selectedIds.length) {
       await sendMessage(params.bot, params.chatId, 'Спочатку додайте авто в обране.');
       return true;
     }
@@ -446,7 +474,7 @@ export const handleLeadBuyCallback = async (params: {
       chatId: params.chatId,
       userId: params.userId,
       criteria: state.criteria,
-      selectedIds: state.favorites,
+      selectedIds,
       reason: 'FAVORITES'
     });
 
