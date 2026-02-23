@@ -147,7 +147,9 @@ export interface Lead {
     status: LeadStatus;
     source: 'MANUAL' | 'WEB' | 'TELEGRAM' | 'WA' | 'IG' | 'WHATSAPP' | 'INSTAGRAM';
     telegramChatId?: string;
+    telegramUserId?: string;
     telegramUsername?: string;
+    telegramName?: string;
     phone?: string;
     email?: string;
     goal?: string;

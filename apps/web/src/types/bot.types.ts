@@ -180,6 +180,13 @@ export interface TelegramMessage {
     direction: 'INCOMING' | 'OUTGOING';
     from: string;
     fromId?: string;
+    username?: string;
+    firstName?: string;
+    lastName?: string;
+    telegramUserId?: string;
+    telegramUsername?: string;
+    telegramName?: string;
+    telegramChatId?: string;
     text: string;
     media?: {
         type?: string;

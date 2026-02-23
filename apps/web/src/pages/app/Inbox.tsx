@@ -572,6 +572,16 @@ export const InboxPage = () => {
     const visibleChats = filteredChats.slice(0, visibleCount);
     const activeChat = chats.find(c => c.chatId === activeChatId);
     const activeRequest = activeChatId ? requestByChat[activeChatId] : undefined;
+    const getMessageIdentity = (message?: TelegramMessage | null) => {
+        const name = message?.telegramName
+            || [message?.firstName, message?.lastName].filter(Boolean).join(' ').trim()
+            || message?.from
+            || 'Chat';
+        const username = message?.telegramUsername || message?.username;
+        const telegramUserId = message?.telegramUserId || message?.fromId;
+        return { name, username, telegramUserId };
+    };
+    const activeIdentity = getMessageIdentity(activeChat?.lastMsg);
     const renderMessageText = (text: string) => {
         const lines = String(text || '').split('\n');
         return lines.map((line, idx) => {
@@ -795,12 +805,19 @@ export const InboxPage = () => {
                     {loadError && <p className="text-xs text-red-500">{loadError}</p>}
                 </div>
                 <div className="flex-1 overflow-y-auto">
-                    {visibleChats.map(c => (
+                    {visibleChats.map(c => {
+                        const identity = getMessageIdentity(c.lastMsg);
+                        return (
                         <div key={c.chatId} onClick={() => setActiveChatId(c.chatId)} className={`p-4 border-b border-[var(--border-color)] cursor-pointer hover:bg-[var(--bg-input)] transition-colors ${activeChatId === c.chatId ? 'bg-gold-500/10 border-l-4 border-l-gold-500' : 'border-l-4 border-l-transparent'}`}>
                             <div className="flex justify-between mb-1">
-                                <span className="font-bold text-sm text-[var(--text-primary)] truncate max-w-[150px]">{c.lastMsg.from}</span>
+                                <span className="font-bold text-sm text-[var(--text-primary)] truncate max-w-[150px]">{identity.name}</span>
                                 <span className="text-[10px] text-[var(--text-secondary)] tabular-nums">{new Date(c.lastMsg.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                             </div>
+                            {(identity.username || identity.telegramUserId) && (
+                                <div className="text-[10px] text-[var(--text-secondary)] truncate mb-1">
+                                    {identity.username ? `@${identity.username}` : '—'} {identity.telegramUserId ? `• ${identity.telegramUserId}` : ''}
+                                </div>
+                            )}
                             <div className="text-xs text-[var(--text-muted)] truncate mb-2">
                                 {c.lastMsg.text === '[Media/Unknown]' && c.lastMsg.media?.type
                                     ? `[${c.lastMsg.media.type}]`
@@ -808,7 +825,7 @@ export const InboxPage = () => {
                             </div>
                             {c.assignedTo && <div className="flex items-center gap-1 text-[9px] text-blue-500"><UserCheck size={10} /> {managers.find(m => m.id === c.assignedTo)?.name || 'Assigned'}</div>}
                         </div>
-                    ))}
+                    )})}
                     {visibleChats.length < filteredChats.length && (
                         <div className="p-4 flex justify-center bg-[var(--bg-panel)] border-t border-[var(--border-color)]">
                             <button className="btn-secondary text-xs" onClick={() => setVisibleCount(v => v + 30)}>Load more</button>
@@ -825,8 +842,12 @@ export const InboxPage = () => {
                         <div className="p-4 border-b border-[var(--border-color)] bg-[var(--bg-panel)] backdrop-blur flex justify-between items-center z-10">
                             <div className="flex items-center gap-3">
                                 <div>
-                                    <div className="font-bold text-[var(--text-primary)]">{activeChat?.lastMsg.from || 'Chat'}</div>
-                                    <div className="text-[10px] text-[var(--text-secondary)]">ID: {activeChatId}</div>
+                                    <div className="font-bold text-[var(--text-primary)]">{activeIdentity.name}</div>
+                                    <div className="text-[10px] text-[var(--text-secondary)]">
+                                        chat: {activeChatId}
+                                        {activeIdentity.username ? ` • @${activeIdentity.username}` : ''}
+                                        {activeIdentity.telegramUserId ? ` • tg: ${activeIdentity.telegramUserId}` : ''}
+                                    </div>
                                 </div>
                             </div>
                             <div className="flex items-center gap-2">

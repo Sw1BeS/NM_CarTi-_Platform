@@ -160,6 +160,9 @@ router.get('/messages', requireRole(['OWNER', 'ADMIN', 'MANAGER', 'OPERATOR']), 
             const fromPayload = payload?.from || payload?.user || {};
             const chatPayload = payload?.chat || {};
             const fromName = fromPayload.first_name || fromPayload.username || (row.direction === 'OUTGOING' ? 'Bot' : 'User');
+            const telegramUserId = fromPayload.id ? String(fromPayload.id) : undefined;
+            const telegramUsername = fromPayload.username || undefined;
+            const telegramName = [fromPayload.first_name, fromPayload.last_name].filter(Boolean).join(' ').trim() || undefined;
 
             const inlineKeyboard = Array.isArray(payload?.markup?.inline_keyboard) ? payload.markup.inline_keyboard : [];
             const flatButtons = Array.isArray(inlineKeyboard)
@@ -176,9 +179,14 @@ router.get('/messages', requireRole(['OWNER', 'ADMIN', 'MANAGER', 'OPERATOR']), 
                 platform: 'TG',
                 direction: row.direction,
                 from: fromName,
-                fromId: fromPayload.id ? String(fromPayload.id) : undefined,
-                username: fromPayload.username || undefined,
+                fromId: telegramUserId,
+                username: telegramUsername,
                 firstName: fromPayload.first_name || undefined,
+                lastName: fromPayload.last_name || undefined,
+                telegramUserId,
+                telegramUsername,
+                telegramName,
+                telegramChatId: row.chatId,
                 text: row.text,
                 date: new Date(row.createdAt).toISOString(),
                 status: 'NEW',

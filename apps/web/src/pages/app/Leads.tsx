@@ -177,7 +177,18 @@ export const Leads: React.FC = () => {
                                                     </div>
                                                     <div>
                                                         <div className="font-bold text-[var(--text-primary)]">{l.name}</div>
-                                                        <div className="text-[10px] text-[var(--text-secondary)] font-mono">{l.phone || l.telegramUsername || 'No contact'}</div>
+                                                        <div className="text-[10px] text-[var(--text-secondary)] font-mono">
+                                                            {[
+                                                                l.phone || null,
+                                                                l.telegramUsername ? `@${l.telegramUsername}` : null,
+                                                                l.telegramUserId ? `tg:${l.telegramUserId}` : null
+                                                            ].filter(Boolean).join(' • ') || 'No contact'}
+                                                        </div>
+                                                        {l.telegramName && l.telegramName !== l.name && (
+                                                            <div className="text-[10px] text-[var(--text-secondary)]">
+                                                                {l.telegramName}
+                                                            </div>
+                                                        )}
                                                         <div className="text-[10px] text-[var(--text-secondary)] mt-1 md:hidden">
                                                             {l.source} • {l.lastInteractionAt ? new Date(l.lastInteractionAt).toLocaleDateString() : 'New'}
                                                         </div>
