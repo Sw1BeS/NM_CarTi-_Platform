@@ -7,6 +7,7 @@ import { normalizeModel } from '../../../Inventory/normalization/normalizeModel.
 import { normalizeCity } from '../../../Inventory/normalization/normalizeCity.js';
 import { normalizePhone } from '../../../Inventory/normalization/normalizePhone.js';
 import { createOrMergeLead } from '../core/leadService.js';
+import { renderCarCardForBot } from '../../../../services/carCardRenderer.v2.js';
 import { renderLeadCard, renderRequestCard } from '../../../../services/cardRenderer.js';
 import { generateRequestLink } from '../../../../utils/deeplink.utils.js';
 import { buildMiniAppUrl } from '../core/utils/miniappUrl.js';
@@ -19,6 +20,7 @@ import { quotaService } from '../../../../services/quota.service.js';
 import { getEnvInt, isEnvFlagEnabled } from '../../../../services/featureFlags.js';
 import { logger } from '../../../../utils/logger.js';
 import { buildTelegramChannelPostUrl, normalizeBotConfigChatId } from '../core/utils/telegramChatId.js';
+import { buildTelegramPhotoMedia, collectCarMediaSources } from '../core/utils/carMedia.js';
 import { resolveReplyMarkupForChat } from '../core/utils/telegramReplyMarkup.js';
 import { b2bRoutingService } from '../../../../services/b2bRouting.service.js';
 
@@ -80,12 +82,6 @@ const parseMileage = (input: string) => {
   return { min, max };
 };
 
-const formatPrice = (price?: number | null, currency?: string | null) => {
-  if (!price) return '';
-  const curr = currency || 'USD';
-  return `${price.toLocaleString()} ${curr}`;
-};
-
 const sendMessage = async (ctx: PipelineContext, text: string, replyMarkup?: any, targetChatId?: string) => {
   if (!ctx.bot) return;
   const chatId = targetChatId || ctx.chatId;
@@ -129,6 +125,50 @@ const sendPhoto = async (ctx: PipelineContext, photo: string, caption: string, r
     companyId: ctx.companyId,
     userId: ctx.userId || undefined
   });
+};
+
+const sendCarCardToChat = async (
+  ctx: PipelineContext,
+  car: any,
+  options: {
+    lang: Lang;
+    targetChatId?: string;
+    replyMarkup?: any;
+  }
+) => {
+  if (!ctx.bot) return;
+  const chatId = options.targetChatId || ctx.chatId;
+  if (!chatId) return;
+
+  const caption = await renderCarCardForBot({
+    car,
+    lang: options.lang,
+    companyId: ctx.companyId || null,
+    botId: ctx.bot.id
+  });
+  const media = collectCarMediaSources(car, 10);
+
+  if (media.length > 1) {
+    await telegramOutbox.sendMediaGroup({
+      botId: ctx.bot.id,
+      token: ctx.bot.token,
+      chatId,
+      media: buildTelegramPhotoMedia(media, caption),
+      companyId: ctx.companyId,
+      userId: ctx.userId || undefined
+    });
+    if (options.replyMarkup) {
+      await sendMessage(ctx, '⬇️ Оберіть дію:', options.replyMarkup, chatId);
+    }
+    return;
+  }
+
+  if (media.length === 1) {
+    await sendPhoto(ctx, media[0], caption, options.replyMarkup, chatId);
+    return;
+  }
+
+  await sendMessage(ctx, caption, options.replyMarkup, chatId);
 };
 
 const updateSession = async (ctx: PipelineContext, state: string, variables: Record<string, any>) => {
@@ -755,19 +795,7 @@ const handleCatalog = async (ctx: PipelineContext, text: string) => {
     } else {
       await sendMessage(ctx, t(lang, 'catalogResults'));
       for (const car of cars) {
-        const title = car.title || 'Car';
-        const price = formatPrice(car.price, car.currency || 'USD');
-        const details = [
-          `🚗 <b>${title}</b>`,
-          car.year ? `📅 ${car.year}` : undefined,
-          price ? `💰 ${price}` : undefined,
-          car.location ? `📍 ${car.location}` : undefined
-        ].filter(Boolean).join('\n');
-        if (car.thumbnail) {
-          await sendPhoto(ctx, car.thumbnail, details);
-        } else {
-          await sendMessage(ctx, details);
-        }
+        await sendCarCardToChat(ctx, car, { lang });
       }
     }
 

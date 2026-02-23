@@ -1,7 +1,7 @@
 import { prisma } from '../../../../../services/prisma.js';
-import { sendChatAction, sendMessage, sendPhoto } from '../adapters/telegram.adapter.js';
-import { renderCarCardForBot } from '../../../../../services/carCardRenderer.v2.js';
+import { sendChatAction, sendMessage } from '../adapters/telegram.adapter.js';
 import { createCarCardKeyboard } from './b2b.actions.js';
+import { sendCarCardWithMedia } from './car-card.actions.js';
 import type { BotRuntime, ScenarioNode } from '../types.js';
 
 type DelayResult = 'scheduled' | 'continue';
@@ -66,18 +66,14 @@ export const executeGalleryNode = async ({
   const temp = Array.isArray(vars.__tempResults) ? vars.__tempResults : [];
 
   for (const car of temp.slice(0, 5)) {
-    const caption = await renderCarCardForBot({
+    const keyboard = createCarCardKeyboard(car, lang);
+    await sendCarCardWithMedia({
+      bot,
+      chatId: session.chatId,
       car,
       lang,
-      companyId: bot.companyId || null,
-      botId: bot.id
+      replyMarkup: keyboard
     });
-    const keyboard = createCarCardKeyboard(car, lang);
-    if (car.thumbnail) {
-      await sendPhoto(bot, session.chatId, car.thumbnail, caption, keyboard);
-    } else {
-      await sendMessage(bot, session.chatId, caption, keyboard);
-    }
     await new Promise(r => setTimeout(r, 600));
   }
 };

@@ -19,13 +19,18 @@ export const sendMessage = async (bot: BotRuntime, chatId: string, text: string,
 };
 
 export const sendPhoto = async (bot: BotRuntime, chatId: string, photo: string, caption: string, replyMarkup?: any) => {
+  const normalizedReplyMarkup = resolveReplyMarkupForChat({
+    replyMarkup,
+    bot,
+    chatId
+  });
   return telegramOutbox.sendPhoto({
     botId: bot.id,
     token: bot.token,
     chatId,
     photo,
     caption,
-    replyMarkup,
+    replyMarkup: normalizedReplyMarkup,
     companyId: bot.companyId || null
   });
 };
