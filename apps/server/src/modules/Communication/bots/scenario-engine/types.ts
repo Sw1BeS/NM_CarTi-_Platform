@@ -9,6 +9,7 @@ export interface BotRuntime {
 
 export interface ScenarioRecord {
   id: string;
+  name?: string | null;
   botId?: string | null;
   triggerCommand: string | null;
   isActive?: boolean;

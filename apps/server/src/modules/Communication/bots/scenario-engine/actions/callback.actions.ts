@@ -8,6 +8,7 @@ import { handleFormCallbackInput } from './form.actions.js';
 import { handleLeadBuyCallback } from './client-buy.actions.js';
 import { handleLeadSellCallback } from './client-sell.actions.js';
 import { handleSupportCallback } from './support.actions.js';
+import { handleB2BRegistrationCallback } from './b2b-registration.actions.js';
 
 interface CallbackHandlerContext {
   bot: BotRuntime;
@@ -90,6 +91,20 @@ export const handleCallbackQuery = async ({
       callbackData: cbData
     });
     if (handledLeadSell) {
+      await saveSession();
+      return true;
+    }
+  }
+
+  if (cbData.startsWith('B2BREG:')) {
+    const handledB2BReg = await handleB2BRegistrationCallback({
+      bot,
+      chatId,
+      userId,
+      vars,
+      callbackData: cbData
+    });
+    if (handledB2BReg) {
       await saveSession();
       return true;
     }

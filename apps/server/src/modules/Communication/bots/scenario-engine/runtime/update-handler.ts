@@ -21,6 +21,7 @@ import { handleFormMessageInput, hasActiveForm } from '../actions/form.actions.j
 import { submitLeadBuyForm } from '../actions/client-buy.actions.js';
 import { submitLeadSellForm } from '../actions/client-sell.actions.js';
 import { submitSupportForm } from '../actions/support.actions.js';
+import { ensureB2BRegistrationGate, submitB2BRegistrationForm } from '../actions/b2b-registration.actions.js';
 import { clearActiveScenario } from './lifecycle.js';
 import { loadPublishedScenarios } from './scenario-registry.js';
 import type { BotRuntime, ScenarioRecord } from '../types.js';
@@ -111,6 +112,15 @@ export const handleUpdateRuntime = async ({
         submission
       });
     }
+    if (submission?.confirmAction?.startsWith?.('B2BREG:') && submission?.status === 'CONFIRMED') {
+      await submitB2BRegistrationForm({
+        bot,
+        chatId,
+        userId,
+        vars,
+        submission
+      });
+    }
   };
 
   // Manager Actions
@@ -189,6 +199,24 @@ export const handleUpdateRuntime = async ({
       await sendMainMenu();
       return;
     }
+
+    const requiresB2BGate = Boolean(
+      scenario.triggerCommand && ['request', 'offer', 'inventory'].includes(String(scenario.triggerCommand).toLowerCase())
+    ) || String(scenario.name || '').toLowerCase().includes('b2b');
+    if (requiresB2BGate) {
+      const blocked = await ensureB2BRegistrationGate({
+        bot,
+        chatId,
+        userId,
+        vars,
+        reason: 'Створення B2B запитів/варіантів'
+      });
+      if (blocked) {
+        await saveSession();
+        return;
+      }
+    }
+
     vars.__activeScenarioId = scenario.id;
     vars.__currentNodeId = null;
     vars.__tempResults = [];

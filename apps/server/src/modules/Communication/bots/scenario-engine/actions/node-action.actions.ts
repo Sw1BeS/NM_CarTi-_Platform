@@ -17,6 +17,7 @@ import { createVariantAndRoute, notifyRequestAdmin } from './b2b.actions.js';
 import { startLeadBuyFlow } from './client-buy.actions.js';
 import { startLeadSellFlow } from './client-sell.actions.js';
 import { startSupportFlow } from './support.actions.js';
+import { ensureB2BRegistrationGate } from './b2b-registration.actions.js';
 import type { BotRuntime, ScenarioNode } from '../types.js';
 
 export type ActionExecutionResult = 'continue' | 'halt';
@@ -123,6 +124,15 @@ export const executeActionNode = async ({
   }
 
   if (actionType === 'CREATE_REQUEST') {
+    const blocked = await ensureB2BRegistrationGate({
+      bot,
+      chatId: session.chatId,
+      userId: vars.__telegramUserId,
+      vars,
+      reason: 'Створення B2B-запиту'
+    });
+    if (blocked) return 'halt';
+
     const requestType = normalizeRequestType(node.content?.requestType || vars.requestType || vars.type);
     const titleOverride = node.content?.requestTitle || vars.requestTitle;
     const baseTitle = `${vars.brand || ''} ${vars.model || ''}`.trim();
@@ -219,6 +229,15 @@ export const executeActionNode = async ({
   }
 
   if (actionType === 'CREATE_VARIANT') {
+    const blocked = await ensureB2BRegistrationGate({
+      bot,
+      chatId: session.chatId,
+      userId: vars.__telegramUserId,
+      vars,
+      reason: 'Подання B2B-варіанту'
+    });
+    if (blocked) return 'halt';
+
     const requestRef = String(
       vars.requestId
       || vars.requestPublicId
