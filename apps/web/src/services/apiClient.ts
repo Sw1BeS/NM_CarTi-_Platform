@@ -128,8 +128,9 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
         }
 
         if (!response.ok) {
-            // Auto-logout on 401
-            if (response.status === 401 && !endpointWithQuery.includes('login')) {
+            // Auto-logout only for authenticated platform requests.
+            // Public/MiniApp calls run with skipAuth=true and must not redirect to /login.
+            if (response.status === 401 && !skipAuth && !endpointWithQuery.includes('login')) {
                 localStorage.removeItem('cartie_token');
                 window.dispatchEvent(new Event('auth-error'));
             }

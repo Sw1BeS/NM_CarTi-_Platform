@@ -99,6 +99,21 @@ type TelegramBootstrapContext = {
 type MiniAppSurfaceMode = 'LEAD' | 'B2B';
 type MiniAppView = 'HOME' | 'INVENTORY' | 'LISTING' | 'FAVORITES' | 'REQUEST' | 'STATUS' | 'PROFILE';
 
+const resolveMiniAppWriteError = (error: unknown, fallback = 'Не вдалося виконати дію.') => {
+    const message = error instanceof Error ? String(error.message || '').trim() : '';
+    if (!message) return fallback;
+    const lower = message.toLowerCase();
+    if (
+        lower.includes('unauthorized')
+        || lower.includes('invalid telegram init data')
+        || lower.includes('initdata')
+        || lower.includes('init data')
+    ) {
+        return 'Сесія Telegram застаріла. Відкрийте Mini App повторно через кнопку в боті.';
+    }
+    return message;
+};
+
 const readTelegramLaunchValue = (key: string): string => {
     const sources = [window.location.search, window.location.hash.startsWith('#') ? `?${window.location.hash.slice(1)}` : ''];
     for (const source of sources) {
@@ -1380,7 +1395,7 @@ const handleNextStep = async () => {
             }
         } catch (e) {
             emitMiniAppEvent('error', 'MiniApp request submit failed', { error: e instanceof Error ? e.message : String(e) });
-            const message = e instanceof Error ? e.message : 'Не вдалося надіслати запит.';
+            const message = resolveMiniAppWriteError(e, 'Не вдалося надіслати запит.');
             pushToast(message, 'error');
         }
     }
