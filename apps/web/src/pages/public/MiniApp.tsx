@@ -33,6 +33,7 @@ const emitMiniAppEvent = (level: 'info' | 'warn' | 'error', message: string, met
 };
 
 class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean; error: Error | null; errorInfo: React.ErrorInfo | null }> {
+    public state: { hasError: boolean; error: Error | null; errorInfo: React.ErrorInfo | null };
     constructor(props: { children: React.ReactNode }) {
         super(props);
         this.state = { hasError: false, error: null, errorInfo: null };
@@ -414,6 +415,7 @@ const MiniAppContent = () => {
         if (mode === 'B2B') {
             return {
                 surfaceMode: 'B2B',
+                isEnabled: true,
                 title: 'CarDealer Lviv B2B',
                 welcomeText: 'Інвентар партнерів та статуси B2B-запитів.',
                 layout: 'GRID',
@@ -436,6 +438,7 @@ const MiniAppContent = () => {
         }
         return {
             surfaceMode: 'LEAD',
+            isEnabled: true,
             title: 'CarTié Premium',
             welcomeText: 'Ваш персональний помічник з підбору авто.',
             layout: 'GRID',
