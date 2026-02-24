@@ -990,7 +990,7 @@ const handleB2B = async (ctx: PipelineContext, text: string) => {
       return true;
     }
 
-    await prisma.requestVariant.create({
+    const variant = await prisma.requestVariant.create({
       data: {
         requestId: reqId,
         sellerPartnerId: vars.b2bPartnerId || null,
@@ -1010,7 +1010,7 @@ const handleB2B = async (ctx: PipelineContext, text: string) => {
         token: ctx.bot.token,
         chatId: targetChatId,
         text: `🔔 Новий варіант для вашого запиту ${request.publicId || request.id}:\n\nПредставник: ${vars.b2bPartnerName || 'Невідомий партнер'}\nКоментар: ${flow.text || 'Без опису'}`,
-        replyMarkup: { inline_keyboard: [[{ text: '✅ Підходить', callback_data: `bv_fit_${reqId}` }, { text: '❌ Не підходить', callback_data: `bv_nfit_${reqId}` }]] },
+        replyMarkup: { inline_keyboard: [[{ text: '✅ Підходить', callback_data: `bv_fit_${variant.id}` }, { text: '❌ Не підходить', callback_data: `bv_nfit_${variant.id}` }]] },
         companyId: ctx.companyId
       }).catch(() => null);
     }
@@ -1188,6 +1188,7 @@ export const routeMessage = async (ctx: PipelineContext) => {
   // 3. Legacy Templates (Fallback)
   if (ctx.bot.template === 'CLIENT_LEAD') return handleClientLead(ctx, text);
   if (ctx.bot.template === 'CATALOG') return handleCatalog(ctx, text);
+  if (ctx.bot.template === 'B2B') return handleB2B(ctx, text);
 
   return false;
 };

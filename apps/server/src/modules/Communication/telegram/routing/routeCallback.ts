@@ -75,6 +75,57 @@ export const routeCallback = async (ctx: PipelineContext) => {
     if (parsed.action.startsWith('ls_')) {
       return await handleLeadSellCallback(ctx, parsed.action, parsed.id);
     }
+    if (parsed.action.startsWith('bv_fit_')) {
+      const variantId = parsed.action.replace('bv_fit_', '');
+      const variant = await prisma.requestVariant.findUnique({ where: { id: variantId }, include: { sellerPartner: true, request: true } });
+      if (!variant) return true;
+      await prisma.requestVariant.update({ where: { id: variantId }, data: { status: 'APPROVED' } });
+      await sendMessage(ctx, '✅ Ви підтвердили цей варіант. Представник звʼяжеться з вами найближчим часом.');
+
+      const message = cb.message;
+      if (message?.chat?.id && message?.message_id) {
+        const baseText = String(message.text || message.caption || '').split('\n\n').slice(0, -1).join('\n\n') || message.text;
+        await telegramOutbox.editMessageText({
+          botId: ctx.bot.id,
+          token: ctx.bot.token,
+          chatId: String(message.chat.id),
+          messageId: message.message_id,
+          text: `${baseText}\n\n✅ Підтверджено`,
+          companyId: ctx.companyId
+        }).catch(() => null);
+      }
+      if (variant.sellerPartner?.adminGroupChatId) {
+        await telegramOutbox.sendMessage({
+          botId: ctx.bot.id,
+          token: ctx.bot.token,
+          chatId: variant.sellerPartner.adminGroupChatId,
+          text: `🎉 Клієнт підтвердив ваш варіант для запиту ${variant.request?.publicId || variant.request?.id}!\nЗв'яжіться з клієнтом для узгодження деталей.`,
+          companyId: ctx.companyId
+        }).catch(() => null);
+      }
+      return true;
+    }
+
+    if (parsed.action.startsWith('bv_nfit_')) {
+      const variantId = parsed.action.replace('bv_nfit_', '');
+      const variant = await prisma.requestVariant.findUnique({ where: { id: variantId }, include: { sellerPartner: true, request: true } });
+      if (!variant) return true;
+      await prisma.requestVariant.update({ where: { id: variantId }, data: { status: 'REJECTED' } });
+      await sendMessage(ctx, '❌ Ви відхилили цей варіант.');
+      const message = cb.message;
+      if (message?.chat?.id && message?.message_id) {
+        const baseText = String(message.text || message.caption || '').split('\n\n').slice(0, -1).join('\n\n') || message.text;
+        await telegramOutbox.editMessageText({
+          botId: ctx.bot.id,
+          token: ctx.bot.token,
+          chatId: String(message.chat.id),
+          messageId: message.message_id,
+          text: `${baseText}\n\n❌ Відхилено`,
+          companyId: ctx.companyId
+        }).catch(() => null);
+      }
+      return true;
+    }
     switch (parsed.action) {
       case 'cl_lead_send':
         await finalizeClientLead(ctx);
