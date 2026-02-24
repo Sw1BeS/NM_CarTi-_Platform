@@ -35,10 +35,10 @@ type NewPartnerPayload = {
 
 const normalizeCode = (value: string) => String(value || '').trim().toUpperCase();
 
-const randomPartnerCode = () => {
+const randomInviteCode = () => {
   const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let code = 'P-';
-  for (let i = 0; i < 8; i += 1) {
+  let code = 'CDL-';
+  for (let i = 0; i < 6; i += 1) {
     code += alphabet[Math.floor(Math.random() * alphabet.length)] || 'X';
   }
   return code;
@@ -107,8 +107,13 @@ class B2bRegistrationService {
   async findCompanyByPartnerCode(code: string) {
     const normalizedCode = normalizeCode(code);
     if (!normalizedCode) return null;
-    return prisma.partnerCompany.findUnique({
-      where: { partnerCode: normalizedCode }
+    return prisma.partnerCompany.findFirst({
+      where: {
+        OR: [
+          { inviteCode: normalizedCode },
+          { partnerCode: normalizedCode }
+        ]
+      }
     });
   }
 
@@ -123,16 +128,16 @@ class B2bRegistrationService {
     } as const;
   }
 
-  private async ensureUniquePartnerCode() {
+  private async ensureUniqueInviteCode() {
     for (let i = 0; i < 200; i += 1) {
-      const code = randomPartnerCode();
+      const code = randomInviteCode();
       const exists = await prisma.partnerCompany.findUnique({
-        where: { partnerCode: code },
+        where: { inviteCode: code },
         select: { id: true }
       });
       if (!exists) return code;
     }
-    throw new Error('failed_to_generate_partner_code');
+    throw new Error('failed_to_generate_invite_code');
   }
 
   private async ensureUniqueShowcaseSlug(seed: string) {
@@ -261,8 +266,11 @@ class B2bRegistrationService {
     }
 
     const patch: Record<string, unknown> = {};
+    if (!partnerCompany.inviteCode) {
+      patch.inviteCode = await this.ensureUniqueInviteCode();
+    }
     if (!partnerCompany.partnerCode) {
-      patch.partnerCode = await this.ensureUniquePartnerCode();
+      patch.partnerCode = String((patch.inviteCode as string) || partnerCompany.inviteCode || '').replace(/^CDL-/, 'P-');
     }
     if (!partnerCompany.showcaseSlug) {
       patch.showcaseSlug = await this.ensureUniqueShowcaseSlug(companyName);
@@ -278,11 +286,13 @@ class B2bRegistrationService {
       where: { telegramId: accessRequest.tgUserId }
     });
 
-    const userName = buildApplicantName(payload.applicant.firstName, payload.applicant.lastName, accessRequest.username);
+    const userName = String(payload.applicant.firstName || '').trim() || buildApplicantName(payload.applicant.firstName, payload.applicant.lastName, accessRequest.username);
+    const userLastName = String(payload.applicant.lastName || '').trim() || null;
     if (!partnerUser) {
       partnerUser = await prisma.partnerUser.create({
         data: {
           name: userName,
+          lastName: userLastName,
           telegramId: accessRequest.tgUserId,
           phone: payload.applicant.contact,
           partnerId: partnerCompany.id,
@@ -295,6 +305,7 @@ class B2bRegistrationService {
         where: { id: partnerUser.id },
         data: {
           name: partnerUser.name || userName,
+          lastName: partnerUser.lastName || userLastName,
           phone: partnerUser.phone || payload.applicant.contact,
           partnerId: partnerCompany.id,
           companyId: partnerUser.companyId || accessRequest.companyId || null,
@@ -355,8 +366,13 @@ class B2bRegistrationService {
       return { ok: false as const, reason: 'INVALID_CODE' as const };
     }
 
-    const partnerCompany = await prisma.partnerCompany.findUnique({
-      where: { partnerCode: normalizedCode }
+    const partnerCompany = await prisma.partnerCompany.findFirst({
+      where: {
+        OR: [
+          { inviteCode: normalizedCode },
+          { partnerCode: normalizedCode }
+        ]
+      }
     });
     if (!partnerCompany) {
       return { ok: false as const, reason: 'INVALID_CODE' as const };
@@ -367,6 +383,7 @@ class B2bRegistrationService {
       input.identity.lastName,
       input.identity.username
     );
+    const userLastName = String(input.identity.lastName || '').trim() || null;
 
     let partnerUser = await prisma.partnerUser.findFirst({
       where: {
@@ -379,6 +396,7 @@ class B2bRegistrationService {
       partnerUser = await prisma.partnerUser.create({
         data: {
           name: userName,
+          lastName: userLastName,
           telegramId: input.identity.tgUserId,
           phone: input.contact,
           partnerId: partnerCompany.id,
@@ -392,6 +410,7 @@ class B2bRegistrationService {
         where: { id: partnerUser.id },
         data: {
           name: partnerUser.name || userName,
+          lastName: partnerUser.lastName || userLastName,
           phone: partnerUser.phone || input.contact,
           partnerId: partnerCompany.id,
           companyId: partnerUser.companyId || input.context.companyId || partnerCompany.companyId || null,

@@ -38,6 +38,19 @@ export const DRIVE_OPTIONS = ['Передній', 'Задній', 'Повний'
 export const COND_OPTIONS = ['Ідеальний', 'Добрий', 'Потрібен ремонт', 'Після ДТП'];
 export const CITY_OPTIONS = ['Львів', 'Київ', 'Ужгород', 'Дніпро', 'Одеса', 'Харків'];
 
+export const encodePickToken = (index: number) => index.toString(36);
+
+export const decodePickToken = (token?: string | null): number => {
+    const value = parseInt(String(token || ''), 36);
+    return Number.isFinite(value) ? value : -1;
+};
+
+export const pickFromList = (list: string[], token?: string | null): string | null => {
+    const idx = decodePickToken(token);
+    if (idx < 0 || idx >= list.length) return null;
+    return list[idx] || null;
+};
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -65,7 +78,7 @@ const navRow = (backAction: string, skipAction?: string): any[] => {
 // Brand keyboard (2-column, §2)
 // ---------------------------------------------------------------------------
 export const buildBrandKeyboard = (_lang: Lang): any[][] => {
-    const rows = inPairs(BRANDS, 'lb_e_b');
+    const rows = inPairs(BRANDS, 'lb_e_b', (_v) => encodePickToken(BRANDS.indexOf(_v)));
     rows.push([{ text: 'Інша марка (ввести)', callback_data: buildCallbackData('lb_e_b', 'OTHER') }]);
     rows.push([{ text: '❌ Скасувати', callback_data: buildCallbackData('lb_cancel') }]);
     return rows;
@@ -76,7 +89,7 @@ export const buildBrandKeyboard = (_lang: Lang): any[][] => {
 // ---------------------------------------------------------------------------
 export const buildModelKeyboard = (brand: string, _lang: Lang): any[][] => {
     const models = BRAND_MODELS[brand] || [];
-    const rows = inPairs(models, 'lb_e_m');
+    const rows = inPairs(models, 'lb_e_m', (_v) => encodePickToken(models.indexOf(_v)));
     rows.push([
         { text: 'Інша модель (ввести)', callback_data: buildCallbackData('lb_e_m', 'OTHER') },
         { text: 'Пропустити', callback_data: buildCallbackData('lb_e_m', 'SKIP') }
@@ -151,7 +164,7 @@ export const buildMileageKeyboard = (_lang: Lang): any[][] => [
 // Fuel keyboard
 // ---------------------------------------------------------------------------
 export const buildFuelKeyboard = (_lang: Lang): any[][] => [
-    ...inPairs(FUEL_OPTIONS, 'lb_e_fu'),
+    ...inPairs(FUEL_OPTIONS, 'lb_e_fu', (_v) => encodePickToken(FUEL_OPTIONS.indexOf(_v))),
     [{ text: 'Пропустити', callback_data: buildCallbackData('lb_e_fu', 'SKIP') }],
     navRow('lb_back_fu', undefined),
 ];
@@ -160,7 +173,7 @@ export const buildFuelKeyboard = (_lang: Lang): any[][] => [
 // City keyboard
 // ---------------------------------------------------------------------------
 export const buildCityKeyboard = (_lang: Lang): any[][] => [
-    ...inPairs(CITY_OPTIONS, 'lb_e_ct'),
+    ...inPairs(CITY_OPTIONS, 'lb_e_ct', (_v) => encodePickToken(CITY_OPTIONS.indexOf(_v))),
     [
         { text: 'Інше (ввести)', callback_data: buildCallbackData('lb_e_ct', 'OTHER') },
         { text: 'Пропустити', callback_data: buildCallbackData('lb_e_ct', 'SKIP') },
@@ -172,7 +185,7 @@ export const buildCityKeyboard = (_lang: Lang): any[][] => [
 // Transmission / Drive / Condition (for SELL wizard — ls_ prefix)
 // ---------------------------------------------------------------------------
 export const buildTransmissionKeyboard = (): any[][] => [
-    ...inPairs(TRANS_OPTIONS, 'ls_e_tr'),
+    ...inPairs(TRANS_OPTIONS, 'ls_e_tr', (_v) => encodePickToken(TRANS_OPTIONS.indexOf(_v))),
     [{ text: 'Пропустити', callback_data: buildCallbackData('ls_e_tr', 'SKIP') }],
     [
         { text: '⬅️ Назад', callback_data: buildCallbackData('ls_back_tr') },
@@ -181,7 +194,7 @@ export const buildTransmissionKeyboard = (): any[][] => [
 ];
 
 export const buildDriveKeyboard = (): any[][] => [
-    ...inPairs(DRIVE_OPTIONS, 'ls_e_dr'),
+    ...inPairs(DRIVE_OPTIONS, 'ls_e_dr', (_v) => encodePickToken(DRIVE_OPTIONS.indexOf(_v))),
     [{ text: 'Пропустити', callback_data: buildCallbackData('ls_e_dr', 'SKIP') }],
     [
         { text: '⬅️ Назад', callback_data: buildCallbackData('ls_back_dr') },
@@ -190,7 +203,7 @@ export const buildDriveKeyboard = (): any[][] => [
 ];
 
 export const buildConditionKeyboard = (): any[][] => [
-    ...inPairs(COND_OPTIONS, 'ls_e_cd'),
+    ...inPairs(COND_OPTIONS, 'ls_e_cd', (_v) => encodePickToken(COND_OPTIONS.indexOf(_v))),
     [{ text: 'Пропустити', callback_data: buildCallbackData('ls_e_cd', 'SKIP') }],
     [
         { text: '⬅️ Назад', callback_data: buildCallbackData('ls_back_cd') },

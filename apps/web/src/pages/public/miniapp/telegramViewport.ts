@@ -16,11 +16,6 @@ export const initTelegramViewport = (tg?: any) => {
   tg?.ready?.();
   tg?.expand?.();
   tg?.enableClosingConfirmation?.();
-  try {
-    tg?.disableVerticalSwipes?.();
-  } catch {
-    // unsupported on old Telegram clients
-  }
 
   setViewportVars(tg);
 

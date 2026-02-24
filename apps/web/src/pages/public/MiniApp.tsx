@@ -14,6 +14,8 @@ import { initTelegramViewport } from './miniapp/telegramViewport';
 import { popViewHistory, pushViewHistory } from './miniapp/navigation';
 import { ToastStack, useToasts } from '../../components/ui/Toast';
 import { MiniAppShell } from './miniapp/MiniAppShell';
+import { CatalogView } from './miniapp/views/CatalogView';
+import { FavoritesView } from './miniapp/views/FavoritesView';
 import { ProfileView } from './miniapp/views/ProfileView';
 import { RequestView } from './miniapp/views/RequestView';
 
@@ -965,277 +967,61 @@ const MiniAppContent = () => {
     );
 
     const renderInventory = () => {
-        const filteredCars = applyFiltersAndSort();
-
         return (
-            <div className="animate-fade-in pb-24 h-full flex flex-col bg-black">
-                <div className="p-4 sticky top-0 bg-[#000000]/90 backdrop-blur-md z-20 border-b border-white/10 space-y-3">
-                    <h2 className="text-xl font-bold text-white">{surfaceMode === 'B2B' ? 'Інвентар мережі' : 'Інвентар'}</h2>
-
-                    {/* Tabs */}
-                    <div className="flex gap-2">
-                        <button
-                            onClick={() => setTab('IN_STOCK')}
-                            className={`flex-1 py-2.5 px-4 rounded-lg font-bold text-sm transition-all ${tab === 'IN_STOCK'
-                                ? 'text-black shadow-lg'
-                                : 'bg-[#1c1c1e] text-white/50'
-                                }`}
-                            style={tab === 'IN_STOCK' ? { backgroundColor: primaryColor } : {}}
-                        >
-                            ✅ В наявності
-                        </button>
-                        <button
-                            onClick={() => setTab('IN_TRANSIT')}
-                            className={`flex-1 py-2.5 px-4 rounded-lg font-bold text-sm transition-all ${tab === 'IN_TRANSIT'
-                                ? 'text-black shadow-lg'
-                                : 'bg-[#1c1c1e] text-white/50'
-                                }`}
-                            style={tab === 'IN_TRANSIT' ? { backgroundColor: primaryColor } : {}}
-                        >
-                            📦 В дорозі
-                        </button>
-                    </div>
-
-                    {/* Search + Filter Button */}
-                    <div className="flex gap-2">
-                        <div className="flex-1 relative">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
-                            <input
-                                className="w-full bg-[#1c1c1e] text-white pl-10 pr-4 py-3 rounded-xl outline-none placeholder-gray-600 border border-white/5 focus:border-yellow-500/50 transition-colors"
-                                placeholder="Пошук авто..."
-                                value={search}
-                                onChange={e => setSearch(e.target.value)}
-                            />
-                        </div>
-                        <button
-                            onClick={() => setShowFilters(!showFilters)}
-                            className={`w-12 h-12 rounded-xl flex items-center justify-center transition-colors ${showFilters ? 'text-black' : 'bg-[#1c1c1e] text-white'
-                                }`}
-                            style={showFilters ? { backgroundColor: primaryColor } : {}}
-                        >
-                            <SlidersHorizontal size={20} />
-                        </button>
-                    </div>
-
-                    {/* Advanced Filters */}
-                    {showFilters && (
-                        <div className="bg-[#1c1c1e] rounded-xl p-4 space-y-3 border border-white/5 animate-slide-down">
-                            <div>
-                                <label className="text-[10px] text-white/50 uppercase font-bold block mb-1">Марка</label>
-                                <input
-                                    className="w-full bg-black/30 text-white px-3 py-2 rounded-lg text-sm outline-none border border-white/10"
-                                    placeholder="BMW, Mercedes..."
-                                    value={filters.brand}
-                                    onChange={e => setFilters({ ...filters, brand: e.target.value })}
-                                />
-                            </div>
-                            <div className="grid grid-cols-2 gap-3">
-                                <div>
-                                    <label className="text-[10px] text-white/50 uppercase font-bold block mb-1">Рік від</label>
-                                    <input
-                                        type="number"
-                                        className="w-full bg-black/30 text-white px-3 py-2 rounded-lg text-sm outline-none border border-white/10"
-                                        placeholder="2018"
-                                        value={filters.minYear}
-                                        onChange={e => setFilters({ ...filters, minYear: e.target.value })}
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-[10px] text-white/50 uppercase font-bold block mb-1">Рік до</label>
-                                    <input
-                                        type="number"
-                                        className="w-full bg-black/30 text-white px-3 py-2 rounded-lg text-sm outline-none border border-white/10"
-                                        placeholder="2024"
-                                        value={filters.maxYear}
-                                        onChange={e => setFilters({ ...filters, maxYear: e.target.value })}
-                                    />
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-2 gap-3">
-                                <div>
-                                    <label className="text-[10px] text-white/50 uppercase font-bold block mb-1">Ціна від ($)</label>
-                                    <input
-                                        type="number"
-                                        className="w-full bg-black/30 text-white px-3 py-2 rounded-lg text-sm outline-none border border-white/10"
-                                        placeholder="10000"
-                                        value={filters.minPrice}
-                                        onChange={e => setFilters({ ...filters, minPrice: e.target.value })}
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-[10px] text-white/50 uppercase font-bold block mb-1">Ціна до ($)</label>
-                                    <input
-                                        type="number"
-                                        className="w-full bg-black/30 text-white px-3 py-2 rounded-lg text-sm outline-none border border-white/10"
-                                        placeholder="100000"
-                                        value={filters.maxPrice}
-                                        onChange={e => setFilters({ ...filters, maxPrice: e.target.value })}
-                                    />
-                                </div>
-                            </div>
-                            <div>
-                                <label className="text-[10px] text-white/50 uppercase font-bold block mb-1">Сортування</label>
-                                <select
-                                    className="w-full bg-black/30 text-white px-3 py-2 rounded-lg text-sm outline-none border border-white/10"
-                                    value={sortBy}
-                                    onChange={e => setSortBy(e.target.value as any)}
-                                >
-                                    <option value="year_desc">Новіші спочатку</option>
-                                    <option value="price_asc">Ціна: від меншої</option>
-                                    <option value="price_desc">Ціна: від більшої</option>
-                                </select>
-                            </div>
-                            <button
-                                onClick={() => {
-                                    setFilters({ brand: '', minYear: '', maxYear: '', minPrice: '', maxPrice: '' });
-                                    setSearch('');
-                                }}
-                                className="w-full py-2 bg-red-500/20 text-red-500 rounded-lg text-xs font-bold"
-                            >
-                                Скинути фільтри
-                            </button>
-                        </div>
-                    )}
-
-                    <div className="text-[10px] text-white/50">
-                        Знайдено: {filteredCars.length}
-                    </div>
-                </div>
-
-                <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                    {filteredCars.map(car => {
-                        const images = getCarImages(car);
-                        const cover = images[0];
-                        const specs = getCarSpecs(car);
-                        const cardActionLabel = surfaceMode === 'B2B' ? 'Створити B2B запит' : 'Запит на підбір';
-                        const carId = getCarId(car);
-
-                        return (
-                            <div key={carId || `inventory_${car.title}_${car.year}`} className={`bg-[#1c1c1e] rounded-2xl overflow-hidden border flex flex-col shadow-lg ${isSelectedForRequest(carId) ? 'border-yellow-400/60' : 'border-white/5'}`}>
-                                <div className="h-48 bg-gray-800 relative cursor-pointer" onClick={() => { setLightboxCar(car); setLightboxImageIndex(0); }}>
-                                    {cover ? (
-                                        <img src={cover} className="w-full h-full object-cover" />
-                                    ) : (
-                                        <div className="w-full h-full flex items-center justify-center bg-[#2c2c2e] text-white/20">
-                                            <ImageIcon size={48} />
-                                        </div>
-                                    )}
-                                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-4 pt-12">
-                                        <h3 className="text-lg font-bold text-white">{car.title}</h3>
-                                        <p className="text-[11px] text-white/70 mt-1">
-                                            {formatBrandModel(car)}
-                                        </p>
-                                    </div>
-                                    {images.length > 1 && (
-                                        <div className="absolute top-2 left-2 bg-black/60 backdrop-blur px-2 py-1 rounded text-[10px] font-bold text-white">
-                                            +{images.length - 1} фото
-                                        </div>
-                                    )}
-                                    <div className="absolute top-2 right-12 bg-black/60 backdrop-blur px-2 py-1 rounded text-[10px] font-bold text-white">
-                                        {getStatusLabel(car)}
-                                    </div>
-                                    <button
-                                        onClick={(e) => { e.stopPropagation(); toggleFavorite(car); }}
-                                        className="absolute top-2 right-2 w-9 h-9 rounded-full bg-black/60 flex items-center justify-center"
-                                    >
-                                        <Star size={16} className={isFavorite(carId) ? 'text-yellow-400 fill-yellow-400' : 'text-white/70'} />
-                                    </button>
-                                </div>
-                                <div className="p-4">
-                                    <div className="flex justify-between items-center mb-4">
-                                        <div className="text-xl font-bold" style={{ color: primaryColor }}>{formatPrice(car.price)}</div>
-                                        <div className="text-xs text-white/50 bg-white/5 px-2 py-1 rounded">{toNumberSafe(car.year) || '—'}</div>
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-2 text-xs text-white/70 mb-4">
-                                        <div className="bg-black/30 p-2 rounded text-center border border-white/5">{specs.engine || '—'}</div>
-                                        <div className="bg-black/30 p-2 rounded text-center border border-white/5">{formatMileage(car.mileage)}</div>
-                                        <div className="bg-black/30 p-2 rounded text-center border border-white/5">{specs.fuel || '—'}</div>
-                                        <div className="bg-black/30 p-2 rounded text-center border border-white/5">{specs.condition || '—'}</div>
-                                    </div>
-                                    <button
-                                        onClick={() => surfaceMode === 'B2B' ? prefillRequestFromCar(car) : handleCarInterest(car)}
-                                        className="w-full py-3 rounded-xl font-bold text-black flex items-center justify-center gap-2 active:scale-95 transition-transform"
-                                        style={{ backgroundColor: primaryColor }}
-                                    >
-                                        <MessageSquare size={18} /> {cardActionLabel}
-                                    </button>
-                                    <button
-                                        onClick={() => toggleRequestSelection(car)}
-                                        className="w-full mt-2 py-2 rounded-xl font-bold text-xs border border-white/10 text-white/80"
-                                    >
-                                        {isSelectedForRequest(carId) ? '✅ У виборі для запиту' : '➕ Додати до мультивибору'}
-                                    </button>
-                                    <button
-                                        onClick={() => openListing(car)}
-                                        className="w-full mt-2 py-2 rounded-xl font-bold text-white/70 border border-white/10"
-                                    >
-                                        Деталі
-                                    </button>
-                                </div>
-                            </div>
-                        );
-                    })}
-                    {filteredCars.length === 0 && <div className="text-center text-white/50 mt-10">Авто не знайдено. Спробуйте змінити фільтри.</div>}
-                </div>
-            </div>
+            <CatalogView
+                surfaceMode={surfaceMode}
+                primaryColor={primaryColor}
+                tab={tab}
+                search={search}
+                showFilters={showFilters}
+                filters={filters}
+                sortBy={sortBy}
+                filteredCars={applyFiltersAndSort()}
+                onTabChange={setTab}
+                onSearchChange={setSearch}
+                onToggleFilters={() => setShowFilters(!showFilters)}
+                onFiltersChange={setFilters}
+                onSortChange={setSortBy}
+                onResetFilters={() => {
+                    setFilters({ brand: '', minYear: '', maxYear: '', minPrice: '', maxPrice: '' });
+                    setSearch('');
+                }}
+                getCarId={getCarId}
+                getCarImages={getCarImages}
+                getCarSpecs={getCarSpecs}
+                formatBrandModel={formatBrandModel}
+                formatMileage={formatMileage}
+                formatPrice={formatPrice}
+                toNumberSafe={toNumberSafe}
+                getStatusLabel={getStatusLabel}
+                isFavorite={isFavorite}
+                isSelectedForRequest={isSelectedForRequest}
+                onOpenLightbox={(car) => { setLightboxCar(car); setLightboxImageIndex(0); }}
+                onToggleFavorite={toggleFavorite}
+                onPrimaryAction={(car) => surfaceMode === 'B2B' ? prefillRequestFromCar(car) : handleCarInterest(car)}
+                onToggleRequestSelection={toggleRequestSelection}
+                onOpenListing={openListing}
+            />
         );
     };
 
     const renderFavorites = () => {
-        const favCars = favoriteItems.length
-            ? favoriteItems
-            : cars.filter(car => favorites.includes(getCarId(car)));
-
         return (
-            <div className="animate-fade-in pb-24 h-full flex flex-col bg-black">
-                <div className="p-4 sticky top-0 bg-[#000000]/90 backdrop-blur-md z-20 border-b border-white/10">
-                    <h2 className="text-xl font-bold text-white">Обране</h2>
-                </div>
-                <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                    {favCars.map(car => {
-                        const images = getCarImages(car);
-                        const cover = images[0];
-                        const carId = getCarId(car);
-                        return (
-                            <div key={carId || `fav_${car.title}_${car.year}`} className={`bg-[#1c1c1e] rounded-2xl overflow-hidden border flex flex-col shadow-lg ${isSelectedForRequest(carId) ? 'border-yellow-400/60' : 'border-white/5'}`}>
-                                <div className="h-40 bg-gray-800 relative cursor-pointer" onClick={() => openListing(car)}>
-                                    {cover ? (
-                                        <img src={cover} className="w-full h-full object-cover" />
-                                    ) : (
-                                        <div className="w-full h-full flex items-center justify-center bg-[#2c2c2e] text-white/20">
-                                            <ImageIcon size={32} />
-                                        </div>
-                                    )}
-                                    <button
-                                        onClick={(e) => { e.stopPropagation(); toggleFavorite(car); }}
-                                        className="absolute top-2 right-2 w-9 h-9 rounded-full bg-black/60 flex items-center justify-center"
-                                    >
-                                        <Star size={16} className="text-yellow-400 fill-yellow-400" />
-                                    </button>
-                                </div>
-                                <div className="p-4">
-                                    <h3 className="text-base font-bold text-white truncate">{car.title}</h3>
-                                    <div className="text-sm text-white/60 mt-1">{toNumberSafe(car.year) || '—'} • {formatMileage(car.mileage)}</div>
-                                    <div className="mt-2 font-bold" style={{ color: primaryColor }}>
-                                        {formatPrice(car.price)}
-                                    </div>
-                                    <button
-                                        onClick={() => toggleRequestSelection(car)}
-                                        className="w-full mt-3 py-2 rounded-xl font-bold text-xs border border-white/10 text-white/80"
-                                    >
-                                        {isSelectedForRequest(carId) ? '✅ У виборі для запиту' : '➕ Додати до мультивибору'}
-                                    </button>
-                                </div>
-                            </div>
-                        );
-                    })}
-                    {favCars.length === 0 && (
-                        <div className="text-center text-white/50 mt-12">
-                            Поки немає обраних авто. Натисніть серце на картці.
-                        </div>
-                    )}
-                </div>
-            </div>
+            <FavoritesView
+                cars={cars}
+                favorites={favorites}
+                favoriteItems={favoriteItems}
+                primaryColor={primaryColor}
+                getCarId={getCarId}
+                getCarImages={getCarImages}
+                toNumberSafe={toNumberSafe}
+                formatMileage={formatMileage}
+                formatPrice={formatPrice}
+                isSelectedForRequest={isSelectedForRequest}
+                onToggleFavorite={toggleFavorite}
+                onToggleRequestSelection={toggleRequestSelection}
+                onOpenListing={openListing}
+            />
         );
     };
 

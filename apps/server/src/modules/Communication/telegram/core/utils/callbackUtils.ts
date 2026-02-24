@@ -40,13 +40,7 @@ const sanitize = (value: string, max: number) =>
   value.replace(/[^a-zA-Z0-9_\-]/g, '').slice(0, max);
 
 const buildV1 = (action: string, id?: string) =>
-  (id ? `v1:act:${action}:${id}` : `v1:act:${action}`);
-
-const buildBase64 = (action: string, id?: string) => {
-  const payload: Record<string, any> = { v: 1, act: action };
-  if (id) payload.id = id;
-  return Buffer.from(JSON.stringify(payload), 'utf8').toString('base64');
-};
+  (id ? `v1:${action}:${id}` : `v1:${action}`);
 
 export type ParsedCallback = {
   ok: boolean;
@@ -60,13 +54,10 @@ export type ParsedCallback = {
 
 export const buildCallbackData = (action: string, id?: string) => {
   const safeAction = sanitize(action, 24);
-  const safeId = id ? sanitize(id, 48) : undefined;
+  const safeId = id ? sanitize(id, 32) : undefined;
   let data = buildV1(safeAction, safeId);
 
   if (Buffer.byteLength(data, 'utf8') <= MAX_CALLBACK_BYTES) return data;
-
-  const base64 = buildBase64(safeAction, safeId);
-  if (Buffer.byteLength(base64, 'utf8') <= MAX_CALLBACK_BYTES) return base64;
 
   const shorterAction = sanitize(action, 12);
   const shorterId = id ? sanitize(id, 16) : undefined;
@@ -79,10 +70,12 @@ export const buildCallbackData = (action: string, id?: string) => {
 
 const parseV1 = (raw: string): ParsedCallback => {
   const parts = raw.split(':');
-  if (parts.length < 3) return { ok: false, raw, error: 'invalid_format' };
-  if (parts[0] !== 'v1' || parts[1] !== 'act') return { ok: false, raw, error: 'invalid_prefix' };
-  const action = parts[2];
-  const id = parts.length > 3 ? parts.slice(3).join(':') : undefined;
+  if (parts.length < 2) return { ok: false, raw, error: 'invalid_format' };
+  if (parts[0] !== 'v1') return { ok: false, raw, error: 'invalid_prefix' };
+  // Backward compatibility: v1:act:token:id
+  const offset = parts[1] === 'act' ? 1 : 0;
+  const action = parts[1 + offset];
+  const id = parts.length > (2 + offset) ? parts.slice(2 + offset).join(':') : undefined;
   if (!action) return { ok: false, raw, error: 'missing_action' };
   return { ok: true, raw, version: 1, action, id };
 };
@@ -108,8 +101,31 @@ const parseBase64 = (raw: string): ParsedCallback => {
 export const parseCallbackData = (raw?: string | null): ParsedCallback => {
   const data = String(raw || '').trim();
   if (!data) return { ok: false, raw: '', error: 'empty' };
-  if (data.startsWith('v1:act:')) return parseV1(data);
+  if (data.startsWith('v1:')) return parseV1(data);
   const base64 = parseBase64(data);
   if (base64.ok) return base64;
+  if (data.startsWith('b2bv_')) {
+    return {
+      ok: true,
+      version: 0,
+      action: ActionTokens.BV_SEND,
+      id: data.slice('b2bv_'.length) || undefined,
+      raw: data
+    };
+  }
+  const actions = Object.values(ActionTokens).sort((a, b) => b.length - a.length);
+  for (const action of actions) {
+    if (data === action) return { ok: true, version: 0, action, raw: data };
+    const prefix = `${action}_`;
+    if (data.startsWith(prefix)) {
+      return {
+        ok: true,
+        version: 0,
+        action,
+        id: data.slice(prefix.length) || undefined,
+        raw: data
+      };
+    }
+  }
   return { ok: false, raw: data, error: 'legacy' };
 };

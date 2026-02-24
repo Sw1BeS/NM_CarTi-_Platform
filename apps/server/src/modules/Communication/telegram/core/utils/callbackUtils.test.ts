@@ -5,6 +5,13 @@ const toBase64 = (value: string) => Buffer.from(value, 'utf8').toString('base64'
 
 describe('callbackUtils', () => {
   it('parses v1 callback format', () => {
+    const parsed = parseCallbackData('v1:lb_sendfav:123');
+    expect(parsed.ok).toBe(true);
+    expect(parsed.action).toBe('lb_sendfav');
+    expect(parsed.id).toBe('123');
+  });
+
+  it('keeps backward support for old v1:act format', () => {
     const parsed = parseCallbackData('v1:act:lead_send:123');
     expect(parsed.ok).toBe(true);
     expect(parsed.action).toBe('lead_send');
@@ -26,7 +33,7 @@ describe('callbackUtils', () => {
   });
 
   it('builds sanitized callback data', () => {
-    const data = buildCallbackData('lead_send', '123');
-    expect(data.startsWith('v1:act:lead_send')).toBe(true);
+    const data = buildCallbackData('lb_sendfav', '123');
+    expect(data).toBe('v1:lb_sendfav:123');
   });
 });

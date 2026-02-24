@@ -205,12 +205,15 @@ const BUTTONS = {
     more: { EN: '', RU: '', UK: 'Показати ще' },
     finish: { EN: '', RU: '', UK: 'Завершити' },
     info: { EN: '', RU: '', UK: 'ℹ️ Інформація' },
+    infoShort: { EN: '', RU: '', UK: 'ℹ️ Інфо' },
     rules: { EN: '', RU: '', UK: '📌 Правила' },
     privacy: { EN: '', RU: '', UK: '🔐 Конфіденційність' },
     tariffs: { EN: '', RU: '', UK: '💳 Тарифи' },
     openMiniApp: { EN: '', RU: '', UK: 'Відкрити MiniApp' },
     shareContact: { EN: '', RU: '', UK: '📱 Поділитися контактом' },
-    contact: { EN: '', RU: '', UK: '📱 Поділитися контактом' } // Added mapping to shareContact
+    contact: { EN: '', RU: '', UK: '📱 Поділитися контактом' },
+    supplement: { EN: '', RU: '', UK: 'Доповнити' },
+    newTicket: { EN: '', RU: '', UK: 'Новий запит' }
   },
   leadMenu: {
     buy: { EN: '', RU: '', UK: 'Купити авто' },

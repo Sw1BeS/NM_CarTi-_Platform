@@ -1,571 +1,1174 @@
-/**
- * Lead BUY Wizard — 9 steps + review + edit
- * §6.2 from MEGA PROMPT v7
- *
- * Steps:
- *  1. Brand (required)
- *  2. Model (optional)
- *  3. Year (optional)
- *  4. Budget (optional)
- *  5. Mileage (optional)
- *  6. Fuel (optional)
- *  7. City (optional)
- *  8. Comment (optional, forbidden contacts check)
- *  9. Contact (required)
- * 10. Review → confirm / edit / cancel
- */
-
-import { PipelineContext } from '../../core/types.js';
 import { prisma } from '../../../../../services/prisma.js';
-import { resolveLang, t, button, type Lang } from '../../core/utils/telegramText.js';
+import type { PipelineContext } from '../../core/types.js';
+import { resolveLang, t, button } from '../../core/utils/telegramText.js';
 import { telegramOutbox } from '../../messaging/outbox/telegramOutbox.js';
-import { buildCallbackData, ActionTokens } from '../../core/utils/callbackUtils.js';
+import { ActionTokens, buildCallbackData } from '../../core/utils/callbackUtils.js';
 import {
-    buildBrandKeyboard, buildModelKeyboard, buildYearKeyboard,
-    buildBudgetKeyboard, buildMileageKeyboard, buildFuelKeyboard,
-    buildCityKeyboard
+  BRANDS,
+  BRAND_MODELS,
+  CITY_OPTIONS,
+  FUEL_OPTIONS,
+  buildBrandKeyboard,
+  buildBudgetKeyboard,
+  buildCityKeyboard,
+  buildFuelKeyboard,
+  buildMileageKeyboard,
+  buildModelKeyboard,
+  buildYearKeyboard,
+  pickFromList
 } from '../../core/utils/quickPicks.js';
-import { parseYearInput, parseBudgetUSD, parseMileageKm, normalizePhoneUA, containsForbiddenContacts } from '../../core/utils/inputValidators.js';
+import {
+  containsForbiddenContacts,
+  normalizePhoneUA,
+  parseBudgetUSD,
+  parseMileageKm,
+  parseYearInput
+} from '../../core/utils/inputValidators.js';
+import { buildAfterBatchControls, buildLeadBuyCardButtons, renderLeadBuyCard } from '../../../../../services/cardRenderer.js';
+import { createOrMergeLead } from '../../core/leadService.js';
+import { externalSearchService } from '../../../../Integrations/external-search/externalSearch.service.js';
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-const updateSession = async (ctx: PipelineContext, state: string, variables: Record<string, any>) => {
-    if (!ctx.session) return;
-    ctx.session = await prisma.botSession.update({
-        where: { id: ctx.session.id },
-        data: { state, variables, lastActive: new Date() }
-    });
+type LeadBuyData = {
+  brand: string;
+  model?: string | null;
+  year?: string | null;
+  yearMin?: number | null;
+  yearMax?: number | null;
+  budget?: number | null;
+  mileage?: number | null;
+  fuel?: string | null;
+  city?: string | null;
+  comment?: string | null;
+  phone?: string | null;
 };
 
-const sendInline = async (ctx: PipelineContext, text: string, buttons: any[][]) => {
-    if (!ctx.chatId || !ctx.bot) return;
-    await telegramOutbox.sendMessage({
-        botId: ctx.bot.id,
-        token: ctx.bot.token,
-        chatId: ctx.chatId,
-        text,
-        replyMarkup: { inline_keyboard: buttons },
-        companyId: ctx.companyId
-    });
+type LeadBuyResultsState = {
+  ids: string[];
+  cursor: number;
+  pageIds: string[];
+  source: 'inventory' | 'external' | null;
+  externalRefs?: Array<{ provider: string; url: string }>;
 };
 
-const sendWithKeyboard = async (ctx: PipelineContext, text: string, keyboard: any[][]) => {
-    if (!ctx.chatId || !ctx.bot) return;
-    await telegramOutbox.sendMessage({
-        botId: ctx.bot.id,
-        token: ctx.bot.token,
-        chatId: ctx.chatId,
-        text,
-        replyMarkup: { keyboard, resize_keyboard: true, one_time_keyboard: true },
-        companyId: ctx.companyId
-    });
+type LeadBuyFavoritesState = {
+  page: number;
+  pageIds: string[];
+  total: number;
+};
+
+type LeadBuyDraft = {
+  step: number;
+  data: LeadBuyData;
+  history: string[];
+  reviewMode?: boolean;
+  editField?: string;
+  viewMode?: 'results' | 'favorites';
+  results?: LeadBuyResultsState;
+  favorites?: LeadBuyFavoritesState;
 };
 
 const TOTAL_STEPS = 9;
+
+const toText = (value: unknown) => String(value || '').trim();
+const norm = (value: unknown) => toText(value).toLowerCase();
+
+const getTgUserId = (ctx: PipelineContext) => {
+  return String(
+    ctx.update?.callback_query?.from?.id
+      || ctx.update?.message?.from?.id
+      || ctx.userId
+      || ctx.chatId
+      || ''
+  ).trim();
+};
+
+const getCompanyId = (ctx: PipelineContext) => {
+  return String(ctx.companyId || ctx.bot?.companyId || '').trim() || null;
+};
+
 const stepHeader = (n: number) => `Крок ${n}/${TOTAL_STEPS}`;
 
-// Step state mapping
-const STEP_STATES: Record<number, string> = {
-    1: 'LB_BRAND', 2: 'LB_MODEL', 3: 'LB_YEAR', 4: 'LB_BUDGET',
-    5: 'LB_MILEAGE', 6: 'LB_FUEL', 7: 'LB_CITY', 8: 'LB_COMMENT',
-    9: 'LB_CONTACT', 10: 'LB_REVIEW'
+const stateByStep: Record<number, string> = {
+  1: 'LB_BRAND',
+  2: 'LB_MODEL',
+  3: 'LB_YEAR',
+  4: 'LB_BUDGET',
+  5: 'LB_MILEAGE',
+  6: 'LB_FUEL',
+  7: 'LB_CITY',
+  8: 'LB_COMMENT',
+  9: 'LB_CONTACT',
+  10: 'LB_REVIEW'
 };
 
-// Fields for edit jump
-const EDIT_FIELDS = [
-    { step: 1, key: 'brand', label: 'Марка', cb: 'lb_j_1' },
-    { step: 2, key: 'model', label: 'Модель', cb: 'lb_j_2' },
-    { step: 3, key: 'year', label: 'Рік', cb: 'lb_j_3' },
-    { step: 4, key: 'budget', label: 'Бюджет', cb: 'lb_j_4' },
-    { step: 5, key: 'mileage', label: 'Пробіг', cb: 'lb_j_5' },
-    { step: 6, key: 'fuel', label: 'Паливо', cb: 'lb_j_6' },
-    { step: 7, key: 'city', label: 'Місто', cb: 'lb_j_7' },
-    { step: 8, key: 'comment', label: 'Коментар', cb: 'lb_j_8' },
-    { step: 9, key: 'phone', label: 'Контакт', cb: 'lb_j_9' }
-];
+const readDraft = (ctx: PipelineContext): LeadBuyDraft => {
+  const vars = (ctx.session?.variables as any) || {};
+  const fromDraft = vars.leadBuyDraft as LeadBuyDraft | undefined;
+  if (fromDraft && typeof fromDraft === 'object') {
+    const data = (fromDraft.data || {}) as Partial<LeadBuyData>;
+    return {
+      step: Number(fromDraft.step || 1),
+      data: {
+        brand: toText(data.brand || ''),
+        model: data.model || null,
+        year: data.year || null,
+        yearMin: typeof data.yearMin === 'number' ? data.yearMin : null,
+        yearMax: typeof data.yearMax === 'number' ? data.yearMax : null,
+        budget: typeof data.budget === 'number' ? data.budget : null,
+        mileage: typeof data.mileage === 'number' ? data.mileage : null,
+        fuel: data.fuel || null,
+        city: data.city || null,
+        comment: data.comment || null,
+        phone: data.phone || null
+      },
+      history: Array.isArray(fromDraft.history) ? fromDraft.history : [],
+      reviewMode: Boolean(fromDraft.reviewMode),
+      editField: toText(fromDraft.editField) || undefined,
+      viewMode: fromDraft.viewMode || 'results',
+      results: fromDraft.results,
+      favorites: fromDraft.favorites
+    };
+  }
 
-// ---------------------------------------------------------------------------
-// START
-// ---------------------------------------------------------------------------
-export const startLeadBuyWizard = async (ctx: PipelineContext) => {
-    const vars = (ctx.session?.variables as any) || {};
-    const lang = resolveLang(ctx);
-    const flow = { step: 1 };
-    await updateSession(ctx, 'LB_BRAND', { ...vars, leadBuy: flow });
-    await sendInline(ctx,
-        `${stepHeader(1)}. ${t(lang, 'lead.buy.title')}\n\n${t(lang, 'common.step_hint_brand')}`,
-        buildBrandKeyboard(lang)
+  const legacy = vars.leadBuy || {};
+  return {
+    step: Number(legacy.step || 1),
+    data: {
+      brand: toText(legacy.brand || ''),
+      model: legacy.model || null,
+      year: legacy.year || legacy.yearDisplay || null,
+      budget: typeof legacy.budget === 'number' ? legacy.budget : null,
+      mileage: typeof legacy.mileage === 'number' ? legacy.mileage : null,
+      fuel: legacy.fuel || null,
+      city: legacy.city || null,
+      comment: legacy.comment || null,
+      phone: legacy.phone || null
+    },
+    history: [],
+    reviewMode: false,
+    viewMode: 'results'
+  };
+};
+
+const persistDraft = async (ctx: PipelineContext, draft: LeadBuyDraft, state?: string) => {
+  if (!ctx.session) return;
+  const vars = (ctx.session.variables as any) || {};
+  ctx.session = await prisma.botSession.update({
+    where: { id: ctx.session.id },
+    data: {
+      state: state || stateByStep[draft.step] || ctx.session.state,
+      variables: {
+        ...vars,
+        leadBuyDraft: draft,
+        leadBuy: null
+      },
+      lastActive: new Date()
+    }
+  });
+};
+
+const sendMessage = async (ctx: PipelineContext, text: string, replyMarkup?: any) => {
+  if (!ctx.chatId || !ctx.bot) return;
+  await telegramOutbox.sendMessage({
+    botId: ctx.bot.id,
+    token: ctx.bot.token,
+    chatId: ctx.chatId,
+    text,
+    replyMarkup,
+    companyId: ctx.companyId
+  });
+};
+
+const clearDraftAndReturnToMenu = async (ctx: PipelineContext, notice?: string) => {
+  if (!ctx.session || !ctx.bot) return;
+  const vars = (ctx.session.variables as any) || {};
+  ctx.session = await prisma.botSession.update({
+    where: { id: ctx.session.id },
+    data: {
+      state: 'CL_MENU',
+      variables: {
+        ...vars,
+        leadBuyDraft: null,
+        leadBuy: null
+      },
+      lastActive: new Date()
+    }
+  });
+  if (notice) {
+    await sendMessage(ctx, notice, { remove_keyboard: true });
+  }
+};
+
+const parseYearHint = (data: LeadBuyData) => {
+  if (data.yearMin && data.yearMax && data.yearMin !== data.yearMax) {
+    return `${data.yearMin}-${data.yearMax}`;
+  }
+  if (data.yearMin) return String(data.yearMin);
+  return data.year || null;
+};
+
+const buildReviewSummary = (data: LeadBuyData) => {
+  return [
+    `Марка: ${data.brand || '—'}`,
+    `Модель: ${data.model || '—'}`,
+    `Рік: ${parseYearHint(data) || '—'}`,
+    `Бюджет: ${data.budget ? `до ${data.budget.toLocaleString('uk-UA')} USD` : '—'}`,
+    `Пробіг: ${data.mileage ? `до ${data.mileage.toLocaleString('uk-UA')} км` : '—'}`,
+    `Паливо: ${data.fuel || '—'}`,
+    `Місто: ${data.city || '—'}`,
+    `Коментар: ${data.comment || '—'}`,
+    `Контакт: ${data.phone || '—'}`
+  ].join('\n');
+};
+
+const showReview = async (ctx: PipelineContext, draft: LeadBuyDraft) => {
+  const lang = resolveLang(ctx);
+  draft.step = 10;
+  draft.viewMode = 'results';
+  draft.reviewMode = false;
+  draft.editField = undefined;
+  await persistDraft(ctx, draft, 'LB_REVIEW');
+  const summary = buildReviewSummary(draft.data);
+  await sendMessage(ctx, t(lang, 'lead.buy.review.title', { summary }), {
+    inline_keyboard: [
+      [{ text: button(lang, 'common.confirm'), callback_data: buildCallbackData(ActionTokens.LB_FAV_SEND) }],
+      [{ text: button(lang, 'common.edit'), callback_data: buildCallbackData(ActionTokens.LB_EDIT) }],
+      [{ text: button(lang, 'common.cancel'), callback_data: buildCallbackData(ActionTokens.LB_CANCEL) }]
+    ]
+  });
+};
+
+const showEditFields = async (ctx: PipelineContext, draft: LeadBuyDraft) => {
+  const lang = resolveLang(ctx);
+  const data = draft.data;
+  await persistDraft(ctx, draft, 'LB_REVIEW');
+  await sendMessage(ctx, '✏️ Оберіть поле для зміни:', {
+    inline_keyboard: [
+      [{ text: `Марка: ${data.brand || '—'}`, callback_data: buildCallbackData('lb_j', '1') }],
+      [{ text: `Модель: ${data.model || '—'}`, callback_data: buildCallbackData('lb_j', '2') }],
+      [{ text: `Рік: ${parseYearHint(data) || '—'}`, callback_data: buildCallbackData('lb_j', '3') }],
+      [{ text: `Бюджет: ${data.budget || '—'}`, callback_data: buildCallbackData('lb_j', '4') }],
+      [{ text: `Пробіг: ${data.mileage || '—'}`, callback_data: buildCallbackData('lb_j', '5') }],
+      [{ text: `Паливо: ${data.fuel || '—'}`, callback_data: buildCallbackData('lb_j', '6') }],
+      [{ text: `Місто: ${data.city || '—'}`, callback_data: buildCallbackData('lb_j', '7') }],
+      [{ text: `Коментар: ${data.comment || '—'}`, callback_data: buildCallbackData('lb_j', '8') }],
+      [{ text: `Контакт: ${data.phone || '—'}`, callback_data: buildCallbackData('lb_j', '9') }],
+      [{ text: button(lang, 'common.cancel'), callback_data: buildCallbackData(ActionTokens.LB_CANCEL) }]
+    ]
+  });
+};
+
+const parseStepNumber = (value?: string | null) => {
+  const num = Number(String(value || '').trim());
+  if (!Number.isFinite(num)) return null;
+  if (num < 1 || num > 9) return null;
+  return num;
+};
+
+const getFavoriteIds = async (ctx: PipelineContext): Promise<string[]> => {
+  const tgUserId = getTgUserId(ctx);
+  const companyId = getCompanyId(ctx);
+  if (!tgUserId || !companyId) return [];
+  const favorites = await prisma.miniAppFavorite.findMany({
+    where: {
+      companyId,
+      tgUserId
+    },
+    select: { carListingId: true },
+    orderBy: { createdAt: 'desc' }
+  });
+  return favorites.map((item) => item.carListingId);
+};
+
+const toggleFavorite = async (ctx: PipelineContext, carId: string, forceRemove = false) => {
+  const tgUserId = getTgUserId(ctx);
+  const companyId = getCompanyId(ctx);
+  if (!tgUserId || !companyId || !carId) return false;
+
+  const existing = await prisma.miniAppFavorite.findFirst({
+    where: {
+      companyId,
+      tgUserId,
+      carListingId: carId
+    }
+  });
+
+  if (existing) {
+    await prisma.miniAppFavorite.delete({ where: { id: existing.id } });
+    return false;
+  }
+
+  if (forceRemove) return false;
+
+  await prisma.miniAppFavorite.create({
+    data: {
+      companyId,
+      tgUserId,
+      carListingId: carId
+    }
+  });
+  return true;
+};
+
+const fetchCarsOrdered = async (ids: string[]) => {
+  if (!ids.length) return [] as any[];
+  const rows = await prisma.carListing.findMany({ where: { id: { in: ids } } });
+  const map = new Map(rows.map((row) => [row.id, row]));
+  return ids.map((id) => map.get(id)).filter((row): row is any => Boolean(row));
+};
+
+const scoreCar = (car: any, criteria: LeadBuyData) => {
+  const title = norm(car.title);
+  const specs = (car.specs || {}) as Record<string, any>;
+  const brand = norm(criteria.brand);
+  const model = norm(criteria.model || '');
+  const carBrand = norm(specs.brand);
+  const carModel = norm(specs.model);
+
+  const brandMatch = Boolean(brand) && (title.includes(brand) || carBrand.includes(brand));
+  const modelMatch = Boolean(model) && (title.includes(model) || carModel.includes(model));
+
+  if (!brandMatch) return Number.NEGATIVE_INFINITY;
+
+  let score = 0;
+  if (brandMatch && model && modelMatch) score += 300;
+  else if (brandMatch) score += 150;
+
+  if (criteria.fuel) {
+    const fuel = norm(criteria.fuel);
+    const carFuel = norm(specs.fuel || car.fuel);
+    if (carFuel && carFuel.includes(fuel)) score += 40;
+    else score -= 20;
+  }
+
+  if (criteria.city) {
+    const city = norm(criteria.city);
+    const carCity = norm(car.location || specs.city);
+    if (carCity && carCity.includes(city)) score += 20;
+  }
+
+  if (criteria.yearMin && car.year) {
+    score += Math.max(0, 50 - Math.abs(Number(car.year) - Number(criteria.yearMin)));
+  }
+
+  if (criteria.budget && car.price) {
+    const diff = Math.abs(Number(car.price) - Number(criteria.budget));
+    score += Math.max(0, 45 - Math.round(diff / 1000));
+  }
+
+  if (criteria.mileage && car.mileage) {
+    const diff = Math.abs(Number(car.mileage) - Number(criteria.mileage));
+    score += Math.max(0, 25 - Math.round(diff / 5000));
+  }
+
+  score += Math.max(0, Math.min(35, Number(car.year || 0) - 1990));
+  return score;
+};
+
+const findInventoryMatches = async (ctx: PipelineContext, criteria: LeadBuyData) => {
+  if (!criteria.brand) return [] as any[];
+  const where: Record<string, any> = {
+    status: 'AVAILABLE'
+  };
+  if (ctx.companyId) {
+    where.OR = [{ companyId: ctx.companyId }, { companyId: null }];
+  }
+
+  const rows = await prisma.carListing.findMany({
+    where,
+    orderBy: [{ postedAt: 'desc' }, { updatedAt: 'desc' }],
+    take: 250
+  });
+
+  const ranked = rows
+    .map((car) => ({ car, score: scoreCar(car, criteria) }))
+    .filter((item) => Number.isFinite(item.score) && item.score > Number.NEGATIVE_INFINITY)
+    .sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      if ((b.car.year || 0) !== (a.car.year || 0)) return (b.car.year || 0) - (a.car.year || 0);
+      return (a.car.price || 0) - (b.car.price || 0);
+    })
+    .map((item) => item.car);
+
+  return ranked.slice(0, 18);
+};
+
+const runExternalFallback = async (ctx: PipelineContext, criteria: LeadBuyData) => {
+  const items = await externalSearchService.searchAndPersist({
+    brand: criteria.brand,
+    model: criteria.model || undefined,
+    city: criteria.city || undefined,
+    yearMin: criteria.yearMin || undefined,
+    budgetMax: criteria.budget || undefined,
+    mileageMax: criteria.mileage || undefined,
+    fuel: criteria.fuel || undefined
+  }, {
+    companyId: ctx.companyId || null,
+    maxResults: 6
+  });
+  return items;
+};
+
+const notifyAdminExternal = async (ctx: PipelineContext, refs: Array<{ provider: string; url: string }>) => {
+  if (!ctx.bot?.adminChatId || refs.length === 0) return;
+  const lines = refs.slice(0, 5).map((item) => `• ${item.provider}: ${item.url}`);
+  await telegramOutbox.sendMessage({
+    botId: ctx.bot.id,
+    token: ctx.bot.token,
+    chatId: String(ctx.bot.adminChatId),
+    text: `🌐 [EXTERNAL]\nЗнайдені зовнішні варіанти:\n${lines.join('\n')}`,
+    companyId: ctx.companyId
+  }).catch(() => null);
+};
+
+const notifyAdminExternalFail = async (ctx: PipelineContext, draft: LeadBuyDraft, reason: string) => {
+  if (!ctx.bot?.adminChatId) return;
+  const data = draft.data;
+  await telegramOutbox.sendMessage({
+    botId: ctx.bot.id,
+    token: ctx.bot.token,
+    chatId: String(ctx.bot.adminChatId),
+    text: [
+      '🌐 [EXTERNAL]',
+      'Не вдалося знайти/розпарсити зовнішні результати.',
+      `Причина: ${reason}`,
+      `Критерії: ${data.brand || '—'} ${data.model || ''}`.trim(),
+      `Контакт: ${data.phone || '—'}`
+    ].join('\n'),
+    companyId: ctx.companyId
+  }).catch(() => null);
+};
+
+const getCurrentCarIdsForAction = (draft: LeadBuyDraft) => {
+  if (draft.viewMode === 'favorites') {
+    return draft.favorites?.pageIds || [];
+  }
+  return draft.results?.pageIds || [];
+};
+
+const sendResultPage = async (ctx: PipelineContext, draft: LeadBuyDraft, startIndex = 0) => {
+  const ids = draft.results?.ids || [];
+  if (!ids.length) return;
+
+  if (startIndex >= ids.length) {
+    startIndex = 0;
+  }
+
+  const pageIds = ids.slice(startIndex, startIndex + 3);
+  if (!pageIds.length) return;
+
+  const cars = await fetchCarsOrdered(pageIds);
+  const favoriteIds = new Set(await getFavoriteIds(ctx));
+
+  for (let idx = 0; idx < cars.length; idx += 1) {
+    const car = cars[idx];
+    await sendMessage(ctx, renderLeadBuyCard(car), buildLeadBuyCardButtons(car.id, favoriteIds.has(car.id), idx));
+  }
+
+  draft.viewMode = 'results';
+  draft.results = {
+    ...(draft.results || { ids: [], cursor: 0, pageIds: [], source: null }),
+    cursor: startIndex + pageIds.length,
+    pageIds
+  };
+
+  const favCount = favoriteIds.size;
+  await persistDraft(ctx, draft, 'LB_RESULTS');
+  await sendMessage(ctx, t(resolveLang(ctx), 'lead.buy.next_actions'), buildAfterBatchControls(favCount));
+};
+
+const showFavoritesPage = async (ctx: PipelineContext, draft: LeadBuyDraft, page = 0) => {
+  const favoriteIds = await getFavoriteIds(ctx);
+  if (!favoriteIds.length) {
+    await sendMessage(ctx, t(resolveLang(ctx), 'lead.fav.empty'));
+    return;
+  }
+
+  const pageSize = 3;
+  const totalPages = Math.max(1, Math.ceil(favoriteIds.length / pageSize));
+  const safePage = Math.max(0, Math.min(page, totalPages - 1));
+  const pageIds = favoriteIds.slice(safePage * pageSize, safePage * pageSize + pageSize);
+  const cars = await fetchCarsOrdered(pageIds);
+
+  for (let idx = 0; idx < cars.length; idx += 1) {
+    const car = cars[idx];
+    await sendMessage(ctx, renderLeadBuyCard(car), buildLeadBuyCardButtons(car.id, true, idx));
+  }
+
+  draft.viewMode = 'favorites';
+  draft.favorites = {
+    page: safePage,
+    pageIds,
+    total: favoriteIds.length
+  };
+  await persistDraft(ctx, draft, 'LB_FAVORITES');
+
+  await sendMessage(ctx, `⭐ Обране — сторінка ${safePage + 1}/${totalPages}`, {
+    inline_keyboard: [
+      [
+        { text: '⬅️ Назад', callback_data: buildCallbackData('lb_fvp') },
+        { text: 'Показати ще', callback_data: buildCallbackData('lb_fvn') }
+      ],
+      [{ text: 'Звʼязатися по обраному', callback_data: buildCallbackData(ActionTokens.LB_FAV_SEND) }],
+      [{ text: button(resolveLang(ctx), 'common.cancel'), callback_data: buildCallbackData(ActionTokens.LB_CANCEL) }]
+    ]
+  });
+};
+
+const createLeadAndNotifyAdmin = async (
+  ctx: PipelineContext,
+  draft: LeadBuyDraft,
+  carIds: string[],
+  source: 'single' | 'favorites' | 'no_match'
+) => {
+  if (!ctx.bot) return;
+  const data = draft.data;
+  const selectedCars = await fetchCarsOrdered(carIds);
+  const title = source === 'favorites'
+    ? `Обране: ${selectedCars.length} авто`
+    : (selectedCars[0]?.title || `Підбір авто: ${data.brand || '—'}`);
+
+  const result = await createOrMergeLead({
+    botId: ctx.bot.id,
+    companyId: ctx.companyId || null,
+    chatId: ctx.chatId,
+    userId: getTgUserId(ctx),
+    name: ctx.update?.callback_query?.from?.first_name
+      || ctx.update?.message?.from?.first_name
+      || 'Клієнт',
+    telegramUsername: ctx.update?.callback_query?.from?.username
+      || ctx.update?.message?.from?.username
+      || null,
+    telegramName: [
+      ctx.update?.callback_query?.from?.first_name || ctx.update?.message?.from?.first_name,
+      ctx.update?.callback_query?.from?.last_name || ctx.update?.message?.from?.last_name
+    ].filter(Boolean).join(' '),
+    phone: data.phone || undefined,
+    request: title,
+    source: 'TELEGRAM',
+    payload: {
+      wizard: 'lead_buy_v7',
+      selectedCarIds: carIds,
+      selectedCars: selectedCars.map((car) => ({ id: car.id, title: car.title, price: car.price, year: car.year })),
+      filters: data
+    },
+    leadType: 'BUY',
+    createRequest: true,
+    requestData: {
+      title,
+      budgetMax: data.budget || undefined,
+      yearMin: data.yearMin || undefined,
+      yearMax: data.yearMax || undefined,
+      city: data.city || undefined,
+      description: data.comment || undefined,
+      language: 'UK'
+    }
+  });
+
+  if (ctx.bot.adminChatId) {
+    const carsLine = selectedCars.length
+      ? selectedCars.map((car, index) => `${index + 1}. ${car.title} ${car.year || ''} — ${car.price || '—'} ${car.currency || 'USD'}`).join('\n')
+      : '—';
+    await telegramOutbox.sendMessage({
+      botId: ctx.bot.id,
+      token: ctx.bot.token,
+      chatId: String(ctx.bot.adminChatId),
+      text: [
+        '🟢 [LEAD BUY]',
+        `Джерело: ${source === 'favorites' ? 'обране' : source === 'single' ? 'картка' : 'без збігів'}`,
+        `Марка/модель: ${data.brand || '—'} ${data.model || ''}`.trim(),
+        `Рік: ${parseYearHint(data) || '—'}`,
+        `Бюджет: ${data.budget ? `${data.budget} USD` : '—'}`,
+        `Місто: ${data.city || '—'}`,
+        `Коментар: ${data.comment || '—'}`,
+        `Контакт: ${data.phone || '—'}`,
+        `Обрані авто:\n${carsLine}`,
+        `Lead ID: ${result.lead.id}`
+      ].join('\n'),
+      companyId: ctx.companyId
+    }).catch(() => null);
+  }
+};
+
+const submitFavoritesLead = async (ctx: PipelineContext, draft: LeadBuyDraft) => {
+  const favoriteIds = await getFavoriteIds(ctx);
+  if (!favoriteIds.length) {
+    await sendMessage(ctx, t(resolveLang(ctx), 'lead.fav.empty'));
+    return;
+  }
+  await createLeadAndNotifyAdmin(ctx, draft, favoriteIds, 'favorites');
+  await sendMessage(ctx, '✅ Запит по обраному передано менеджеру.');
+};
+
+const confirmAndSearch = async (ctx: PipelineContext, draft: LeadBuyDraft) => {
+  await sendMessage(ctx, t(resolveLang(ctx), 'lead.buy.searching'));
+
+  try {
+    const inventory = await findInventoryMatches(ctx, draft.data);
+    if (inventory.length > 0) {
+      draft.results = {
+        ids: inventory.map((item) => item.id),
+        cursor: 0,
+        pageIds: [],
+        source: 'inventory'
+      };
+      await sendResultPage(ctx, draft, 0);
+      return;
+    }
+
+    const external = await runExternalFallback(ctx, draft.data);
+    if (external.length > 0) {
+      const refs = external
+        .map((item) => ({ provider: String(item.sourceProvider || 'EXTERNAL'), url: String(item.sourceUrl || '') }))
+        .filter((item) => item.url);
+
+      draft.results = {
+        ids: external.map((item) => item.id),
+        cursor: 0,
+        pageIds: [],
+        source: 'external',
+        externalRefs: refs
+      };
+      await sendResultPage(ctx, draft, 0);
+      await notifyAdminExternal(ctx, refs);
+      return;
+    }
+
+    await sendMessage(ctx, t(resolveLang(ctx), 'lead.buy.no_matches'));
+    await createLeadAndNotifyAdmin(ctx, draft, [], 'no_match');
+    await notifyAdminExternalFail(ctx, draft, 'no_matches');
+    await clearDraftAndReturnToMenu(ctx);
+  } catch (error: any) {
+    const reason = error instanceof Error ? error.message : String(error || 'unknown_error');
+    await sendMessage(ctx, t(resolveLang(ctx), 'lead.buy.no_matches'));
+    await createLeadAndNotifyAdmin(ctx, draft, [], 'no_match');
+    await notifyAdminExternalFail(ctx, draft, reason);
+    await clearDraftAndReturnToMenu(ctx);
+  }
+};
+
+const applyAndContinue = async (ctx: PipelineContext, draft: LeadBuyDraft, nextStep: number) => {
+  if (draft.reviewMode) {
+    await showReview(ctx, draft);
+    return;
+  }
+  draft.step = nextStep;
+  await routeStep(ctx, draft);
+};
+
+const routeStep = async (ctx: PipelineContext, draft: LeadBuyDraft) => {
+  const lang = resolveLang(ctx);
+  const data = draft.data;
+
+  if (draft.step <= 1) {
+    draft.step = 1;
+    await persistDraft(ctx, draft, 'LB_BRAND');
+    await sendMessage(
+      ctx,
+      `${t(lang, 'lead.buy.title')}\n\n${stepHeader(1)}\nОберіть марку авто.\n\n${t(lang, 'common.step_hint_brand')}`,
+      { inline_keyboard: buildBrandKeyboard(lang) }
     );
-};
+    return;
+  }
 
-// ---------------------------------------------------------------------------
-// ROUTE to correct step UI
-// ---------------------------------------------------------------------------
-const routeBuyStep = async (ctx: PipelineContext, flow: any) => {
-    const vars = (ctx.session?.variables as any) || {};
-    const lang = resolveLang(ctx);
-    const step = flow.step;
+  if (draft.step === 2) {
+    await persistDraft(ctx, draft, 'LB_MODEL');
+    await sendMessage(
+      ctx,
+      `${stepHeader(2)}\nОберіть модель.\n\n${t(lang, 'common.step_hint_model')}`,
+      { inline_keyboard: buildModelKeyboard(data.brand || '', lang) }
+    );
+    return;
+  }
 
-    if (step === 2) {
-        await updateSession(ctx, 'LB_MODEL', { ...vars, leadBuy: flow });
-        await sendInline(ctx,
-            `${stepHeader(2)}. Оберіть модель для ${flow.brand || ''}:\n\n${t(lang, 'common.step_hint_model')}`,
-            buildModelKeyboard(flow.brand || '', lang)
-        );
-    } else if (step === 3) {
-        await updateSession(ctx, 'LB_YEAR', { ...vars, leadBuy: flow });
-        await sendInline(ctx,
-            `${stepHeader(3)}. Оберіть рік:\n\n${t(lang, 'common.step_hint_year')}`,
-            buildYearKeyboard(lang)
-        );
-    } else if (step === 4) {
-        await updateSession(ctx, 'LB_BUDGET', { ...vars, leadBuy: flow });
-        await sendInline(ctx,
-            `${stepHeader(4)}. Вкажіть бюджет (USD):\n\n${t(lang, 'common.step_hint_budget')}`,
-            buildBudgetKeyboard(lang)
-        );
-    } else if (step === 5) {
-        await updateSession(ctx, 'LB_MILEAGE', { ...vars, leadBuy: flow });
-        await sendInline(ctx,
-            `${stepHeader(5)}. Максимальний пробіг:\n\n${t(lang, 'common.step_hint_mileage')}`,
-            buildMileageKeyboard(lang)
-        );
-    } else if (step === 6) {
-        await updateSession(ctx, 'LB_FUEL', { ...vars, leadBuy: flow });
-        await sendInline(ctx,
-            `${stepHeader(6)}. Тип палива:`,
-            buildFuelKeyboard(lang)
-        );
-    } else if (step === 7) {
-        await updateSession(ctx, 'LB_CITY', { ...vars, leadBuy: flow });
-        await sendInline(ctx,
-            `${stepHeader(7)}. Місто:`,
-            buildCityKeyboard(lang)
-        );
-    } else if (step === 8) {
-        await updateSession(ctx, 'LB_COMMENT', { ...vars, leadBuy: flow });
-        await sendInline(ctx,
-            `${stepHeader(8)}. Додатковий коментар (необовʼязково):\n\nНапишіть текстом або натисніть «Пропустити».`,
-            [
-                [{ text: button(lang, 'common.skip'), callback_data: buildCallbackData('lb_skip_comment') }],
-                [
-                    { text: button(lang, 'common.back'), callback_data: buildCallbackData('lb_back_7') },
-                    { text: button(lang, 'common.cancel'), callback_data: buildCallbackData(ActionTokens.LB_CANCEL) }
-                ]
-            ]
-        );
-    } else if (step === 9) {
-        await updateSession(ctx, 'LB_CONTACT', { ...vars, leadBuy: flow });
-        const isPrivate = String(ctx.chatType) === 'private';
-        if (isPrivate) {
-            await sendWithKeyboard(ctx,
-                `${stepHeader(9)}. Ваш контакт для звʼязку:\n\nНатисніть кнопку нижче або введіть номер вручну.`,
-                [
-                    [{ text: button(lang, 'common.shareContact'), request_contact: true }],
-                    [{ text: button(lang, 'common.back') }]
-                ]
-            );
-        } else {
-            await sendInline(ctx,
-                `${stepHeader(9)}. Введіть номер телефону:\n\n${t(lang, 'common.step_hint_budget').replace(/Бюджет/g, 'Телефон')}`,
-                [
-                    [
-                        { text: button(lang, 'common.back'), callback_data: buildCallbackData('lb_back_8') },
-                        { text: button(lang, 'common.cancel'), callback_data: buildCallbackData(ActionTokens.LB_CANCEL) }
-                    ]
-                ]
-            );
-        }
-    } else if (step === 10) {
-        await showReview(ctx, flow);
+  if (draft.step === 3) {
+    await persistDraft(ctx, draft, 'LB_YEAR');
+    await sendMessage(
+      ctx,
+      `${stepHeader(3)}\nВкажіть рік.\n\n${t(lang, 'common.step_hint_year')}`,
+      { inline_keyboard: buildYearKeyboard(lang) }
+    );
+    return;
+  }
+
+  if (draft.step === 4) {
+    await persistDraft(ctx, draft, 'LB_BUDGET');
+    await sendMessage(
+      ctx,
+      `${stepHeader(4)}\nВкажіть бюджет.\n\n${t(lang, 'common.step_hint_budget')}`,
+      { inline_keyboard: buildBudgetKeyboard(lang) }
+    );
+    return;
+  }
+
+  if (draft.step === 5) {
+    await persistDraft(ctx, draft, 'LB_MILEAGE');
+    await sendMessage(
+      ctx,
+      `${stepHeader(5)}\nВкажіть пробіг.\n\n${t(lang, 'common.step_hint_mileage')}`,
+      { inline_keyboard: buildMileageKeyboard(lang) }
+    );
+    return;
+  }
+
+  if (draft.step === 6) {
+    await persistDraft(ctx, draft, 'LB_FUEL');
+    await sendMessage(ctx, `${stepHeader(6)}\nОберіть паливо:`, { inline_keyboard: buildFuelKeyboard(lang) });
+    return;
+  }
+
+  if (draft.step === 7) {
+    await persistDraft(ctx, draft, 'LB_CITY');
+    await sendMessage(ctx, `${stepHeader(7)}\nОберіть місто:`, { inline_keyboard: buildCityKeyboard(lang) });
+    return;
+  }
+
+  if (draft.step === 8) {
+    await persistDraft(ctx, draft, 'LB_COMMENT');
+    await sendMessage(ctx, `${stepHeader(8)}\nДодайте коментар (необовʼязково):`, {
+      inline_keyboard: [
+        [{ text: button(lang, 'common.skip'), callback_data: buildCallbackData('lb_skip_comment') }],
+        [
+          { text: button(lang, 'common.back'), callback_data: buildCallbackData('lb_back_7') },
+          { text: button(lang, 'common.cancel'), callback_data: buildCallbackData(ActionTokens.LB_CANCEL) }
+        ]
+      ]
+    });
+    return;
+  }
+
+  if (draft.step === 9) {
+    await persistDraft(ctx, draft, 'LB_CONTACT');
+
+    if (String(ctx.chatType || '') === 'private') {
+      await sendMessage(ctx, `${stepHeader(9)}\n${t(lang, 'support.ask_contact')}`, {
+        keyboard: [
+          [{ text: button(lang, 'common.shareContact'), request_contact: true }],
+          [{ text: button(lang, 'common.back') }]
+        ],
+        resize_keyboard: true,
+        one_time_keyboard: true
+      });
+      await sendMessage(ctx, 'Керування кроком:', {
+        inline_keyboard: [[
+          { text: button(lang, 'common.back'), callback_data: buildCallbackData('lb_back_8') },
+          { text: button(lang, 'common.cancel'), callback_data: buildCallbackData(ActionTokens.LB_CANCEL) }
+        ]]
+      });
+    } else {
+      await sendMessage(ctx, `${stepHeader(9)}\nВведіть номер телефону вручну:`, {
+        inline_keyboard: [[
+          { text: button(lang, 'common.back'), callback_data: buildCallbackData('lb_back_8') },
+          { text: button(lang, 'common.cancel'), callback_data: buildCallbackData(ActionTokens.LB_CANCEL) }
+        ]]
+      });
     }
+    return;
+  }
+
+  await showReview(ctx, draft);
 };
 
-// ---------------------------------------------------------------------------
-// REVIEW
-// ---------------------------------------------------------------------------
-const buildSummary = (flow: any): string => {
-    const lines = [
-        `Марка: ${flow.brand || '—'}`,
-        `Модель: ${flow.model || '—'}`,
-        `Рік: ${flow.yearDisplay || flow.year || '—'}`,
-        `Бюджет: ${flow.budget ? `до ${flow.budget} USD` : '—'}`,
-        `Пробіг: ${flow.mileage ? `до ${flow.mileage} км` : '—'}`,
-        `Паливо: ${flow.fuel || '—'}`,
-        `Місто: ${flow.city || '—'}`,
-        `Коментар: ${flow.comment || '—'}`,
-        `Контакт: ${flow.phone || '—'}`
-    ];
-    return lines.join('\n');
+export const startLeadBuyWizard = async (ctx: PipelineContext) => {
+  const draft: LeadBuyDraft = {
+    step: 1,
+    data: { brand: '' },
+    history: [],
+    reviewMode: false,
+    viewMode: 'results'
+  };
+  await routeStep(ctx, draft);
 };
 
-const showReview = async (ctx: PipelineContext, flow: any) => {
-    const vars = (ctx.session?.variables as any) || {};
-    const lang = resolveLang(ctx);
-    await updateSession(ctx, 'LB_REVIEW', { ...vars, leadBuy: flow });
-    const summary = buildSummary(flow);
-    await sendInline(ctx, t(lang, 'lead.buy.review.title', { summary }), [
-        [{ text: button(lang, 'common.confirm'), callback_data: buildCallbackData(ActionTokens.LB_FAV_SEND) }],
-        [{ text: button(lang, 'common.edit'), callback_data: buildCallbackData(ActionTokens.LB_EDIT) }],
-        [{ text: button(lang, 'common.cancel'), callback_data: buildCallbackData(ActionTokens.LB_CANCEL) }]
-    ]);
+const resolveCarIdByIndex = (draft: LeadBuyDraft, payload?: string) => {
+  const idx = Number(String(payload || '').trim());
+  if (!Number.isFinite(idx) || idx < 0) return null;
+  const ids = getCurrentCarIdsForAction(draft);
+  return ids[idx] || null;
 };
 
-// ---------------------------------------------------------------------------
-// CALLBACK handler (inline keyboard clicks)
-// ---------------------------------------------------------------------------
+const parseManualYear = (value: string) => {
+  const parsed = parseYearInput(value);
+  if (!parsed) return null;
+  return {
+    yearMin: parsed.min,
+    yearMax: parsed.max,
+    year: parsed.min === parsed.max ? String(parsed.min) : `${parsed.min}-${parsed.max}`
+  };
+};
+
 export const handleLeadBuyCallback = async (ctx: PipelineContext, action: string, payload?: string): Promise<boolean> => {
-    const vars = (ctx.session?.variables as any) || {};
-    const flow = vars.leadBuy || { step: 1 };
-    const lang = resolveLang(ctx);
+  const draft = readDraft(ctx);
+  const lang = resolveLang(ctx);
 
-    // Cancel
-    if (action === ActionTokens.LB_CANCEL) {
-        await updateSession(ctx, 'CL_MENU', { ...vars, leadBuy: null });
-        await sendInline(ctx, t(lang, 'cancelled'), []);
-        return true;
+  if (action === ActionTokens.LB_CANCEL) {
+    await clearDraftAndReturnToMenu(ctx, t(lang, 'cancelled'));
+    return true;
+  }
+
+  if (action === ActionTokens.LB_EDIT) {
+    await showEditFields(ctx, draft);
+    return true;
+  }
+
+  if (action === 'lb_j') {
+    const step = parseStepNumber(payload);
+    if (!step) return true;
+    draft.reviewMode = true;
+    draft.step = step;
+    draft.editField = String(step);
+    await routeStep(ctx, draft);
+    return true;
+  }
+
+  if (action === ActionTokens.LB_NEXT) {
+    const next = draft.results?.cursor || 0;
+    await sendResultPage(ctx, draft, next);
+    return true;
+  }
+
+  if (action === 'lb_fvp') {
+    const page = Math.max(0, Number(draft.favorites?.page || 0) - 1);
+    await showFavoritesPage(ctx, draft, page);
+    return true;
+  }
+
+  if (action === 'lb_fvn') {
+    const page = Number(draft.favorites?.page || 0) + 1;
+    await showFavoritesPage(ctx, draft, page);
+    return true;
+  }
+
+  if (action === ActionTokens.LB_FAV_OPEN) {
+    await showFavoritesPage(ctx, draft, 0);
+    return true;
+  }
+
+  if (action === ActionTokens.LB_FAV_TOGGLE) {
+    const carId = resolveCarIdByIndex(draft, payload);
+    if (!carId) return true;
+    const added = await toggleFavorite(ctx, carId, false);
+    await sendMessage(ctx, added ? '⭐ Додано в обране.' : '🗑 Видалено з обраного.');
+    return true;
+  }
+
+  if (action === ActionTokens.LB_FAV_DEL) {
+    const carId = resolveCarIdByIndex(draft, payload);
+    if (!carId) return true;
+    await toggleFavorite(ctx, carId, true);
+    await sendMessage(ctx, '🗑 Видалено з обраного.');
+    if (draft.viewMode === 'favorites') {
+      await showFavoritesPage(ctx, draft, draft.favorites?.page || 0);
+    }
+    return true;
+  }
+
+  if (action === ActionTokens.LB_INTEREST) {
+    const carId = resolveCarIdByIndex(draft, payload);
+    if (!carId) return true;
+    await createLeadAndNotifyAdmin(ctx, draft, [carId], 'single');
+    await sendMessage(ctx, '✅ Запит передано менеджеру.');
+    return true;
+  }
+
+  if (action === ActionTokens.LB_FAV_SEND) {
+    if (draft.step >= 10 || ctx.session?.state === 'LB_REVIEW') {
+      await confirmAndSearch(ctx, draft);
+      return true;
+    }
+    await submitFavoritesLead(ctx, draft);
+    return true;
+  }
+
+  if (action === 'lb_back_review') {
+    await showReview(ctx, draft);
+    return true;
+  }
+
+  if (action === 'lb_skip_comment') {
+    draft.data.comment = null;
+    await applyAndContinue(ctx, draft, 9);
+    return true;
+  }
+
+  if (action === 'lb_e_b_back') {
+    draft.step = 1;
+    await routeStep(ctx, draft);
+    return true;
+  }
+
+  if (action.startsWith('lb_back_')) {
+    const raw = action.replace('lb_back_', '');
+    const map: Record<string, number> = {
+      y: 2,
+      bg: 3,
+      ml: 4,
+      fu: 5,
+      ct: 6
+    };
+    const step = map[raw] || parseStepNumber(raw) || 1;
+    draft.step = step;
+    await routeStep(ctx, draft);
+    return true;
+  }
+
+  if (action === ActionTokens.LB_EDIT_BRAND || action === 'lb_e_b') {
+    if (payload === 'OTHER') {
+      await persistDraft(ctx, draft, 'LB_BRAND_TXT');
+      await sendMessage(ctx, 'Введіть марку текстом:', {
+        inline_keyboard: [[{ text: button(lang, 'common.cancel'), callback_data: buildCallbackData(ActionTokens.LB_CANCEL) }]]
+      });
+      return true;
     }
 
-    // Edit — show field list
-    if (action === ActionTokens.LB_EDIT) {
-        const rows = EDIT_FIELDS.map(f => [{
-            text: `${f.label}: ${flow[f.key] || '—'}`,
-            callback_data: buildCallbackData(f.cb)
-        }]);
-        rows.push([{ text: button(lang, 'common.back'), callback_data: buildCallbackData('lb_back_review') }]);
-        await sendInline(ctx, 'Оберіть поле для зміни:', rows);
-        return true;
+    const value = pickFromList(BRANDS, payload) || toText(payload);
+    if (!value) return true;
+
+    if (draft.data.brand !== value) {
+      draft.data.model = null;
+    }
+    draft.data.brand = value;
+    await applyAndContinue(ctx, draft, 2);
+    return true;
+  }
+
+  if (action === ActionTokens.LB_EDIT_MODEL || action === 'lb_e_m') {
+    if (payload === 'SKIP') {
+      draft.data.model = null;
+      await applyAndContinue(ctx, draft, 3);
+      return true;
     }
 
-    // Jump to edit a specific field
-    if (action.startsWith('lb_j_')) {
-        const stepNum = parseInt(action.replace('lb_j_', ''), 10);
-        if (stepNum >= 1 && stepNum <= 9) {
-            flow.step = stepNum;
-            flow._editReturn = true; // Flag to return to review after edit
-            await routeBuyStep(ctx, flow);
-            return true;
-        }
+    if (payload === 'OTHER') {
+      await persistDraft(ctx, draft, 'LB_MODEL_TXT');
+      await sendMessage(ctx, 'Введіть модель текстом:', {
+        inline_keyboard: [[{ text: button(lang, 'common.cancel'), callback_data: buildCallbackData(ActionTokens.LB_CANCEL) }]]
+      });
+      return true;
     }
 
-    // Back to review (from edit field list)
-    if (action === 'lb_back_review') {
-        flow.step = 10;
-        await showReview(ctx, flow);
-        return true;
+    const models = BRAND_MODELS[draft.data.brand] || [];
+    const value = pickFromList(models, payload) || toText(payload);
+    draft.data.model = value || null;
+    await applyAndContinue(ctx, draft, 3);
+    return true;
+  }
+
+  if (action === ActionTokens.LB_EDIT_YEAR || action === 'lb_e_y') {
+    if (payload === 'SKIP') {
+      draft.data.year = null;
+      draft.data.yearMin = null;
+      draft.data.yearMax = null;
+      await applyAndContinue(ctx, draft, 4);
+      return true;
     }
 
-    // Brand pick
-    if (action === 'lb_e_b' || action === ActionTokens.LB_EDIT_BRAND) {
-        if (payload === 'OTHER') {
-            await updateSession(ctx, 'LB_BRAND_TXT', { ...vars, leadBuy: flow });
-            await sendInline(ctx, 'Введіть марку текстом:', [
-                [{ text: button(lang, 'common.cancel'), callback_data: buildCallbackData(ActionTokens.LB_CANCEL) }]
-            ]);
-            return true;
-        }
-        if (payload === 'BACK') {
-            flow.step = 1;
-            await routeBuyStep(ctx, flow);
-            return true;
-        }
-        flow.brand = payload;
-        flow.step = flow._editReturn ? 10 : 2;
-        delete flow._editReturn;
-        await routeBuyStep(ctx, flow);
-        return true;
+    if (payload === 'OTHER') {
+      await persistDraft(ctx, draft, 'LB_YEAR_TXT');
+      await sendMessage(ctx, t(lang, 'common.step_hint_year'), {
+        inline_keyboard: [[{ text: button(lang, 'common.cancel'), callback_data: buildCallbackData(ActionTokens.LB_CANCEL) }]]
+      });
+      return true;
     }
 
-    // Model pick
-    if (action === 'lb_e_m' || action === ActionTokens.LB_EDIT_MODEL) {
-        if (payload === 'SKIP') { flow.model = null; }
-        else if (payload === 'OTHER') {
-            await updateSession(ctx, 'LB_MODEL_TXT', { ...vars, leadBuy: flow });
-            await sendInline(ctx, 'Введіть модель текстом:', [
-                [{ text: button(lang, 'common.cancel'), callback_data: buildCallbackData(ActionTokens.LB_CANCEL) }]
-            ]);
-            return true;
-        } else if (payload === 'BACK') {
-            flow.step = 1;
-            await routeBuyStep(ctx, flow);
-            return true;
-        } else {
-            flow.model = payload;
-        }
-        flow.step = flow._editReturn ? 10 : 3;
-        delete flow._editReturn;
-        await routeBuyStep(ctx, flow);
-        return true;
+    const yearMin = Number(payload);
+    if (!Number.isFinite(yearMin) || yearMin < 1990) {
+      await sendMessage(ctx, t(lang, 'common.err.invalid_year'));
+      return true;
     }
 
-    // Year pick
-    if (action === 'lb_e_y' || action === ActionTokens.LB_EDIT_YEAR) {
-        if (payload === 'SKIP') { flow.year = null; flow.yearDisplay = null; }
-        else if (payload === 'OTHER') {
-            await updateSession(ctx, 'LB_YEAR_TXT', { ...vars, leadBuy: flow });
-            await sendInline(ctx, `Введіть рік (напр. 2018 або 2018-2022):`, [
-                [{ text: button(lang, 'common.cancel'), callback_data: buildCallbackData(ActionTokens.LB_CANCEL) }]
-            ]);
-            return true;
-        } else {
-            flow.yearDisplay = `від ${payload}`;
-            flow.year = payload;
-        }
-        flow.step = flow._editReturn ? 10 : 4;
-        delete flow._editReturn;
-        await routeBuyStep(ctx, flow);
-        return true;
+    draft.data.year = `від ${yearMin}`;
+    draft.data.yearMin = yearMin;
+    draft.data.yearMax = null;
+    await applyAndContinue(ctx, draft, 4);
+    return true;
+  }
+
+  if (action === ActionTokens.LB_EDIT_BUDGET || action === 'lb_e_bg') {
+    if (payload === 'SKIP') {
+      draft.data.budget = null;
+      await applyAndContinue(ctx, draft, 5);
+      return true;
     }
 
-    // Budget pick
-    if (action === 'lb_e_bg' || action === ActionTokens.LB_EDIT_BUDGET) {
-        if (payload === 'SKIP') { flow.budget = null; }
-        else if (payload === 'OTHER') {
-            await updateSession(ctx, 'LB_BUDGET_TXT', { ...vars, leadBuy: flow });
-            await sendInline(ctx, `Введіть бюджет (USD):\n\n${t(lang, 'common.step_hint_budget')}`, [
-                [{ text: button(lang, 'common.cancel'), callback_data: buildCallbackData(ActionTokens.LB_CANCEL) }]
-            ]);
-            return true;
-        } else {
-            flow.budget = parseInt(payload || '0', 10) || null;
-        }
-        flow.step = flow._editReturn ? 10 : 5;
-        delete flow._editReturn;
-        await routeBuyStep(ctx, flow);
-        return true;
+    if (payload === 'OTHER') {
+      await persistDraft(ctx, draft, 'LB_BUDGET_TXT');
+      await sendMessage(ctx, t(lang, 'common.step_hint_budget'), {
+        inline_keyboard: [[{ text: button(lang, 'common.cancel'), callback_data: buildCallbackData(ActionTokens.LB_CANCEL) }]]
+      });
+      return true;
     }
 
-    // Mileage pick
-    if (action === 'lb_e_ml' || action === ActionTokens.LB_EDIT_MILEAGE) {
-        if (payload === 'SKIP') { flow.mileage = null; }
-        else if (payload === 'OTHER') {
-            await updateSession(ctx, 'LB_MILEAGE_TXT', { ...vars, leadBuy: flow });
-            await sendInline(ctx, `Введіть пробіг (км):\n\n${t(lang, 'common.step_hint_mileage')}`, [
-                [{ text: button(lang, 'common.cancel'), callback_data: buildCallbackData(ActionTokens.LB_CANCEL) }]
-            ]);
-            return true;
-        } else {
-            flow.mileage = parseInt(payload || '0', 10) || null;
-        }
-        flow.step = flow._editReturn ? 10 : 6;
-        delete flow._editReturn;
-        await routeBuyStep(ctx, flow);
-        return true;
+    const budget = Number(payload);
+    if (!Number.isFinite(budget)) return true;
+    draft.data.budget = budget;
+    await applyAndContinue(ctx, draft, 5);
+    return true;
+  }
+
+  if (action === ActionTokens.LB_EDIT_MILEAGE || action === 'lb_e_ml') {
+    if (payload === 'SKIP') {
+      draft.data.mileage = null;
+      await applyAndContinue(ctx, draft, 6);
+      return true;
     }
 
-    // Fuel pick
-    if (action === 'lb_e_fu' || action === ActionTokens.LB_EDIT_FUEL) {
-        if (payload === 'SKIP') { flow.fuel = null; }
-        else { flow.fuel = payload; }
-        flow.step = flow._editReturn ? 10 : 7;
-        delete flow._editReturn;
-        await routeBuyStep(ctx, flow);
-        return true;
+    if (payload === 'OTHER') {
+      await persistDraft(ctx, draft, 'LB_MILEAGE_TXT');
+      await sendMessage(ctx, t(lang, 'common.step_hint_mileage'), {
+        inline_keyboard: [[{ text: button(lang, 'common.cancel'), callback_data: buildCallbackData(ActionTokens.LB_CANCEL) }]]
+      });
+      return true;
     }
 
-    // City pick
-    if (action === 'lb_e_ct' || action === ActionTokens.LB_EDIT_CITY) {
-        if (payload === 'SKIP') { flow.city = null; }
-        else if (payload === 'OTHER') {
-            await updateSession(ctx, 'LB_CITY_TXT', { ...vars, leadBuy: flow });
-            await sendInline(ctx, 'Введіть місто:', [
-                [{ text: button(lang, 'common.cancel'), callback_data: buildCallbackData(ActionTokens.LB_CANCEL) }]
-            ]);
-            return true;
-        } else {
-            flow.city = payload;
-        }
-        flow.step = flow._editReturn ? 10 : 8;
-        delete flow._editReturn;
-        await routeBuyStep(ctx, flow);
-        return true;
+    const mileage = Number(payload);
+    if (!Number.isFinite(mileage)) return true;
+    draft.data.mileage = mileage;
+    await applyAndContinue(ctx, draft, 6);
+    return true;
+  }
+
+  if (action === ActionTokens.LB_EDIT_FUEL || action === 'lb_e_fu') {
+    if (payload === 'SKIP') {
+      draft.data.fuel = null;
+      await applyAndContinue(ctx, draft, 7);
+      return true;
     }
 
-    // Skip comment
-    if (action === 'lb_skip_comment') {
-        flow.comment = null;
-        flow.step = flow._editReturn ? 10 : 9;
-        delete flow._editReturn;
-        await routeBuyStep(ctx, flow);
-        return true;
+    const value = pickFromList(FUEL_OPTIONS, payload) || toText(payload);
+    draft.data.fuel = value || null;
+    await applyAndContinue(ctx, draft, 7);
+    return true;
+  }
+
+  if (action === ActionTokens.LB_EDIT_CITY || action === 'lb_e_ct') {
+    if (payload === 'SKIP') {
+      draft.data.city = null;
+      await applyAndContinue(ctx, draft, 8);
+      return true;
     }
 
-    // Back buttons from each step
-    if (action.startsWith('lb_back_')) {
-        const fromStep = parseInt(action.replace('lb_back_', ''), 10);
-        if (fromStep >= 1 && fromStep <= 9) {
-            flow.step = fromStep;
-            await routeBuyStep(ctx, flow);
-            return true;
-        }
-        // lb_back_y, lb_back_bg, lb_back_ml, lb_back_fu, lb_back_ct — legacy compat
-        const legacyMap: Record<string, number> = {
-            'lb_back_y': 2, 'lb_back_bg': 3, 'lb_back_ml': 4,
-            'lb_back_fu': 5, 'lb_back_ct': 6
-        };
-        const legacyStep = legacyMap[action];
-        if (legacyStep) {
-            flow.step = legacyStep;
-            await routeBuyStep(ctx, flow);
-            return true;
-        }
+    if (payload === 'OTHER') {
+      await persistDraft(ctx, draft, 'LB_CITY_TXT');
+      await sendMessage(ctx, 'Введіть місто:', {
+        inline_keyboard: [[{ text: button(lang, 'common.cancel'), callback_data: buildCallbackData(ActionTokens.LB_CANCEL) }]]
+      });
+      return true;
     }
 
-    // lb_e_b_back — back from model to brand
-    if (action === 'lb_e_b_back') {
-        flow.step = 1;
-        await routeBuyStep(ctx, flow);
-        return true;
-    }
+    const value = pickFromList(CITY_OPTIONS, payload) || toText(payload);
+    draft.data.city = value || null;
+    await applyAndContinue(ctx, draft, 8);
+    return true;
+  }
 
-    return false;
+  return false;
 };
 
-// ---------------------------------------------------------------------------
-// TEXT handler (manual input)
-// ---------------------------------------------------------------------------
 export const handleLeadBuyText = async (ctx: PipelineContext, text: string): Promise<boolean> => {
-    const vars = (ctx.session?.variables as any) || {};
-    const state = ctx.session?.state;
-    const flow = vars.leadBuy || { step: 1 };
-    const lang = resolveLang(ctx);
+  const state = String(ctx.session?.state || '');
+  const lang = resolveLang(ctx);
+  const draft = readDraft(ctx);
 
-    // Brand text
-    if (state === 'LB_BRAND_TXT') {
-        const trimmed = text.trim();
-        if (trimmed.length < 2) {
-            await sendInline(ctx, '⚠️ Введіть мінімум 2 символи.', []);
-            return true;
-        }
-        flow.brand = trimmed;
-        flow.step = flow._editReturn ? 10 : 2;
-        delete flow._editReturn;
-        await routeBuyStep(ctx, flow);
+  if (state === 'LB_BRAND_TXT') {
+    const value = toText(text);
+    if (value.length < 2) {
+      await sendMessage(ctx, '⚠️ Введіть мінімум 2 символи.');
+      return true;
+    }
+    if (draft.data.brand !== value) draft.data.model = null;
+    draft.data.brand = value;
+    await applyAndContinue(ctx, draft, 2);
+    return true;
+  }
+
+  if (state === 'LB_MODEL_TXT') {
+    draft.data.model = toText(text) || null;
+    await applyAndContinue(ctx, draft, 3);
+    return true;
+  }
+
+  if (state === 'LB_YEAR_TXT') {
+    const parsed = parseManualYear(text);
+    if (!parsed) {
+      await sendMessage(ctx, t(lang, 'common.err.invalid_year'));
+      return true;
+    }
+    draft.data.year = parsed.year;
+    draft.data.yearMin = parsed.yearMin;
+    draft.data.yearMax = parsed.yearMax;
+    await applyAndContinue(ctx, draft, 4);
+    return true;
+  }
+
+  if (state === 'LB_BUDGET_TXT') {
+    const parsed = parseBudgetUSD(text);
+    if (parsed === null) {
+      await sendMessage(ctx, t(lang, 'common.err.invalid_budget'));
+      return true;
+    }
+    draft.data.budget = parsed;
+    await applyAndContinue(ctx, draft, 5);
+    return true;
+  }
+
+  if (state === 'LB_MILEAGE_TXT') {
+    const parsed = parseMileageKm(text);
+    if (parsed === null) {
+      await sendMessage(ctx, t(lang, 'common.err.invalid_mileage'));
+      return true;
+    }
+    draft.data.mileage = parsed;
+    await applyAndContinue(ctx, draft, 6);
+    return true;
+  }
+
+  if (state === 'LB_CITY_TXT') {
+    draft.data.city = toText(text) || null;
+    await applyAndContinue(ctx, draft, 8);
+    return true;
+  }
+
+  if (state === 'LB_COMMENT') {
+    if (containsForbiddenContacts(text)) {
+      await sendMessage(ctx, t(lang, 'common.err.contacts_forbidden'), {
+        inline_keyboard: [[{ text: button(lang, 'common.skip'), callback_data: buildCallbackData('lb_skip_comment') }]]
+      });
+      return true;
+    }
+    draft.data.comment = toText(text) || null;
+    await applyAndContinue(ctx, draft, 9);
+    return true;
+  }
+
+  if (state === 'LB_CONTACT') {
+    const message = ctx.update?.message;
+    if (message?.contact?.phone_number) {
+      const normalized = normalizePhoneUA(message.contact.phone_number);
+      if (!normalized) {
+        await sendMessage(ctx, t(lang, 'common.err.invalid_phone'));
         return true;
+      }
+      draft.data.phone = normalized;
+      await showReview(ctx, draft);
+      return true;
     }
 
-    // Model text
-    if (state === 'LB_MODEL_TXT') {
-        flow.model = text.trim() || null;
-        flow.step = flow._editReturn ? 10 : 3;
-        delete flow._editReturn;
-        await routeBuyStep(ctx, flow);
-        return true;
+    if (norm(text) === norm(button(lang, 'common.back')) || norm(text) === 'назад') {
+      draft.step = 8;
+      await routeStep(ctx, draft);
+      return true;
     }
 
-    // Year text
-    if (state === 'LB_YEAR_TXT') {
-        const parsed = parseYearInput(text);
-        if (!parsed) {
-            await sendInline(ctx, t(lang, 'common.err.invalid_year'), []);
-            return true;
-        }
-        flow.year = parsed.min === parsed.max ? String(parsed.min) : `${parsed.min}-${parsed.max}`;
-        flow.yearDisplay = flow.year;
-        flow.step = flow._editReturn ? 10 : 4;
-        delete flow._editReturn;
-        await routeBuyStep(ctx, flow);
-        return true;
+    const normalized = normalizePhoneUA(text);
+    if (!normalized) {
+      await sendMessage(ctx, t(lang, 'common.err.invalid_phone'));
+      return true;
     }
+    draft.data.phone = normalized;
+    await showReview(ctx, draft);
+    return true;
+  }
 
-    // Budget text
-    if (state === 'LB_BUDGET_TXT') {
-        const parsed = parseBudgetUSD(text);
-        if (parsed === null) {
-            await sendInline(ctx, t(lang, 'common.err.invalid_budget'), []);
-            return true;
-        }
-        flow.budget = parsed;
-        flow.step = flow._editReturn ? 10 : 5;
-        delete flow._editReturn;
-        await routeBuyStep(ctx, flow);
-        return true;
-    }
-
-    // Mileage text
-    if (state === 'LB_MILEAGE_TXT') {
-        const parsed = parseMileageKm(text);
-        if (parsed === null) {
-            await sendInline(ctx, t(lang, 'common.err.invalid_mileage'), []);
-            return true;
-        }
-        flow.mileage = parsed;
-        flow.step = flow._editReturn ? 10 : 6;
-        delete flow._editReturn;
-        await routeBuyStep(ctx, flow);
-        return true;
-    }
-
-    // City text
-    if (state === 'LB_CITY_TXT') {
-        flow.city = text.trim() || null;
-        flow.step = flow._editReturn ? 10 : 8;
-        delete flow._editReturn;
-        await routeBuyStep(ctx, flow);
-        return true;
-    }
-
-    // Comment text
-    if (state === 'LB_COMMENT') {
-        if (containsForbiddenContacts(text)) {
-            await sendInline(ctx, t(lang, 'common.err.contacts_forbidden'), [
-                [{ text: button(lang, 'common.skip'), callback_data: buildCallbackData('lb_skip_comment') }]
-            ]);
-            return true;
-        }
-        flow.comment = text.trim();
-        flow.step = flow._editReturn ? 10 : 9;
-        delete flow._editReturn;
-        await routeBuyStep(ctx, flow);
-        return true;
-    }
-
-    // Contact text (manual phone or shared contact)
-    if (state === 'LB_CONTACT') {
-        const message = ctx.update?.message;
-
-        // Shared contact
-        if (message?.contact?.phone_number) {
-            const normalized = normalizePhoneUA(message.contact.phone_number) || message.contact.phone_number;
-            flow.phone = normalized;
-            flow.step = 10;
-            await routeBuyStep(ctx, flow);
-            return true;
-        }
-
-        // Back button text
-        const isBack = text.toLowerCase().includes('назад') || text === button(lang, 'common.back');
-        if (isBack) {
-            flow.step = 8;
-            await routeBuyStep(ctx, flow);
-            return true;
-        }
-
-        // Manual phone
-        const normalized = normalizePhoneUA(text);
-        if (!normalized) {
-            await sendInline(ctx, t(lang, 'common.err.invalid_phone'), []);
-            return true;
-        }
-        flow.phone = normalized;
-        flow.step = 10;
-        await routeBuyStep(ctx, flow);
-        return true;
-    }
-
-    // Contact text input
-    if (state === 'LB_CONTACT_TXT') {
-        const normalized = normalizePhoneUA(text);
-        if (!normalized) {
-            await sendInline(ctx, t(lang, 'common.err.invalid_phone'), []);
-            return true;
-        }
-        flow.phone = normalized;
-        flow.step = 10;
-        await routeBuyStep(ctx, flow);
-        return true;
-    }
-
-    return false;
+  return false;
 };

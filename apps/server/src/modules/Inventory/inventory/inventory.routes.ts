@@ -14,7 +14,9 @@ const router = Router();
 const carRepo = new CarRepository(prisma);
 
 const readPartnerCompanyId = (source: any) => {
-    const value = typeof source?.partnerCompanyId === 'string' ? source.partnerCompanyId.trim() : '';
+    const value = typeof source?.partnerCompanyId === 'string'
+        ? source.partnerCompanyId.trim()
+        : (typeof source?.partnerId === 'string' ? source.partnerId.trim() : '');
     return value || undefined;
 };
 

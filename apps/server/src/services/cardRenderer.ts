@@ -1,4 +1,179 @@
 import { VariantStatus, RequestStatus } from '@prisma/client';
+import { ActionTokens, buildCallbackData } from '../modules/Communication/telegram/core/utils/callbackUtils.js';
+
+// =============================================================================
+// §4 — EXACT CARD FORMATS (hard output contract from MEGA PROMPT v7)
+// =============================================================================
+
+const dash = (v: any) => (v !== null && v !== undefined && String(v).trim() !== '' ? String(v) : '—');
+
+/**
+ * §4 Lead user car card (HTML)
+ * Used in bot when showing inventory matches to client.
+ */
+export const renderLeadBuyCard = (car: any): string => {
+  const rawTitle = String(car.title || '').trim();
+  const yearStr = car.year ? String(car.year) : '';
+  // Extract brand/model from title or dedicated fields
+  const brand = String((car as any).brand || car.specs?.brand || '').trim();
+  const model = String((car as any).model || car.specs?.model || '').trim();
+  const titleDisplay = brand && model ? `${brand} ${model} ${yearStr}`.trim()
+    : model ? `${model} ${yearStr}`.trim()
+      : `${rawTitle} ${yearStr}`.trim().replace(/\s+/g, ' ');
+
+  const mileageNum = Number(car.mileage || 0);
+  const mileageStr = mileageNum > 0
+    ? (mileageNum >= 1000 ? `${Math.round(mileageNum / 1000)} тис. км` : `${mileageNum} км`)
+    : '—';
+
+  const price = car.price?.amount ?? car.price ?? 0;
+  const currency = car.price?.currency || car.currency || 'USD';
+
+  return [
+    `🚗 <b>${titleDisplay}</b>`,
+    `🛣 Пробіг: ${mileageStr}`,
+    `⛽ Паливо: ${dash(car.specs?.fuel)}`,
+    `🕹 КПП: ${dash(car.specs?.transmission)}`,
+    `🛞 Привід: ${dash(car.specs?.drive)}`,
+    `📍 Місто: ${dash(car.location)}`,
+    `💵 Ціна: ${price ? price.toLocaleString('uk-UA') : '—'} ${currency}`
+  ].join('\n');
+};
+
+/**
+ * §4 Inline buttons under each lead buy car card.
+ * isFavorited — whether user already starred this car.
+ */
+export const buildLeadBuyCardButtons = (carId: string, isFavorited: boolean, idx = 0) => ({
+  inline_keyboard: [
+    [
+      { text: '✅ Цікавить це авто', callback_data: buildCallbackData(ActionTokens.LB_INTEREST, String(idx)) },
+      isFavorited
+        ? { text: '🗑 Прибрати з обраного', callback_data: buildCallbackData(ActionTokens.LB_FAV_DEL, String(idx)) }
+        : { text: '⭐ В обране', callback_data: buildCallbackData(ActionTokens.LB_FAV_TOGGLE, String(idx)) }
+    ]
+  ]
+});
+
+/**
+ * §4 After-batch control message buttons.
+ * favCount — number of favorites currently saved.
+ */
+export const buildAfterBatchControls = (favCount: number) => {
+  const rows: any[][] = [
+    [{ text: 'Показати ще', callback_data: buildCallbackData(ActionTokens.LB_NEXT) }]
+  ];
+  if (favCount > 0) {
+    rows.push([
+      { text: `⭐ Обране (${favCount})`, callback_data: buildCallbackData(ActionTokens.LB_FAV_OPEN) },
+      { text: 'Звʼязатися по обраному', callback_data: buildCallbackData(ActionTokens.LB_FAV_SEND) }
+    ]);
+  }
+  rows.push([
+    { text: 'Змінити фільтри', callback_data: buildCallbackData(ActionTokens.LB_EDIT) },
+    { text: 'Завершити', callback_data: buildCallbackData(ActionTokens.LB_CANCEL) }
+  ]);
+  return { inline_keyboard: rows };
+};
+
+/**
+ * §4 B2B channel request post (NO contacts).
+ * Returns { text, replyMarkup } — text has no phone numbers or personal links.
+ */
+export const renderB2bChannelPost = (request: any): { text: string; replyMarkup: any } => {
+  const payload = (request?.payload || {}) as Record<string, any>;
+  const reqPayload = (payload.request || {}) as Record<string, any>;
+
+  const companyName = String(reqPayload.companyName || payload.companyName || 'Невідома компанія');
+  const publicId = request.publicId || request.id || '?';
+
+  const titleParts = [request.title || reqPayload.brand || reqPayload.make, reqPayload.model].filter(Boolean);
+  const titleLine = titleParts.join(' ') || '—';
+
+  const yearMin = request.yearMin || reqPayload.yearMin;
+  const yearMax = request.yearMax || reqPayload.yearMax;
+  const yearLine = yearMin
+    ? `${yearMin}${yearMax && yearMax !== yearMin ? `–${yearMax}` : '+'}`
+    : '—';
+
+  const budgetMin = request.budgetMin || reqPayload.budgetMin;
+  const budgetMax = request.budgetMax || reqPayload.budgetMax;
+  const budgetLine = budgetMax
+    ? `${budgetMin ? `${budgetMin.toLocaleString()}–` : 'до '}${budgetMax.toLocaleString()} USD`
+    : budgetMin ? `від ${budgetMin.toLocaleString()} USD` : '—';
+
+  const mileageLine = reqPayload.mileageText || reqPayload.mileageMax
+    ? (reqPayload.mileageText || `до ${reqPayload.mileageMax} км`)
+    : '—';
+
+  const fuelLine = reqPayload.fuel || payload.fuel || '—';
+  const noteLine = String(request.description || reqPayload.comment || '—').slice(0, 200);
+
+  const text = [
+    `🔵 <b>Запит #${publicId}</b>`,
+    `🚗 ${titleLine}`,
+    `📅 Рік: ${yearLine}`,
+    `💰 Бюджет: ${budgetLine}`,
+    `🛣 Пробіг: ${mileageLine}`,
+    `⛽ Паливо: ${fuelLine}`,
+    `📝 Примітка: ${noteLine}`,
+    `🏢 Хто шукає: ${companyName}`
+  ].join('\n');
+
+  const replyMarkup = {
+    inline_keyboard: [[
+      { text: 'Є авто', callback_data: buildCallbackData(ActionTokens.BV_SEND, String(request.publicId || request.id).slice(0, 28)) }
+    ]]
+  };
+  return { text, replyMarkup };
+};
+
+/**
+ * §4 CarTié channel car post template (channel publication style).
+ */
+export const renderChannelCarPost = (car: any): string => {
+  const rawTitle = String(car.title || '').trim();
+  const yearStr = car.year ? String(car.year) : '';
+  const titleDisplay = `${rawTitle} ${yearStr}`.trim().replace(/\s+/g, ' ');
+
+  const statusTag = String(car.status || 'AVAILABLE').toUpperCase();
+  const statusText: Record<string, string> = {
+    AVAILABLE: 'в наявності', RESERVED: 'резерв', SOLD: 'продано', PENDING: 'очікування'
+  };
+
+  const mileageNum = Number(car.mileage || 0);
+  const mileageTxt = mileageNum > 0
+    ? (mileageNum >= 1000 ? `${Math.round(mileageNum / 1000)} тис. км` : `${mileageNum} км`)
+    : '—';
+
+  const powerOrBattery = car.specs?.engine || car.specs?.battery || '—';
+  const safety = car.specs?.safety || car.specs?.airbags || '—';
+  const driveTxt = car.specs?.drive || '—';
+  const damageTxt = car.specs?.damage || car.specs?.condition || 'не вказано';
+  const runTag = car.specs?.runs === false ? '❌ не на ходу' : '✅ на ходу';
+
+  const price = car.price?.amount ?? car.price ?? 0;
+
+  return [
+    `🇺🇸<b>${titleDisplay}</b>`,
+    `⏳#${statusTag} (${statusText[statusTag] || statusTag})`,
+    '',
+    `${runTag}`,
+    `🚙 пробіг ${mileageTxt}`,
+    `🔥 ${powerOrBattery}`,
+    `✔️ ${safety}`,
+    `🚙 ${driveTxt}`,
+    `🛠 Пошкодження: ${damageTxt}`,
+    '',
+    `💵 Ціна за розмитнене авто у Львові: ${price ? price.toLocaleString('uk-UA') : '—'}$`,
+    `<i>*ціна може змінюватися залежно від курсу та доставки</i>`
+  ].join('\n');
+};
+
+// =============================================================================
+// Existing renderers (unchanged below)
+// =============================================================================
+
 
 const formatMileage = (value: number) => {
   if (!Number.isFinite(value)) return '';
@@ -170,12 +345,12 @@ export const renderCarListingCard = (car: any, lang: string = 'EN') => {
 export const managerActionsKeyboard = (variantId: string) => ({
   inline_keyboard: [
     [
-      { text: '✅ Approve', callback_data: `VARIANT:${variantId}:APPROVE` },
-      { text: '❌ Reject', callback_data: `VARIANT:${variantId}:REJECT` }
+      { text: '✅ Підтвердити', callback_data: `VARIANT:${variantId}:APPROVE` },
+      { text: '❌ Відхилити', callback_data: `VARIANT:${variantId}:REJECT` }
     ],
     [
-      { text: '📤 Send to client', callback_data: `VARIANT:${variantId}:SEND_TO_CLIENT` },
-      { text: 'ℹ️ More info', callback_data: `VARIANT:${variantId}:MORE` }
+      { text: '📤 Надіслати клієнту', callback_data: `VARIANT:${variantId}:SEND_TO_CLIENT` },
+      { text: 'ℹ️ Деталі', callback_data: `VARIANT:${variantId}:MORE` }
     ]
   ]
 });

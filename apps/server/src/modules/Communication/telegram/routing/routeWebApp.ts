@@ -12,6 +12,11 @@ import { emitPlatformEvent } from '../core/events/eventEmitter.js';
 import { ScenarioEngine } from '../../bots/scenario.engine.js';
 import { resolveLang, t } from '../core/utils/telegramText.js';
 
+const shouldBypassScenarioEngine = (ctx: PipelineContext) => {
+  const template = String(ctx.bot?.template || '').toUpperCase();
+  return template === 'CLIENT_LEAD' || template === 'B2B';
+};
+
 const sendMessage = async (ctx: PipelineContext, text: string, replyMarkup?: any, targetChatId?: string) => {
   if (!ctx.bot) return;
   const chatId = targetChatId || ctx.chatId;
@@ -45,14 +50,16 @@ export const routeWebApp = async (ctx: PipelineContext) => {
       chatId: ctx.chatId,
       payload: { valid: false, error: 'invalid_json' }
     });
-    await sendMessage(ctx, t(resolveLang(ctx), 'miniappInvalid'));
+    await sendMessage(ctx, '⚠️ Дані MiniApp пошкоджені. Спробуйте ще раз.');
     return true;
   }
 
   const parsed = parseMiniAppPayload(parsedRaw);
   if (!parsed.ok) {
-    const legacyHandled = await ScenarioEngine.handleUpdate(ctx.bot as any, ctx.session, ctx.update).catch(() => false);
-    if (legacyHandled) return true;
+    if (!shouldBypassScenarioEngine(ctx)) {
+      const legacyHandled = await ScenarioEngine.handleUpdate(ctx.bot as any, ctx.session, ctx.update).catch(() => false);
+      if (legacyHandled) return true;
+    }
 
     await emitPlatformEvent({
       companyId: ctx.companyId,
@@ -62,7 +69,7 @@ export const routeWebApp = async (ctx: PipelineContext) => {
       chatId: ctx.chatId,
       payload: { valid: false, error: parsed.error }
     });
-    await sendMessage(ctx, t(resolveLang(ctx), 'miniappInvalid'));
+    await sendMessage(ctx, '⚠️ Дані MiniApp не підтримуються. Оновіть MiniApp і повторіть спробу.');
     return true;
   }
 
@@ -158,9 +165,9 @@ export const routeWebApp = async (ctx: PipelineContext) => {
   });
 
   if (leadResult.isDuplicate) {
-    await sendMessage(ctx, t(lang, 'leadDuplicate'));
+    await sendMessage(ctx, '✅ Запит уже існує, ми оновили звернення.');
   } else {
-    await sendMessage(ctx, t(lang, 'miniappReceived'));
+    await sendMessage(ctx, '✅ Дякуємо! Запит із MiniApp отримано.');
   }
 
   if (ctx.bot.adminChatId) {
@@ -172,8 +179,8 @@ export const routeWebApp = async (ctx: PipelineContext) => {
     });
     const reqCard = leadResult.request ? renderRequestCard(leadResult.request) : '';
     const header = leadResult.isDuplicate
-      ? '♻️ Duplicate lead merged'
-      : (payload.type === 'sell_submit' ? '💵 MiniApp Sell' : '📥 MiniApp Lead');
+      ? (payload.type === 'sell_submit' ? '🟣 [LEAD SELL] ♻️ Дублікат обʼєднано' : '🟢 [LEAD BUY] ♻️ Дублікат обʼєднано')
+      : (payload.type === 'sell_submit' ? '🟣 [LEAD SELL] MiniApp' : '🟢 [LEAD BUY] MiniApp');
     const selectedLine = payloadCarIds.length > 1 ? `\n🚗 Обрано авто: ${payloadCarIds.length}` : '';
     await sendMessage(ctx, `${header}${selectedLine}\n\n${leadCard}${reqCard ? `\n\n${reqCard}` : ''}`, undefined, String(ctx.bot.adminChatId));
   }

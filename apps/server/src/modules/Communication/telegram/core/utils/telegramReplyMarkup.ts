@@ -44,7 +44,8 @@ export const buildOpenBotAndMiniAppKeyboard = (
     if (opts.preferWebAppButton) {
       rows.push([{ text: 'Відкрити MiniApp', web_app: { url: miniAppUrl } }]);
     } else {
-      rows.push([{ text: 'Відкрити MiniApp', url: miniAppUrl }]);
+      const deepLink = username ? `https://t.me/${username}?startapp=app` : miniAppUrl;
+      rows.push([{ text: 'Відкрити MiniApp', url: deepLink }]);
     }
   }
 
@@ -55,6 +56,38 @@ export const buildOpenBotAndMiniAppKeyboard = (
 const hasReplyKeyboard = (replyMarkup: any) => {
   if (!replyMarkup || typeof replyMarkup !== 'object') return false;
   return Array.isArray(replyMarkup.keyboard) || replyMarkup.request_contact || replyMarkup.resize_keyboard;
+};
+
+const resolveMiniAppDeepLink = (bot: BotLike, fallbackUrl?: string) => {
+  const cfg = (bot?.config || {}) as Record<string, any>;
+  const username = sanitizeTelegramUsername(String(cfg.botUsername || cfg.username || ''));
+  if (username) return `https://t.me/${username}?startapp=app`;
+  const miniAppUrl = buildMiniAppUrl(bot as any, {});
+  return miniAppUrl || fallbackUrl;
+};
+
+const sanitizeInlineWebAppButtons = (replyMarkup: any, bot: BotLike) => {
+  if (!replyMarkup || typeof replyMarkup !== 'object') return replyMarkup;
+  if (!Array.isArray(replyMarkup.inline_keyboard)) return replyMarkup;
+
+  const inline_keyboard = replyMarkup.inline_keyboard.map((row: any) => {
+    if (!Array.isArray(row)) return row;
+    return row
+      .map((btn: any) => {
+        if (!btn || typeof btn !== 'object') return btn;
+        if (!btn.web_app) return btn;
+        const url = resolveMiniAppDeepLink(bot, btn.web_app?.url);
+        if (!url) return { text: btn.text || 'Відкрити MiniApp' };
+        const { web_app, ...rest } = btn;
+        return { ...rest, url };
+      })
+      .filter(Boolean);
+  });
+
+  return {
+    ...replyMarkup,
+    inline_keyboard
+  };
 };
 
 export const resolveReplyMarkupForChat = (params: {
@@ -71,7 +104,8 @@ export const resolveReplyMarkupForChat = (params: {
     : isPrivateChatId(params.chatId);
 
   if (isPrivate) return replyMarkup;
-  if (!hasReplyKeyboard(replyMarkup)) return replyMarkup;
+  const sanitized = sanitizeInlineWebAppButtons(replyMarkup, params.bot);
+  if (!hasReplyKeyboard(sanitized)) return sanitized;
 
-  return buildOpenBotAndMiniAppKeyboard(params.bot, { preferWebAppButton: true });
+  return buildOpenBotAndMiniAppKeyboard(params.bot, { preferWebAppButton: false });
 };

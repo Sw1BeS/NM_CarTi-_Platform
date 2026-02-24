@@ -13,7 +13,7 @@ vi.mock('./prisma.js', () => ({
       update: updatePartnerUserMock
     },
     partnerCompany: {
-      findUnique: findPartnerCompanyByCodeMock
+      findFirst: findPartnerCompanyByCodeMock
     },
     b2bAccessRequest: {
       findUnique: vi.fn(),
@@ -51,7 +51,9 @@ describe('b2bRegistration.service', () => {
     findPartnerCompanyByCodeMock.mockResolvedValueOnce({
       id: 'pc-1',
       name: 'Dealer One',
-      companyId: 'cmp-1'
+      companyId: 'cmp-1',
+      inviteCode: 'CDL-AAAAAA',
+      partnerCode: 'P-ABCDEFGH'
     });
     findPartnerUserMock.mockResolvedValueOnce(null);
     createPartnerUserMock.mockResolvedValueOnce({
