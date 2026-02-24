@@ -27,7 +27,8 @@ const parseReasonMeta = (reason?: string | null) => {
   }
   return {
     chatId: map.get('chatId') || null,
-    chatType: map.get('chatType') || null
+    chatType: map.get('chatType') || null,
+    inviteCode: map.get('inviteCode') || null
   };
 };
 
@@ -135,6 +136,7 @@ class B2bWhitelistService {
 
     const reasonMeta = parseReasonMeta(accessRequest.reason);
     const groupChatFromReason = isGroupType(reasonMeta.chatType) ? reasonMeta.chatId : null;
+    const inviteCode = reasonMeta.inviteCode || accessRequest.reason?.match(/inviteCode=([^;]+)/)?.[1];
 
     let partnerUser = await prisma.partnerUser.findFirst({
       where: { telegramId: accessRequest.tgUserId },
@@ -148,6 +150,12 @@ class B2bWhitelistService {
       || (accessRequest.username ? `@${accessRequest.username}` : '')
       || `Partner ${accessRequest.tgUserId}`
     ).trim();
+
+    if (!partnerCompany && inviteCode) {
+      partnerCompany = await prisma.partnerCompany.findUnique({
+        where: { inviteCode }
+      });
+    }
 
     if (!partnerCompany) {
       partnerCompany = await prisma.partnerCompany.findFirst({

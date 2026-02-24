@@ -8,237 +8,233 @@ export const normalizeInput = (text?: string | null) =>
 export const resolveLang = (_ctx: PipelineContext): Lang => 'UK';
 
 const TEXT: Record<string, Record<Lang, string>> = {
-  clientMenu: {
-    EN: '👋 <b>{bot}</b>\nChoose an option:',
-    UK: '👋 <b>{bot}</b>\nОберіть опцію:',
-    RU: '👋 <b>{bot}</b>\nВыберите опцию:'
+  'common.welcome_lead': {
+    EN: '', RU: '',
+    UK: '👋 <b>CarTié</b> — підбір, продаж та супровід авто.\n\nОберіть дію нижче або відкрийте MiniApp для каталогу.'
   },
-  catalogMenu: {
-    EN: '🔍 <b>{bot}</b>\nChoose an action:',
-    UK: '🔍 <b>{bot}</b>\nОберіть дію:',
-    RU: '🔍 <b>{bot}</b>\nВыберите действие:'
+  'common.welcome_b2b_unregistered': {
+    EN: '', RU: '',
+    UK: '🤝 <b>CarDealer Lviv</b> — закрита мережа автоплощадок для обміну запитами та варіантами.\n\n🔒 Доступ лише після реєстрації.\n📌 Контакти ніколи не публікуються в каналі — їх бачить лише адміністратор.\n\nОберіть варіант:'
   },
-  b2bMenu: {
-    EN: '🤝 <b>{bot}</b>\nChoose an action:',
-    UK: '🤝 <b>{bot}</b>\nОберіть дію:',
-    RU: '🤝 <b>{bot}</b>\nВыберите действие:'
+  'common.info_lead': {
+    EN: '', RU: '',
+    UK: 'ℹ️ <b>Як працює CarTié</b>\n\n1️⃣ <b>Купити авто</b>\n🔘 відповідаєте на кілька питань\n🔘 отримуєте добірку авто (по 1–3 шт)\n🔘 додаєте в ⭐ обране і надсилаєте запит одразу по кількох авто\n\n2️⃣ <b>Продати авто</b>\n🔘 заповнюєте картку + фото\n🔘 заявка потрапляє менеджеру\n\n3️⃣ <b>Підтримка</b>\n🔘 залишаєте запит — ми відповімо\n\n🔐 Контакт використовується лише для звʼязку.'
   },
-  askName: {
-    EN: 'What is your name?',
-    UK: "Як до вас звертатися?",
-    RU: 'Как к вам обращаться?'
+  'common.info_b2b': {
+    EN: '', RU: '',
+    UK: 'ℹ️ <b>Як працює CarDealer Lviv</b>\n\n1️⃣ Майданчик створює <b>запит</b> у боті → бот публікує пост у каналі.\n2️⃣ Інші майданчики тиснуть <b>«Є авто»</b> → надсилають <b>варіант</b> через бота.\n3️⃣ Автор бачить варіанти <b>без контактів</b>.\n4️⃣ Автор натискає <b>«Підходить / Не підходить»</b>.\n5️⃣ Варіанти <b>«Підходить»</b> потрапляють адміну.\n\n🔒 Контакти ніколи не публікуються в каналі.'
   },
-  askCar: {
-    EN: 'What car are you looking for? Brand/model/year.',
-    UK: 'Яке авто шукаєте? Марка/модель/рік.',
-    RU: 'Какое авто ищете? Марка/модель/год.'
+  'common.rules_b2b': {
+    EN: '', RU: '',
+    UK: '📌 <b>Правила мережі</b>\n\n1️⃣ Усі запити — <b>тільки через бота</b>\n2️⃣ Відповідь — <b>тільки «Є авто»</b>\n3️⃣ <b>Жодних телефонів</b> у каналі/повідомленнях\n4️⃣ Контакти передає бот <b>лише адміну</b>\n5️⃣ Порушення правил = блок доступу'
   },
-  askBudget: {
-    EN: 'Your budget (USD)? You can type "skip".',
-    UK: 'Ваш бюджет (USD)? Можна написати "пропустити".',
-    RU: 'Ваш бюджет (USD)? Можно "skip".'
+  'common.tariffs_b2b': {
+    EN: '', RU: '',
+    UK: '💳 <b>Тарифи (пілот)</b>\n\n🆓 Free — 3 запити/місяць\n⭐ PRO — 399 грн/міс — безліміт запитів\n🏢 Business — 999 грн/міс — «push-запит» (закріплення на 24 год)\n\n📌 Оплата/активація — через адміністратора (поки що).'
   },
-  askCity: {
-    EN: 'City (or type "skip"):',
-    UK: 'Місто (або "пропустити"):',
-    RU: 'Город (или "skip"):'
+  'common.privacy': {
+    EN: '', RU: '',
+    UK: '🔐 <b>Політика конфіденційності (коротко)</b>\n\n📌 Ми використовуємо ваш контакт лише для звʼязку щодо запиту.\n📌 У B2B контакти не публікуються в каналі.\n📌 Ви можете попросити видалити дані через «Підтримка».'
   },
-  askContact: {
-    EN: 'Share your contact or type a phone number:',
-    UK: 'Поділіться контактом або введіть номер:',
-    RU: 'Поделитесь контактом или введите номер:'
+  'common.err.too_fast': {
+    EN: '', RU: '',
+    UK: '⏳ Занадто швидко. Спробуйте ще раз за кілька секунд.'
   },
-  invalidName: {
-    EN: 'Please enter a valid name.',
-    UK: "Вкажіть коректне ім'я.",
-    RU: 'Укажите корректное имя.'
+  'common.err.invalid_year': {
+    EN: '', RU: '',
+    UK: '⚠️ Рік має бути числом (наприклад 2018) або діапазоном (2018-2022).'
   },
-  invalidCar: {
-    EN: 'Please add a few details about the car.',
-    UK: 'Додайте трохи деталей про авто.',
-    RU: 'Добавьте немного деталей про авто.'
+  'common.err.invalid_budget': {
+    EN: '', RU: '',
+    UK: '⚠️ Бюджет введено некоректно.\nПриклад: 20000 або 20 000 або 20k або 20 тис.'
   },
-  invalidBudget: {
-    EN: 'Budget looks incorrect. Try again or type "skip".',
-    UK: 'Бюджет некоректний. Спробуйте ще раз або напишіть "пропустити".',
-    RU: 'Бюджет некорректный. Попробуйте еще раз или "skip".'
+  'common.err.invalid_mileage': {
+    EN: '', RU: '',
+    UK: '⚠️ Пробіг введено некоректно.\nПриклад: 120000 або 120 тис або 120k.'
   },
-  invalidPhone: {
-    EN: 'Phone looks invalid. Try again or share contact.',
-    UK: 'Телефон некоректний. Спробуйте ще раз або поділіться контактом.',
-    RU: 'Телефон некорректный. Попробуйте еще раз или поделитесь контактом.'
+  'common.err.invalid_phone': {
+    EN: '', RU: '',
+    UK: '⚠️ Номер телефону некоректний.\nПриклад: +380XXXXXXXXX або 0XXXXXXXXX.\nАбо натисніть «Поділитися контактом».'
   },
-  leadConfirm: {
-    EN: 'Please confirm:',
-    UK: 'Будь ласка, підтвердіть:',
-    RU: 'Пожалуйста, подтвердите:'
+  'common.err.contacts_forbidden': {
+    EN: '', RU: '',
+    UK: '⛔️ Контакти/телефони заборонені в цьому полі. Напишіть без номерів і посилань на месенджери.'
   },
-  leadReceived: {
-    EN: '✅ Request received! Our manager will contact you soon.',
-    UK: '✅ Заявку прийнято! Менеджер скоро зв’яжеться.',
-    RU: '✅ Заявка принята! Менеджер скоро свяжется.'
+  'common.step_hint_brand': {
+    EN: '', RU: '',
+    UK: 'Приклад: BMW / Audi / Toyota\nМожна натиснути кнопку або ввести вручну.'
   },
-  leadDuplicate: {
-    EN: '✅ We already have your request. A manager will follow up.',
-    UK: '✅ Ми вже отримували заявку. Менеджер з вами зв’яжеться.',
-    RU: '✅ Мы уже получили заявку. Менеджер с вами свяжется.'
+  'common.step_hint_model': {
+    EN: '', RU: '',
+    UK: 'Можна обрати модель кнопкою або ввести вручну.\nЯкщо не знаєте — натисніть «Пропустити».'
   },
-  supportAsk: {
-    EN: 'Describe your question and we will respond soon.',
-    UK: 'Опишіть питання, і ми скоро відповімо.',
-    RU: 'Опишите вопрос, и мы скоро ответим.'
+  'common.step_hint_year': {
+    EN: '', RU: '',
+    UK: 'Приклад: 2018 або 2018-2022.\nАбо натисніть кнопку.'
   },
-  supportReceived: {
-    EN: '✅ Thanks! We forwarded your message.',
-    UK: '✅ Дякуємо! Ми передали ваше повідомлення.',
-    RU: '✅ Спасибо! Мы передали ваше сообщение.'
+  'common.step_hint_budget': {
+    EN: '', RU: '',
+    UK: 'Приклад: 20000 або 20 000 або 20k.\nВалюта — USD.'
+  },
+  'common.step_hint_mileage': {
+    EN: '', RU: '',
+    UK: 'Приклад: 120000 або 120 тис або 120k.\nОдиниці — км.'
+  },
+  'lead.menu_title': {
+    EN: '', RU: '',
+    UK: 'Оберіть дію:'
+  },
+  'b2b.menu_title_registered': {
+    EN: '', RU: '',
+    UK: 'Оберіть дію:'
+  },
+  'lead.buy.title': {
+    EN: '', RU: '',
+    UK: '🛒 <b>Купити авто</b>'
+  },
+  'lead.sell.title': {
+    EN: '', RU: '',
+    UK: '💰 <b>Продати авто</b>'
+  },
+  'support.title': {
+    EN: '', RU: '',
+    UK: '🆘 <b>Підтримка</b>'
+  },
+  'lead.buy.review.title': {
+    EN: '', RU: '',
+    UK: '✅ <b>Перевірте запит</b>\n\n{summary}\n\nВсе вірно?'
+  },
+  'lead.sell.review.title': {
+    EN: '', RU: '',
+    UK: '✅ <b>Перевірте дані авто</b>\n\n{summary}\n\nНадіслати менеджеру?'
+  },
+  'b2b.request.review.title': {
+    EN: '', RU: '',
+    UK: '✅ <b>Перевірте запит</b>\n\n{summary}\n\nПублікувати в канал?'
+  },
+  'b2b.variant.review.title': {
+    EN: '', RU: '',
+    UK: '✅ <b>Перевірте варіант</b>\n\n{summary}\n\nНадіслати автору?'
+  },
+  'lead.buy.searching': {
+    EN: '', RU: '',
+    UK: '🔎 Підбираю варіанти…'
+  },
+  'lead.buy.no_matches': {
+    EN: '', RU: '',
+    UK: '😕 У базі поки немає точних збігів.\n\n✅ Ми передали запит менеджеру — підберемо варіанти та звʼяжемося з вами.'
+  },
+  'lead.buy.next_actions': {
+    EN: '', RU: '',
+    UK: 'Що робимо далі?'
+  },
+  'lead.fav.title': {
+    EN: '', RU: '',
+    UK: '⭐ <b>Обране</b>'
+  },
+  'lead.fav.empty': {
+    EN: '', RU: '',
+    UK: '⭐ Обране порожнє.\nДодайте авто в обране, щоб надіслати запит по кількох варіантах.'
+  },
+  'support.has_open': {
+    EN: '', RU: '',
+    UK: 'У вас вже є відкритий запит.\nОберіть дію:'
+  },
+  'support.ask_text': {
+    EN: '', RU: '',
+    UK: 'Опишіть питання одним повідомленням:'
+  },
+  'support.ask_contact': {
+    EN: '', RU: '',
+    UK: 'Додайте контакт для відповіді:'
+  },
+  'support.received': {
+    EN: '', RU: '',
+    UK: '✅ Дякуємо! Запит передано. Ми відповімо найближчим часом.'
+  },
+  'b2b.reg.choose': {
+    EN: '', RU: '',
+    UK: 'Оберіть тип реєстрації:'
+  },
+  'b2b.reg.new_partner.title': {
+    EN: '', RU: '',
+    UK: '🏢 <b>Реєстрація партнера</b>'
+  },
+  'b2b.reg.agent.title': {
+    EN: '', RU: '',
+    UK: '👤 <b>Реєстрація представника</b>\n\nВведіть код партнера (наприклад: CDL-4F7K2Q):'
+  },
+  'b2b.reg.submitted': {
+    EN: '', RU: '',
+    UK: '✅ Заявку на реєстрацію відправлено адміну.\nМи повідомимо про рішення.'
+  },
+  'b2b.reg.approved': {
+    EN: '', RU: '',
+    UK: '✅ Реєстрацію підтверджено!\n\nВаш код партнера: <b>{code}</b>\n\nДалі приєднайтесь до каналу мережі.'
+  },
+  'b2b.reg.rejected': {
+    EN: '', RU: '',
+    UK: '❌ Реєстрацію відхилено.\nЯкщо це помилка — напишіть у «Підтримка».'
+  },
+  'admin.lead.help': {
+    EN: '', RU: '',
+    UK: '🛠 <b>CarTié — інструкція адміну</b>\n\n🟢 [LEAD BUY]\n🔘 клієнт обрав авто/попросив підбір\n🔘 відкрийте лід у CRM, звʼяжіться\n\n🟣 [LEAD SELL]\n🔘 клієнт продає авто\n🔘 кнопки: інвентар / публікація / B2B\n\n🆘 [SUPPORT]\n🔘 звернення\n\n⚠️ У цьому чаті бот працює тільки через inline-кнопки.'
+  },
+  'admin.b2b.help': {
+    EN: '', RU: '',
+    UK: '🛠 <b>CarDealer Lviv — інструкція адміну</b>\n\n🟡 [B2B REG]\n🔘 підтвердити/відхилити реєстрацію\n\n🔥 [FIT]\n🔘 варіант «Підходить»\n🔘 організувати контакт і зустріч\n\n⚠️ Контакти в каналі заборонені.'
+  },
+  // Legacy / fallback strings
+  fallback: {
+    EN: '', RU: '',
+    UK: 'Скористайтесь меню нижче або надішліть команду.'
   },
   cancelled: {
-    EN: '❌ Cancelled.',
-    UK: '❌ Скасовано.',
-    RU: '❌ Отменено.'
-  },
-  catalogAskBrand: {
-    EN: 'Brand? (or "skip")',
-    UK: 'Марка? (або "пропустити")',
-    RU: 'Марка? (или "skip")'
-  },
-  catalogAskModel: {
-    EN: 'Model? (or "skip")',
-    UK: 'Модель? (або "пропустити")',
-    RU: 'Модель? (или "skip")'
-  },
-  catalogAskYear: {
-    EN: 'Year range? (e.g., 2018-2022 or "skip")',
-    UK: 'Роки? (напр., 2018-2022 або "пропустити")',
-    RU: 'Годы? (например, 2018-2022 или "skip")'
-  },
-  catalogAskPrice: {
-    EN: 'Price range USD? (e.g., 15000-30000 or "skip")',
-    UK: 'Ціна USD? (напр., 15000-30000 або "пропустити")',
-    RU: 'Цена USD? (например, 15000-30000 или "skip")'
-  },
-  catalogAskCity: {
-    EN: 'City? (or "skip")',
-    UK: 'Місто? (або "пропустити")',
-    RU: 'Город? (или "skip")'
-  },
-  catalogNoResults: {
-    EN: 'No cars found. Try different filters or open the MiniApp.',
-    UK: 'Нічого не знайдено. Спробуйте інші фільтри або відкрийте MiniApp.',
-    RU: 'Ничего не найдено. Попробуйте другие фильтры или откройте MiniApp.'
-  },
-  catalogResults: {
-    EN: 'Top results:',
-    UK: 'Топ результатів:',
-    RU: 'Лучшие результаты:'
-  },
-  catalogSellContact: {
-    EN: 'Share your contact to sell a car:',
-    UK: 'Поділіться контактом для продажу авто:',
-    RU: 'Поделитесь контактом для продажи авто:'
-  },
-  catalogSellCar: {
-    EN: 'Describe your car (brand/model/year/price).',
-    UK: 'Опишіть авто (марка/модель/рік/ціна).',
-    RU: 'Опишите авто (марка/модель/год/цена).'
-  },
-  catalogSellConfirm: {
-    EN: 'Confirm the sell request:',
-    UK: 'Підтвердьте заявку на продаж:',
-    RU: 'Подтвердите заявку на продажу:'
-  },
-  catalogSellReceived: {
-    EN: '✅ Your sell request was sent. We will contact you soon.',
-    UK: '✅ Заявку на продаж надіслано. Ми зв’яжемося.',
-    RU: '✅ Заявка на продаж отправлена. Мы свяжемся.'
-  },
-  b2bAskTitle: {
-    EN: 'What car is needed? (brand/model)',
-    UK: 'Яке авто потрібно? (марка/модель)',
-    RU: 'Какое авто нужно? (марка/модель)'
-  },
-  b2bAskYear: {
-    EN: 'Year range? (e.g., 2016-2022 or "skip")',
-    UK: 'Роки? (напр., 2016-2022 або "пропустити")',
-    RU: 'Годы? (например, 2016-2022 или "skip")'
-  },
-  b2bAskBudget: {
-    EN: 'Budget USD? (e.g., 20000-35000 or "skip")',
-    UK: 'Бюджет USD? (напр., 20000-35000 або "пропустити")',
-    RU: 'Бюджет USD? (например, 20000-35000 или "skip")'
-  },
-  b2bAskMileage: {
-    EN: 'Desired mileage? (e.g., 80-150k km or "skip")',
-    UK: 'Бажаний пробіг? (напр., 80-150 тис. км або "пропустити")',
-    RU: 'Желаемый пробег? (например, 80-150 тыс. км или "skip")'
-  },
-  b2bAskFuel: {
-    EN: 'Fuel type? (petrol/diesel/hybrid or "skip")',
-    UK: 'Тип пального? (бензин/дизель/гібрид або "пропустити")',
-    RU: 'Тип топлива? (бензин/дизель/гибрид или "skip")'
-  },
-  b2bAskDesc: {
-    EN: 'Additional requirements / comment (color, trim, etc).',
-    UK: 'Додаткові вимоги / коментар (колір, комплектація, інше).',
-    RU: 'Доп. требования / комментарий (цвет, комплектация, другое).'
-  },
-  b2bAskContact: {
-    EN: 'Share your contact or type a phone number:',
-    UK: 'Поділіться контактом або введіть номер:',
-    RU: 'Поделитесь контактом или введите номер:'
-  },
-  b2bAskCompany: {
-    EN: 'Company name? (or "skip")',
-    UK: 'Назва компанії? (або "пропустити")',
-    RU: 'Название компании? (или "skip")'
-  },
-  b2bConfirm: {
-    EN: 'Confirm the request:',
-    UK: 'Підтвердьте запит:',
-    RU: 'Подтвердите запрос:'
-  },
-  b2bSent: {
-    EN: '✅ Request created! We will notify the network.',
-    UK: '✅ Запит створено! Ми сповістимо мережу.',
-    RU: '✅ Запрос создан! Мы уведомим сеть.'
-  },
-  miniappReceived: {
-    EN: '✅ Thanks! We received your submission.',
-    UK: '✅ Дякуємо! Ми отримали вашу заявку.',
-    RU: '✅ Спасибо! Мы получили вашу заявку.'
-  },
-  miniappInvalid: {
-    EN: '⚠️ Could not process MiniApp data. Please try again.',
-    UK: '⚠️ Не вдалося обробити дані MiniApp. Спробуйте ще раз.',
-    RU: '⚠️ Не удалось обработать данные MiniApp. Попробуйте еще раз.'
-  },
-  fallback: {
-    EN: 'Use the menu below to continue.',
-    UK: 'Скористайтесь меню нижче.',
-    RU: 'Используйте меню ниже.'
+    EN: '', RU: '',
+    UK: '❌ Скасовано.'
   }
 };
 
 const BUTTONS = {
-  clientLead: {
-    lead: { EN: '🚗 Leave a request', UK: '🚗 Залишити заявку', RU: '🚗 Оставить заявку' },
-    support: { EN: '📞 Contact manager', UK: '📞 Звʼязатися з менеджером', RU: '📞 Связаться с менеджером' }
+  common: {
+    back: { EN: '', RU: '', UK: '⬅️ Назад' },
+    cancel: { EN: '', RU: '', UK: '❌ Скасувати' },
+    skip: { EN: '', RU: '', UK: 'Пропустити' },
+    confirm: { EN: '', RU: '', UK: '✅ Підтвердити' },
+    edit: { EN: '', RU: '', UK: '✏️ Змінити' },
+    more: { EN: '', RU: '', UK: 'Показати ще' },
+    finish: { EN: '', RU: '', UK: 'Завершити' },
+    info: { EN: '', RU: '', UK: 'ℹ️ Інформація' },
+    rules: { EN: '', RU: '', UK: '📌 Правила' },
+    privacy: { EN: '', RU: '', UK: '🔐 Конфіденційність' },
+    tariffs: { EN: '', RU: '', UK: '💳 Тарифи' },
+    openMiniApp: { EN: '', RU: '', UK: 'Відкрити MiniApp' },
+    shareContact: { EN: '', RU: '', UK: '📱 Поділитися контактом' },
+    contact: { EN: '', RU: '', UK: '📱 Поділитися контактом' } // Added mapping to shareContact
   },
-  catalog: {
-    find: { EN: '🔎 Find', UK: '🔎 Пошук', RU: '🔎 Поиск' },
-    sell: { EN: '💵 Sell', UK: '💵 Продати', RU: '💵 Продать' }
+  leadMenu: {
+    buy: { EN: '', RU: '', UK: 'Купити авто' },
+    sell: { EN: '', RU: '', UK: 'Продати авто' },
+    support: { EN: '', RU: '', UK: 'Підтримка' }
+  },
+  lead: {
+    interest: { EN: '', RU: '', UK: '✅ Цікавить це авто' },
+    favAdd: { EN: '', RU: '', UK: '⭐ В обране' },
+    favRemove: { EN: '', RU: '', UK: '🗑 Прибрати з обраного' },
+    favorites: { EN: '', RU: '', UK: '⭐ Обране' },
+    contactFavs: { EN: '', RU: '', UK: 'Звʼязатися по обраному' },
+    changeFilters: { EN: '', RU: '', UK: 'Змінити фільтри' }
+  },
+  b2bMenu: {
+    newRequest: { EN: '', RU: '', UK: '📝 Створити запит' },
+    myInventory: { EN: '', RU: '', UK: '🚙 Мій інвентар' }
   },
   b2b: {
-    request: { EN: '📝 New Request', UK: '📝 Створити запит', RU: '📝 Новый запрос' }
-  },
-  common: {
-    back: { EN: '⬅️ Back', UK: '⬅️ Назад', RU: '⬅️ Назад' },
-    cancel: { EN: '❌ Cancel', UK: '❌ Скасувати', RU: '❌ Отмена' },
-    skip: { EN: 'Skip', UK: 'Пропустити', RU: 'Пропустить' },
-    contact: { EN: '📱 Share Contact', UK: '📱 Поділитися контактом', RU: '📱 Поделиться контактом' },
-    openMiniApp: { EN: 'Open MiniApp', UK: 'Відкрити Mini App', RU: 'Открыть MiniApp' },
-    confirm: { EN: '✅ Confirm', UK: '✅ Підтвердити', RU: '✅ Підтвердити' }
+    haveCar: { EN: '', RU: '', UK: 'Є авто' },
+    fit: { EN: '', RU: '', UK: '✅ Підходить' },
+    notFit: { EN: '', RU: '', UK: '❌ Не підходить' },
+    regNewPartner: { EN: '', RU: '', UK: '🏢 Я новий партнер' },
+    regAgent: { EN: '', RU: '', UK: '👤 Я представник партнера' }
   }
 };
 

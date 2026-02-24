@@ -1,6 +1,41 @@
 const BASE64_RE = /^[A-Za-z0-9+/=]+$/;
 const MAX_CALLBACK_BYTES = 64;
 
+export const ActionTokens = {
+  // Lead BUY
+  LB_NEXT: 'lb_nxt',
+  LB_INTEREST: 'lb_it',
+  LB_FAV_TOGGLE: 'lb_fv',
+  LB_FAV_OPEN: 'lb_fvs',
+  LB_FAV_DEL: 'lb_fvd',
+  LB_FAV_SEND: 'lb_sendfav',
+  LB_EDIT: 'lb_edit',
+  LB_EDIT_BRAND: 'lb_e_b',
+  LB_EDIT_MODEL: 'lb_e_m',
+  LB_EDIT_YEAR: 'lb_e_y',
+  LB_EDIT_BUDGET: 'lb_e_bg',
+  LB_EDIT_MILEAGE: 'lb_e_ml',
+  LB_EDIT_FUEL: 'lb_e_fu',
+  LB_EDIT_CITY: 'lb_e_ct',
+  LB_CANCEL: 'lb_cancel',
+
+  // Lead SELL
+  LS_SAVE: 'ls_save',
+  LS_PUB_CARTIE: 'ls_pubc',
+  LS_PUB_B2B: 'ls_pubb',
+  LS_REQ_B2B: 'ls_b2br',
+
+  // B2B REG
+  BR_APPROVE: 'br_ap',
+  BR_REJECT: 'br_rj',
+
+  // B2B REQ
+  BQ_PUB: 'bq_pub',
+  BV_SEND: 'bv_send',
+  BV_FIT: 'bv_fit',
+  BV_NFIT: 'bv_nfit'
+};
+
 const sanitize = (value: string, max: number) =>
   value.replace(/[^a-zA-Z0-9_\-]/g, '').slice(0, max);
 

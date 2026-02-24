@@ -9,8 +9,10 @@ import { finalizeB2BRequest, finalizeCatalogSell, finalizeClientLead, handleDyna
 import { b2bWhitelistService } from '../../../../services/b2bWhitelist.service.js';
 import { resolveReplyMarkupForChat } from '../core/utils/telegramReplyMarkup.js';
 import { b2bRoutingService } from '../../../../services/b2bRouting.service.js';
+import { handleLeadBuyCallback } from './wizards/leadBuyWizard.js';
+import { handleLeadSellCallback } from './wizards/leadSellWizard.js';
 
-const updateSession = async (ctx: PipelineContext, state: string, variables: Record<string, any>) => {
+export const updateSession = async (ctx: PipelineContext, state: string, variables: Record<string, any>) => {
   if (!ctx.session) return;
   ctx.session = await prisma.botSession.update({
     where: { id: ctx.session.id },
@@ -67,6 +69,12 @@ export const routeCallback = async (ctx: PipelineContext) => {
   }
 
   if (parsed.ok && parsed.action) {
+    if (parsed.action.startsWith('lb_')) {
+      return await handleLeadBuyCallback(ctx, parsed.action, parsed.id);
+    }
+    if (parsed.action.startsWith('ls_')) {
+      return await handleLeadSellCallback(ctx, parsed.action, parsed.id);
+    }
     switch (parsed.action) {
       case 'cl_lead_send':
         await finalizeClientLead(ctx);

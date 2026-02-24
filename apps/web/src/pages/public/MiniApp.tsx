@@ -421,13 +421,13 @@ const MiniAppContent = () => {
                 accentColor: '#0B1F17',
                 actions: [
                     { id: 'a_inv', label: 'Запити/інвентар', actionType: 'VIEW', value: 'INVENTORY', icon: 'LayoutGrid' },
-                    { id: 'a_fav', label: 'Обране', actionType: 'VIEW', value: 'FAVORITES', icon: 'Heart' },
+                    { id: 'a_fav', label: 'Обране', actionType: 'VIEW', value: 'FAVORITES', icon: 'Star' },
                     { id: 'a_status', label: 'Статуси', actionType: 'VIEW', value: 'STATUS', icon: 'ClipboardList' }
                 ],
                 navItems: [
                     { id: 'nav_home', label: 'Головна', icon: 'Home', actionType: 'VIEW', value: 'HOME' },
                     { id: 'nav_stock', label: 'Мережа', icon: 'LayoutGrid', actionType: 'VIEW', value: 'INVENTORY' },
-                    { id: 'nav_saved', label: 'Обране', icon: 'Heart', actionType: 'VIEW', value: 'FAVORITES' },
+                    { id: 'nav_saved', label: 'Обране', icon: 'Star', actionType: 'VIEW', value: 'FAVORITES' },
                     { id: 'nav_status', label: 'Статуси', icon: 'ClipboardList', actionType: 'VIEW', value: 'STATUS' }
                 ],
                 homeBlocks: [],
@@ -444,12 +444,12 @@ const MiniAppContent = () => {
             actions: [
                 { id: 'a_inv', label: 'Інвентар', actionType: 'VIEW', value: 'INVENTORY', icon: 'LayoutGrid' },
                 { id: 'a_req', label: 'Запит', actionType: 'VIEW', value: 'REQUEST', icon: 'Search' },
-                { id: 'a_fav', label: 'Обране', actionType: 'VIEW', value: 'FAVORITES', icon: 'Heart' }
+                { id: 'a_fav', label: 'Обране', actionType: 'VIEW', value: 'FAVORITES', icon: 'Star' }
             ],
             navItems: [
                 { id: 'nav_home', label: 'Головна', icon: 'Home', actionType: 'VIEW', value: 'HOME' },
                 { id: 'nav_stock', label: 'Склад', icon: 'LayoutGrid', actionType: 'VIEW', value: 'INVENTORY' },
-                { id: 'nav_saved', label: 'Обране', icon: 'Heart', actionType: 'VIEW', value: 'FAVORITES' },
+                { id: 'nav_saved', label: 'Обране', icon: 'Star', actionType: 'VIEW', value: 'FAVORITES' },
                 { id: 'nav_request', label: 'Запит', icon: 'Search', actionType: 'VIEW', value: 'REQUEST' }
             ],
             homeBlocks: [],
@@ -463,130 +463,130 @@ const MiniAppContent = () => {
     useEffect(() => {
         let cleanupViewport: (() => void) | undefined;
         const load = async () => {
-        viewHistoryRef.current = ['HOME'];
-        suppressHistoryPushRef.current = true;
-        setView('HOME');
-        setReqStep(1);
-        setSelectedRequestCarIds([]);
-        setIsConfigLoading(true);
-        setInitError(null);
-        setRequiresTelegram(false);
-        const requestId = Math.random().toString(36).substring(7);
-        emitMiniAppEvent('info', 'MiniApp init started', { requestId, slug });
-        setConfigWarning(null);
+            viewHistoryRef.current = ['HOME'];
+            suppressHistoryPushRef.current = true;
+            setView('HOME');
+            setReqStep(1);
+            setSelectedRequestCarIds([]);
+            setIsConfigLoading(true);
+            setInitError(null);
+            setRequiresTelegram(false);
+            const requestId = Math.random().toString(36).substring(7);
+            emitMiniAppEvent('info', 'MiniApp init started', { requestId, slug });
+            setConfigWarning(null);
 
-        // 1. Initialize Telegram Web App & Extract start_param
-        const telegramContext = await resolveTelegramBootstrapContext();
-        cleanupViewport = initTelegramViewport(telegramContext.tg);
-        let startParam = telegramContext.startParam || '';
-        const resolvedUser = telegramContext.user;
+            // 1. Initialize Telegram Web App & Extract start_param
+            const telegramContext = await resolveTelegramBootstrapContext();
+            cleanupViewport = initTelegramViewport(telegramContext.tg);
+            let startParam = telegramContext.startParam || '';
+            const resolvedUser = telegramContext.user;
 
-        if (!telegramContext.isTelegramContext) {
-            emitMiniAppEvent('warn', 'Telegram WebApp context not detected');
-            setRequiresTelegram(true);
-            setInitData(undefined);
-            setTgUser(null);
-            setConfig(null);
-            setIsConfigLoading(false);
-            setInitError('Mini App потрібно відкривати з меню Telegram-бота.');
-            return;
-        }
-
-        const platform = telegramContext.tg?.platform || (hasTelegramUserAgent() ? 'telegram-ua' : 'url-fallback');
-        const version = telegramContext.tg?.version || 'n/a';
-        emitMiniAppEvent('info', 'Telegram context detected', {
-            platform,
-            version,
-            hasInitData: Boolean(telegramContext.initData)
-        });
-        setTgUser(resolvedUser);
-        setInitData(telegramContext.initData);
-        if (!telegramContext.initData) {
-            setConfigWarning('Telegram відкрито без initData. Для дій відкрийте Mini App повторно через кнопку меню бота.');
-        }
-
-        const urlParams = new URLSearchParams(window.location.search);
-        const utm = {
-            source: urlParams.get('utm_source') || undefined,
-            medium: urlParams.get('utm_medium') || undefined,
-            campaign: urlParams.get('utm_campaign') || undefined,
-            content: urlParams.get('utm_content') || undefined,
-            term: urlParams.get('utm_term') || undefined
-        };
-        const ref = urlParams.get('ref') || urlParams.get('source') || undefined;
-        setTrackingMeta({
-            startParam: startParam || undefined,
-            utm,
-            ref,
-            entrypoint: window.location.pathname,
-            referrer: document.referrer || undefined,
-            miniappVersion: buildVersion,
-            buildSha: buildVersion
-        });
-
-        // 2. Determine Target Slug (priority: URL slug > start_param > system)
-        const rawSlug = slug || startParam || 'system';
-        const resolvedSlug = normalizeSlug(rawSlug) || 'system';
-        emitMiniAppEvent('info', 'Resolved target slug', { resolvedSlug, rawSlug });
-
-        // 3. Load Mini App Configuration
-        try {
-            const conf = await getMiniAppConfig(resolvedSlug);
-
-            if (!conf || (!conf.publicSlug && !conf.companyId)) {
-                throw new Error('Некоректна конфігурація з сервера');
+            if (!telegramContext.isTelegramContext) {
+                emitMiniAppEvent('warn', 'Telegram WebApp context not detected');
+                setRequiresTelegram(true);
+                setInitData(undefined);
+                setTgUser(null);
+                setConfig(null);
+                setIsConfigLoading(false);
+                setInitError('Mini App потрібно відкривати з меню Telegram-бота.');
+                return;
             }
 
-            // Update state
-            setTargetSlug(conf.publicSlug || resolvedSlug);
-
-            // If we got config for specific bot, use it
-            const resolvedMode: MiniAppSurfaceMode = (conf?.miniapp?.surfaceMode === 'B2B' || String(conf.template || '').toUpperCase() === 'B2B')
-                ? 'B2B'
-                : 'LEAD';
-
-            if (conf.miniapp) {
-                setConfig({
-                    ...conf.miniapp,
-                    surfaceMode: conf.miniapp.surfaceMode || resolvedMode
-                });
-            } else {
-                emitMiniAppEvent('warn', 'Miniapp config missing nested payload, using fallback', { resolvedSlug });
-                setConfigWarning('Конфігурація Mini App порожня. Використано базовий вигляд.');
-                // Fallback local config if empty
-                setConfig(buildFallbackConfig(conf.publicSlug, resolvedMode));
+            const platform = telegramContext.tg?.platform || (hasTelegramUserAgent() ? 'telegram-ua' : 'url-fallback');
+            const version = telegramContext.tg?.version || 'n/a';
+            emitMiniAppEvent('info', 'Telegram context detected', {
+                platform,
+                version,
+                hasInitData: Boolean(telegramContext.initData)
+            });
+            setTgUser(resolvedUser);
+            setInitData(telegramContext.initData);
+            if (!telegramContext.initData) {
+                setConfigWarning('Telegram відкрито без initData. Для дій відкрийте Mini App повторно через кнопку меню бота.');
             }
 
-            // Also set active bot if needed (we don't have full bot object but we have props)
-            if (conf.botId && conf.botUsername) {
-                setActiveBot({
-                    id: conf.botId,
-                    username: conf.botUsername,
-                    template: conf.template,
-                    defaultShowcaseSlug: conf.publicSlug,
-                    miniAppConfig: conf.miniapp
-                } as Bot);
-            }
-
-            // Load favorites
-            await loadFavorites(conf.publicSlug, {
-                tgUserId: resolvedUser?.id ? String(resolvedUser.id) : undefined,
-                visitorId
+            const urlParams = new URLSearchParams(window.location.search);
+            const utm = {
+                source: urlParams.get('utm_source') || undefined,
+                medium: urlParams.get('utm_medium') || undefined,
+                campaign: urlParams.get('utm_campaign') || undefined,
+                content: urlParams.get('utm_content') || undefined,
+                term: urlParams.get('utm_term') || undefined
+            };
+            const ref = urlParams.get('ref') || urlParams.get('source') || undefined;
+            setTrackingMeta({
+                startParam: startParam || undefined,
+                utm,
+                ref,
+                entrypoint: window.location.pathname,
+                referrer: document.referrer || undefined,
+                miniappVersion: buildVersion,
+                buildSha: buildVersion
             });
 
-        } catch (e) {
-            emitMiniAppEvent('error', 'MiniApp init failed', { error: e instanceof Error ? e.message : String(e) });
-            const reason = e instanceof Error ? e.message : String(e);
-            setInitError(`Не вдалося завантажити конфігурацію застосунку. ${reason}.`);
-            setConfigWarning('Конфігурація недоступна. Використано базовий вигляд.');
-            const fallbackSlug = slug || 'system';
-            setTargetSlug(fallbackSlug);
-            const fallbackMode: MiniAppSurfaceMode = /b2b|cardealer/i.test(String(fallbackSlug)) ? 'B2B' : 'LEAD';
-            setConfig(buildFallbackConfig(fallbackSlug, fallbackMode));
-            setCars([]); // clear cars
-        } finally {
-            setIsConfigLoading(false);
-        }
+            // 2. Determine Target Slug (priority: URL slug > start_param > system)
+            const rawSlug = slug || startParam || 'system';
+            const resolvedSlug = normalizeSlug(rawSlug) || 'system';
+            emitMiniAppEvent('info', 'Resolved target slug', { resolvedSlug, rawSlug });
+
+            // 3. Load Mini App Configuration
+            try {
+                const conf = await getMiniAppConfig(resolvedSlug);
+
+                if (!conf || (!conf.publicSlug && !conf.companyId)) {
+                    throw new Error('Некоректна конфігурація з сервера');
+                }
+
+                // Update state
+                setTargetSlug(conf.publicSlug || resolvedSlug);
+
+                // If we got config for specific bot, use it
+                const resolvedMode: MiniAppSurfaceMode = (conf?.miniapp?.surfaceMode === 'B2B' || String(conf.template || '').toUpperCase() === 'B2B')
+                    ? 'B2B'
+                    : 'LEAD';
+
+                if (conf.miniapp) {
+                    setConfig({
+                        ...conf.miniapp,
+                        surfaceMode: conf.miniapp.surfaceMode || resolvedMode
+                    });
+                } else {
+                    emitMiniAppEvent('warn', 'Miniapp config missing nested payload, using fallback', { resolvedSlug });
+                    setConfigWarning('Конфігурація Mini App порожня. Використано базовий вигляд.');
+                    // Fallback local config if empty
+                    setConfig(buildFallbackConfig(conf.publicSlug, resolvedMode));
+                }
+
+                // Also set active bot if needed (we don't have full bot object but we have props)
+                if (conf.botId && conf.botUsername) {
+                    setActiveBot({
+                        id: conf.botId,
+                        username: conf.botUsername,
+                        template: conf.template,
+                        defaultShowcaseSlug: conf.publicSlug,
+                        miniAppConfig: conf.miniapp
+                    } as Bot);
+                }
+
+                // Load favorites
+                await loadFavorites(conf.publicSlug, {
+                    tgUserId: resolvedUser?.id ? String(resolvedUser.id) : undefined,
+                    visitorId
+                });
+
+            } catch (e) {
+                emitMiniAppEvent('error', 'MiniApp init failed', { error: e instanceof Error ? e.message : String(e) });
+                const reason = e instanceof Error ? e.message : String(e);
+                setInitError(`Не вдалося завантажити конфігурацію застосунку. ${reason}.`);
+                setConfigWarning('Конфігурація недоступна. Використано базовий вигляд.');
+                const fallbackSlug = slug || 'system';
+                setTargetSlug(fallbackSlug);
+                const fallbackMode: MiniAppSurfaceMode = /b2b|cardealer/i.test(String(fallbackSlug)) ? 'B2B' : 'LEAD';
+                setConfig(buildFallbackConfig(fallbackSlug, fallbackMode));
+                setCars([]); // clear cars
+            } finally {
+                setIsConfigLoading(false);
+            }
         };
         load();
         return () => {
@@ -622,1036 +622,1037 @@ const MiniAppContent = () => {
         };
     }, [goBack, reqStep, view]);
 
-const handleAction = (act: MiniAppConfig['actions'][number]) => {
-    const tg = (window as any).Telegram?.WebApp;
-    if (act.actionType === 'VIEW') {
-        if (act.value === 'HOME') setView('HOME');
-        if (act.value === 'INVENTORY') setView('INVENTORY');
-        if (act.value === 'REQUEST') setView('REQUEST');
-        if (act.value === 'FAVORITES') setView('FAVORITES');
-        if (act.value === 'STATUS') setView('STATUS');
-        if (act.value === 'PROFILE') setView('PROFILE');
-    } else if (act.actionType === 'LINK') {
-        if (tg && tg.openLink) {
-            tg.openLink(act.value);
-        } else {
-            window.open(act.value, '_blank');
-        }
-    } else if (act.actionType === 'SCENARIO') {
-        if (tg?.initData) {
-            tg.sendData(JSON.stringify({ type: 'RUN_SCENARIO', scenarioId: act.value }));
-            tg.close();
-        } else {
-            setConfigWarning('Сценарні дії доступні лише всередині Telegram.');
-        }
-    }
-};
-
-const sendLeadPayload = (payload: Record<string, unknown>) => {
-    const tg = (window as any).Telegram?.WebApp;
-    if (tg && tg.initData) {
-        tg.sendData(JSON.stringify(payload));
-        tg.close();
-    } else {
-        setConfigWarning('Дії із запитом доступні лише всередині Telegram.');
-    }
-};
-
-const detectLang = () => {
-    return 'UK';
-};
-
-const handleCarInterest = (car: CarListing) => {
-    const tg = (window as any).Telegram?.WebApp;
-
-    const titleParts = (car.title || '').split(' ');
-    const payload = {
-        v: 1,
-        type: 'interest_click',
-        carId: car.canonicalId,
-        meta: {
-            startParam: trackingMeta.startParam,
-            utm: trackingMeta.utm,
-            ref: trackingMeta.ref,
-            userId: tgUser?.id,
-            name: tgUser?.first_name,
-            username: tgUser?.username,
-            lang: detectLang()
-        }
-    };
-
-    sendLeadPayload(payload);
-};
-
-// Refetch when filters change
-useEffect(() => {
-    const fetchCars = async () => {
-        try {
-            // Determine source filter based on tab if supported by backend,
-            // otherwise client-side filtering is fine for small datasets.
-            // For this release, we'll fetch all and filter locally for tab, but send search/range to API.
-            // Note: The public API we built only returns 'AVAILABLE' cars.
-            // If we need 'IN_TRANSIT' or specific sources, we might need to adjust API or client filter.
-            // Assuming Public API returns all 'AVAILABLE' for the company.
-
-            const apiFilters = {
-                search,
-                minYear: filters.minYear,
-                maxYear: filters.maxYear,
-                minPrice: filters.minPrice,
-                maxPrice: filters.maxPrice
-            };
-
-            const target = targetSlug || 'system';
-            try {
-                const res = await getShowcaseInventory(target, apiFilters);
-                setCars(res.items);
-            } catch (e) {
-                const res = await import('../../services/publicApi').then(m => m.getPublicInventory(target, apiFilters));
-                setCars(res.items);
-            }
-        } catch (e) {
-            emitMiniAppEvent('warn', 'Fetch inventory failed', { error: e instanceof Error ? e.message : String(e) });
-            pushToast('Не вдалося завантажити інвентар.', 'error');
-        }
-    };
-    const debounce = setTimeout(fetchCars, 500);
-    return () => clearTimeout(debounce);
-}, [search, filters, tab, targetSlug]); // Re-fetch on filter change
-
-if (isConfigLoading && !config) {
-    return (
-        <div className="h-[var(--tg-viewport-height)] min-h-[var(--tg-viewport-height)] flex items-center justify-center text-white bg-black">
-            <div className="flex flex-col items-center gap-2">
-                <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                <div className="text-white/50 text-sm">Завантаження Mini App...</div>
-            </div>
-        </div>
-    );
-}
-
-if (requiresTelegram) {
-    return (
-        <div className="h-[var(--tg-viewport-height)] min-h-[var(--tg-viewport-height)] flex items-center justify-center text-white bg-black px-6 text-center">
-            <div className="max-w-sm">
-                <div className="text-xl font-bold mb-2">Потрібен Telegram</div>
-                <div className="text-white/70 text-sm">
-                    Відкрийте Mini App з кнопки меню в Telegram-боті. Прямий запуск у браузері не підтримується для релізного режиму.
-                </div>
-            </div>
-        </div>
-    );
-}
-
-if (!config) {
-    return (
-        <div className="h-[var(--tg-viewport-height)] min-h-[var(--tg-viewport-height)] flex items-center justify-center text-white bg-black px-6 text-center">
-            <div>
-                <div className="text-xl font-bold mb-2">Mini App недоступний</div>
-                <div className="text-white/70 text-sm">{initError || 'Конфігурацію застосунку не знайдено.'}</div>
-                <button
-                    onClick={() => window.location.reload()}
-                    className="mt-4 px-4 py-2 bg-white/10 rounded-lg text-sm hover:bg-white/20 transition-colors"
-                >
-                    Повторити
-                </button>
-            </div>
-        </div>
-    );
-}
-
-const primaryColor = config.primaryColor || '#D4AF37';
-const surfaceMode: MiniAppSurfaceMode = config.surfaceMode === 'B2B' ? 'B2B' : 'LEAD';
-const navItems = (config.navItems && config.navItems.length > 0)
-    ? config.navItems
-    : [
-        { id: 'nav_home', label: 'Головна', icon: 'Home', actionType: 'VIEW', value: 'HOME' },
-        { id: 'nav_stock', label: 'Склад', icon: 'LayoutGrid', actionType: 'VIEW', value: 'INVENTORY' },
-        { id: 'nav_saved', label: 'Обране', icon: 'Heart', actionType: 'VIEW', value: 'FAVORITES' }
-    ];
-const showBottomNav = view !== 'LISTING' && view !== 'REQUEST' && view !== 'STATUS';
-const showBackArrow = ((view !== 'HOME' && view !== 'LISTING') || reqStep > 1) && !lightboxCar;
-
-const applyFiltersAndSort = () => {
-    let filtered = [...cars];
-
-    filtered = filtered.filter(car => {
-        const isTransit = isTransitCar(car);
-        if (tab === 'IN_TRANSIT') return isTransit;
-        return !isTransit;
-    });
-
-    const brandNeedle = filters.brand.trim().toLowerCase();
-    if (brandNeedle) {
-        filtered = filtered.filter(car => {
-            const title = String(car.title || '').toLowerCase();
-            const specs = getCarSpecs(car);
-            const brand = pickText((car as any).brand, (car.specs as any)?.brand).toLowerCase();
-            return title.includes(brandNeedle) || brand.includes(brandNeedle) || specs.engine.toLowerCase().includes(brandNeedle);
-        });
-    }
-
-    // Client-side Sort
-    if (sortBy === 'price_asc') {
-        filtered.sort((a, b) => (a.price?.amount || 0) - (b.price?.amount || 0));
-    } else if (sortBy === 'price_desc') {
-        filtered.sort((a, b) => (b.price?.amount || 0) - (a.price?.amount || 0));
-    } else if (sortBy === 'year_desc') {
-        filtered.sort((a, b) => (Number(b.year) || 0) - (Number(a.year) || 0));
-    }
-
-    return filtered;
-};
-
-const formatPrice = (price?: { amount?: number; currency?: string }) => {
-    if (!price || !price.amount) return '—';
-    const curr = price.currency || 'USD';
-    return `${price.amount.toLocaleString()} ${curr}`;
-};
-
-const toNumberSafe = (value: unknown) => {
-    const num = typeof value === 'number' ? value : Number(value);
-    return Number.isFinite(num) ? num : 0;
-};
-
-const formatMileage = (value: unknown) => {
-    const mileage = toNumberSafe(value);
-    if (!mileage) return '—';
-    return `${mileage.toLocaleString()} km`;
-};
-
-const pickText = (...values: unknown[]) => {
-    for (const value of values) {
-        if (typeof value === 'string' && value.trim()) return value.trim();
-    }
-    return '';
-};
-
-const getCarSpecs = (car: CarListing | null | undefined) => {
-    const specs = (car?.specs && typeof car.specs === 'object') ? car.specs : {};
-    const root = (car && typeof car === 'object') ? (car as any) : {};
-    return {
-        brand: pickText(root.brand, root.make, (specs as any).brand),
-        model: pickText(root.model, root.trim, (specs as any).model),
-        engine: pickText(root.engine, (specs as any).engine),
-        fuel: pickText(root.fuel, (specs as any).fuel),
-        transmission: pickText(root.transmission, root.gearbox, (specs as any).transmission),
-        drive: pickText(root.drive, root.drivetrain, (specs as any).drive),
-        color: pickText(root.color, (specs as any).color),
-        vin: pickText(root.vin, root.VIN, (specs as any).vin),
-        condition: pickText(root.condition, root.state, (specs as any).condition)
-    };
-};
-
-const formatBrandModel = (car: CarListing | null | undefined) => {
-    const specs = getCarSpecs(car);
-    const combined = [specs.brand, specs.model].filter(Boolean).join(' ').trim();
-    if (combined) return combined;
-    return pickText(specs.engine, specs.fuel) || '—';
-};
-
-const isTransitCar = (car: CarListing) => {
-    const specs = getCarSpecs(car);
-    const condition = (specs.condition || '').toLowerCase();
-    const status = String((car as any).status || '').toUpperCase();
-    return condition === 'in_transit' || condition.includes('дороз') || status === 'PENDING' || status === 'IN_TRANSIT';
-};
-
-const getStatusLabel = (car: CarListing) => isTransitCar(car) ? 'В дорозі' : 'В наявності';
-
-const renderHome = () => (
-    <div className="animate-fade-in pb-24 h-full overflow-y-auto">
-        {/* Header */}
-        <div className="pt-8 pb-8 px-6 rounded-b-[40px] shadow-lg relative overflow-hidden" style={{ background: `linear-gradient(135deg, ${primaryColor}30 0%, #000000 100%)` }}>
-            <div className="relative z-10">
-                <div className="flex items-center gap-3 mb-2">
-                    {config.logoUrl && (
-                        <img src={config.logoUrl} className="w-10 h-10 rounded-xl object-cover border border-white/20 bg-white/10" />
-                    )}
-                    <h1 className="text-2xl font-bold text-white">{config.title}</h1>
-                </div>
-                <p className="text-white/70 text-sm">{config.welcomeText}</p>
-
-                {tgUser && (
-                    <div className="mt-6 flex items-center gap-3 bg-white/10 p-2.5 rounded-xl backdrop-blur-md border border-white/5 shadow-inner">
-                        <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-yellow-400 to-yellow-600 flex items-center justify-center text-black font-bold text-sm shadow-md overflow-hidden">
-                            {tgUser.photo_url ? <img src={tgUser.photo_url} className="w-full h-full object-cover" /> : tgUser.first_name?.[0]}
-                        </div>
-                        <div className="text-xs">
-                            <p className="text-white font-bold text-sm">Вітаємо, {tgUser.first_name}</p>
-                            <p className="text-white/50">{surfaceMode === 'B2B' ? 'Учасник B2B мережі' : 'Клієнт CarTié'}</p>
-                        </div>
-                    </div>
-                )}
-            </div>
-        </div>
-
-        {/* Quick Actions */}
-        <div className="px-4 -mt-6 relative z-20">
-            <div className="bg-[#1c1c1e] rounded-2xl p-4 shadow-2xl border border-white/5">
-                <div className={`grid gap-3 ${config.layout === 'GRID' ? 'grid-cols-2' : 'grid-cols-1'}`}>
-                    {(config.actions || []).map(act => (
-                        <button
-                            key={act.id}
-                            onClick={() => handleAction(act)}
-                            className="bg-[#2c2c2e] hover:bg-[#3a3a3c] transition-colors p-4 rounded-xl flex flex-col items-center justify-center gap-2 text-center group active:scale-95 duration-100 border border-transparent hover:border-white/5"
-                        >
-                            <div className="w-12 h-12 rounded-full bg-black/30 flex items-center justify-center shadow-inner" style={{ color: primaryColor }}>
-                                {renderIcon(act.icon, 24)}
-                            </div>
-                            <span className="text-sm font-medium text-white">{act.label}</span>
-                        </button>
-                    ))}
-                </div>
-            </div>
-        </div>
-
-        {/* Recent Inventory */}
-        <div className="px-4 mt-8">
-            <div className="flex justify-between items-center mb-4">
-                <h3 className="font-bold text-white text-lg">{surfaceMode === 'B2B' ? 'Актуальні варіанти мережі' : 'Нові авто'}</h3>
-                <button onClick={() => setView('INVENTORY')} className="text-xs font-bold" style={{ color: primaryColor }}>Дивитись всі</button>
-            </div>
-            <div className="flex gap-4 overflow-x-auto pb-4 hide-scrollbar">
-                {cars.slice(0, 5).map(car => {
-                    const images = getCarImages(car);
-                    const cover = images[0];
-                    const specs = getCarSpecs(car);
-
-                    return (
-                        <div key={getCarId(car) || `home_${car.title}_${car.year}`} className="min-w-[220px] bg-[#1c1c1e] rounded-xl overflow-hidden border border-white/5 shadow-lg">
-                            <div className="h-32 bg-gray-800 relative cursor-pointer" onClick={() => { setLightboxCar(car); setLightboxImageIndex(0); }}>
-                                {cover ? (
-                                    <img src={cover} className="w-full h-full object-cover opacity-90" />
-                                ) : (
-                                    <div className="w-full h-full flex items-center justify-center bg-[#2c2c2e] text-white/20">
-                                        <ImageIcon size={32} />
-                                    </div>
-                                )}
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); toggleFavorite(car); }}
-                                    className="absolute top-2 left-2 w-8 h-8 rounded-full bg-black/60 flex items-center justify-center"
-                                >
-                                    <Heart size={14} className={isFavorite(getCarId(car)) ? 'text-red-400 fill-red-400' : 'text-white/70'} />
-                                </button>
-                                <div className="absolute top-2 right-2 bg-black/60 backdrop-blur px-2 py-1 rounded text-[10px] font-bold text-white">
-                                    {car.year}
-                                </div>
-                            </div>
-                            <div className="p-3">
-                                <h4 className="text-sm font-bold text-white truncate">{car.title}</h4>
-                                <p className="text-xs text-white/50 mt-1 mb-2">
-                                    {pickText(specs.engine, specs.fuel) || '—'} • {formatMileage(car.mileage)}
-                                </p>
-                                <div className="font-bold text-sm" style={{ color: primaryColor }}>
-                                    {formatPrice(car.price)}
-                                </div>
-                                <button
-                                    onClick={() => openListing(car)}
-                                    className="mt-2 w-full text-xs py-2 rounded-lg bg-white/5 text-white/80"
-                                >
-                                    Деталі
-                                </button>
-                            </div>
-                        </div>
-                    );
-                })}
-            </div>
-        </div>
-    </div>
-);
-
-const renderInventory = () => {
-    const filteredCars = applyFiltersAndSort();
-
-    return (
-        <div className="animate-fade-in pb-24 h-full flex flex-col bg-black">
-            <div className="p-4 sticky top-0 bg-[#000000]/90 backdrop-blur-md z-20 border-b border-white/10 space-y-3">
-                <h2 className="text-xl font-bold text-white">{surfaceMode === 'B2B' ? 'Інвентар мережі' : 'Інвентар'}</h2>
-
-                {/* Tabs */}
-                <div className="flex gap-2">
-                    <button
-                        onClick={() => setTab('IN_STOCK')}
-                        className={`flex-1 py-2.5 px-4 rounded-lg font-bold text-sm transition-all ${tab === 'IN_STOCK'
-                            ? 'text-black shadow-lg'
-                            : 'bg-[#1c1c1e] text-white/50'
-                            }`}
-                        style={tab === 'IN_STOCK' ? { backgroundColor: primaryColor } : {}}
-                    >
-                        ✅ В наявності
-                    </button>
-                    <button
-                        onClick={() => setTab('IN_TRANSIT')}
-                        className={`flex-1 py-2.5 px-4 rounded-lg font-bold text-sm transition-all ${tab === 'IN_TRANSIT'
-                            ? 'text-black shadow-lg'
-                            : 'bg-[#1c1c1e] text-white/50'
-                            }`}
-                        style={tab === 'IN_TRANSIT' ? { backgroundColor: primaryColor } : {}}
-                    >
-                        📦 В дорозі
-                    </button>
-                </div>
-
-                {/* Search + Filter Button */}
-                <div className="flex gap-2">
-                    <div className="flex-1 relative">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
-                        <input
-                            className="w-full bg-[#1c1c1e] text-white pl-10 pr-4 py-3 rounded-xl outline-none placeholder-gray-600 border border-white/5 focus:border-yellow-500/50 transition-colors"
-                            placeholder="Пошук авто..."
-                            value={search}
-                            onChange={e => setSearch(e.target.value)}
-                        />
-                    </div>
-                    <button
-                        onClick={() => setShowFilters(!showFilters)}
-                        className={`w-12 h-12 rounded-xl flex items-center justify-center transition-colors ${showFilters ? 'text-black' : 'bg-[#1c1c1e] text-white'
-                            }`}
-                        style={showFilters ? { backgroundColor: primaryColor } : {}}
-                    >
-                        <SlidersHorizontal size={20} />
-                    </button>
-                </div>
-
-                {/* Advanced Filters */}
-                {showFilters && (
-                    <div className="bg-[#1c1c1e] rounded-xl p-4 space-y-3 border border-white/5 animate-slide-down">
-                        <div>
-                            <label className="text-[10px] text-white/50 uppercase font-bold block mb-1">Марка</label>
-                            <input
-                                className="w-full bg-black/30 text-white px-3 py-2 rounded-lg text-sm outline-none border border-white/10"
-                                placeholder="BMW, Mercedes..."
-                                value={filters.brand}
-                                onChange={e => setFilters({ ...filters, brand: e.target.value })}
-                            />
-                        </div>
-                        <div className="grid grid-cols-2 gap-3">
-                            <div>
-                                <label className="text-[10px] text-white/50 uppercase font-bold block mb-1">Рік від</label>
-                                <input
-                                    type="number"
-                                    className="w-full bg-black/30 text-white px-3 py-2 rounded-lg text-sm outline-none border border-white/10"
-                                    placeholder="2018"
-                                    value={filters.minYear}
-                                    onChange={e => setFilters({ ...filters, minYear: e.target.value })}
-                                />
-                            </div>
-                            <div>
-                                <label className="text-[10px] text-white/50 uppercase font-bold block mb-1">Рік до</label>
-                                <input
-                                    type="number"
-                                    className="w-full bg-black/30 text-white px-3 py-2 rounded-lg text-sm outline-none border border-white/10"
-                                    placeholder="2024"
-                                    value={filters.maxYear}
-                                    onChange={e => setFilters({ ...filters, maxYear: e.target.value })}
-                                />
-                            </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-3">
-                            <div>
-                                <label className="text-[10px] text-white/50 uppercase font-bold block mb-1">Ціна від ($)</label>
-                                <input
-                                    type="number"
-                                    className="w-full bg-black/30 text-white px-3 py-2 rounded-lg text-sm outline-none border border-white/10"
-                                    placeholder="10000"
-                                    value={filters.minPrice}
-                                    onChange={e => setFilters({ ...filters, minPrice: e.target.value })}
-                                />
-                            </div>
-                            <div>
-                                <label className="text-[10px] text-white/50 uppercase font-bold block mb-1">Ціна до ($)</label>
-                                <input
-                                    type="number"
-                                    className="w-full bg-black/30 text-white px-3 py-2 rounded-lg text-sm outline-none border border-white/10"
-                                    placeholder="100000"
-                                    value={filters.maxPrice}
-                                    onChange={e => setFilters({ ...filters, maxPrice: e.target.value })}
-                                />
-                            </div>
-                        </div>
-                        <div>
-                            <label className="text-[10px] text-white/50 uppercase font-bold block mb-1">Сортування</label>
-                            <select
-                                className="w-full bg-black/30 text-white px-3 py-2 rounded-lg text-sm outline-none border border-white/10"
-                                value={sortBy}
-                                onChange={e => setSortBy(e.target.value as any)}
-                            >
-                                <option value="year_desc">Новіші спочатку</option>
-                                <option value="price_asc">Ціна: від меншої</option>
-                                <option value="price_desc">Ціна: від більшої</option>
-                            </select>
-                        </div>
-                        <button
-                            onClick={() => {
-                                setFilters({ brand: '', minYear: '', maxYear: '', minPrice: '', maxPrice: '' });
-                                setSearch('');
-                            }}
-                            className="w-full py-2 bg-red-500/20 text-red-500 rounded-lg text-xs font-bold"
-                        >
-                            Скинути фільтри
-                        </button>
-                    </div>
-                )}
-
-                <div className="text-[10px] text-white/50">
-                    Знайдено: {filteredCars.length}
-                </div>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                {filteredCars.map(car => {
-                    const images = getCarImages(car);
-                    const cover = images[0];
-                    const specs = getCarSpecs(car);
-                    const cardActionLabel = surfaceMode === 'B2B' ? 'Створити B2B запит' : 'Запит на підбір';
-                    const carId = getCarId(car);
-
-                    return (
-                        <div key={carId || `inventory_${car.title}_${car.year}`} className={`bg-[#1c1c1e] rounded-2xl overflow-hidden border flex flex-col shadow-lg ${isSelectedForRequest(carId) ? 'border-yellow-400/60' : 'border-white/5'}`}>
-                            <div className="h-48 bg-gray-800 relative cursor-pointer" onClick={() => { setLightboxCar(car); setLightboxImageIndex(0); }}>
-                                {cover ? (
-                                    <img src={cover} className="w-full h-full object-cover" />
-                                ) : (
-                                    <div className="w-full h-full flex items-center justify-center bg-[#2c2c2e] text-white/20">
-                                        <ImageIcon size={48} />
-                                    </div>
-                                )}
-                                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-4 pt-12">
-                                    <h3 className="text-lg font-bold text-white">{car.title}</h3>
-                                    <p className="text-[11px] text-white/70 mt-1">
-                                        {formatBrandModel(car)}
-                                    </p>
-                                </div>
-                                {images.length > 1 && (
-                                    <div className="absolute top-2 left-2 bg-black/60 backdrop-blur px-2 py-1 rounded text-[10px] font-bold text-white">
-                                        +{images.length - 1} фото
-                                    </div>
-                                )}
-                                <div className="absolute top-2 right-12 bg-black/60 backdrop-blur px-2 py-1 rounded text-[10px] font-bold text-white">
-                                    {getStatusLabel(car)}
-                                </div>
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); toggleFavorite(car); }}
-                                    className="absolute top-2 right-2 w-9 h-9 rounded-full bg-black/60 flex items-center justify-center"
-                                >
-                                    <Heart size={16} className={isFavorite(carId) ? 'text-red-400 fill-red-400' : 'text-white/70'} />
-                                </button>
-                            </div>
-                            <div className="p-4">
-                                <div className="flex justify-between items-center mb-4">
-                                    <div className="text-xl font-bold" style={{ color: primaryColor }}>{formatPrice(car.price)}</div>
-                                    <div className="text-xs text-white/50 bg-white/5 px-2 py-1 rounded">{toNumberSafe(car.year) || '—'}</div>
-                                </div>
-                                <div className="grid grid-cols-2 gap-2 text-xs text-white/70 mb-4">
-                                    <div className="bg-black/30 p-2 rounded text-center border border-white/5">{specs.engine || '—'}</div>
-                                    <div className="bg-black/30 p-2 rounded text-center border border-white/5">{formatMileage(car.mileage)}</div>
-                                    <div className="bg-black/30 p-2 rounded text-center border border-white/5">{specs.fuel || '—'}</div>
-                                    <div className="bg-black/30 p-2 rounded text-center border border-white/5">{specs.condition || '—'}</div>
-                                </div>
-                                <button
-                                    onClick={() => surfaceMode === 'B2B' ? prefillRequestFromCar(car) : handleCarInterest(car)}
-                                    className="w-full py-3 rounded-xl font-bold text-black flex items-center justify-center gap-2 active:scale-95 transition-transform"
-                                    style={{ backgroundColor: primaryColor }}
-                                >
-                                    <MessageSquare size={18} /> {cardActionLabel}
-                                </button>
-                                <button
-                                    onClick={() => toggleRequestSelection(car)}
-                                    className="w-full mt-2 py-2 rounded-xl font-bold text-xs border border-white/10 text-white/80"
-                                >
-                                    {isSelectedForRequest(carId) ? '✅ У виборі для запиту' : '➕ Додати до мультивибору'}
-                                </button>
-                                <button
-                                    onClick={() => openListing(car)}
-                                    className="w-full mt-2 py-2 rounded-xl font-bold text-white/70 border border-white/10"
-                                >
-                                    Деталі
-                                </button>
-                            </div>
-                        </div>
-                    );
-                })}
-                {filteredCars.length === 0 && <div className="text-center text-white/50 mt-10">Авто не знайдено. Спробуйте змінити фільтри.</div>}
-            </div>
-        </div>
-    );
-};
-
-const renderFavorites = () => {
-    const favCars = favoriteItems.length
-        ? favoriteItems
-        : cars.filter(car => favorites.includes(getCarId(car)));
-
-    return (
-        <div className="animate-fade-in pb-24 h-full flex flex-col bg-black">
-            <div className="p-4 sticky top-0 bg-[#000000]/90 backdrop-blur-md z-20 border-b border-white/10">
-                <h2 className="text-xl font-bold text-white">Обране</h2>
-            </div>
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                {favCars.map(car => {
-                    const images = getCarImages(car);
-                    const cover = images[0];
-                    const carId = getCarId(car);
-                    return (
-                        <div key={carId || `fav_${car.title}_${car.year}`} className={`bg-[#1c1c1e] rounded-2xl overflow-hidden border flex flex-col shadow-lg ${isSelectedForRequest(carId) ? 'border-yellow-400/60' : 'border-white/5'}`}>
-                            <div className="h-40 bg-gray-800 relative cursor-pointer" onClick={() => openListing(car)}>
-                                {cover ? (
-                                    <img src={cover} className="w-full h-full object-cover" />
-                                ) : (
-                                    <div className="w-full h-full flex items-center justify-center bg-[#2c2c2e] text-white/20">
-                                        <ImageIcon size={32} />
-                                    </div>
-                                )}
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); toggleFavorite(car); }}
-                                    className="absolute top-2 right-2 w-9 h-9 rounded-full bg-black/60 flex items-center justify-center"
-                                >
-                                    <Heart size={16} className="text-red-400 fill-red-400" />
-                                </button>
-                            </div>
-                            <div className="p-4">
-                                <h3 className="text-base font-bold text-white truncate">{car.title}</h3>
-                                <div className="text-sm text-white/60 mt-1">{toNumberSafe(car.year) || '—'} • {formatMileage(car.mileage)}</div>
-                                <div className="mt-2 font-bold" style={{ color: primaryColor }}>
-                                    {formatPrice(car.price)}
-                                </div>
-                                <button
-                                    onClick={() => toggleRequestSelection(car)}
-                                    className="w-full mt-3 py-2 rounded-xl font-bold text-xs border border-white/10 text-white/80"
-                                >
-                                    {isSelectedForRequest(carId) ? '✅ У виборі для запиту' : '➕ Додати до мультивибору'}
-                                </button>
-                            </div>
-                        </div>
-                    );
-                })}
-                {favCars.length === 0 && (
-                    <div className="text-center text-white/50 mt-12">
-                        Поки немає обраних авто. Натисніть серце на картці.
-                    </div>
-                )}
-            </div>
-        </div>
-    );
-};
-
-const renderListing = () => {
-    if (!selectedCar) {
-        return (
-            <div className="p-6 text-white/60">Оберіть авто, щоб подивитися деталі.</div>
-        );
-    }
-    const images = getCarImages(selectedCar);
-    const cover = images[0];
-
-    return (
-        <div className="animate-fade-in pb-24 h-full overflow-y-auto bg-black">
-            <div className="p-4 flex items-center gap-3 border-b border-white/10 bg-[#000000]/90 backdrop-blur-md">
-                <button onClick={goBack} className="text-white/70 text-sm">← Назад</button>
-                <h2 className="text-white font-bold truncate">{selectedCar.title}</h2>
-            </div>
-            <div className="p-4 space-y-4">
-                <div className="h-60 bg-gray-800 rounded-2xl overflow-hidden relative cursor-pointer" onClick={() => { setLightboxCar(selectedCar); setLightboxImageIndex(0); }}>
-                    {cover ? (
-                        <img src={cover} className="w-full h-full object-cover" />
-                    ) : (
-                        <div className="w-full h-full flex items-center justify-center bg-[#2c2c2e] text-white/20">
-                            <ImageIcon size={48} />
-                        </div>
-                    )}
-                </div>
-                {images.length > 1 && (
-                    <div className="flex gap-2 overflow-x-auto">
-                        {images.map((url, idx) => (
-                            <img
-                                key={`listing-thumb-${idx}`}
-                                src={url}
-                                className="w-20 h-16 object-cover rounded-lg border border-white/10"
-                                onClick={() => { setLightboxCar(selectedCar); setLightboxImageIndex(idx); }}
-                            />
-                        ))}
-                    </div>
-                )}
-
-                <div className="bg-[#1c1c1e] rounded-2xl p-4 border border-white/5">
-                    <div className="flex justify-between items-center mb-2">
-                        <div className="text-xl font-bold text-white">{formatPrice(selectedCar.price)}</div>
-                        <button
-                            onClick={() => toggleFavorite(selectedCar)}
-                            className="w-10 h-10 rounded-full bg-black/40 flex items-center justify-center"
-                        >
-                            <Heart size={18} className={isFavorite(getCarId(selectedCar)) ? 'text-red-400 fill-red-400' : 'text-white/70'} />
-                        </button>
-                    </div>
-                    <div className="text-xs text-white/50 mb-1">{getStatusLabel(selectedCar)}</div>
-                    <div className="text-sm text-white/60">{formatBrandModel(selectedCar)}</div>
-                    <div className="text-sm text-white/60">{toNumberSafe(selectedCar.year) || '—'} • {formatMileage(selectedCar.mileage)}</div>
-                    <div className="text-sm text-white/60 mt-1">{getCarSpecs(selectedCar).engine || '—'} • {getCarSpecs(selectedCar).fuel || '—'}</div>
-                    <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-white/70">
-                        <div className="bg-black/30 p-2 rounded border border-white/5">⛽ {getCarSpecs(selectedCar).fuel || '—'}</div>
-                        <div className="bg-black/30 p-2 rounded border border-white/5">⚙️ {getCarSpecs(selectedCar).transmission || '—'}</div>
-                        <div className="bg-black/30 p-2 rounded border border-white/5">🛞 {getCarSpecs(selectedCar).drive || '—'}</div>
-                        <div className="bg-black/30 p-2 rounded border border-white/5">📍 {pickText(selectedCar.location) || '—'}</div>
-                        <div className="bg-black/30 p-2 rounded border border-white/5">🎨 {getCarSpecs(selectedCar).color || '—'}</div>
-                    </div>
-                    {(getCarSpecs(selectedCar).vin || getCarSpecs(selectedCar).condition || selectedCar.description) && (
-                        <div className="mt-3 text-xs text-white/70 space-y-1">
-                            {getCarSpecs(selectedCar).condition && <div>🛠 {getCarSpecs(selectedCar).condition}</div>}
-                            {getCarSpecs(selectedCar).vin && <div>🔑 VIN: {getCarSpecs(selectedCar).vin}</div>}
-                            {selectedCar.description && (
-                                <div className="text-white/60 line-clamp-4">{selectedCar.description}</div>
-                            )}
-                        </div>
-                    )}
-                </div>
-
-                <button
-                    onClick={() => prefillRequestFromCar(selectedCar)}
-                    className="w-full py-4 rounded-xl font-bold text-black flex items-center justify-center gap-2"
-                    style={{ backgroundColor: primaryColor }}
-                >
-                    <MessageSquare size={18} /> {surfaceMode === 'B2B' ? 'Створити B2B запит' : 'Запит на це авто'}
-                </button>
-                <button
-                    onClick={() => toggleRequestSelection(selectedCar)}
-                    className="w-full py-2 rounded-xl font-bold text-xs border border-white/10 text-white/80"
-                >
-                    {isSelectedForRequest(getCarId(selectedCar)) ? '✅ Авто у мультивиборі' : '➕ Додати авто до мультивибору'}
-                </button>
-            </div>
-        </div>
-    );
-};
-
-const renderStatus = () => (
-    <div className="animate-fade-in pb-24 p-6 h-full overflow-y-auto flex flex-col bg-black">
-        <h2 className="text-2xl font-bold text-white mb-2">Статус запиту</h2>
-        <p className="text-white/50 mb-6">Перевірте запит за ID, номером телефону або Telegram.</p>
-
-        <div className="space-y-4">
-            <div>
-                <label className="text-xs font-bold text-white/70 uppercase mb-2 block">ID запиту</label>
-                <input className="w-full bg-[#1c1c1e] text-white p-4 rounded-xl outline-none border border-white/10" placeholder="напр. RQ-12345" value={statusQuery.publicId} onChange={e => setStatusQuery({ ...statusQuery, publicId: e.target.value })} />
-            </div>
-            <div>
-                <label className="text-xs font-bold text-white/70 uppercase mb-2 block">Телефон</label>
-                <input className="w-full bg-[#1c1c1e] text-white p-4 rounded-xl outline-none border border-white/10" placeholder="+380 67 123 45 67" value={statusQuery.phone} onChange={e => setStatusQuery({ ...statusQuery, phone: e.target.value })} />
-            </div>
-            <button
-                onClick={async () => {
-                    try {
-                        const slug = targetSlug || 'system';
-                        const res = await getMiniAppRequestStatus({
-                            slug,
-                            requestId: statusQuery.publicId || undefined,
-                            phone: statusQuery.phone || undefined,
-                            telegramUserId: tgUser?.id ? String(tgUser.id) : undefined
-                        });
-                        setStatusResult(res.request || res);
-                    } catch (e) {
-                        setStatusResult({ error: 'Запит не знайдено' });
-                    }
-                }}
-                className="w-full py-4 rounded-xl font-bold text-black"
-                style={{ backgroundColor: primaryColor }}
-            >
-                Перевірити статус
-            </button>
-        </div>
-
-        {statusResult && (
-            <div className="mt-6 bg-[#1c1c1e] border border-white/10 rounded-xl p-4 text-white">
-                {statusResult.error ? (
-                    <div className="text-red-400">{statusResult.error}</div>
-                ) : (
-                    <>
-                        <div className="text-sm text-white/60">ID запиту</div>
-                        <div className="font-bold text-white mb-2">{statusResult.publicId || statusResult.id}</div>
-                        <div className="text-sm text-white/60">Статус</div>
-                        <div className="font-bold text-white">{statusResult.status}</div>
-                    </>
-                )}
-            </div>
-        )}
-    </div>
-);
-
-const handleNextStep = async () => {
-    const isB2BMode = surfaceMode === 'B2B';
-    if (reqStep === 1) {
-        if (isB2BMode) {
-            if (!reqData.brand.trim()) {
-                setConfigWarning('Для B2B запиту вкажіть марку та модель.');
-                return;
-            }
-            if (!reqCompany.trim()) {
-                setConfigWarning('Для B2B запиту вкажіть назву компанії.');
-                return;
-            }
-            if (!reqPhone.trim()) {
-                setConfigWarning('Для B2B запиту додайте контакт.');
-                return;
-            }
-        }
-        setReqStep(2);
-    } else {
+    const handleAction = (act: MiniAppConfig['actions'][number]) => {
         const tg = (window as any).Telegram?.WebApp;
-
-        if (!hasTelegramInit) {
-            setConfigWarning('Надсилання запиту доступне лише в Telegram Mini App.');
-            return;
-        }
-
-        try {
-            const slug = targetSlug || 'system';
-            const fallbackListingId = getCarId(selectedCar);
-            const selectedListingIds = selectedRequestCarIds.length
-                ? selectedRequestCarIds
-                : (fallbackListingId ? [fallbackListingId] : []);
-            const selectedTitles = selectedRequestCars.map(car => car.title).filter(Boolean);
-            const listingId = selectedListingIds[0] || undefined;
-            const descriptionParts = [
-                reqData.brand ? `Марка/модель: ${reqData.brand}` : null,
-                reqData.year ? `Рік: ${reqData.year}+` : null,
-                reqData.budget ? `Бюджет: ${reqData.budget}` : null,
-                reqMileage ? `Пробіг: ${reqMileage}` : null,
-                reqFuel ? `Пальне: ${reqFuel}` : null,
-                reqCompany ? `Компанія: ${reqCompany}` : null,
-                reqComment ? `Коментар: ${reqComment}` : null,
-                reqPhone ? `Контакт: ${reqPhone}` : null,
-                selectedTitles.length > 1 ? `Обрані авто: ${selectedTitles.join(', ')}` : null
-            ].filter(Boolean);
-
-            const requestPayload = {
-                slug,
-                initData,
-                title: selectedTitles.length > 1
-                    ? `${isB2BMode ? 'B2B запит' : 'Запит'}: ${selectedTitles.length} авто`
-                    : (listingId && selectedCar?.title
-                        ? `${isB2BMode ? 'B2B запит' : 'Запит'}: ${selectedCar.title}`
-                        : `${isB2BMode ? 'B2B запит' : 'Запит'}: ${reqData.brand || 'Авто'} ${reqData.year || ''}`.trim()),
-                description: descriptionParts.length ? descriptionParts.join('\n') : undefined,
-                budgetMax: reqData.budget ? Number(reqData.budget) : undefined,
-                yearMin: reqData.year ? Number(reqData.year) : undefined,
-                phone: reqPhone || undefined,
-                comment: reqComment || undefined,
-                carListingId: listingId || undefined,
-                carListingIds: selectedListingIds.length ? selectedListingIds : undefined,
-                payload: {
-                    mode: isB2BMode ? 'B2B' : 'LEAD',
-                    mileage: reqMileage || undefined,
-                    fuel: reqFuel || undefined,
-                    companyName: reqCompany || undefined,
-                    selectedCars: selectedTitles.length ? selectedTitles : undefined
-                },
-                tracking: trackingMeta,
-                telegram: {
-                    userId: tgUser?.id ? String(tgUser.id) : undefined,
-                    username: tgUser?.username,
-                    name: [tgUser?.first_name, tgUser?.last_name].filter(Boolean).join(' ')
-                }
-            };
-
-            await createMiniAppRequest(requestPayload);
-            clearRequestSelection();
-
-            if (tg && tg.initData) {
+        if (act.actionType === 'VIEW') {
+            if (act.value === 'HOME') setView('HOME');
+            if (act.value === 'INVENTORY') setView('INVENTORY');
+            if (act.value === 'REQUEST') setView('REQUEST');
+            if (act.value === 'FAVORITES') setView('FAVORITES');
+            if (act.value === 'STATUS') setView('STATUS');
+            if (act.value === 'PROFILE') setView('PROFILE');
+        } else if (act.actionType === 'LINK') {
+            if (tg && tg.openLink) {
+                tg.openLink(act.value);
+            } else {
+                window.open(act.value, '_blank');
+            }
+        } else if (act.actionType === 'SCENARIO') {
+            if (tg?.initData) {
+                tg.sendData(JSON.stringify({ type: 'RUN_SCENARIO', scenarioId: act.value }));
                 tg.close();
             } else {
-                setReqStep(3);
+                setConfigWarning('Сценарні дії доступні лише всередині Telegram.');
             }
-        } catch (e) {
-            emitMiniAppEvent('error', 'MiniApp request submit failed', { error: e instanceof Error ? e.message : String(e) });
-            const message = resolveMiniAppWriteError(e, 'Не вдалося надіслати запит.');
-            pushToast(message, 'error');
         }
-    }
-};
+    };
 
-const renderRequest = () => (
-    <RequestView
-        reqStep={reqStep}
-        reqData={reqData}
-        setReqData={setReqData}
-        reqMileage={reqMileage}
-        setReqMileage={setReqMileage}
-        reqFuel={reqFuel}
-        setReqFuel={setReqFuel}
-        reqCompany={reqCompany}
-        setReqCompany={setReqCompany}
-        reqPhone={reqPhone}
-        setReqPhone={setReqPhone}
-        reqComment={reqComment}
-        setReqComment={setReqComment}
-        selectedCarsCount={selectedRequestCarIds.length}
-        selectedCarsPreview={selectedRequestCars.map(car => car.title).filter(Boolean).slice(0, 3)}
-        onClearSelectedCars={clearRequestSelection}
-        hasTelegramInit={hasTelegramInit}
-        primaryColor={primaryColor}
-        surfaceMode={surfaceMode}
-        onNextStep={handleNextStep}
-        onHome={() => { setReqStep(1); setView('HOME'); }}
-    />
-);
+    const sendLeadPayload = (payload: Record<string, unknown>) => {
+        const tg = (window as any).Telegram?.WebApp;
+        if (tg && tg.initData) {
+            tg.sendData(JSON.stringify(payload));
+            tg.close();
+        } else {
+            setConfigWarning('Дії із запитом доступні лише всередині Telegram.');
+        }
+    };
 
-const renderProfile = () => (
-    <ProfileView
-        tgUser={tgUser}
-        primaryColor={primaryColor}
-        favoriteCount={favoriteItems.length}
-        createdRequestCount={reqStep >= 3 ? 1 : 0}
-        onCloseApp={() => (window as any).Telegram?.WebApp?.close?.()}
-    />
-);
+    const detectLang = () => {
+        return 'UK';
+    };
 
-const renderSelectionBar = () => {
-    if (!selectedRequestCarIds.length) return null;
-    if (view === 'REQUEST' || view === 'STATUS') return null;
-    return (
-        <div className="absolute bottom-20 left-4 right-4 z-30">
-            <div className="bg-[#111214] border border-white/10 rounded-2xl p-3 shadow-2xl backdrop-blur">
-                <div className="text-xs text-white/60 mb-2">
-                    Обрано авто: <span className="text-white font-bold">{selectedRequestCarIds.length}</span>
+    const handleCarInterest = (car: CarListing) => {
+        const tg = (window as any).Telegram?.WebApp;
+
+        const titleParts = (car.title || '').split(' ');
+        const payload = {
+            v: 1,
+            type: 'interest_click',
+            carId: car.canonicalId,
+            meta: {
+                startParam: trackingMeta.startParam,
+                utm: trackingMeta.utm,
+                ref: trackingMeta.ref,
+                userId: tgUser?.id,
+                name: tgUser?.first_name,
+                username: tgUser?.username,
+                lang: detectLang()
+            }
+        };
+
+        sendLeadPayload(payload);
+    };
+
+    // Refetch when filters change
+    useEffect(() => {
+        const fetchCars = async () => {
+            try {
+                // Determine source filter based on tab if supported by backend,
+                // otherwise client-side filtering is fine for small datasets.
+                // For this release, we'll fetch all and filter locally for tab, but send search/range to API.
+                // Note: The public API we built only returns 'AVAILABLE' cars.
+                // If we need 'IN_TRANSIT' or specific sources, we might need to adjust API or client filter.
+                // Assuming Public API returns all 'AVAILABLE' for the company.
+
+                const apiFilters = {
+                    search,
+                    minYear: filters.minYear,
+                    maxYear: filters.maxYear,
+                    minPrice: filters.minPrice,
+                    maxPrice: filters.maxPrice
+                };
+
+                const target = targetSlug || 'system';
+                try {
+                    const res = await getShowcaseInventory(target, apiFilters);
+                    setCars(res.items);
+                } catch (e) {
+                    const res = await import('../../services/publicApi').then(m => m.getPublicInventory(target, apiFilters));
+                    setCars(res.items);
+                }
+            } catch (e) {
+                emitMiniAppEvent('warn', 'Fetch inventory failed', { error: e instanceof Error ? e.message : String(e) });
+                pushToast('Не вдалося завантажити інвентар.', 'error');
+            }
+        };
+        const debounce = setTimeout(fetchCars, 500);
+        return () => clearTimeout(debounce);
+    }, [search, filters, tab, targetSlug]); // Re-fetch on filter change
+
+    if (isConfigLoading && !config) {
+        return (
+            <div className="h-[var(--tg-viewport-height)] min-h-[var(--tg-viewport-height)] flex items-center justify-center text-white bg-black">
+                <div className="flex flex-col items-center gap-2">
+                    <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <div className="text-white/50 text-sm">Завантаження Mini App...</div>
                 </div>
-                <div className="flex gap-2">
+            </div>
+        );
+    }
+
+    if (requiresTelegram) {
+        return (
+            <div className="h-[var(--tg-viewport-height)] min-h-[var(--tg-viewport-height)] flex items-center justify-center text-white bg-black px-6 text-center">
+                <div className="max-w-sm">
+                    <div className="text-xl font-bold mb-2">Потрібен Telegram</div>
+                    <div className="text-white/70 text-sm">
+                        Відкрийте Mini App з кнопки меню в Telegram-боті. Прямий запуск у браузері не підтримується для релізного режиму.
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    if (!config) {
+        return (
+            <div className="h-[var(--tg-viewport-height)] min-h-[var(--tg-viewport-height)] flex items-center justify-center text-white bg-black px-6 text-center">
+                <div>
+                    <div className="text-xl font-bold mb-2">Mini App недоступний</div>
+                    <div className="text-white/70 text-sm">{initError || 'Конфігурацію застосунку не знайдено.'}</div>
                     <button
-                        onClick={openRequestForSelectedCars}
-                        className="flex-1 py-2.5 rounded-xl font-bold text-black text-sm"
-                        style={{ backgroundColor: primaryColor }}
+                        onClick={() => window.location.reload()}
+                        className="mt-4 px-4 py-2 bg-white/10 rounded-lg text-sm hover:bg-white/20 transition-colors"
                     >
-                        Надіслати запит
+                        Повторити
                     </button>
-                    <button
-                        onClick={clearRequestSelection}
-                        className="px-3 py-2.5 rounded-xl font-bold text-xs border border-white/10 text-white/80"
-                    >
-                        Очистити
-                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    const primaryColor = config.primaryColor || '#D4AF37';
+    const surfaceMode: MiniAppSurfaceMode = config.surfaceMode === 'B2B' ? 'B2B' : 'LEAD';
+    const navItems = (config.navItems && config.navItems.length > 0)
+        ? config.navItems
+        : [
+            { id: 'nav_home', label: 'Головна', icon: 'Home', actionType: 'VIEW', value: 'HOME' },
+            { id: 'nav_stock', label: 'Склад', icon: 'LayoutGrid', actionType: 'VIEW', value: 'INVENTORY' },
+            { id: 'nav_saved', label: 'Обране', icon: 'Star', actionType: 'VIEW', value: 'FAVORITES' }
+        ];
+    const showBottomNav = view !== 'LISTING' && view !== 'REQUEST' && view !== 'STATUS';
+    const showBackArrow = ((view !== 'HOME' && view !== 'LISTING') || reqStep > 1) && !lightboxCar;
+
+    const applyFiltersAndSort = () => {
+        let filtered = [...cars];
+
+        filtered = filtered.filter(car => {
+            const isTransit = isTransitCar(car);
+            if (tab === 'IN_TRANSIT') return isTransit;
+            return !isTransit;
+        });
+
+        const brandNeedle = filters.brand.trim().toLowerCase();
+        if (brandNeedle) {
+            filtered = filtered.filter(car => {
+                const title = String(car.title || '').toLowerCase();
+                const specs = getCarSpecs(car);
+                const brand = pickText((car as any).brand, (car.specs as any)?.brand).toLowerCase();
+                return title.includes(brandNeedle) || brand.includes(brandNeedle) || specs.engine.toLowerCase().includes(brandNeedle);
+            });
+        }
+
+        // Client-side Sort
+        if (sortBy === 'price_asc') {
+            filtered.sort((a, b) => (a.price?.amount || 0) - (b.price?.amount || 0));
+        } else if (sortBy === 'price_desc') {
+            filtered.sort((a, b) => (b.price?.amount || 0) - (a.price?.amount || 0));
+        } else if (sortBy === 'year_desc') {
+            filtered.sort((a, b) => (Number(b.year) || 0) - (Number(a.year) || 0));
+        }
+
+        return filtered;
+    };
+
+    const formatPrice = (price?: { amount?: number; currency?: string }) => {
+        if (!price || !price.amount) return '—';
+        const curr = price.currency || 'USD';
+        return `${price.amount.toLocaleString()} ${curr}`;
+    };
+
+    const toNumberSafe = (value: unknown) => {
+        const num = typeof value === 'number' ? value : Number(value);
+        return Number.isFinite(num) ? num : 0;
+    };
+
+    const formatMileage = (value: unknown) => {
+        const mileage = toNumberSafe(value);
+        if (!mileage) return '—';
+        return `${mileage.toLocaleString()} km`;
+    };
+
+    const pickText = (...values: unknown[]) => {
+        for (const value of values) {
+            if (typeof value === 'string' && value.trim()) return value.trim();
+        }
+        return '';
+    };
+
+    const getCarSpecs = (car: CarListing | null | undefined) => {
+        const specs = (car?.specs && typeof car.specs === 'object') ? car.specs : {};
+        const root = (car && typeof car === 'object') ? (car as any) : {};
+        return {
+            brand: pickText(root.brand, root.make, (specs as any).brand),
+            model: pickText(root.model, root.trim, (specs as any).model),
+            engine: pickText(root.engine, (specs as any).engine),
+            fuel: pickText(root.fuel, (specs as any).fuel),
+            transmission: pickText(root.transmission, root.gearbox, (specs as any).transmission),
+            drive: pickText(root.drive, root.drivetrain, (specs as any).drive),
+            color: pickText(root.color, (specs as any).color),
+            vin: pickText(root.vin, root.VIN, (specs as any).vin),
+            condition: pickText(root.condition, root.state, (specs as any).condition)
+        };
+    };
+
+    const formatBrandModel = (car: CarListing | null | undefined) => {
+        const specs = getCarSpecs(car);
+        const combined = [specs.brand, specs.model].filter(Boolean).join(' ').trim();
+        if (combined) return combined;
+        return pickText(specs.engine, specs.fuel) || '—';
+    };
+
+    const isTransitCar = (car: CarListing) => {
+        const specs = getCarSpecs(car);
+        const condition = (specs.condition || '').toLowerCase();
+        const status = String((car as any).status || '').toUpperCase();
+        return condition === 'in_transit' || condition.includes('дороз') || status === 'PENDING' || status === 'IN_TRANSIT';
+    };
+
+    const getStatusLabel = (car: CarListing) => isTransitCar(car) ? 'В дорозі' : 'В наявності';
+
+    const renderHome = () => (
+        <div className="animate-fade-in pb-24 h-full overflow-y-auto">
+            {/* Header */}
+            <div className="pt-8 pb-8 px-6 rounded-b-[40px] shadow-lg relative overflow-hidden" style={{ background: `linear-gradient(135deg, ${primaryColor}30 0%, #000000 100%)` }}>
+                <div className="relative z-10">
+                    <div className="flex items-center gap-3 mb-2">
+                        {config.logoUrl && (
+                            <img src={config.logoUrl} className="w-10 h-10 rounded-xl object-cover border border-white/20 bg-white/10" />
+                        )}
+                        <h1 className="text-2xl font-bold text-white">{config.title}</h1>
+                    </div>
+                    <p className="text-white/70 text-sm">{config.welcomeText}</p>
+
+                    {tgUser && (
+                        <div className="mt-6 flex items-center gap-3 bg-white/10 p-2.5 rounded-xl backdrop-blur-md border border-white/5 shadow-inner">
+                            <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-yellow-400 to-yellow-600 flex items-center justify-center text-black font-bold text-sm shadow-md overflow-hidden">
+                                {tgUser.photo_url ? <img src={tgUser.photo_url} className="w-full h-full object-cover" /> : tgUser.first_name?.[0]}
+                            </div>
+                            <div className="text-xs">
+                                <p className="text-white font-bold text-sm">Вітаємо, {tgUser.first_name}</p>
+                                <p className="text-white/50">{surfaceMode === 'B2B' ? 'Учасник B2B мережі' : 'Клієнт CarTié'}</p>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* Quick Actions */}
+            <div className="px-4 -mt-6 relative z-20">
+                <div className="bg-[#1c1c1e] rounded-2xl p-4 shadow-2xl border border-white/5">
+                    <div className={`grid gap-3 ${config.layout === 'GRID' ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                        {(config.actions || []).map(act => (
+                            <button
+                                key={act.id}
+                                onClick={() => handleAction(act)}
+                                className="bg-[#2c2c2e] hover:bg-[#3a3a3c] transition-colors p-4 rounded-xl flex flex-col items-center justify-center gap-2 text-center group active:scale-95 duration-100 border border-transparent hover:border-white/5"
+                            >
+                                <div className="w-12 h-12 rounded-full bg-black/30 flex items-center justify-center shadow-inner" style={{ color: primaryColor }}>
+                                    {renderIcon(act.icon, 24)}
+                                </div>
+                                <span className="text-sm font-medium text-white">{act.label}</span>
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            </div>
+
+            {/* Recent Inventory */}
+            <div className="px-4 mt-8">
+                <div className="flex justify-between items-center mb-4">
+                    <h3 className="font-bold text-white text-lg">{surfaceMode === 'B2B' ? 'Актуальні варіанти мережі' : 'Нові авто'}</h3>
+                    <button onClick={() => setView('INVENTORY')} className="text-xs font-bold" style={{ color: primaryColor }}>Дивитись всі</button>
+                </div>
+                <div className="flex gap-4 overflow-x-auto pb-4 hide-scrollbar">
+                    {cars.slice(0, 5).map(car => {
+                        const images = getCarImages(car);
+                        const cover = images[0];
+                        const specs = getCarSpecs(car);
+
+                        return (
+                            <div key={getCarId(car) || `home_${car.title}_${car.year}`} className="min-w-[220px] bg-[#1c1c1e] rounded-xl overflow-hidden border border-white/5 shadow-lg">
+                                <div className="h-32 bg-gray-800 relative cursor-pointer" onClick={() => { setLightboxCar(car); setLightboxImageIndex(0); }}>
+                                    {cover ? (
+                                        <img src={cover} className="w-full h-full object-cover opacity-90" />
+                                    ) : (
+                                        <div className="w-full h-full flex items-center justify-center bg-[#2c2c2e] text-white/20">
+                                            <ImageIcon size={32} />
+                                        </div>
+                                    )}
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); toggleFavorite(car); }}
+                                        className="absolute top-2 left-2 w-8 h-8 rounded-full bg-black/60 flex items-center justify-center"
+                                    >
+                                        <Star size={14} className={isFavorite(getCarId(car)) ? 'text-yellow-400 fill-yellow-400' : 'text-white/70'} />
+                                    </button>
+                                    <div className="absolute top-2 right-2 bg-black/60 backdrop-blur px-2 py-1 rounded text-[10px] font-bold text-white">
+                                        {car.year}
+                                    </div>
+                                </div>
+                                <div className="p-3">
+                                    <h4 className="text-sm font-bold text-white truncate">{car.title}</h4>
+                                    <p className="text-xs text-white/50 mt-1 mb-2">
+                                        {pickText(specs.engine, specs.fuel) || '—'} • {formatMileage(car.mileage)}
+                                    </p>
+                                    <div className="font-bold text-sm" style={{ color: primaryColor }}>
+                                        {formatPrice(car.price)}
+                                    </div>
+                                    <button
+                                        onClick={() => openListing(car)}
+                                        className="mt-2 w-full text-xs py-2 rounded-lg bg-white/5 text-white/80"
+                                    >
+                                        Деталі
+                                    </button>
+                                </div>
+                            </div>
+                        );
+                    })}
                 </div>
             </div>
         </div>
     );
-};
 
-const AppIcon = ({ name, size = 24 }: { name: string; size?: number }) => {
-    const props = { size };
-    switch (name) {
-        case 'Home': return <Home {...props} />;
-        case 'Search': return <Search {...props} />;
-        case 'Zap': return <Zap {...props} />;
-        case 'DollarSign': return <DollarSign {...props} />;
-        case 'MessageCircle': return <MessageSquare {...props} />;
-        case 'Grid':
-        case 'LayoutGrid': return <LayoutGrid {...props} />;
-        case 'List': return <ListIcon {...props} />;
-        case 'Phone':
-        case 'Телефон':
-            return <Phone {...props} />;
-        case 'Heart': return <Heart {...props} />;
-        case 'ClipboardList': return <ClipboardList {...props} />;
-        case 'User': return <User {...props} />;
-        default: return <Star {...props} />;
-    }
-};
+    const renderInventory = () => {
+        const filteredCars = applyFiltersAndSort();
 
-const renderIcon = (icon?: string, size = 22) => {
-    if (!icon) return <AppIcon name="Star" size={size} />;
-    if (icon.startsWith('http://') || icon.startsWith('https://')) {
-        return <img src={icon} className="w-6 h-6 object-cover rounded-full" />;
-    }
-    const hasNonAlpha = /[^a-z0-9_]/i.test(icon);
-    if (hasNonAlpha) {
-        return <span className="text-lg leading-none">{icon}</span>;
-    }
-    return <AppIcon name={icon} size={size} />;
-};
+        return (
+            <div className="animate-fade-in pb-24 h-full flex flex-col bg-black">
+                <div className="p-4 sticky top-0 bg-[#000000]/90 backdrop-blur-md z-20 border-b border-white/10 space-y-3">
+                    <h2 className="text-xl font-bold text-white">{surfaceMode === 'B2B' ? 'Інвентар мережі' : 'Інвентар'}</h2>
 
-const shellNavItems = navItems.map(item => ({
-    id: String(item.id),
-    value: String(item.value || ''),
-    label: String(item.label || ''),
-    icon: renderIcon(item.icon, 24)
-}));
+                    {/* Tabs */}
+                    <div className="flex gap-2">
+                        <button
+                            onClick={() => setTab('IN_STOCK')}
+                            className={`flex-1 py-2.5 px-4 rounded-lg font-bold text-sm transition-all ${tab === 'IN_STOCK'
+                                ? 'text-black shadow-lg'
+                                : 'bg-[#1c1c1e] text-white/50'
+                                }`}
+                            style={tab === 'IN_STOCK' ? { backgroundColor: primaryColor } : {}}
+                        >
+                            ✅ В наявності
+                        </button>
+                        <button
+                            onClick={() => setTab('IN_TRANSIT')}
+                            className={`flex-1 py-2.5 px-4 rounded-lg font-bold text-sm transition-all ${tab === 'IN_TRANSIT'
+                                ? 'text-black shadow-lg'
+                                : 'bg-[#1c1c1e] text-white/50'
+                                }`}
+                            style={tab === 'IN_TRANSIT' ? { backgroundColor: primaryColor } : {}}
+                        >
+                            📦 В дорозі
+                        </button>
+                    </div>
 
-return (
-    <>
-        <ToastStack items={toasts} onDismiss={dismissToast} />
-        <MiniAppShell
-            configWarning={configWarning}
-            showBackArrow={showBackArrow}
-            onBack={goBack}
-            showBottomNav={showBottomNav}
-            navItems={shellNavItems}
-            activeView={view}
-            onNavigate={(value) => {
-                const target = navItems.find(item => String(item.value || '') === value);
-                if (!target) return;
-                handleAction(target as any);
-            }}
-        >
-            {view === 'HOME' && renderHome()}
-            {view === 'INVENTORY' && renderInventory()}
-            {view === 'FAVORITES' && renderFavorites()}
-            {view === 'LISTING' && renderListing()}
-            {view === 'REQUEST' && renderRequest()}
-            {view === 'STATUS' && renderStatus()}
-            {view === 'PROFILE' && renderProfile()}
-            {renderSelectionBar()}
+                    {/* Search + Filter Button */}
+                    <div className="flex gap-2">
+                        <div className="flex-1 relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
+                            <input
+                                className="w-full bg-[#1c1c1e] text-white pl-10 pr-4 py-3 rounded-xl outline-none placeholder-gray-600 border border-white/5 focus:border-yellow-500/50 transition-colors"
+                                placeholder="Пошук авто..."
+                                value={search}
+                                onChange={e => setSearch(e.target.value)}
+                            />
+                        </div>
+                        <button
+                            onClick={() => setShowFilters(!showFilters)}
+                            className={`w-12 h-12 rounded-xl flex items-center justify-center transition-colors ${showFilters ? 'text-black' : 'bg-[#1c1c1e] text-white'
+                                }`}
+                            style={showFilters ? { backgroundColor: primaryColor } : {}}
+                        >
+                            <SlidersHorizontal size={20} />
+                        </button>
+                    </div>
 
-            {lightboxCar && (
-                <div className="absolute inset-0 bg-black z-[100] flex flex-col">
-                    {(() => {
-                        const lightboxImages = getCarImages(lightboxCar);
-                        const hasMultiple = lightboxImages.length > 1;
+                    {/* Advanced Filters */}
+                    {showFilters && (
+                        <div className="bg-[#1c1c1e] rounded-xl p-4 space-y-3 border border-white/5 animate-slide-down">
+                            <div>
+                                <label className="text-[10px] text-white/50 uppercase font-bold block mb-1">Марка</label>
+                                <input
+                                    className="w-full bg-black/30 text-white px-3 py-2 rounded-lg text-sm outline-none border border-white/10"
+                                    placeholder="BMW, Mercedes..."
+                                    value={filters.brand}
+                                    onChange={e => setFilters({ ...filters, brand: e.target.value })}
+                                />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="text-[10px] text-white/50 uppercase font-bold block mb-1">Рік від</label>
+                                    <input
+                                        type="number"
+                                        className="w-full bg-black/30 text-white px-3 py-2 rounded-lg text-sm outline-none border border-white/10"
+                                        placeholder="2018"
+                                        value={filters.minYear}
+                                        onChange={e => setFilters({ ...filters, minYear: e.target.value })}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] text-white/50 uppercase font-bold block mb-1">Рік до</label>
+                                    <input
+                                        type="number"
+                                        className="w-full bg-black/30 text-white px-3 py-2 rounded-lg text-sm outline-none border border-white/10"
+                                        placeholder="2024"
+                                        value={filters.maxYear}
+                                        onChange={e => setFilters({ ...filters, maxYear: e.target.value })}
+                                    />
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="text-[10px] text-white/50 uppercase font-bold block mb-1">Ціна від ($)</label>
+                                    <input
+                                        type="number"
+                                        className="w-full bg-black/30 text-white px-3 py-2 rounded-lg text-sm outline-none border border-white/10"
+                                        placeholder="10000"
+                                        value={filters.minPrice}
+                                        onChange={e => setFilters({ ...filters, minPrice: e.target.value })}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] text-white/50 uppercase font-bold block mb-1">Ціна до ($)</label>
+                                    <input
+                                        type="number"
+                                        className="w-full bg-black/30 text-white px-3 py-2 rounded-lg text-sm outline-none border border-white/10"
+                                        placeholder="100000"
+                                        value={filters.maxPrice}
+                                        onChange={e => setFilters({ ...filters, maxPrice: e.target.value })}
+                                    />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="text-[10px] text-white/50 uppercase font-bold block mb-1">Сортування</label>
+                                <select
+                                    className="w-full bg-black/30 text-white px-3 py-2 rounded-lg text-sm outline-none border border-white/10"
+                                    value={sortBy}
+                                    onChange={e => setSortBy(e.target.value as any)}
+                                >
+                                    <option value="year_desc">Новіші спочатку</option>
+                                    <option value="price_asc">Ціна: від меншої</option>
+                                    <option value="price_desc">Ціна: від більшої</option>
+                                </select>
+                            </div>
+                            <button
+                                onClick={() => {
+                                    setFilters({ brand: '', minYear: '', maxYear: '', minPrice: '', maxPrice: '' });
+                                    setSearch('');
+                                }}
+                                className="w-full py-2 bg-red-500/20 text-red-500 rounded-lg text-xs font-bold"
+                            >
+                                Скинути фільтри
+                            </button>
+                        </div>
+                    )}
+
+                    <div className="text-[10px] text-white/50">
+                        Знайдено: {filteredCars.length}
+                    </div>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                    {filteredCars.map(car => {
+                        const images = getCarImages(car);
+                        const cover = images[0];
+                        const specs = getCarSpecs(car);
+                        const cardActionLabel = surfaceMode === 'B2B' ? 'Створити B2B запит' : 'Запит на підбір';
+                        const carId = getCarId(car);
+
                         return (
-                            <>
-                                <div className="p-4 flex justify-between items-center">
-                                    <h3 className="text-white font-bold truncate">{lightboxCar.title}</h3>
+                            <div key={carId || `inventory_${car.title}_${car.year}`} className={`bg-[#1c1c1e] rounded-2xl overflow-hidden border flex flex-col shadow-lg ${isSelectedForRequest(carId) ? 'border-yellow-400/60' : 'border-white/5'}`}>
+                                <div className="h-48 bg-gray-800 relative cursor-pointer" onClick={() => { setLightboxCar(car); setLightboxImageIndex(0); }}>
+                                    {cover ? (
+                                        <img src={cover} className="w-full h-full object-cover" />
+                                    ) : (
+                                        <div className="w-full h-full flex items-center justify-center bg-[#2c2c2e] text-white/20">
+                                            <ImageIcon size={48} />
+                                        </div>
+                                    )}
+                                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-4 pt-12">
+                                        <h3 className="text-lg font-bold text-white">{car.title}</h3>
+                                        <p className="text-[11px] text-white/70 mt-1">
+                                            {formatBrandModel(car)}
+                                        </p>
+                                    </div>
+                                    {images.length > 1 && (
+                                        <div className="absolute top-2 left-2 bg-black/60 backdrop-blur px-2 py-1 rounded text-[10px] font-bold text-white">
+                                            +{images.length - 1} фото
+                                        </div>
+                                    )}
+                                    <div className="absolute top-2 right-12 bg-black/60 backdrop-blur px-2 py-1 rounded text-[10px] font-bold text-white">
+                                        {getStatusLabel(car)}
+                                    </div>
                                     <button
-                                        onClick={() => setLightboxCar(null)}
-                                        className="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center"
+                                        onClick={(e) => { e.stopPropagation(); toggleFavorite(car); }}
+                                        className="absolute top-2 right-2 w-9 h-9 rounded-full bg-black/60 flex items-center justify-center"
                                     >
-                                        <X size={20} className="text-white" />
+                                        <Star size={16} className={isFavorite(carId) ? 'text-yellow-400 fill-yellow-400' : 'text-white/70'} />
                                     </button>
                                 </div>
-                                <div className="flex-1 relative flex items-center justify-center">
-                                    <img
-                                        src={lightboxImages[lightboxImageIndex] || lightboxCar.thumbnail || PLACEHOLDER_IMAGE}
-                                        className="max-w-full max-h-full object-contain"
-                                    />
-                                    {hasMultiple && (
-                                        <>
-                                            {lightboxImageIndex > 0 && (
-                                                <button
-                                                    onClick={() => setLightboxImageIndex(lightboxImageIndex - 1)}
-                                                    className="absolute left-4 w-12 h-12 bg-black/50 backdrop-blur rounded-full flex items-center justify-center"
-                                                >
-                                                    <ChevronLeft size={24} className="text-white" />
-                                                </button>
-                                            )}
-                                            {lightboxImageIndex < lightboxImages.length - 1 && (
-                                                <button
-                                                    onClick={() => setLightboxImageIndex(lightboxImageIndex + 1)}
-                                                    className="absolute right-4 w-12 h-12 bg-black/50 backdrop-blur rounded-full flex items-center justify-center"
-                                                >
-                                                    <ChevronRightIcon size={24} className="text-white" />
-                                                </button>
-                                            )}
-                                            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/50 backdrop-blur px-3 py-1 rounded-full text-xs text-white">
-                                                {lightboxImageIndex + 1} / {lightboxImages.length}
-                                            </div>
-                                        </>
-                                    )}
+                                <div className="p-4">
+                                    <div className="flex justify-between items-center mb-4">
+                                        <div className="text-xl font-bold" style={{ color: primaryColor }}>{formatPrice(car.price)}</div>
+                                        <div className="text-xs text-white/50 bg-white/5 px-2 py-1 rounded">{toNumberSafe(car.year) || '—'}</div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2 text-xs text-white/70 mb-4">
+                                        <div className="bg-black/30 p-2 rounded text-center border border-white/5">{specs.engine || '—'}</div>
+                                        <div className="bg-black/30 p-2 rounded text-center border border-white/5">{formatMileage(car.mileage)}</div>
+                                        <div className="bg-black/30 p-2 rounded text-center border border-white/5">{specs.fuel || '—'}</div>
+                                        <div className="bg-black/30 p-2 rounded text-center border border-white/5">{specs.condition || '—'}</div>
+                                    </div>
+                                    <button
+                                        onClick={() => surfaceMode === 'B2B' ? prefillRequestFromCar(car) : handleCarInterest(car)}
+                                        className="w-full py-3 rounded-xl font-bold text-black flex items-center justify-center gap-2 active:scale-95 transition-transform"
+                                        style={{ backgroundColor: primaryColor }}
+                                    >
+                                        <MessageSquare size={18} /> {cardActionLabel}
+                                    </button>
+                                    <button
+                                        onClick={() => toggleRequestSelection(car)}
+                                        className="w-full mt-2 py-2 rounded-xl font-bold text-xs border border-white/10 text-white/80"
+                                    >
+                                        {isSelectedForRequest(carId) ? '✅ У виборі для запиту' : '➕ Додати до мультивибору'}
+                                    </button>
+                                    <button
+                                        onClick={() => openListing(car)}
+                                        className="w-full mt-2 py-2 rounded-xl font-bold text-white/70 border border-white/10"
+                                    >
+                                        Деталі
+                                    </button>
                                 </div>
-                            </>
+                            </div>
                         );
-                    })()}
+                    })}
+                    {filteredCars.length === 0 && <div className="text-center text-white/50 mt-10">Авто не знайдено. Спробуйте змінити фільтри.</div>}
+                </div>
+            </div>
+        );
+    };
+
+    const renderFavorites = () => {
+        const favCars = favoriteItems.length
+            ? favoriteItems
+            : cars.filter(car => favorites.includes(getCarId(car)));
+
+        return (
+            <div className="animate-fade-in pb-24 h-full flex flex-col bg-black">
+                <div className="p-4 sticky top-0 bg-[#000000]/90 backdrop-blur-md z-20 border-b border-white/10">
+                    <h2 className="text-xl font-bold text-white">Обране</h2>
+                </div>
+                <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                    {favCars.map(car => {
+                        const images = getCarImages(car);
+                        const cover = images[0];
+                        const carId = getCarId(car);
+                        return (
+                            <div key={carId || `fav_${car.title}_${car.year}`} className={`bg-[#1c1c1e] rounded-2xl overflow-hidden border flex flex-col shadow-lg ${isSelectedForRequest(carId) ? 'border-yellow-400/60' : 'border-white/5'}`}>
+                                <div className="h-40 bg-gray-800 relative cursor-pointer" onClick={() => openListing(car)}>
+                                    {cover ? (
+                                        <img src={cover} className="w-full h-full object-cover" />
+                                    ) : (
+                                        <div className="w-full h-full flex items-center justify-center bg-[#2c2c2e] text-white/20">
+                                            <ImageIcon size={32} />
+                                        </div>
+                                    )}
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); toggleFavorite(car); }}
+                                        className="absolute top-2 right-2 w-9 h-9 rounded-full bg-black/60 flex items-center justify-center"
+                                    >
+                                        <Star size={16} className="text-yellow-400 fill-yellow-400" />
+                                    </button>
+                                </div>
+                                <div className="p-4">
+                                    <h3 className="text-base font-bold text-white truncate">{car.title}</h3>
+                                    <div className="text-sm text-white/60 mt-1">{toNumberSafe(car.year) || '—'} • {formatMileage(car.mileage)}</div>
+                                    <div className="mt-2 font-bold" style={{ color: primaryColor }}>
+                                        {formatPrice(car.price)}
+                                    </div>
+                                    <button
+                                        onClick={() => toggleRequestSelection(car)}
+                                        className="w-full mt-3 py-2 rounded-xl font-bold text-xs border border-white/10 text-white/80"
+                                    >
+                                        {isSelectedForRequest(carId) ? '✅ У виборі для запиту' : '➕ Додати до мультивибору'}
+                                    </button>
+                                </div>
+                            </div>
+                        );
+                    })}
+                    {favCars.length === 0 && (
+                        <div className="text-center text-white/50 mt-12">
+                            Поки немає обраних авто. Натисніть серце на картці.
+                        </div>
+                    )}
+                </div>
+            </div>
+        );
+    };
+
+    const renderListing = () => {
+        if (!selectedCar) {
+            return (
+                <div className="p-6 text-white/60">Оберіть авто, щоб подивитися деталі.</div>
+            );
+        }
+        const images = getCarImages(selectedCar);
+        const cover = images[0];
+
+        return (
+            <div className="animate-fade-in pb-24 h-full overflow-y-auto bg-black">
+                <div className="p-4 flex items-center gap-3 border-b border-white/10 bg-[#000000]/90 backdrop-blur-md">
+                    <button onClick={goBack} className="text-white/70 text-sm">← Назад</button>
+                    <h2 className="text-white font-bold truncate">{selectedCar.title}</h2>
+                </div>
+                <div className="p-4 space-y-4">
+                    <div className="h-60 bg-gray-800 rounded-2xl overflow-hidden relative cursor-pointer" onClick={() => { setLightboxCar(selectedCar); setLightboxImageIndex(0); }}>
+                        {cover ? (
+                            <img src={cover} className="w-full h-full object-cover" />
+                        ) : (
+                            <div className="w-full h-full flex items-center justify-center bg-[#2c2c2e] text-white/20">
+                                <ImageIcon size={48} />
+                            </div>
+                        )}
+                    </div>
+                    {images.length > 1 && (
+                        <div className="flex gap-2 overflow-x-auto">
+                            {images.map((url, idx) => (
+                                <img
+                                    key={`listing-thumb-${idx}`}
+                                    src={url}
+                                    className="w-20 h-16 object-cover rounded-lg border border-white/10"
+                                    onClick={() => { setLightboxCar(selectedCar); setLightboxImageIndex(idx); }}
+                                />
+                            ))}
+                        </div>
+                    )}
+
+                    <div className="bg-[#1c1c1e] rounded-2xl p-4 border border-white/5">
+                        <div className="flex justify-between items-center mb-2">
+                            <div className="text-xl font-bold text-white">{formatPrice(selectedCar.price)}</div>
+                            <button
+                                onClick={() => toggleFavorite(selectedCar)}
+                                className="w-10 h-10 rounded-full bg-black/40 flex items-center justify-center"
+                            >
+                                <Star size={18} className={isFavorite(getCarId(selectedCar)) ? 'text-yellow-400 fill-yellow-400' : 'text-white/70'} />
+                            </button>
+                        </div>
+                        <div className="text-xs text-white/50 mb-1">{getStatusLabel(selectedCar)}</div>
+                        <div className="text-sm text-white/60">{formatBrandModel(selectedCar)}</div>
+                        <div className="text-sm text-white/60">{toNumberSafe(selectedCar.year) || '—'} • {formatMileage(selectedCar.mileage)}</div>
+                        <div className="text-sm text-white/60 mt-1">{getCarSpecs(selectedCar).engine || '—'} • {getCarSpecs(selectedCar).fuel || '—'}</div>
+                        <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-white/70">
+                            <div className="bg-black/30 p-2 rounded border border-white/5">⛽ {getCarSpecs(selectedCar).fuel || '—'}</div>
+                            <div className="bg-black/30 p-2 rounded border border-white/5">⚙️ {getCarSpecs(selectedCar).transmission || '—'}</div>
+                            <div className="bg-black/30 p-2 rounded border border-white/5">🛞 {getCarSpecs(selectedCar).drive || '—'}</div>
+                            <div className="bg-black/30 p-2 rounded border border-white/5">📍 {pickText(selectedCar.location) || '—'}</div>
+                            <div className="bg-black/30 p-2 rounded border border-white/5">🎨 {getCarSpecs(selectedCar).color || '—'}</div>
+                        </div>
+                        {(getCarSpecs(selectedCar).vin || getCarSpecs(selectedCar).condition || selectedCar.description) && (
+                            <div className="mt-3 text-xs text-white/70 space-y-1">
+                                {getCarSpecs(selectedCar).condition && <div>🛠 {getCarSpecs(selectedCar).condition}</div>}
+                                {getCarSpecs(selectedCar).vin && <div>🔑 VIN: {getCarSpecs(selectedCar).vin}</div>}
+                                {selectedCar.description && (
+                                    <div className="text-white/60 line-clamp-4">{selectedCar.description}</div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+
+                    <button
+                        onClick={() => prefillRequestFromCar(selectedCar)}
+                        className="w-full py-4 rounded-xl font-bold text-black flex items-center justify-center gap-2"
+                        style={{ backgroundColor: primaryColor }}
+                    >
+                        <MessageSquare size={18} /> {surfaceMode === 'B2B' ? 'Створити B2B запит' : 'Запит на це авто'}
+                    </button>
+                    <button
+                        onClick={() => toggleRequestSelection(selectedCar)}
+                        className="w-full py-2 rounded-xl font-bold text-xs border border-white/10 text-white/80"
+                    >
+                        {isSelectedForRequest(getCarId(selectedCar)) ? '✅ Авто у мультивиборі' : '➕ Додати авто до мультивибору'}
+                    </button>
+                </div>
+            </div>
+        );
+    };
+
+    const renderStatus = () => (
+        <div className="animate-fade-in pb-24 p-6 h-full overflow-y-auto flex flex-col bg-black">
+            <h2 className="text-2xl font-bold text-white mb-2">Статус запиту</h2>
+            <p className="text-white/50 mb-6">Перевірте запит за ID, номером телефону або Telegram.</p>
+
+            <div className="space-y-4">
+                <div>
+                    <label className="text-xs font-bold text-white/70 uppercase mb-2 block">ID запиту</label>
+                    <input className="w-full bg-[#1c1c1e] text-white p-4 rounded-xl outline-none border border-white/10" placeholder="напр. RQ-12345" value={statusQuery.publicId} onChange={e => setStatusQuery({ ...statusQuery, publicId: e.target.value })} />
+                </div>
+                <div>
+                    <label className="text-xs font-bold text-white/70 uppercase mb-2 block">Телефон</label>
+                    <input className="w-full bg-[#1c1c1e] text-white p-4 rounded-xl outline-none border border-white/10" placeholder="+380 67 123 45 67" value={statusQuery.phone} onChange={e => setStatusQuery({ ...statusQuery, phone: e.target.value })} />
+                </div>
+                <button
+                    onClick={async () => {
+                        try {
+                            const slug = targetSlug || 'system';
+                            const res = await getMiniAppRequestStatus({
+                                slug,
+                                requestId: statusQuery.publicId || undefined,
+                                phone: statusQuery.phone || undefined,
+                                telegramUserId: tgUser?.id ? String(tgUser.id) : undefined
+                            });
+                            setStatusResult(res.request || res);
+                        } catch (e) {
+                            setStatusResult({ error: 'Запит не знайдено' });
+                        }
+                    }}
+                    className="w-full py-4 rounded-xl font-bold text-black"
+                    style={{ backgroundColor: primaryColor }}
+                >
+                    Перевірити статус
+                </button>
+            </div>
+
+            {statusResult && (
+                <div className="mt-6 bg-[#1c1c1e] border border-white/10 rounded-xl p-4 text-white">
+                    {statusResult.error ? (
+                        <div className="text-red-400">{statusResult.error}</div>
+                    ) : (
+                        <>
+                            <div className="text-sm text-white/60">ID запиту</div>
+                            <div className="font-bold text-white mb-2">{statusResult.publicId || statusResult.id}</div>
+                            <div className="text-sm text-white/60">Статус</div>
+                            <div className="font-bold text-white">{statusResult.status}</div>
+                        </>
+                    )}
                 </div>
             )}
-        </MiniAppShell>
-    </>
-);
+        </div>
+    );
+
+    const handleNextStep = async () => {
+        const isB2BMode = surfaceMode === 'B2B';
+        if (reqStep === 1) {
+            if (isB2BMode) {
+                if (!reqData.brand.trim()) {
+                    setConfigWarning('Для B2B запиту вкажіть марку та модель.');
+                    return;
+                }
+                if (!reqCompany.trim()) {
+                    setConfigWarning('Для B2B запиту вкажіть назву компанії.');
+                    return;
+                }
+                if (!reqPhone.trim()) {
+                    setConfigWarning('Для B2B запиту додайте контакт.');
+                    return;
+                }
+            }
+            setReqStep(2);
+        } else {
+            const tg = (window as any).Telegram?.WebApp;
+
+            if (!hasTelegramInit) {
+                setConfigWarning('Надсилання запиту доступне лише в Telegram Mini App.');
+                return;
+            }
+
+            try {
+                const slug = targetSlug || 'system';
+                const fallbackListingId = getCarId(selectedCar);
+                const selectedListingIds = selectedRequestCarIds.length
+                    ? selectedRequestCarIds
+                    : (fallbackListingId ? [fallbackListingId] : []);
+                const selectedTitles = selectedRequestCars.map(car => car.title).filter(Boolean);
+                const listingId = selectedListingIds[0] || undefined;
+                const descriptionParts = [
+                    reqData.brand ? `Марка/модель: ${reqData.brand}` : null,
+                    reqData.year ? `Рік: ${reqData.year}+` : null,
+                    reqData.budget ? `Бюджет: ${reqData.budget}` : null,
+                    reqMileage ? `Пробіг: ${reqMileage}` : null,
+                    reqFuel ? `Пальне: ${reqFuel}` : null,
+                    reqCompany ? `Компанія: ${reqCompany}` : null,
+                    reqComment ? `Коментар: ${reqComment}` : null,
+                    reqPhone ? `Контакт: ${reqPhone}` : null,
+                    selectedTitles.length > 1 ? `Обрані авто: ${selectedTitles.join(', ')}` : null
+                ].filter(Boolean);
+
+                const requestPayload = {
+                    slug,
+                    initData,
+                    title: selectedTitles.length > 1
+                        ? `${isB2BMode ? 'B2B запит' : 'Запит'}: ${selectedTitles.length} авто`
+                        : (listingId && selectedCar?.title
+                            ? `${isB2BMode ? 'B2B запит' : 'Запит'}: ${selectedCar.title}`
+                            : `${isB2BMode ? 'B2B запит' : 'Запит'}: ${reqData.brand || 'Авто'} ${reqData.year || ''}`.trim()),
+                    description: descriptionParts.length ? descriptionParts.join('\n') : undefined,
+                    budgetMax: reqData.budget ? Number(reqData.budget) : undefined,
+                    yearMin: reqData.year ? Number(reqData.year) : undefined,
+                    phone: reqPhone || undefined,
+                    comment: reqComment || undefined,
+                    carListingId: listingId || undefined,
+                    carListingIds: selectedListingIds.length ? selectedListingIds : undefined,
+                    payload: {
+                        mode: isB2BMode ? 'B2B' : 'LEAD',
+                        mileage: reqMileage || undefined,
+                        fuel: reqFuel || undefined,
+                        companyName: reqCompany || undefined,
+                        selectedCars: selectedTitles.length ? selectedTitles : undefined
+                    },
+                    tracking: trackingMeta,
+                    telegram: {
+                        userId: tgUser?.id ? String(tgUser.id) : undefined,
+                        username: tgUser?.username,
+                        name: [tgUser?.first_name, tgUser?.last_name].filter(Boolean).join(' ')
+                    }
+                };
+
+                await createMiniAppRequest(requestPayload);
+                clearRequestSelection();
+
+                if (tg && tg.initData) {
+                    tg.close();
+                } else {
+                    setReqStep(3);
+                }
+            } catch (e) {
+                emitMiniAppEvent('error', 'MiniApp request submit failed', { error: e instanceof Error ? e.message : String(e) });
+                const message = resolveMiniAppWriteError(e, 'Не вдалося надіслати запит.');
+                pushToast(message, 'error');
+            }
+        }
+    };
+
+    const renderRequest = () => (
+        <RequestView
+            reqStep={reqStep}
+            reqData={reqData}
+            setReqData={setReqData}
+            reqMileage={reqMileage}
+            setReqMileage={setReqMileage}
+            reqFuel={reqFuel}
+            setReqFuel={setReqFuel}
+            reqCompany={reqCompany}
+            setReqCompany={setReqCompany}
+            reqPhone={reqPhone}
+            setReqPhone={setReqPhone}
+            reqComment={reqComment}
+            setReqComment={setReqComment}
+            selectedCarsCount={selectedRequestCarIds.length}
+            selectedCarsPreview={selectedRequestCars.map(car => car.title).filter(Boolean).slice(0, 3)}
+            onClearSelectedCars={clearRequestSelection}
+            hasTelegramInit={hasTelegramInit}
+            primaryColor={primaryColor}
+            surfaceMode={surfaceMode}
+            onNextStep={handleNextStep}
+            onHome={() => { setReqStep(1); setView('HOME'); }}
+        />
+    );
+
+    const renderProfile = () => (
+        <ProfileView
+            tgUser={tgUser}
+            primaryColor={primaryColor}
+            favoriteCount={favoriteItems.length}
+            createdRequestCount={reqStep >= 3 ? 1 : 0}
+            onCloseApp={() => (window as any).Telegram?.WebApp?.close?.()}
+        />
+    );
+
+    const renderSelectionBar = () => {
+        if (!selectedRequestCarIds.length) return null;
+        if (view === 'REQUEST' || view === 'STATUS') return null;
+        return (
+            <div className="absolute bottom-20 left-4 right-4 z-30">
+                <div className="bg-[#111214] border border-white/10 rounded-2xl p-3 shadow-2xl backdrop-blur">
+                    <div className="text-xs text-white/60 mb-2">
+                        Обрано авто: <span className="text-white font-bold">{selectedRequestCarIds.length}</span>
+                    </div>
+                    <div className="flex gap-2">
+                        <button
+                            onClick={openRequestForSelectedCars}
+                            className="flex-1 py-2.5 rounded-xl font-bold text-black text-sm"
+                            style={{ backgroundColor: primaryColor }}
+                        >
+                            Надіслати запит
+                        </button>
+                        <button
+                            onClick={clearRequestSelection}
+                            className="px-3 py-2.5 rounded-xl font-bold text-xs border border-white/10 text-white/80"
+                        >
+                            Очистити
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
+    const AppIcon = ({ name, size = 24 }: { name: string; size?: number }) => {
+        const props = { size };
+        switch (name) {
+            case 'Home': return <Home {...props} />;
+            case 'Search': return <Search {...props} />;
+            case 'Zap': return <Zap {...props} />;
+            case 'DollarSign': return <DollarSign {...props} />;
+            case 'MessageCircle': return <MessageSquare {...props} />;
+            case 'Grid':
+            case 'LayoutGrid': return <LayoutGrid {...props} />;
+            case 'List': return <ListIcon {...props} />;
+            case 'Phone':
+            case 'Телефон':
+                return <Phone {...props} />;
+            case 'Heart': return <Heart {...props} />;
+            case 'Star': return <Star {...props} />;
+            case 'ClipboardList': return <ClipboardList {...props} />;
+            case 'User': return <User {...props} />;
+            default: return <Star {...props} />;
+        }
+    };
+
+    const renderIcon = (icon?: string, size = 22) => {
+        if (!icon) return <AppIcon name="Star" size={size} />;
+        if (icon.startsWith('http://') || icon.startsWith('https://')) {
+            return <img src={icon} className="w-6 h-6 object-cover rounded-full" />;
+        }
+        const hasNonAlpha = /[^a-z0-9_]/i.test(icon);
+        if (hasNonAlpha) {
+            return <span className="text-lg leading-none">{icon}</span>;
+        }
+        return <AppIcon name={icon} size={size} />;
+    };
+
+    const shellNavItems = navItems.map(item => ({
+        id: String(item.id),
+        value: String(item.value || ''),
+        label: String(item.label || ''),
+        icon: renderIcon(item.icon, 24)
+    }));
+
+    return (
+        <>
+            <ToastStack items={toasts} onDismiss={dismissToast} />
+            <MiniAppShell
+                configWarning={configWarning}
+                showBackArrow={showBackArrow}
+                onBack={goBack}
+                showBottomNav={showBottomNav}
+                navItems={shellNavItems}
+                activeView={view}
+                onNavigate={(value) => {
+                    const target = navItems.find(item => String(item.value || '') === value);
+                    if (!target) return;
+                    handleAction(target as any);
+                }}
+            >
+                {view === 'HOME' && renderHome()}
+                {view === 'INVENTORY' && renderInventory()}
+                {view === 'FAVORITES' && renderFavorites()}
+                {view === 'LISTING' && renderListing()}
+                {view === 'REQUEST' && renderRequest()}
+                {view === 'STATUS' && renderStatus()}
+                {view === 'PROFILE' && renderProfile()}
+                {renderSelectionBar()}
+
+                {lightboxCar && (
+                    <div className="absolute inset-0 bg-black z-[100] flex flex-col">
+                        {(() => {
+                            const lightboxImages = getCarImages(lightboxCar);
+                            const hasMultiple = lightboxImages.length > 1;
+                            return (
+                                <>
+                                    <div className="p-4 flex justify-between items-center">
+                                        <h3 className="text-white font-bold truncate">{lightboxCar.title}</h3>
+                                        <button
+                                            onClick={() => setLightboxCar(null)}
+                                            className="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center"
+                                        >
+                                            <X size={20} className="text-white" />
+                                        </button>
+                                    </div>
+                                    <div className="flex-1 relative flex items-center justify-center">
+                                        <img
+                                            src={lightboxImages[lightboxImageIndex] || lightboxCar.thumbnail || PLACEHOLDER_IMAGE}
+                                            className="max-w-full max-h-full object-contain"
+                                        />
+                                        {hasMultiple && (
+                                            <>
+                                                {lightboxImageIndex > 0 && (
+                                                    <button
+                                                        onClick={() => setLightboxImageIndex(lightboxImageIndex - 1)}
+                                                        className="absolute left-4 w-12 h-12 bg-black/50 backdrop-blur rounded-full flex items-center justify-center"
+                                                    >
+                                                        <ChevronLeft size={24} className="text-white" />
+                                                    </button>
+                                                )}
+                                                {lightboxImageIndex < lightboxImages.length - 1 && (
+                                                    <button
+                                                        onClick={() => setLightboxImageIndex(lightboxImageIndex + 1)}
+                                                        className="absolute right-4 w-12 h-12 bg-black/50 backdrop-blur rounded-full flex items-center justify-center"
+                                                    >
+                                                        <ChevronRightIcon size={24} className="text-white" />
+                                                    </button>
+                                                )}
+                                                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/50 backdrop-blur px-3 py-1 rounded-full text-xs text-white">
+                                                    {lightboxImageIndex + 1} / {lightboxImages.length}
+                                                </div>
+                                            </>
+                                        )}
+                                    </div>
+                                </>
+                            );
+                        })()}
+                    </div>
+                )}
+            </MiniAppShell>
+        </>
+    );
 };
 
 export const MiniApp = () => (

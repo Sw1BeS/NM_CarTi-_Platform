@@ -23,6 +23,8 @@ import { buildTelegramChannelPostUrl, normalizeBotConfigChatId } from '../core/u
 import { buildTelegramPhotoMedia, collectCarMediaSources } from '../core/utils/carMedia.js';
 import { resolveReplyMarkupForChat } from '../core/utils/telegramReplyMarkup.js';
 import { b2bRoutingService } from '../../../../services/b2bRouting.service.js';
+import { startLeadBuyWizard, handleLeadBuyText } from './wizards/leadBuyWizard.js';
+import { startLeadSellWizard, handleLeadSellText } from './wizards/leadSellWizard.js';
 
 
 const parseRange = (input: string) => {
@@ -188,27 +190,28 @@ const showMenu = async (ctx: PipelineContext, lang: Lang, template: string, noti
   const baseVars = (ctx.session?.variables as any) || {};
   if (notice) await sendMessage(ctx, notice);
 
+  const isPrivate = String(ctx.chatType) === 'private';
+
   if (template === 'CLIENT_LEAD') {
-    if (getFlowVersion()) {
-      await sendMessage(ctx, t(lang, 'clientMenu', { bot: botName }), {
-        keyboard: [
-          [{ text: BOT_A_V2_BUTTONS.lead }],
-          [{ text: BOT_A_V2_BUTTONS.catalog }],
-          [{ text: BOT_A_V2_BUTTONS.contacts }]
-        ],
-        resize_keyboard: true
-      });
-    } else {
-      await sendMessage(ctx, t(lang, 'clientMenu', { bot: botName }), {
-        keyboard: [[{ text: button(lang, 'clientLead.lead') }], [{ text: button(lang, 'clientLead.support') }]],
-        resize_keyboard: true
-      });
+    if (!isPrivate) {
+      await sendMessage(ctx, t(lang, 'admin.lead.help'));
+      await updateSession(ctx, 'CL_MENU', { ...baseVars, leadFlow: {} });
+      return;
     }
+
+    await sendMessage(ctx, t(lang, 'common.welcome_lead', { bot: botName }), {
+      keyboard: [
+        [{ text: button(lang, 'leadMenu.buy') }, { text: button(lang, 'leadMenu.sell') }],
+        [{ text: button(lang, 'leadMenu.support') }, { text: button(lang, 'common.info') }]
+      ],
+      resize_keyboard: true
+    });
     await updateSession(ctx, 'CL_MENU', { ...baseVars, leadFlow: {} });
     return;
   }
 
   if (template === 'CATALOG') {
+    if (!isPrivate) return;
     await sendMessage(ctx, t(lang, 'catalogMenu', { bot: botName }), {
       keyboard: [[{ text: button(lang, 'catalog.find') }, { text: button(lang, 'catalog.sell') }]],
       resize_keyboard: true
@@ -218,8 +221,19 @@ const showMenu = async (ctx: PipelineContext, lang: Lang, template: string, noti
   }
 
   if (template === 'B2B') {
-    await sendMessage(ctx, t(lang, 'b2bMenu', { bot: botName }), {
-      keyboard: [[{ text: button(lang, 'b2b.request') }]],
+    if (!isPrivate) {
+      await sendMessage(ctx, t(lang, 'admin.b2b.help'));
+      await updateSession(ctx, 'B2B_MENU', { ...baseVars, b2bFlow: {} });
+      return;
+    }
+
+    // Checking if B2B user is registered is complex without PartnerUser fetched here.
+    // Assuming if they reached B2B_MENU via normal flow and aren't trapped in B2B_REG, they are registered.
+    await sendMessage(ctx, t(lang, 'b2b.menu_title_registered', { bot: botName }), {
+      keyboard: [
+        [{ text: button(lang, 'b2bMenu.newRequest') }, { text: button(lang, 'b2bMenu.myInventory') }],
+        [{ text: button(lang, 'common.rules') }, { text: button(lang, 'common.info') }]
+      ],
       resize_keyboard: true
     });
     await updateSession(ctx, 'B2B_MENU', { ...baseVars, b2bFlow: {} });
@@ -300,12 +314,20 @@ const handleClientLead = async (ctx: PipelineContext, text: string) => {
   const message = ctx.update?.message;
   const state = ctx.session.state || 'CL_MENU';
   const vars = (ctx.session.variables as any) || {};
-  const flow = vars.leadFlow || {};
   const flowV2 = getFlowVersion();
-  const isLeaveRequest = isCommand(text, ['/buy', button(lang, 'clientLead.lead'), BOT_A_V2_BUTTONS.lead]);
-  const isSupport = !flowV2 && isCommand(text, [button(lang, 'clientLead.support')]);
-  const isCatalog = flowV2 && isCommand(text, [BOT_A_V2_BUTTONS.catalog]);
-  const isContacts = flowV2 && isCommand(text, [BOT_A_V2_BUTTONS.contacts]);
+
+  if (state.startsWith('LB_')) {
+    if (await handleLeadBuyText(ctx, text)) return true;
+  }
+  if (state.startsWith('LS_')) {
+    if (await handleLeadSellText(ctx, text)) return true;
+  }
+
+  const isLeaveRequest = isCommand(text, ['/buy', button(lang, 'leadMenu.buy')]);
+  const isSellRequest = isCommand(text, ['/sell', button(lang, 'leadMenu.sell')]);
+  const isSupport = isCommand(text, [button(lang, 'leadMenu.support')]);
+  const isCatalog = isCommand(text, [button(lang, 'common.openMiniApp')]);
+  const isContacts = isCommand(text, ['Контакти']);
   const isCancel = isCommand(text, ['cancel', 'stop', 'відміна', 'отмена', button(lang, 'common.cancel')]);
   const isBack = isCommand(text, ['back', 'назад', '⬅️ back', '⬅️ назад', button(lang, 'common.back')]);
   const isMenu = isCommand(text, ['/start', '/menu', 'menu', 'reset']);
@@ -358,292 +380,70 @@ const handleClientLead = async (ctx: PipelineContext, text: string) => {
 
   if (isSupport || state === 'CL_SUPPORT') {
     if (state !== 'CL_SUPPORT') {
+      const tgUserId = String(ctx.userId || message?.from?.id);
+      const existing = await prisma.supportTicket.findFirst({
+        where: { tgUserId, status: 'OPEN', botId: ctx.bot.id }
+      });
+      if (existing) {
+        await sendMessage(ctx, t(lang, 'support.has_open'));
+      }
       await updateSession(ctx, 'CL_SUPPORT', vars);
       await sendMessage(ctx, t(lang, 'supportAsk'), { remove_keyboard: true });
       return true;
     }
+
+    if (isCancel || isBack || isMenu) {
+      await showMenu(ctx, lang, 'CLIENT_LEAD');
+      return true;
+    }
+
+    const tgUserId = String(ctx.userId || message?.from?.id);
+    let ticket = await prisma.supportTicket.findFirst({
+      where: { tgUserId, status: 'OPEN', botId: ctx.bot.id }
+    });
+
+    const threadItem = { text, date: new Date().toISOString(), from: 'user' };
+
+    if (ticket) {
+      const thread = Array.isArray(ticket.thread) ? ticket.thread : [];
+      thread.push(threadItem);
+      await prisma.supportTicket.update({
+        where: { id: ticket.id },
+        data: { thread: thread as any }
+      });
+    } else {
+      await prisma.supportTicket.create({
+        data: {
+          tgUserId,
+          botId: ctx.bot.id,
+          companyId: ctx.companyId,
+          chatId: String(ctx.chatId),
+          text: text,
+          thread: [threadItem] as any,
+          status: 'OPEN'
+        }
+      });
+    }
+
     await sendMessage(ctx, t(lang, 'supportReceived'));
     if (ctx.bot?.adminChatId) {
-      await sendMessage(ctx, `🆘 Support request from ${message?.from?.first_name || 'User'}: ${text}`, undefined, String(ctx.bot.adminChatId));
+      await sendMessage(ctx, `🆘 Support request from ${message?.from?.first_name || 'User'}:\n${text}`, undefined, String(ctx.bot.adminChatId));
     }
     await showMenu(ctx, lang, 'CLIENT_LEAD');
     return true;
   }
 
-  if (isLeaveRequest || state === 'CL_MENU') {
-    if (isBack) {
-      await showMenu(ctx, lang, 'CLIENT_LEAD');
-      return true;
-    }
-    if (flowV2) {
-      await updateSession(ctx, 'CL_INTENT', { ...vars, leadFlow: {} });
-      await sendMessage(ctx, 'Що цікавить?', {
-        keyboard: [
-          [{ text: 'в наявності' }],
-          [{ text: 'в дорозі' }],
-          [{ text: 'підбір і пригін' }],
-          [{ text: button(lang, 'common.cancel') }]
-        ],
-        resize_keyboard: true
-      });
-      return true;
-    }
-
-    await updateSession(ctx, 'CL_NAME', { ...vars, leadFlow: {} });
-    await sendMessage(ctx, t(lang, 'askName'), { remove_keyboard: true });
+  if (isLeaveRequest) {
+    await startLeadBuyWizard(ctx);
     return true;
   }
 
-  if (flowV2 && state === 'CL_INTENT') {
-    if (isBack) {
-      await showMenu(ctx, lang, 'CLIENT_LEAD');
-      return true;
-    }
-    const interest = resolveLeadInterest(text);
-    if (!interest) {
-      await sendMessage(ctx, 'Оберіть один із варіантів: в наявності / в дорозі / підбір і пригін.');
-      return true;
-    }
-    flow.interest = interest;
-    await updateSession(ctx, 'CL_CAR', { ...vars, leadFlow: flow });
-    await sendMessage(ctx, 'Яка марка/модель цікавить? (можна пропустити)');
+  if (isSellRequest) {
+    await startLeadSellWizard(ctx);
     return true;
   }
 
-  if (flowV2 && state === 'CL_CAR') {
-    if (isBack) {
-      await updateSession(ctx, 'CL_INTENT', { ...vars, leadFlow: flow });
-      await sendMessage(ctx, 'Що цікавить?', {
-        keyboard: [
-          [{ text: 'в наявності' }],
-          [{ text: 'в дорозі' }],
-          [{ text: 'підбір і пригін' }]
-        ],
-        resize_keyboard: true
-      });
-      return true;
-    }
-    if (isCommand(text, ['skip', button(lang, 'common.skip')])) {
-      flow.car = undefined;
-    } else if (text.length < 2) {
-      await sendMessage(ctx, t(lang, 'invalidCar'));
-      return true;
-    } else {
-      flow.car = text;
-    }
-    await updateSession(ctx, 'CL_BUDGET', { ...vars, leadFlow: flow });
-    await sendMessage(ctx, t(lang, 'askBudget'));
-    return true;
-  }
-
-  if (flowV2 && state === 'CL_BUDGET') {
-    if (isBack) {
-      await updateSession(ctx, 'CL_CAR', { ...vars, leadFlow: flow });
-      await sendMessage(ctx, 'Яка марка/модель цікавить? (можна пропустити)');
-      return true;
-    }
-    if (isCommand(text, ['skip', button(lang, 'common.skip')])) {
-      flow.budget = undefined;
-    } else {
-      const budget = parseInt(text.replace(/[^\d]/g, ''), 10) || 0;
-      if (!budget) {
-        await sendMessage(ctx, t(lang, 'invalidBudget'));
-        return true;
-      }
-      flow.budget = budget;
-    }
-    await updateSession(ctx, 'CL_CITY', { ...vars, leadFlow: flow });
-    await sendMessage(ctx, t(lang, 'askCity'));
-    return true;
-  }
-
-  if (flowV2 && state === 'CL_CITY') {
-    if (isBack) {
-      await updateSession(ctx, 'CL_BUDGET', { ...vars, leadFlow: flow });
-      await sendMessage(ctx, t(lang, 'askBudget'));
-      return true;
-    }
-    if (isCommand(text, ['skip', button(lang, 'common.skip')])) {
-      flow.city = undefined;
-    } else {
-      flow.city = await normalizeCity(text, { companyId: ctx.companyId });
-    }
-    await updateSession(ctx, 'CL_COMMENT', { ...vars, leadFlow: flow });
-    await sendMessage(ctx, 'Додайте коментар або примітку (можна "skip").');
-    return true;
-  }
-
-  if (flowV2 && state === 'CL_COMMENT') {
-    if (isBack) {
-      await updateSession(ctx, 'CL_CITY', { ...vars, leadFlow: flow });
-      await sendMessage(ctx, t(lang, 'askCity'));
-      return true;
-    }
-    flow.comment = isCommand(text, ['skip', button(lang, 'common.skip')]) ? undefined : text;
-    await updateSession(ctx, 'CL_CONTACT', { ...vars, leadFlow: flow });
-    await sendMessage(ctx, t(lang, 'askContact'), {
-      keyboard: [[{ text: button(lang, 'common.contact'), request_contact: true }], [{ text: button(lang, 'common.back') }]],
-      resize_keyboard: true
-    });
-    return true;
-  }
-
-  if (flowV2 && state === 'CL_CONTACT') {
-    if (isBack) {
-      await updateSession(ctx, 'CL_COMMENT', { ...vars, leadFlow: flow });
-      await sendMessage(ctx, 'Додайте коментар або примітку (можна "skip").');
-      return true;
-    }
-    const phoneRaw = message?.contact?.phone_number || text;
-    const phone = normalizePhone(phoneRaw || undefined);
-    if (!phone) {
-      await sendMessage(ctx, t(lang, 'invalidPhone'));
-      return true;
-    }
-    flow.phone = phone;
-    await updateSession(ctx, 'CL_CONFIRM', { ...vars, leadFlow: flow });
-    const summary = [
-      `🔎 Цікавить: ${BOT_A_INTEREST_OPTIONS[flow.interest as string] || '—'}`,
-      `🚗 Марка/модель: ${flow.car || '—'}`,
-      flow.budget ? `💰 Бюджет: ${flow.budget}$` : '💰 Бюджет: —',
-      `📍 Місто: ${flow.city || '—'}`,
-      `📝 Коментар: ${flow.comment || '—'}`,
-      `📞 Контакт: ${flow.phone}`
-    ].join('\n');
-    await sendConfirm(ctx, lang, `${t(lang, 'leadConfirm')}\n\n${summary}`, 'cl_lead_send', 'cl_lead_back');
-    return true;
-  }
-
-  if (flowV2 && state === 'CL_CONFIRM') {
-    if (isBack) {
-      await updateSession(ctx, 'CL_CONTACT', { ...vars, leadFlow: flow });
-      await sendMessage(ctx, t(lang, 'askContact'), {
-        keyboard: [[{ text: button(lang, 'common.contact'), request_contact: true }], [{ text: button(lang, 'common.back') }]],
-        resize_keyboard: true
-      });
-      return true;
-    }
-    if (isCancel) {
-      await showMenu(ctx, lang, 'CLIENT_LEAD', t(lang, 'cancelled'));
-      return true;
-    }
-    await sendMessage(ctx, t(lang, 'fallback'));
-    return true;
-  }
-
-  if (state === 'CL_NAME') {
-    if (isBack) {
-      await showMenu(ctx, lang, 'CLIENT_LEAD');
-      return true;
-    }
-    if (!text || text.length < 2) {
-      await sendMessage(ctx, t(lang, 'invalidName'));
-      return true;
-    }
-    flow.name = text;
-    await updateSession(ctx, 'CL_CAR', { ...vars, leadFlow: flow });
-    await sendMessage(ctx, t(lang, 'askCar'));
-    return true;
-  }
-
-  if (state === 'CL_CAR') {
-    if (isBack) {
-      await updateSession(ctx, 'CL_NAME', { ...vars, leadFlow: flow });
-      await sendMessage(ctx, t(lang, 'askName'));
-      return true;
-    }
-    if (text.length < 3) {
-      await sendMessage(ctx, t(lang, 'invalidCar'));
-      return true;
-    }
-    flow.car = text;
-    await updateSession(ctx, 'CL_BUDGET', { ...vars, leadFlow: flow });
-    await sendMessage(ctx, t(lang, 'askBudget'));
-    return true;
-  }
-
-  if (state === 'CL_BUDGET') {
-    if (isBack) {
-      await updateSession(ctx, 'CL_CAR', { ...vars, leadFlow: flow });
-      await sendMessage(ctx, t(lang, 'askCar'));
-      return true;
-    }
-    if (isCommand(text, ['skip', button(lang, 'common.skip')])) {
-      flow.budget = undefined;
-    } else {
-      const budget = parseInt(text.replace(/[^\d]/g, ''), 10) || 0;
-      if (!budget) {
-        await sendMessage(ctx, t(lang, 'invalidBudget'));
-        return true;
-      }
-      flow.budget = budget;
-    }
-    await updateSession(ctx, 'CL_CITY', { ...vars, leadFlow: flow });
-    await sendMessage(ctx, t(lang, 'askCity'));
-    return true;
-  }
-
-  if (state === 'CL_CITY') {
-    if (isBack) {
-      await updateSession(ctx, 'CL_BUDGET', { ...vars, leadFlow: flow });
-      await sendMessage(ctx, t(lang, 'askBudget'));
-      return true;
-    }
-    if (isCommand(text, ['skip', button(lang, 'common.skip')])) {
-      flow.city = undefined;
-    } else {
-      flow.city = await normalizeCity(text, { companyId: ctx.companyId });
-    }
-    await updateSession(ctx, 'CL_CONTACT', { ...vars, leadFlow: flow });
-    await sendMessage(ctx, t(lang, 'askContact'), {
-      keyboard: [[{ text: button(lang, 'common.contact'), request_contact: true }], [{ text: button(lang, 'common.back') }]],
-      resize_keyboard: true
-    });
-    return true;
-  }
-
-  if (state === 'CL_CONTACT') {
-    if (isBack) {
-      await updateSession(ctx, 'CL_CITY', { ...vars, leadFlow: flow });
-      await sendMessage(ctx, t(lang, 'askCity'));
-      return true;
-    }
-    const phoneRaw = message?.contact?.phone_number || text;
-    const phone = normalizePhone(phoneRaw || undefined);
-    if (!phone) {
-      await sendMessage(ctx, t(lang, 'invalidPhone'));
-      return true;
-    }
-    flow.phone = phone;
-    await updateSession(ctx, 'CL_CONFIRM', { ...vars, leadFlow: flow });
-    const summary = [
-      `🙋 ${flow.name}`,
-      `🚗 ${flow.car}`,
-      flow.budget ? `💰 $${flow.budget}` : undefined,
-      flow.city ? `📍 ${flow.city}` : undefined,
-      `📞 ${flow.phone}`
-    ].filter(Boolean).join('\n');
-    await sendConfirm(ctx, lang, `${t(lang, 'leadConfirm')}\n\n${summary}`, 'cl_lead_send', 'cl_lead_back');
-    return true;
-  }
-
-  if (state === 'CL_CONFIRM') {
-    if (isBack) {
-      await updateSession(ctx, 'CL_CONTACT', { ...vars, leadFlow: flow });
-      await sendMessage(ctx, t(lang, 'askContact'), {
-        keyboard: [[{ text: button(lang, 'common.contact'), request_contact: true }], [{ text: button(lang, 'common.back') }]],
-        resize_keyboard: true
-      });
-      return true;
-    }
-    if (isCancel) {
-      await showMenu(ctx, lang, 'CLIENT_LEAD', t(lang, 'cancelled'));
-      return true;
-    }
-    await sendMessage(ctx, t(lang, 'fallback'));
-    return true;
-  }
-
+  // Fallback
   return false;
 };
 
@@ -926,6 +726,61 @@ const handleB2B = async (ctx: PipelineContext, text: string) => {
   const isMenu = isCommand(text, ['/start', '/menu', 'menu', 'reset']);
   const isSkip = isCommand(text, ['skip', 'пропустити', 'пропустить', button(lang, 'common.skip')]);
 
+  if (text.startsWith('/start ') && whitelistEnforced) {
+    const startPayload = text.split(' ')[1]?.trim();
+    if (startPayload && startPayload.startsWith('CDL-')) {
+      const inviteCode = startPayload;
+      const company = await prisma.partnerCompany.findUnique({ where: { inviteCode } });
+      if (company) {
+        const result = await b2bWhitelistService.ensureAccess({
+          tgUserId,
+          username: message?.from?.username || null,
+          fullName: identityName || null
+        }, {
+          companyId: ctx.companyId || null,
+          botId: ctx.bot.id
+        }, `telegram_start_invite;inviteCode=${inviteCode}`);
+
+        if (result.allowed) {
+          await sendMessage(ctx, '✅ Ви вже є учасником мережі.');
+        } else {
+          await sendMessage(ctx, `✅ Запит на приєднання до ${company.name} надіслано адміністратору.`);
+
+          const accessRequestId = result.accessRequest?.id || '';
+          if (accessRequestId) {
+            await b2bRoutingService.notifyQueues({
+              companyId: ctx.companyId || null,
+              sourceBotId: ctx.bot.id,
+              sourceBotToken: ctx.bot.token,
+              sourceBotAdminChatId: ctx.bot.adminChatId || null,
+              text: `🔐 Новий запит по інвайту ${inviteCode}\nКомпанія: ${company.name}\nКористувач: ${identityName || '—'}\nusername: ${message?.from?.username ? `@${message.from.username}` : '—'}`,
+              replyMarkup: {
+                inline_keyboard: [[
+                  { text: '✅ Approve', callback_data: buildCallbackData('b2b_access_approve', accessRequestId) },
+                  { text: '❌ Reject', callback_data: buildCallbackData('b2b_access_reject', accessRequestId) }
+                ]]
+              },
+              includeSourceAdminFallback: true
+            });
+          }
+        }
+        return true;
+      }
+    } else if (startPayload && startPayload.startsWith('b2bv_')) {
+      const publicId = startPayload.replace('b2bv_', '');
+      const request = await prisma.b2bRequest.findFirst({
+        where: { OR: [{ id: publicId }, { publicId }] }
+      });
+      if (!request) {
+        await sendMessage(ctx, '⚠️ Запит не знайдено.');
+        return true;
+      }
+      await updateSession(ctx, 'B2B_VAR_TEXT', { ...vars, b2bVariant: { reqId: request.id } });
+      await sendMessage(ctx, `Опишіть варіант для запиту ${request.publicId || request.id} + додайте фото/відео, або напишіть "skip":`);
+      return true;
+    }
+  }
+
   if (isMenu) {
     await showMenu(ctx, lang, 'B2B');
     return true;
@@ -1115,6 +970,50 @@ const handleB2B = async (ctx: PipelineContext, text: string) => {
       return true;
     }
     await sendMessage(ctx, t(lang, 'fallback'));
+    return true;
+  }
+
+  if (state === 'B2B_VAR_TEXT') {
+    if (isCancel || isBack) {
+      await showMenu(ctx, lang, 'B2B');
+      return true;
+    }
+    if (isSkip) {
+      flow.text = '';
+    } else {
+      flow.text = text;
+    }
+    const reqId = vars.b2bVariant?.reqId;
+    if (!reqId) {
+      await sendMessage(ctx, '⚠️ Сталася помилка. Почніть спочатку.', { replyMarkup: { remove_keyboard: true } });
+      await showMenu(ctx, lang, 'B2B');
+      return true;
+    }
+
+    await prisma.requestVariant.create({
+      data: {
+        requestId: reqId,
+        sellerPartnerId: vars.b2bPartnerId || null,
+        title: flow.text || 'Без опису',
+        status: 'SUBMITTED'
+      }
+    });
+
+    await sendMessage(ctx, '✅ Варіант надіслано автору запиту.');
+    await showMenu(ctx, lang, 'B2B');
+
+    const request = await prisma.b2bRequest.findUnique({ where: { id: reqId } });
+    const targetChatId = (request as any)?.clientChatId;
+    if (request && targetChatId) {
+      await telegramOutbox.sendMessage({
+        botId: ctx.bot.id,
+        token: ctx.bot.token,
+        chatId: targetChatId,
+        text: `🔔 Новий варіант для вашого запиту ${request.publicId || request.id}:\n\nПредставник: ${vars.b2bPartnerName || 'Невідомий партнер'}\nКоментар: ${flow.text || 'Без опису'}`,
+        replyMarkup: { inline_keyboard: [[{ text: '✅ Підходить', callback_data: `bv_fit_${reqId}` }, { text: '❌ Не підходить', callback_data: `bv_nfit_${reqId}` }]] },
+        companyId: ctx.companyId
+      }).catch(() => null);
+    }
     return true;
   }
 
@@ -1594,8 +1493,8 @@ export const finalizeB2BRequest = async (ctx: PipelineContext) => {
         throw new Error('Unable to fetch bot username');
       }
 
-      // Generate deep-link with new Telegram-safe format: request_{publicId}
-      const deeplink = `https://t.me/${botUsername}?start=request_${request.publicId || request.id}`;
+      // Generate deep-link with new Telegram-safe format: b2bv_{publicId}
+      const deeplink = `https://t.me/${botUsername}?start=b2bv_${request.publicId || request.id}`;
 
       // Build structured message (without contacts)
       const channelMessage = formatB2bRequestChannelCard(request);
@@ -1608,8 +1507,7 @@ export const finalizeB2BRequest = async (ctx: PipelineContext) => {
         text: channelMessage,
         replyMarkup: {
           inline_keyboard: [
-            [{ text: 'Є авто', url: deeplink }],
-            [{ text: 'Відкрити в боті', url: deeplink }]
+            [{ text: 'Є варіант', url: deeplink }]
           ]
         },
         companyId: ctx.companyId

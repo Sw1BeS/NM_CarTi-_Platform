@@ -607,6 +607,7 @@ model SupportTicket {
   chatId    String?
   text      String
   context   Json?               @db.JsonB
+  thread    Json?               @db.JsonB
   status    SupportTicketStatus @default(OPEN)
   closedAt  DateTime?
 
@@ -629,6 +630,7 @@ model B2bAccessRequest {
   tgUserId  String
   username  String?
   fullName  String?
+  payload   Json?               @db.JsonB
   status    AccessRequestStatus @default(NEW)
   reason    String?
   createdAt DateTime            @default(now())
@@ -929,6 +931,7 @@ model PartnerCompany {
   contact   String?
   notes     String?
   partnerCode String?  @unique
+  inviteCode  String?  @unique
   showcaseSlug String? @unique
   crmUrl    String?
   adminGroupChatId String?
@@ -948,6 +951,7 @@ model PartnerCompany {
 model PartnerUser {
   id         String          @id @default(cuid())
   name       String
+  lastName   String?
   role       PartnerUserRole @default(AGENT)
   telegramId String?         @unique
   phone      String?

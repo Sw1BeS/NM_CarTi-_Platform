@@ -1,6 +1,6 @@
 export type MiniAppPayloadV1 = {
   v: 1;
-  type: 'lead_submit' | 'interest_click' | 'sell_submit' | 'multi_request_submit';
+  type: 'lead_submit' | 'interest_click' | 'sell_submit' | 'multi_request_submit' | 'fav_toggle' | 'lead_submit_multi';
   carId?: string;
   carIds?: string[];
   fields?: Record<string, any>;
@@ -18,7 +18,7 @@ export const parseMiniAppPayload = (raw: any): ParseResult => {
   if (raw.v !== 1) return { ok: false, error: 'unsupported_version' };
 
   const type = String(raw.type || '').toLowerCase();
-  if (!['lead_submit', 'interest_click', 'sell_submit', 'multi_request_submit'].includes(type)) {
+  if (!['lead_submit', 'interest_click', 'sell_submit', 'multi_request_submit', 'fav_toggle', 'lead_submit_multi'].includes(type)) {
     return { ok: false, error: 'unsupported_type' };
   }
 
