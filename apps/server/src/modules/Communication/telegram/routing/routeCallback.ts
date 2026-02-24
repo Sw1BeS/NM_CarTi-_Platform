@@ -99,7 +99,7 @@ export const routeCallback = async (ctx: PipelineContext) => {
           botId: ctx.bot.id,
           token: ctx.bot.token,
           chatId: variant.sellerPartner.adminGroupChatId,
-          text: `🎉 Клієнт підтвердив ваш варіант для запиту ${variant.request?.publicId || variant.request?.id}!\nЗв'яжіться з клієнтом для узгодження деталей.`,
+          text: `🔥 [FIT] Клієнт підтвердив варіант для запиту ${variant.request?.publicId || variant.request?.id}!\nЗв'яжіться з клієнтом для узгодження деталей.`,
           companyId: ctx.companyId
         }).catch(() => null);
       }
@@ -191,7 +191,7 @@ export const routeCallback = async (ctx: PipelineContext) => {
             sourceBotToken: ctx.bot.token,
             sourceBotAdminChatId: ctx.bot.adminChatId || null,
             text:
-              `🔐 Новий запит на доступ B2B\n` +
+              `🟡 [B2B REG] Новий запит на доступ\n` +
               `ID: ${accessRequestId || '—'}\n` +
               `tgUserId: ${from?.id || ctx.userId}\n` +
               `username: ${from?.username ? `@${from.username}` : '—'}\n` +

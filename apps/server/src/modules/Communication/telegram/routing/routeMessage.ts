@@ -297,12 +297,12 @@ const formatB2bRequestChannelCard = (request: any) => {
   const noteLine = request.description || reqPayload.comment || '—';
 
   return [
-    `📝 Запит ${request.publicId || request.id}`,
-    `🚗 Марка/модель: ${request.title || '—'}`,
+    `🔵 <b>Запит #${request.publicId || request.id}</b>`,
+    `🚗 ${request.title || '—'}`,
     `📅 Рік: ${yearLine}`,
     `💰 Бюджет: ${budgetLine}`,
     `🛣 Пробіг: ${mileageLine}`,
-    `⛽ Тип пального: ${fuelLine}`,
+    `⛽ Паливо: ${fuelLine}`,
     `📝 Примітка: ${noteLine}`,
     `🏢 Хто шукає: ${requesterCompany}`
   ].join('\n');
@@ -427,7 +427,7 @@ const handleClientLead = async (ctx: PipelineContext, text: string) => {
 
     await sendMessage(ctx, t(lang, 'supportReceived'));
     if (ctx.bot?.adminChatId) {
-      await sendMessage(ctx, `🆘 Support request from ${message?.from?.first_name || 'User'}:\n${text}`, undefined, String(ctx.bot.adminChatId));
+      await sendMessage(ctx, `🆘 [SUPPORT] ${message?.from?.first_name || 'User'}:\n${text}`, undefined, String(ctx.bot.adminChatId));
     }
     await showMenu(ctx, lang, 'CLIENT_LEAD');
     return true;
@@ -1280,7 +1280,7 @@ export const finalizeClientLead = async (ctx: PipelineContext) => {
         ? `https://t.me/${telegramUsername}`
         : `tg://user?id=${tgUserId}`;
       const summary = [
-        '📥 Нова заявка Bot A',
+        '🟢 [LEAD BUY] Нова заявка',
         `🔎 Що цікавить: ${BOT_A_INTEREST_OPTIONS[flow.interest as string] || '—'}`,
         `🚗 Марка/модель: ${flow.car || '—'}`,
         `💰 Бюджет: ${flow.budget ? `${flow.budget}$` : '—'}`,
@@ -1302,7 +1302,7 @@ export const finalizeClientLead = async (ctx: PipelineContext) => {
         payload: { city: flow.city, budget: flow.budget }
       });
       const reqCard = result.request ? renderRequestCard(result.request) : '';
-      const header = result.isDuplicate ? '♻️ Дублікат заявки обʼєднано' : '🔥 Нова заявка';
+      const header = result.isDuplicate ? '🟢 [LEAD BUY] ♻️ Дублікат заявки обʼєднано' : '🟢 [LEAD BUY] Нова заявка';
       await sendMessage(ctx, `${header}\n\n${leadCard}${reqCard ? `\n\n${reqCard}` : ''}`, undefined, String(ctx.bot.adminChatId));
     }
   }
@@ -1351,7 +1351,7 @@ export const finalizeCatalogSell = async (ctx: PipelineContext) => {
       request: flow.car,
       payload: { leadType: 'SELL' }
     });
-    const header = result.isDuplicate ? '♻️ Дублікат заявки на продаж обʼєднано' : '💵 Нова заявка на продаж';
+    const header = result.isDuplicate ? '🟣 [LEAD SELL] ♻️ Дублікат обʼєднано' : '🟣 [LEAD SELL] Нова заявка на продаж';
     await sendMessage(ctx, `${header}\n\n${leadCard}`, undefined, String(ctx.bot.adminChatId));
   }
 
