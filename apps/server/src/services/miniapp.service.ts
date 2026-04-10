@@ -1,10 +1,7 @@
 import { prisma } from './prisma.js';
-import { Prisma } from '@prisma/client';
-import { ShowcaseService } from '../modules/Marketing/showcase/showcase.service.js';
-import { generatePublicId, mapInventoryOutput, mapRequestInput, mapRequestOutput } from './dto.js';
-import { createOrMergeLead } from '../modules/Communication/telegram/core/leadService.js';
+import { mapInventoryOutput } from './dto.js';
 import { resolvePublicSlug, type PublicSlugResolution } from './publicSlug.service.js';
-import { platformEvents, EVENTS } from './platform-events.js';
+import { requestContractService } from './requestContract.service.js';
 
 export type MiniAppIdentity = {
   tgUserId?: string;
@@ -40,43 +37,16 @@ export type MiniAppRequestStatusQuery = {
   telegramUserId?: string;
 };
 
-const showcaseService = new ShowcaseService();
-
-const isRecord = (value: unknown): value is Record<string, unknown> => {
-  return !!value && typeof value === 'object' && !Array.isArray(value);
-};
-
-const toOptionalString = (value: unknown): string | undefined => {
-  if (typeof value === 'string') {
-    const trimmed = value.trim();
-    return trimmed ? trimmed : undefined;
-  }
-  if (value === null || value === undefined) return undefined;
-  const str = String(value).trim();
-  return str ? str : undefined;
-};
-
-const toOptionalNumber = (value: unknown): number | undefined => {
-  if (typeof value === 'number' && !Number.isNaN(value)) return value;
-  if (typeof value === 'string') {
-    const trimmed = value.trim();
-    if (!trimmed) return undefined;
-    const parsed = Number(trimmed);
-    return Number.isNaN(parsed) ? undefined : parsed;
-  }
-  return undefined;
-};
-
 const normalizeIdentity = (identity: MiniAppIdentity): MiniAppIdentity => {
-  const tgUserId = toOptionalString(identity.tgUserId);
-  const visitorId = toOptionalString(identity.visitorId);
+  const tgUserId = typeof identity.tgUserId === 'string' ? identity.tgUserId.trim() || undefined : undefined;
+  const visitorId = typeof identity.visitorId === 'string' ? identity.visitorId.trim() || undefined : undefined;
   return { tgUserId, visitorId };
 };
 
 const resolveCompanyIdBySlug = async (slug: string): Promise<string | null> => {
   const trimmed = slug.trim();
   if (!trimmed) return null;
-  const resolved = await resolvePublicSlug(trimmed);
+  const resolved = await resolvePublicSlug(trimmed, { allowWorkspaceFallback: true });
   return resolved.companyId || null;
 };
 
@@ -84,7 +54,7 @@ const resolveBotForSlug = async (slug: string, companyId?: string | null, resolv
   const trimmed = slug.trim();
   if (!trimmed) return { botId: undefined, companyId };
 
-  const resolution = resolved || await resolvePublicSlug(trimmed);
+  const resolution = resolved || await resolvePublicSlug(trimmed, { allowWorkspaceFallback: true });
   if (resolution?.botId) return { botId: resolution.botId, companyId: resolution.companyId || companyId };
   if (resolution?.showcase?.botId) return { botId: resolution.showcase.botId, companyId: resolution.showcase.workspaceId || companyId };
 
@@ -187,187 +157,15 @@ export class MiniAppService {
   }
 
   async createRequest(input: MiniAppRequestInput) {
-    const resolved = await resolvePublicSlug(input.slug);
-    const companyId = resolved.companyId;
-    if (!companyId) throw new Error('Company not found');
-    const botResolution = await resolveBotForSlug(input.slug, companyId, resolved);
-    const botId = botResolution.botId;
-
-    const titleFromInput = toOptionalString(input.title);
-    const descriptionFromInput = toOptionalString(input.description);
-    const phone = toOptionalString(input.phone);
-    const comment = toOptionalString(input.comment);
-    const carListingId = toOptionalString(input.carListingId);
-    const carListingIds = Array.isArray(input.carListingIds)
-      ? input.carListingIds.map((item) => toOptionalString(item)).filter((item): item is string => Boolean(item))
-      : [];
-    const selectedCarIds = Array.from(new Set([carListingId, ...carListingIds].filter((item): item is string => Boolean(item))));
-
-    let listingTitle: string | undefined;
-    let listingTitles: string[] = [];
-    if (selectedCarIds.length) {
-      const listings = await prisma.carListing.findMany({
-        where: { id: { in: selectedCarIds } },
-        select: { id: true, title: true }
-      });
-      const titleMap = new Map(listings.map((item) => [item.id, item.title]));
-      listingTitles = selectedCarIds.map((id) => titleMap.get(id)).filter((item): item is string => Boolean(item));
-      listingTitle = listingTitles[0];
-    }
-
-    const title = titleFromInput
-      || (listingTitles.length > 1
-        ? `Запит: ${listingTitles.length} авто`
-        : (listingTitle ? `Запит: ${listingTitle}` : 'Запит з Mini App'));
-
-    const descriptionParts: string[] = [];
-    if (listingTitles.length > 1) {
-      descriptionParts.push(`Картки: ${listingTitles.join(', ')}`);
-    } else if (listingTitle) {
-      descriptionParts.push(`Картка: ${listingTitle}`);
-    }
-    if (comment) descriptionParts.push(`Коментар: ${comment}`);
-    if (phone) descriptionParts.push(`Контакт: ${phone}`);
-    const description = descriptionFromInput || (descriptionParts.length ? descriptionParts.join('\n') : undefined);
-
-    const tracking = isRecord(input.tracking) ? input.tracking : {};
-    const telegram = isRecord(input.telegram) ? input.telegram : {};
-    const payloadFromInput = isRecord(input.payload) ? input.payload : {};
-
-    const payload = {
-      ...payloadFromInput,
-      source: 'miniapp',
-      phone: phone || undefined,
-      tracking,
-      telegram,
-      request: {
-        carListingId: carListingId || undefined,
-        carListingIds: selectedCarIds.length ? selectedCarIds : undefined,
-        phone: phone || undefined,
-        comment: comment || undefined
-      }
-    };
-
-    const requestInput = mapRequestInput({
-      title,
-      description,
-      budgetMax: toOptionalNumber(input.budgetMax),
-      yearMin: toOptionalNumber(input.yearMin),
-      chatId: toOptionalString((telegram as Record<string, unknown>)?.userId),
-      botId,
-      payload
-    });
-
-    if (!requestInput.publicId) requestInput.publicId = generatePublicId();
-    requestInput.companyId = companyId;
-
-    const tgUserId = toOptionalString((telegram as Record<string, unknown>)?.userId);
-    const tgUsername = toOptionalString((telegram as Record<string, unknown>)?.username);
-    const tgName = toOptionalString((telegram as Record<string, unknown>)?.name);
-    const leadName = tgName || (tgUsername ? `@${tgUsername.replace(/^@/, '')}` : undefined) || 'Client';
-
-    let leadId: string | undefined;
-    if (botId) {
-      try {
-        const botConfig = await prisma.botConfig.findUnique({ where: { id: botId } });
-        const leadResult = await createOrMergeLead({
-          botId,
-          companyId,
-          chatId: tgUserId || undefined,
-          userId: tgUserId || undefined,
-          name: leadName,
-          telegramUsername: tgUsername,
-          telegramName: tgName,
-          phone: phone || undefined,
-          request: title || undefined,
-          source: 'TELEGRAM',
-          payload: payload as Record<string, any>,
-          leadType: 'BUY',
-          createRequest: false
-        }, botConfig?.config as any);
-        leadId = leadResult.lead?.id || undefined;
-      } catch {
-        // best-effort lead creation
-      }
-    }
-
-    const request = await prisma.b2bRequest.create({
-      data: {
-        ...requestInput,
-        leadId: leadId || undefined,
-        botId: botId || undefined
-      }
-    });
-
-    platformEvents.emit(EVENTS.MINIAPP_REQUEST_CREATED, {
-      requestId: request.id,
-      companyId,
-      botId,
-      phone,
-      telegramUserId: tgUserId,
-      payload: request.payload
-    });
-
-    return mapRequestOutput(request);
+    return await requestContractService.createMiniAppRequest(input);
   }
 
   async getRequestStatus(slug: string, query: MiniAppRequestStatusQuery) {
-    const companyId = await resolveCompanyIdBySlug(slug);
-    if (!companyId) throw new Error('Company not found');
-
-    const requestId = toOptionalString(query.requestId);
-    const phone = toOptionalString(query.phone);
-    const telegramUserId = toOptionalString(query.telegramUserId);
-
-    if (!requestId && !phone && !telegramUserId) throw new Error('Search params required');
-
-    const where: Prisma.B2bRequestWhereInput = { companyId };
-    const or: Record<string, unknown>[] = [];
-
-    if (requestId) {
-      or.push({ id: requestId });
-      or.push({ publicId: requestId });
-    }
-    if (telegramUserId) {
-      or.push({ chatId: telegramUserId });
-    }
-    if (phone) {
-      or.push({
-        payload: {
-          path: ['phone'],
-          equals: phone
-        }
-      });
-      or.push({
-        payload: {
-          path: ['request', 'phone'],
-          equals: phone
-        }
-      });
-    }
-
-    if (or.length) {
-      where.OR = or as Prisma.B2bRequestWhereInput[];
-    }
-
-    const request = await prisma.b2bRequest.findFirst({
-      where,
-      orderBy: { createdAt: 'desc' }
-    });
-
-    if (!request) return null;
-
-    return {
-      id: request.id,
-      publicId: request.publicId || request.id,
-      status: request.status,
-      title: request.title,
-      createdAt: request.createdAt
-    };
+    return await requestContractService.getRequestStatusBySlug(slug, query);
   }
 
   async getConfig(slug: string) {
-    const resolved = await resolvePublicSlug(slug);
+    const resolved = await resolvePublicSlug(slug, { allowWorkspaceFallback: true });
     const companyId = resolved.companyId;
 
     if (!companyId) throw new Error('Company not found');
@@ -394,8 +192,8 @@ export class MiniAppService {
         || (botConfig?.config as Record<string, any>)?.username,
       appName: (botConfig?.config as Record<string, any>)?.name,
       modeHints: {
-        requiresTelegram: true,
-        previewReadOnly: false,
+        requiresTelegram: false,
+        previewReadOnly: true,
         requiresInitDataForWrites: true
       },
       diagnostics: {

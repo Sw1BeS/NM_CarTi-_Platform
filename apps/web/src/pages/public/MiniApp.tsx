@@ -521,14 +521,11 @@ const MiniAppContent = () => {
             const resolvedUser = telegramContext.user;
 
             if (!telegramContext.isTelegramContext) {
-                emitMiniAppEvent('warn', 'Telegram WebApp context not detected');
-                setRequiresTelegram(true);
+                emitMiniAppEvent('warn', 'Telegram WebApp context not detected, continuing in preview mode');
+                setRequiresTelegram(false);
                 setInitData(undefined);
                 setTgUser(null);
-                setConfig(null);
-                setIsConfigLoading(false);
-                setInitError('Mini App потрібно відкривати з меню Telegram-бота.');
-                return;
+                setConfigWarning('Режим перегляду: каталог доступний без Telegram, а дії та заявки працюють лише після відкриття Mini App з меню бота.');
             }
 
             const platform = telegramContext.tg?.platform || (hasTelegramUserAgent() ? 'telegram-ua' : 'url-fallback');
@@ -540,7 +537,7 @@ const MiniAppContent = () => {
             });
             setTgUser(resolvedUser);
             setInitData(telegramContext.initData);
-            if (!telegramContext.initData) {
+            if (telegramContext.isTelegramContext && !telegramContext.initData) {
                 setConfigWarning('Telegram відкрито без initData. Для дій відкрийте Mini App повторно через кнопку меню бота.');
             }
 
