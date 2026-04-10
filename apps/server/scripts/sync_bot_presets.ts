@@ -72,9 +72,9 @@ const syncTelegramCommands = async (bot: { id: string; token: string; template: 
 };
 
 const syncTelegramMenuButton = async (bot: { id: string; token: string; config?: any }) => {
-  const miniAppUrl = buildMiniAppUrl(bot as any, {});
+  const miniAppUrl = buildMiniAppUrl(bot as any, { entry: 'inventory', status: 'AVAILABLE' });
   if (!miniAppUrl) return;
-  const menuText = String(bot.config?.menuButtonText || 'Відкрити застосунок').trim() || 'Відкрити застосунок';
+  const menuText = String(bot.config?.menuButtonText || 'Каталог авто').trim() || 'Каталог авто';
   await axios.post(`https://api.telegram.org/bot${bot.token}/setChatMenuButton`, {
     menu_button: {
       type: 'web_app',

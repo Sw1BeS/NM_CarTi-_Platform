@@ -269,8 +269,10 @@ export const BotSettings = ({ bot }: { bot: Bot }) => {
             // Respect publicBaseUrl
             const baseUrl = form.publicBaseUrl || companyBaseUrl || window.location.origin;
             const slug = form.defaultShowcaseSlug || 'system';
-            const appUrl = buildMiniAppUrl(baseUrl, slug);
-            await TelegramAPI.setChatMenuButton(form.token, "Відкрити застосунок", appUrl);
+            const appUrl = new URL(buildMiniAppUrl(baseUrl, slug));
+            appUrl.searchParams.set('entry', 'inventory');
+            appUrl.searchParams.set('status', 'AVAILABLE');
+            await TelegramAPI.setChatMenuButton(form.token, "Каталог авто", appUrl.toString());
             showToast("Кнопку меню синхронізовано");
         } catch (e: any) { showToast(e.message, 'error'); }
     };

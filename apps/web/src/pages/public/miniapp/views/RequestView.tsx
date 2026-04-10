@@ -65,11 +65,11 @@ export const RequestView = ({
         </div>
       ) : (
         <>
-          <h2 className="text-3xl font-bold text-white mb-2">{surfaceMode === 'B2B' ? 'Створити B2B запит' : 'Пошук авто'}</h2>
+          <h2 className="text-3xl font-bold text-white mb-2">{surfaceMode === 'B2B' ? 'Створити B2B запит' : 'Підібрати авто за 1 хвилину'}</h2>
           <p className="text-white/50 mb-8">
             {surfaceMode === 'B2B'
               ? 'Заповніть структурований запит для партнерської мережі.'
-              : 'Опишіть, яке авто вам потрібно.'}
+              : 'Опишіть, яке авто вам потрібно. Якщо вже обрали кілька варіантів у каталозі, ми додамо їх до запиту автоматично.'}
           </p>
 
           <div className="space-y-6">
@@ -119,7 +119,7 @@ export const RequestView = ({
                   </>
                 )}
                 <div>
-                  <label className="text-xs font-bold text-white/70 uppercase mb-2 block">{surfaceMode === 'B2B' ? 'Контакт (обовʼязково)' : 'Телефон (для статусів)'}</label>
+                  <label className="text-xs font-bold text-white/70 uppercase mb-2 block">{surfaceMode === 'B2B' ? 'Контакт (обовʼязково)' : 'Телефон для звʼязку'}</label>
                   <input type="tel" className="w-full bg-[#1c1c1e] text-white p-4 rounded-xl outline-none border border-white/10" placeholder="+380 67 123 45 67" value={reqPhone} onChange={e => setReqPhone(e.target.value)} />
                 </div>
                 <div>

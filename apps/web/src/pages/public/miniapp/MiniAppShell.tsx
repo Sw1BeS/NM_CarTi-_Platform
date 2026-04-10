@@ -41,7 +41,11 @@ export const MiniAppShell = ({
         {showBackArrow && (
           <button
             onClick={onBack}
-            className="absolute left-4 top-4 z-40 flex items-center gap-1 rounded-full bg-black/60 px-3 py-2 text-xs font-bold text-white/90 backdrop-blur border border-white/10"
+            className="absolute z-40 flex items-center gap-1 rounded-full bg-black/60 px-3 py-2 text-xs font-bold text-white/90 backdrop-blur border border-white/10"
+            style={{
+              left: 'calc(var(--tg-content-safe-area-left) + 1rem)',
+              top: 'calc(var(--tg-content-safe-area-top) + 1rem)'
+            }}
           >
             <ChevronLeft size={16} />
             Назад
@@ -51,7 +55,14 @@ export const MiniAppShell = ({
       </div>
 
       {showBottomNav && (
-        <div className="relative z-40 bg-[#000000]/90 backdrop-blur-md border-t border-white/10 pb-6 pt-2 px-6">
+        <div
+          className="relative z-40 bg-[#000000]/90 backdrop-blur-md border-t border-white/10 pt-2"
+          style={{
+            paddingLeft: 'calc(var(--tg-content-safe-area-left) + 1.5rem)',
+            paddingRight: 'calc(var(--tg-content-safe-area-right) + 1.5rem)',
+            paddingBottom: 'calc(var(--tg-content-safe-area-bottom) + 1.5rem)'
+          }}
+        >
           <div className="flex justify-between items-center max-w-sm mx-auto">
             {navItems.map(item => {
               const isActive = activeView === item.value;

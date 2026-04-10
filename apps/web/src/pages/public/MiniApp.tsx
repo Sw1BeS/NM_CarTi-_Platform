@@ -2,12 +2,12 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Bot, MiniAppConfig, CarListing } from '../../types';
-import { getPublicBots, getShowcaseInventory } from '../../services/publicApi';
+import { getShowcaseInventory } from '../../services/publicApi';
 import { createMiniAppRequest, getMiniAppConfig, getMiniAppFavorites, getMiniAppRequestStatus, toggleMiniAppFavorite, type MiniAppTrackingMeta } from '../../services/miniappApi';
 import {
-    Search, LayoutGrid, User, Plus, Filter, DollarSign,
+    Search, LayoutGrid, User, DollarSign, Car,
     MessageSquare, Zap, List as ListIcon, Star, Phone, Home, Heart, ClipboardList,
-    ChevronRight, MapPin, Calendar, CheckCircle, SlidersHorizontal,
+    ChevronRight,
     X, ChevronLeft, ChevronRight as ChevronRightIcon, Image as ImageIcon
 } from 'lucide-react';
 import { initTelegramViewport } from './miniapp/telegramViewport';
@@ -100,21 +100,54 @@ type TelegramBootstrapContext = {
 };
 
 type MiniAppSurfaceMode = 'LEAD' | 'B2B';
-type MiniAppView = 'HOME' | 'INVENTORY' | 'LISTING' | 'FAVORITES' | 'REQUEST' | 'STATUS' | 'PROFILE';
+type MiniAppView = 'HOME' | 'INVENTORY' | 'LISTING' | 'FAVORITES' | 'REQUEST' | 'STATUS' | 'PROFILE' | 'SUPPORT';
 
-const resolveMiniAppWriteError = (error: unknown, fallback = 'Не вдалося виконати дію.') => {
-    const message = error instanceof Error ? String(error.message || '').trim() : '';
+const resolveLaunchTarget = (entry?: string | null, status?: string | null, startParam?: string | null): { view: MiniAppView; tab: InventoryTab } => {
+    const normalizedEntry = String(entry || '').trim().toLowerCase();
+    const normalizedStatus = String(status || '').trim().toUpperCase();
+    const normalizedStart = String(startParam || '').trim().toLowerCase();
+    const token = normalizedEntry || normalizedStart;
+    const tab: InventoryTab = normalizedStatus === 'PENDING' || token.includes('transit') || token.includes('pending')
+        ? 'IN_TRANSIT'
+        : 'IN_STOCK';
+
+    if (token.includes('request') || token.includes('pick')) return { view: 'REQUEST', tab };
+    if (token.includes('support')) return { view: 'SUPPORT', tab };
+    if (token.includes('profile')) return { view: 'PROFILE', tab };
+    if (token.includes('inventory') || token.includes('catalog') || token.includes('stock') || token.includes('transit') || token.includes('pending')) {
+        return { view: 'INVENTORY', tab };
+    }
+
+    return { view: 'HOME', tab };
+};
+
+const localizeMiniAppError = (error: unknown, fallback = 'Не вдалося виконати дію.') => {
+    const message = error instanceof Error ? String(error.message || '').trim() : String(error || '').trim();
     if (!message) return fallback;
+
     const lower = message.toLowerCase();
     if (
         lower.includes('unauthorized')
         || lower.includes('invalid telegram init data')
         || lower.includes('initdata')
         || lower.includes('init data')
+        || lower.includes('bot not found or disabled')
     ) {
-        return 'Сесія Telegram застаріла. Відкрийте Mini App повторно через кнопку в боті.';
+        return 'Сесія Telegram застаріла. Відкрийте Mini App ще раз через кнопку в боті.';
     }
+    if (lower.includes('slug is required')) return 'Не вдалося визначити розділ Mini App.';
+    if (lower.includes('company not found')) return 'Mini App тимчасово недоступний.';
+    if (lower.includes('request not found')) return 'Запит не знайдено.';
+    if (lower.includes('failed to load config')) return 'Не вдалося завантажити конфігурацію застосунку.';
+    if (lower.includes('failed to create request')) return 'Не вдалося надіслати запит.';
+    if (lower.includes('failed to load favorites')) return 'Не вдалося завантажити обране.';
+    if (lower.includes('failed to toggle favorite')) return 'Не вдалося оновити обране.';
+    if (lower.includes('failed to fetch request status')) return 'Не вдалося отримати статус запиту.';
     return message;
+};
+
+const resolveMiniAppWriteError = (error: unknown, fallback = 'Не вдалося виконати дію.') => {
+    return localizeMiniAppError(error, fallback);
 };
 
 const readTelegramLaunchValue = (key: string): string => {
@@ -249,6 +282,7 @@ const MiniAppContent = () => {
     const [tab, setTab] = useState<InventoryTab>('IN_STOCK');
     const [search, setSearch] = useState('');
     const [showFilters, setShowFilters] = useState(false);
+    const [favoritesOnly, setFavoritesOnly] = useState(false);
     const [filters, setFilters] = useState({
         brand: '',
         minYear: '',
@@ -528,6 +562,14 @@ const MiniAppContent = () => {
                 miniappVersion: buildVersion,
                 buildSha: buildVersion
             });
+            const launchTarget = resolveLaunchTarget(
+                readTelegramLaunchValue('entry') || urlParams.get('entry'),
+                readTelegramLaunchValue('status') || urlParams.get('status'),
+                startParam
+            );
+            suppressHistoryPushRef.current = true;
+            setView(launchTarget.view);
+            setTab(launchTarget.tab);
 
             // 2. Determine Target Slug (priority: URL slug > start_param > system)
             const rawSlug = slug || startParam || 'system';
@@ -581,7 +623,7 @@ const MiniAppContent = () => {
 
             } catch (e) {
                 emitMiniAppEvent('error', 'MiniApp init failed', { error: e instanceof Error ? e.message : String(e) });
-                const reason = e instanceof Error ? e.message : String(e);
+                const reason = localizeMiniAppError(e, 'Не вдалося завантажити Mini App.');
                 setInitError(`Не вдалося завантажити конфігурацію застосунку. ${reason}.`);
                 setConfigWarning('Конфігурація недоступна. Використано базовий вигляд.');
                 const fallbackSlug = slug || 'system';
@@ -627,22 +669,67 @@ const MiniAppContent = () => {
         };
     }, [goBack, reqStep, view]);
 
-    const handleAction = (act: MiniAppConfig['actions'][number]) => {
+    useEffect(() => {
         const tg = (window as any).Telegram?.WebApp;
+        if (!tg) return;
+
+        const hasGestureConflict = Boolean(lightboxCar);
+        if (hasGestureConflict && typeof tg.disableVerticalSwipes === 'function') {
+            tg.disableVerticalSwipes();
+        } else if (!hasGestureConflict && typeof tg.enableVerticalSwipes === 'function') {
+            tg.enableVerticalSwipes();
+        }
+
+        return () => {
+            if (typeof tg.enableVerticalSwipes === 'function') {
+                tg.enableVerticalSwipes();
+            }
+        };
+    }, [lightboxCar]);
+
+    const openExternalLink = (url: string) => {
+        const tg = (window as any).Telegram?.WebApp;
+        if (tg?.openTelegramLink && /https?:\/\/t\.me\//i.test(url)) {
+            tg.openTelegramLink(url);
+            return;
+        }
+        if (tg?.openLink) {
+            tg.openLink(url);
+            return;
+        }
+        window.open(url, '_blank', 'noopener,noreferrer');
+    };
+
+    const openLeadSellShortcut = () => {
+        const username = String(activeBot?.username || '').replace(/^@/, '').trim();
+        if (!username) {
+            setConfigWarning('Не вдалося відкрити продаж авто. Поверніться в бот і натисніть «Продати своє авто».');
+            return;
+        }
+        openExternalLink(`https://t.me/${username}?start=sell`);
+    };
+
+    const handleAction = (act: MiniAppConfig['actions'][number]) => {
         if (act.actionType === 'VIEW') {
             if (act.value === 'HOME') setView('HOME');
             if (act.value === 'INVENTORY') setView('INVENTORY');
+            if (act.value === 'INVENTORY_STOCK') {
+                setTab('IN_STOCK');
+                setView('INVENTORY');
+            }
+            if (act.value === 'INVENTORY_TRANSIT') {
+                setTab('IN_TRANSIT');
+                setView('INVENTORY');
+            }
             if (act.value === 'REQUEST') setView('REQUEST');
             if (act.value === 'FAVORITES') setView('FAVORITES');
             if (act.value === 'STATUS') setView('STATUS');
             if (act.value === 'PROFILE') setView('PROFILE');
+            if (act.value === 'SUPPORT') setView('SUPPORT');
         } else if (act.actionType === 'LINK') {
-            if (tg && tg.openLink) {
-                tg.openLink(act.value);
-            } else {
-                window.open(act.value, '_blank');
-            }
+            openExternalLink(act.value);
         } else if (act.actionType === 'SCENARIO') {
+            const tg = (window as any).Telegram?.WebApp;
             if (tg?.initData) {
                 tg.sendData(JSON.stringify({ type: 'RUN_SCENARIO', scenarioId: act.value }));
                 tg.close();
@@ -674,6 +761,10 @@ const MiniAppContent = () => {
             v: 1,
             type: 'interest_click',
             carId: car.canonicalId,
+            carIds: car.canonicalId ? [car.canonicalId] : undefined,
+            fields: {
+                title: car.title
+            },
             meta: {
                 startParam: trackingMeta.startParam,
                 utm: trackingMeta.utm,
@@ -767,13 +858,21 @@ const MiniAppContent = () => {
 
     const primaryColor = config.primaryColor || '#D4AF37';
     const surfaceMode: MiniAppSurfaceMode = config.surfaceMode === 'B2B' ? 'B2B' : 'LEAD';
-    const navItems = (config.navItems && config.navItems.length > 0)
+    const configuredNavItems = (config.navItems && config.navItems.length > 0)
         ? config.navItems
         : [
             { id: 'nav_home', label: 'Головна', icon: 'Home', actionType: 'VIEW', value: 'HOME' },
             { id: 'nav_stock', label: 'Склад', icon: 'LayoutGrid', actionType: 'VIEW', value: 'INVENTORY' },
             { id: 'nav_saved', label: 'Обране', icon: 'Star', actionType: 'VIEW', value: 'FAVORITES' }
         ];
+    const navItems = surfaceMode === 'LEAD'
+        ? [
+            { id: 'nav_home', label: 'Головна', icon: 'Home', actionType: 'VIEW', value: 'HOME' },
+            { id: 'nav_catalog', label: 'Каталог', icon: 'LayoutGrid', actionType: 'VIEW', value: 'INVENTORY' },
+            { id: 'nav_request', label: 'Підбір', icon: 'Search', actionType: 'VIEW', value: 'REQUEST' },
+            { id: 'nav_support', label: 'Підтримка', icon: 'MessageCircle', actionType: 'VIEW', value: 'SUPPORT' }
+        ]
+        : configuredNavItems;
     const showBottomNav = view !== 'LISTING' && view !== 'REQUEST' && view !== 'STATUS';
     const showBackArrow = ((view !== 'HOME' && view !== 'LISTING') || reqStep > 1) && !lightboxCar;
 
@@ -785,6 +884,10 @@ const MiniAppContent = () => {
             if (tab === 'IN_TRANSIT') return isTransit;
             return !isTransit;
         });
+
+        if (favoritesOnly) {
+            filtered = filtered.filter(car => favorites.includes(getCarId(car)));
+        }
 
         const brandNeedle = filters.brand.trim().toLowerCase();
         if (brandNeedle) {
@@ -867,7 +970,13 @@ const MiniAppContent = () => {
     const renderHome = () => (
         <div className="animate-fade-in pb-24 h-full overflow-y-auto">
             {/* Header */}
-            <div className="pt-8 pb-8 px-6 rounded-b-[40px] shadow-lg relative overflow-hidden" style={{ background: `linear-gradient(135deg, ${primaryColor}30 0%, #000000 100%)` }}>
+            <div
+                className="pb-8 px-6 rounded-b-[40px] shadow-lg relative overflow-hidden"
+                style={{
+                    paddingTop: 'calc(var(--tg-content-safe-area-top) + 2rem)',
+                    background: `linear-gradient(135deg, ${primaryColor}30 0%, #000000 100%)`
+                }}
+            >
                 <div className="relative z-10">
                     <div className="flex items-center gap-3 mb-2">
                         {config.logoUrl && (
@@ -878,7 +987,10 @@ const MiniAppContent = () => {
                     <p className="text-white/70 text-sm">{config.welcomeText}</p>
 
                     {tgUser && (
-                        <div className="mt-6 flex items-center gap-3 bg-white/10 p-2.5 rounded-xl backdrop-blur-md border border-white/5 shadow-inner">
+                        <button
+                            onClick={() => setView('PROFILE')}
+                            className="mt-6 w-full flex items-center gap-3 bg-white/10 p-2.5 rounded-xl backdrop-blur-md border border-white/5 shadow-inner text-left"
+                        >
                             <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-yellow-400 to-yellow-600 flex items-center justify-center text-black font-bold text-sm shadow-md overflow-hidden">
                                 {tgUser.photo_url ? <img src={tgUser.photo_url} className="w-full h-full object-cover" /> : tgUser.first_name?.[0]}
                             </div>
@@ -886,7 +998,7 @@ const MiniAppContent = () => {
                                 <p className="text-white font-bold text-sm">Вітаємо, {tgUser.first_name}</p>
                                 <p className="text-white/50">{surfaceMode === 'B2B' ? 'Учасник B2B мережі' : 'Клієнт CarTié'}</p>
                             </div>
-                        </div>
+                        </button>
                     )}
                 </div>
             </div>
@@ -894,20 +1006,93 @@ const MiniAppContent = () => {
             {/* Quick Actions */}
             <div className="px-4 -mt-6 relative z-20">
                 <div className="bg-[#1c1c1e] rounded-2xl p-4 shadow-2xl border border-white/5">
-                    <div className={`grid gap-3 ${config.layout === 'GRID' ? 'grid-cols-2' : 'grid-cols-1'}`}>
-                        {(config.actions || []).map(act => (
+                    {surfaceMode === 'LEAD' ? (
+                        <div className="grid grid-cols-2 gap-3">
                             <button
-                                key={act.id}
-                                onClick={() => handleAction(act)}
-                                className="bg-[#2c2c2e] hover:bg-[#3a3a3c] transition-colors p-4 rounded-xl flex flex-col items-center justify-center gap-2 text-center group active:scale-95 duration-100 border border-transparent hover:border-white/5"
+                                onClick={() => {
+                                    setReqStep(1);
+                                    setView('REQUEST');
+                                }}
+                                className="col-span-2 bg-gradient-to-br from-[#f4d36c] to-[#d4af37] text-black p-5 rounded-2xl flex items-start justify-between gap-4 text-left active:scale-[0.99] transition-transform"
                             >
-                                <div className="w-12 h-12 rounded-full bg-black/30 flex items-center justify-center shadow-inner" style={{ color: primaryColor }}>
-                                    {renderIcon(act.icon, 24)}
+                                <div>
+                                    <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-black/60">Головний крок</div>
+                                    <div className="mt-1 text-lg font-extrabold">Підібрати авто за 1 хвилину</div>
+                                    <div className="mt-2 text-sm text-black/70">Швидкий запит менеджеру без зайвого листування.</div>
                                 </div>
-                                <span className="text-sm font-medium text-white">{act.label}</span>
+                                <ChevronRight size={20} className="shrink-0 mt-1" />
                             </button>
-                        ))}
-                    </div>
+                            <button
+                                onClick={() => {
+                                    setTab('IN_STOCK');
+                                    setView('INVENTORY');
+                                }}
+                                className="bg-[#2c2c2e] hover:bg-[#3a3a3c] transition-colors p-4 rounded-xl flex flex-col items-start gap-3 text-left border border-white/5"
+                            >
+                                <div className="w-11 h-11 rounded-full bg-black/30 flex items-center justify-center shadow-inner" style={{ color: primaryColor }}>
+                                    <LayoutGrid size={22} />
+                                </div>
+                                <div>
+                                    <div className="text-sm font-bold text-white">Авто в наявності</div>
+                                    <div className="text-xs text-white/50 mt-1">Швидкий перегляд актуального каталогу.</div>
+                                </div>
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setTab('IN_TRANSIT');
+                                    setView('INVENTORY');
+                                }}
+                                className="bg-[#2c2c2e] hover:bg-[#3a3a3c] transition-colors p-4 rounded-xl flex flex-col items-start gap-3 text-left border border-white/5"
+                            >
+                                <div className="w-11 h-11 rounded-full bg-black/30 flex items-center justify-center shadow-inner" style={{ color: primaryColor }}>
+                                    <Car size={22} />
+                                </div>
+                                <div>
+                                    <div className="text-sm font-bold text-white">Авто в дорозі</div>
+                                    <div className="text-xs text-white/50 mt-1">Окремий список машин, що ще в доставці.</div>
+                                </div>
+                            </button>
+                            <button
+                                onClick={openLeadSellShortcut}
+                                className="bg-[#2c2c2e] hover:bg-[#3a3a3c] transition-colors p-4 rounded-xl flex flex-col items-start gap-3 text-left border border-white/5"
+                            >
+                                <div className="w-11 h-11 rounded-full bg-black/30 flex items-center justify-center shadow-inner" style={{ color: primaryColor }}>
+                                    <DollarSign size={22} />
+                                </div>
+                                <div>
+                                    <div className="text-sm font-bold text-white">Продати своє авто</div>
+                                    <div className="text-xs text-white/50 mt-1">Повернення в бот на форму продажу та фото.</div>
+                                </div>
+                            </button>
+                            <button
+                                onClick={() => setView('SUPPORT')}
+                                className="bg-[#2c2c2e] hover:bg-[#3a3a3c] transition-colors p-4 rounded-xl flex flex-col items-start gap-3 text-left border border-white/5"
+                            >
+                                <div className="w-11 h-11 rounded-full bg-black/30 flex items-center justify-center shadow-inner" style={{ color: primaryColor }}>
+                                    <MessageSquare size={22} />
+                                </div>
+                                <div>
+                                    <div className="text-sm font-bold text-white">Підтримка</div>
+                                    <div className="text-xs text-white/50 mt-1">Telegram і додаткові контакти в одному місці.</div>
+                                </div>
+                            </button>
+                        </div>
+                    ) : (
+                        <div className={`grid gap-3 ${config.layout === 'GRID' ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                            {(config.actions || []).map(act => (
+                                <button
+                                    key={act.id}
+                                    onClick={() => handleAction(act)}
+                                    className="bg-[#2c2c2e] hover:bg-[#3a3a3c] transition-colors p-4 rounded-xl flex flex-col items-center justify-center gap-2 text-center group active:scale-95 duration-100 border border-transparent hover:border-white/5"
+                                >
+                                    <div className="w-12 h-12 rounded-full bg-black/30 flex items-center justify-center shadow-inner" style={{ color: primaryColor }}>
+                                        {renderIcon(act.icon, 24)}
+                                    </div>
+                                    <span className="text-sm font-medium text-white">{act.label}</span>
+                                </button>
+                            ))}
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -977,14 +1162,17 @@ const MiniAppContent = () => {
                 filters={filters}
                 sortBy={sortBy}
                 filteredCars={applyFiltersAndSort()}
+                favoritesOnly={favoritesOnly}
                 onTabChange={setTab}
                 onSearchChange={setSearch}
                 onToggleFilters={() => setShowFilters(!showFilters)}
+                onToggleFavoritesOnly={() => setFavoritesOnly(prev => !prev)}
                 onFiltersChange={setFilters}
                 onSortChange={setSortBy}
                 onResetFilters={() => {
                     setFilters({ brand: '', minYear: '', maxYear: '', minPrice: '', maxPrice: '' });
                     setSearch('');
+                    setFavoritesOnly(false);
                 }}
                 getCarId={getCarId}
                 getCarImages={getCarImages}
@@ -1036,7 +1224,10 @@ const MiniAppContent = () => {
 
         return (
             <div className="animate-fade-in pb-24 h-full overflow-y-auto bg-black">
-                <div className="p-4 flex items-center gap-3 border-b border-white/10 bg-[#000000]/90 backdrop-blur-md">
+                <div
+                    className="p-4 flex items-center gap-3 border-b border-white/10 bg-[#000000]/90 backdrop-blur-md"
+                    style={{ paddingTop: 'calc(var(--tg-content-safe-area-top) + 1rem)' }}
+                >
                     <button onClick={goBack} className="text-white/70 text-sm">← Назад</button>
                     <h2 className="text-white font-bold truncate">{selectedCar.title}</h2>
                 </div>
@@ -1096,11 +1287,11 @@ const MiniAppContent = () => {
                     </div>
 
                     <button
-                        onClick={() => prefillRequestFromCar(selectedCar)}
+                        onClick={() => surfaceMode === 'B2B' ? prefillRequestFromCar(selectedCar) : handleCarInterest(selectedCar)}
                         className="w-full py-4 rounded-xl font-bold text-black flex items-center justify-center gap-2"
                         style={{ backgroundColor: primaryColor }}
                     >
-                        <MessageSquare size={18} /> {surfaceMode === 'B2B' ? 'Створити B2B запит' : 'Запит на це авто'}
+                        <MessageSquare size={18} /> {surfaceMode === 'B2B' ? 'Створити B2B запит' : 'Зацікавило дане авто'}
                     </button>
                     <button
                         onClick={() => toggleRequestSelection(selectedCar)}
@@ -1114,7 +1305,7 @@ const MiniAppContent = () => {
     };
 
     const renderStatus = () => (
-        <div className="animate-fade-in pb-24 p-6 h-full overflow-y-auto flex flex-col bg-black">
+        <div className="animate-fade-in pb-24 p-6 h-full overflow-y-auto flex flex-col bg-black" style={{ paddingTop: 'calc(var(--tg-content-safe-area-top) + 1.5rem)' }}>
             <h2 className="text-2xl font-bold text-white mb-2">Статус запиту</h2>
             <p className="text-white/50 mb-6">Перевірте запит за ID, номером телефону або Telegram.</p>
 
@@ -1284,6 +1475,71 @@ const MiniAppContent = () => {
         />
     );
 
+    const renderSupport = () => {
+        const uniqueLinks = new Map<string, { label: string; url: string }>();
+        const botUsername = String(activeBot?.username || '').replace(/^@/, '').trim();
+        if (botUsername) {
+            const url = `https://t.me/${botUsername}`;
+            uniqueLinks.set(url, { label: 'Написати в Telegram', url });
+        }
+        for (const action of config.actions || []) {
+            if (action.actionType !== 'LINK' || !action.value) continue;
+            const url = String(action.value).trim();
+            if (!url) continue;
+            uniqueLinks.set(url, {
+                label: String(action.label || 'Відкрити посилання'),
+                url
+            });
+        }
+
+        const supportLinks = Array.from(uniqueLinks.values());
+
+        return (
+            <div className="animate-fade-in pb-24 h-full overflow-y-auto bg-black">
+                <div
+                    className="px-6 pb-8 rounded-b-[36px] shadow-lg relative overflow-hidden"
+                    style={{
+                        paddingTop: 'calc(var(--tg-content-safe-area-top) + 1.75rem)',
+                        background: `linear-gradient(140deg, ${primaryColor}22 0%, #000000 100%)`
+                    }}
+                >
+                    <h2 className="text-2xl font-bold text-white">Підтримка</h2>
+                    <p className="text-sm text-white/60 mt-2">
+                        Якщо потрібна допомога або хочете швидко перейти в соцмережі, використайте кнопки нижче.
+                    </p>
+                </div>
+
+                <div className="px-4 mt-6 space-y-4">
+                    <div className="bg-[#1c1c1e] rounded-2xl p-4 border border-white/5">
+                        <div className="text-xs font-bold uppercase tracking-[0.16em] text-white/40 mb-3">Швидкий звʼязок</div>
+                        <div className="space-y-3">
+                            {supportLinks.map(link => (
+                                <button
+                                    key={link.url}
+                                    onClick={() => openExternalLink(link.url)}
+                                    className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-left text-white hover:bg-white/10 transition-colors"
+                                >
+                                    <div className="font-bold">{link.label}</div>
+                                    <div className="text-xs text-white/45 mt-1 break-all">{link.url}</div>
+                                </button>
+                            ))}
+                            {supportLinks.length === 0 && (
+                                <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-4 text-sm text-white/65">
+                                    Поверніться в бот і натисніть «Підтримка», якщо потрібен прямий контакт із менеджером.
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="bg-[#1c1c1e] rounded-2xl p-4 border border-white/5 text-sm text-white/65 leading-relaxed">
+                        <div className="font-bold text-white mb-2">Що доступно зараз</div>
+                        <div>Авто в наявності та авто в дорозі відкриваються окремо, а контакт ми просимо лише в момент реального інтересу до машини.</div>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
     const renderProfile = () => (
         <ProfileView
             tgUser={tgUser}
@@ -1309,7 +1565,7 @@ const MiniAppContent = () => {
                             className="flex-1 py-2.5 rounded-xl font-bold text-black text-sm"
                             style={{ backgroundColor: primaryColor }}
                         >
-                            Надіслати запит
+                            Запит по обраних авто
                         </button>
                         <button
                             onClick={clearRequestSelection}
@@ -1387,6 +1643,7 @@ const MiniAppContent = () => {
                 {view === 'REQUEST' && renderRequest()}
                 {view === 'STATUS' && renderStatus()}
                 {view === 'PROFILE' && renderProfile()}
+                {view === 'SUPPORT' && renderSupport()}
                 {renderSelectionBar()}
 
                 {lightboxCar && (

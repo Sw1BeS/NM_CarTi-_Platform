@@ -220,7 +220,7 @@ export const BotMenuEditor = ({ scenarios, botId, standalone = false }: { scenar
                     showToast('Set a public base URL before publishing menu', 'error');
                     return;
                 }
-                await TelegramAPI.setChatMenuButton(bot.token, "Відкрити застосунок", appUrl);
+                await TelegramAPI.setChatMenuButton(bot.token, "Каталог авто", appUrl);
             }
             showToast("Команди та меню опубліковано");
         } catch (e: any) { showToast(e.message, 'error'); }

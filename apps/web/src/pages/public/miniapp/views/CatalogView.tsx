@@ -35,9 +35,11 @@ type CatalogViewProps = {
   filters: InventoryFilters;
   sortBy: SortBy;
   filteredCars: CarListing[];
+  favoritesOnly: boolean;
   onTabChange: (tab: InventoryTab) => void;
   onSearchChange: (value: string) => void;
   onToggleFilters: () => void;
+  onToggleFavoritesOnly: () => void;
   onFiltersChange: (next: InventoryFilters) => void;
   onSortChange: (sortBy: SortBy) => void;
   onResetFilters: () => void;
@@ -67,9 +69,11 @@ export const CatalogView = ({
   filters,
   sortBy,
   filteredCars,
+  favoritesOnly,
   onTabChange,
   onSearchChange,
   onToggleFilters,
+  onToggleFavoritesOnly,
   onFiltersChange,
   onSortChange,
   onResetFilters,
@@ -89,12 +93,15 @@ export const CatalogView = ({
   onToggleRequestSelection,
   onOpenListing
 }: CatalogViewProps) => {
-  const cardActionLabel = surfaceMode === 'B2B' ? 'Створити B2B запит' : 'Запит на підбір';
+  const cardActionLabel = surfaceMode === 'B2B' ? 'Створити B2B запит' : 'Зацікавило дане авто';
+  const title = surfaceMode === 'B2B'
+    ? 'Інвентар мережі'
+    : (tab === 'IN_TRANSIT' ? 'Авто в дорозі' : 'Авто в наявності');
 
   return (
     <div className="animate-fade-in pb-24 h-full flex flex-col bg-black">
       <div className="p-4 sticky top-0 bg-[#000000]/90 backdrop-blur-md z-20 border-b border-white/10 space-y-3">
-        <h2 className="text-xl font-bold text-white">{surfaceMode === 'B2B' ? 'Інвентар мережі' : 'Інвентар'}</h2>
+        <h2 className="text-xl font-bold text-white">{title}</h2>
 
         <div className="flex gap-2">
           <button
@@ -215,8 +222,22 @@ export const CatalogView = ({
           </div>
         )}
 
-        <div className="text-[10px] text-white/50">
-          Знайдено: {filteredCars.length}
+        <div className="flex items-center justify-between gap-3">
+          <div className="text-[10px] text-white/50">
+            Знайдено: {filteredCars.length}
+          </div>
+          {surfaceMode !== 'B2B' && (
+            <button
+              onClick={onToggleFavoritesOnly}
+              className={`rounded-full border px-3 py-1 text-[10px] font-bold transition-colors ${
+                favoritesOnly
+                  ? 'border-yellow-400/50 bg-yellow-400/15 text-yellow-300'
+                  : 'border-white/10 text-white/60'
+              }`}
+            >
+              {favoritesOnly ? 'Усі авто' : '⭐ Лише обране'}
+            </button>
+          )}
         </div>
       </div>
 

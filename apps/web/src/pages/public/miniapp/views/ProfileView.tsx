@@ -29,7 +29,13 @@ export const ProfileView = ({
 
   return (
     <div className="animate-fade-in pb-24 h-full overflow-y-auto bg-black">
-      <div className="p-6 pt-10 rounded-b-[40px] shadow-lg relative overflow-hidden" style={{ background: `linear-gradient(135deg, ${primaryColor}20 0%, #000000 100%)` }}>
+      <div
+        className="p-6 rounded-b-[40px] shadow-lg relative overflow-hidden"
+        style={{
+          paddingTop: 'calc(var(--tg-content-safe-area-top) + 2rem)',
+          background: `linear-gradient(135deg, ${primaryColor}20 0%, #000000 100%)`
+        }}
+      >
         <div className="flex flex-col items-center">
           <div className="w-24 h-24 rounded-full border-4 border-white/10 shadow-2xl bg-[#1c1c1e] flex items-center justify-center overflow-hidden mb-4 relative">
             {tgUser?.photo_url ? (

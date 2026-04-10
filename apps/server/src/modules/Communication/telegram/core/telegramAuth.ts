@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 
-export const verifyTelegramInitData = (initData: string, botToken: string, maxAgeSeconds = 900): boolean => {
+export const verifyTelegramInitData = (initData: string, botToken: string, maxAgeSeconds = 43200): boolean => {
   if (!initData || !botToken) return false;
   const params = new URLSearchParams(initData);
   const hash = params.get('hash');

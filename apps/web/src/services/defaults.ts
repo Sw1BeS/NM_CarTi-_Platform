@@ -1,13 +1,13 @@
 import { BotMenuButtonConfig, MiniAppConfig } from '../types';
 
 export const DEFAULT_MENU_CONFIG: { buttons: BotMenuButtonConfig[]; welcomeMessage: string } = {
-    welcomeMessage: "👋 Вітаємо в CarTié Concierge!\n\nМи допоможемо з підбором та продажем авто.\nОберіть дію нижче.",
+    welcomeMessage: "👋 Вітаємо в CarTié!\n\nОберіть, що хочете зробити зараз: підібрати авто, швидко відкрити каталог, продати своє авто або написати в підтримку.",
     buttons: [
-        { id: 'btn_buy', label: '🚗 Купити авто', label_uk: '🚗 Купити авто', label_ru: '🚗 Купить авто', type: 'SCENARIO', value: 'scn_buy', row: 0, col: 0 },
-        { id: 'btn_sell', label: '💰 Продати авто', label_uk: '💰 Продати авто', label_ru: '💰 Продать авто', type: 'SCENARIO', value: 'scn_sell', row: 0, col: 1 },
-        { id: 'btn_app', label: '📱 Додаток', label_uk: '📱 Додаток', label_ru: '📱 Приложение', type: 'WEB_APP', value: '{{MINI_APP_URL}}', row: 1, col: 0 },
-        { id: 'btn_sup', label: '📞 Підтримка', label_uk: '📞 Підтримка', label_ru: '📞 Поддержка', type: 'SCENARIO', value: 'scn_support', row: 2, col: 0 },
-        { id: 'btn_lang', label: '🌐 Мова', label_uk: '🌐 Мова', label_ru: '🌐 Язык', type: 'SCENARIO', value: 'scn_lang', row: 2, col: 1 }
+        { id: 'btn_pick', label: '⏱ Підібрати авто за 1 хвилину', label_uk: '⏱ Підібрати авто за 1 хвилину', label_ru: '⏱ Підібрати авто за 1 хвилину', type: 'WEB_APP', value: '{{MINI_APP_URL}}?entry=request', row: 0, col: 0 },
+        { id: 'btn_stock', label: '🚘 Авто в наявності', label_uk: '🚘 Авто в наявності', label_ru: '🚘 Авто в наявності', type: 'WEB_APP', value: '{{MINI_APP_URL}}?entry=inventory&status=AVAILABLE', row: 1, col: 0 },
+        { id: 'btn_transit', label: '🚚 Авто в дорозі', label_uk: '🚚 Авто в дорозі', label_ru: '🚚 Авто в дорозі', type: 'WEB_APP', value: '{{MINI_APP_URL}}?entry=inventory&status=PENDING', row: 1, col: 1 },
+        { id: 'btn_sell', label: '💰 Продати своє авто', label_uk: '💰 Продати своє авто', label_ru: '💰 Продати своє авто', type: 'SCENARIO', value: 'scn_sell', row: 2, col: 0 },
+        { id: 'btn_sup', label: '🆘 Підтримка', label_uk: '🆘 Підтримка', label_ru: '🆘 Підтримка', type: 'SCENARIO', value: 'scn_support', row: 2, col: 1 }
     ]
 };
 
@@ -31,17 +31,16 @@ export const DEFAULT_MINI_APP_CONFIG: MiniAppConfig = {
     accentColor: '#111111',
     layout: 'GRID',
     actions: [
-        { id: 'act_stock', label: 'Інвентар', icon: 'Grid', actionType: 'VIEW', value: 'INVENTORY' },
-        { id: 'act_req', label: 'Запит', icon: 'Search', actionType: 'VIEW', value: 'REQUEST' },
-        { id: 'act_chat', label: 'Чат', icon: 'MessageCircle', actionType: 'LINK', value: 'https://t.me/cartie_manager' },
-        { id: 'act_sell', label: 'Оцінка Trade-In', icon: 'DollarSign', actionType: 'SCENARIO', value: 'scn_sell' }
+        { id: 'act_pick', label: 'Підібрати авто за 1 хвилину', icon: 'Search', actionType: 'VIEW', value: 'REQUEST' },
+        { id: 'act_stock', label: 'Авто в наявності', icon: 'LayoutGrid', actionType: 'VIEW', value: 'INVENTORY_STOCK' },
+        { id: 'act_transit', label: 'Авто в дорозі', icon: 'Zap', actionType: 'VIEW', value: 'INVENTORY_TRANSIT' },
+        { id: 'act_support', label: 'Підтримка', icon: 'MessageCircle', actionType: 'VIEW', value: 'SUPPORT' }
     ],
     navItems: [
         { id: 'nav_home', label: 'Головна', icon: 'Home', actionType: 'VIEW', value: 'HOME' },
-        { id: 'nav_stock', label: 'Інвентар', icon: 'LayoutGrid', actionType: 'VIEW', value: 'INVENTORY' },
-        { id: 'nav_saved', label: 'Обране', icon: 'Heart', actionType: 'VIEW', value: 'FAVORITES' },
-        { id: 'nav_request', label: 'Запит', icon: 'Search', actionType: 'VIEW', value: 'REQUEST' },
-        { id: 'nav_status', label: 'Статус', icon: 'ClipboardList', actionType: 'VIEW', value: 'STATUS' }
+        { id: 'nav_stock', label: 'Каталог', icon: 'LayoutGrid', actionType: 'VIEW', value: 'INVENTORY' },
+        { id: 'nav_request', label: 'Підбір', icon: 'Search', actionType: 'VIEW', value: 'REQUEST' },
+        { id: 'nav_support', label: 'Підтримка', icon: 'MessageCircle', actionType: 'VIEW', value: 'SUPPORT' }
     ]
 };
 
@@ -71,8 +70,8 @@ type BotTemplate = 'CLIENT_LEAD' | 'B2B';
 const cloneMenu = (config: { buttons: BotMenuButtonConfig[]; welcomeMessage: string }, miniAppUrl: string) => ({
     welcomeMessage: config.welcomeMessage,
     buttons: config.buttons.map(btn =>
-        (btn.type === 'LINK' || btn.type === 'WEB_APP') && btn.value === '{{MINI_APP_URL}}'
-            ? { ...btn, value: miniAppUrl }
+        (btn.type === 'LINK' || btn.type === 'WEB_APP') && typeof btn.value === 'string' && btn.value.includes('{{MINI_APP_URL}}')
+            ? { ...btn, value: btn.value.replace('{{MINI_APP_URL}}', miniAppUrl) }
             : { ...btn }
     )
 });

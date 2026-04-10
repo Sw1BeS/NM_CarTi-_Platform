@@ -130,6 +130,19 @@ const buildMiniAppUrl = (baseUrl: string, slug: string) => {
   }
 };
 
+const appendMiniAppQuery = (rawUrl: string, params: Record<string, string>) => {
+  try {
+    const url = new URL(rawUrl);
+    Object.entries(params).forEach(([key, value]) => {
+      if (!value) return;
+      url.searchParams.set(key, value);
+    });
+    return url.toString();
+  } catch {
+    return rawUrl;
+  }
+};
+
 const LEAD_BUTTON_IDS = new Set(['btn_buy', 'btn_sell', 'btn_support', 'btn_info', 'btn_app']);
 const B2B_BUTTON_IDS = new Set([
   'btn_b2b_req',
@@ -243,17 +256,16 @@ const buildClientLeadMiniAppConfig = (url: string, showcaseSlug: string): MiniAp
   accentColor: '#111111',
   layout: 'GRID',
   actions: [
-    { id: 'act_stock', label: 'Інвентар', icon: 'Grid', actionType: 'VIEW', value: 'INVENTORY' },
-    { id: 'act_req', label: 'Запит', icon: 'Search', actionType: 'VIEW', value: 'REQUEST' },
-    { id: 'act_chat', label: 'Чат', icon: 'MessageCircle', actionType: 'LINK', value: 'https://t.me/cartie_manager' },
-    { id: 'act_sell', label: 'Оцінка Trade-In', icon: 'DollarSign', actionType: 'SCENARIO', value: 'scn_sell' }
+    { id: 'act_pick', label: 'Підібрати авто за 1 хвилину', icon: 'Search', actionType: 'VIEW', value: 'REQUEST' },
+    { id: 'act_stock', label: 'Авто в наявності', icon: 'LayoutGrid', actionType: 'VIEW', value: 'INVENTORY_STOCK' },
+    { id: 'act_transit', label: 'Авто в дорозі', icon: 'Zap', actionType: 'VIEW', value: 'INVENTORY_TRANSIT' },
+    { id: 'act_support', label: 'Підтримка', icon: 'MessageCircle', actionType: 'VIEW', value: 'SUPPORT' }
   ],
   navItems: [
     { id: 'nav_home', label: 'Головна', icon: 'Home', actionType: 'VIEW', value: 'HOME' },
-    { id: 'nav_stock', label: 'Інвентар', icon: 'LayoutGrid', actionType: 'VIEW', value: 'INVENTORY' },
-    { id: 'nav_saved', label: 'Обране', icon: 'Heart', actionType: 'VIEW', value: 'FAVORITES' },
-    { id: 'nav_request', label: 'Запит', icon: 'Search', actionType: 'VIEW', value: 'REQUEST' },
-    { id: 'nav_status', label: 'Статус', icon: 'ClipboardList', actionType: 'VIEW', value: 'STATUS' }
+    { id: 'nav_stock', label: 'Каталог', icon: 'LayoutGrid', actionType: 'VIEW', value: 'INVENTORY' },
+    { id: 'nav_request', label: 'Підбір', icon: 'Search', actionType: 'VIEW', value: 'REQUEST' },
+    { id: 'nav_support', label: 'Підтримка', icon: 'MessageCircle', actionType: 'VIEW', value: 'SUPPORT' }
   ],
   url,
   showcaseSlug
@@ -283,11 +295,11 @@ const buildB2BMiniAppConfig = (url: string, showcaseSlug: string): MiniAppConfig
 });
 
 const baseLeadButtons = (scenarioIds: Record<string, string>, miniAppUrl: string): MenuButton[] => [
-  { id: 'btn_buy', label: '🚗 Купити авто', label_uk: '🚗 Купити авто', label_ru: '🚗 Купити авто', type: 'SCENARIO', value: scenarioIds.buy || 'scn_buy', row: 0, col: 0 },
-  { id: 'btn_sell', label: '💰 Продати авто', label_uk: '💰 Продати авто', label_ru: '💰 Продати авто', type: 'SCENARIO', value: scenarioIds.sell || 'scn_sell', row: 0, col: 1 },
-  { id: 'btn_support', label: '📞 Підтримка', label_uk: '📞 Підтримка', label_ru: '📞 Підтримка', type: 'SCENARIO', value: scenarioIds.support || 'scn_support', row: 1, col: 0 },
-  { id: 'btn_info', label: 'ℹ️ Інформація', label_uk: 'ℹ️ Інформація', label_ru: 'ℹ️ Інформація', type: 'SCENARIO', value: scenarioIds.info || 'scn_info', row: 1, col: 1 },
-  { id: 'btn_app', label: '📱 Відкрити MiniApp', label_uk: '📱 Відкрити MiniApp', label_ru: '📱 Відкрити MiniApp', type: 'WEB_APP', value: miniAppUrl, row: 2, col: 0 }
+  { id: 'btn_pick', label: '⏱ Підібрати авто за 1 хвилину', label_uk: '⏱ Підібрати авто за 1 хвилину', label_ru: '⏱ Підібрати авто за 1 хвилину', type: 'WEB_APP', value: appendMiniAppQuery(miniAppUrl, { entry: 'request' }), row: 0, col: 0 },
+  { id: 'btn_stock', label: '🚘 Авто в наявності', label_uk: '🚘 Авто в наявності', label_ru: '🚘 Авто в наявності', type: 'WEB_APP', value: appendMiniAppQuery(miniAppUrl, { entry: 'inventory', status: 'AVAILABLE' }), row: 1, col: 0 },
+  { id: 'btn_transit', label: '🚚 Авто в дорозі', label_uk: '🚚 Авто в дорозі', label_ru: '🚚 Авто в дорозі', type: 'WEB_APP', value: appendMiniAppQuery(miniAppUrl, { entry: 'inventory', status: 'PENDING' }), row: 1, col: 1 },
+  { id: 'btn_sell', label: '💰 Продати своє авто', label_uk: '💰 Продати своє авто', label_ru: '💰 Продати своє авто', type: 'SCENARIO', value: scenarioIds.sell || 'scn_sell', row: 2, col: 0 },
+  { id: 'btn_support', label: '🆘 Підтримка', label_uk: '🆘 Підтримка', label_ru: '🆘 Підтримка', type: 'SCENARIO', value: scenarioIds.support || 'scn_support', row: 2, col: 1 }
 ];
 
 const baseB2BButtons = (scenarioIds: Record<string, string>, _miniAppUrl: string): MenuButton[] => [

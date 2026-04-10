@@ -10,6 +10,7 @@ import { mapInventoryOutput } from '../services/dto.js';
 import { renderCarCardForBot } from '../services/carCardRenderer.v2.js';
 import { telegramOutbox } from '../modules/Communication/telegram/messaging/outbox/telegramOutbox.js';
 import { getEnvInt } from '../services/featureFlags.js';
+import { requestContractService } from '../services/requestContract.service.js';
 
 const router = Router();
 const showcaseService = new ShowcaseService();
@@ -33,14 +34,14 @@ const readNumber = (value: unknown): number | undefined => {
 const resolveCompanyIdBySlug = async (slug?: string | null) => {
   const trimmed = String(slug || '').trim();
   if (!trimmed) return null;
-  const resolved = await resolvePublicSlug(trimmed);
+  const resolved = await resolvePublicSlug(trimmed, { allowWorkspaceFallback: true });
   return resolved.companyId || null;
 };
 
 const requireInitData = async (initData: string | undefined, companyId?: string | null, botId?: string | null) => {
   if (!initData) return { ok: false, message: 'initData is required' };
   const init = initData;
-  const maxAgeSeconds = Math.max(60, getEnvInt('TELEGRAM_INITDATA_MAX_AGE_SECONDS', 900));
+  const maxAgeSeconds = Math.max(60, getEnvInt('TELEGRAM_INITDATA_MAX_AGE_SECONDS', 43200));
 
   if (botId) {
     const bot = await prisma.botConfig.findFirst({
@@ -90,6 +91,34 @@ const isMiniAppAdmin = async (companyId: string, tgUserId: string, botId?: strin
   });
 
   return Boolean(membership);
+};
+
+const resolveMiniAppAccess = async (slug: string, initData: string) => {
+  const config = await miniAppService.getConfig(slug);
+  const initCheck = await requireInitData(initData, config.companyId, config.botId);
+  if (!initCheck.ok) {
+    return { ok: false as const, status: 401, message: initCheck.message || 'Unauthorized' };
+  }
+
+  const tgUser = parseTelegramUser(initData);
+  const tgUserId = tgUser?.id ? String(tgUser.id) : undefined;
+  if (!tgUserId) {
+    return { ok: false as const, status: 400, message: 'Telegram user not found' };
+  }
+
+  const adminAllowed = await isMiniAppAdmin(config.companyId, tgUserId, config.botId || undefined);
+  const partnerUser = await prisma.partnerUser.findFirst({
+    where: { companyId: config.companyId, telegramId: tgUserId },
+    select: { partnerId: true }
+  });
+
+  return {
+    ok: true as const,
+    config,
+    tgUserId,
+    adminAllowed,
+    partnerId: partnerUser?.partnerId || null
+  };
 };
 
 router.get('/config', async (req, res) => {
@@ -296,38 +325,16 @@ router.get('/b2b/requests/my', async (req, res) => {
     if (!slug) return errorResponse(res, 400, 'slug is required');
     if (!initData) return errorResponse(res, 400, 'initData is required');
 
-    const config = await miniAppService.getConfig(slug);
-    const initCheck = await requireInitData(initData, config.companyId, config.botId);
-    if (!initCheck.ok) return errorResponse(res, 401, initCheck.message || 'Unauthorized');
-
-    const tgUser = parseTelegramUser(initData);
-    const tgUserId = tgUser?.id ? String(tgUser.id) : undefined;
-    if (!tgUserId) return errorResponse(res, 400, 'Telegram user not found');
-
-    const partnerUser = await prisma.partnerUser.findFirst({
-      where: { companyId: config.companyId, telegramId: tgUserId },
-      select: { partnerId: true }
-    });
-    if (!partnerUser?.partnerId) return errorResponse(res, 403, 'Access denied');
-
-    const requests = await prisma.b2bRequest.findMany({
-      where: {
-        companyId: config.companyId,
-        requesterPartnerId: partnerUser.partnerId
-      },
-      orderBy: { createdAt: 'desc' }
-    });
+    const access = await resolveMiniAppAccess(slug, initData);
+    if (!access.ok) return errorResponse(res, access.status, access.message);
+    if (!access.adminAllowed && !access.partnerId) return errorResponse(res, 403, 'Access denied');
 
     res.json({
       ok: true,
-      items: requests.map(r => ({
-        id: r.id,
-        publicId: r.publicId || r.id,
-        title: r.title,
-        status: r.status,
-        channelPostUrl: r.channelPostUrl,
-        createdAt: r.createdAt
-      }))
+      items: await requestContractService.listPartnerRequests({
+        companyId: access.config.companyId,
+        partnerId: access.partnerId || undefined
+      })
     });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : 'Failed to load requests';
@@ -342,51 +349,16 @@ router.get('/b2b/variants/received', async (req, res) => {
     if (!slug) return errorResponse(res, 400, 'slug is required');
     if (!initData) return errorResponse(res, 400, 'initData is required');
 
-    const config = await miniAppService.getConfig(slug);
-    const initCheck = await requireInitData(initData, config.companyId, config.botId);
-    if (!initCheck.ok) return errorResponse(res, 401, initCheck.message || 'Unauthorized');
-
-    const tgUser = parseTelegramUser(initData);
-    const tgUserId = tgUser?.id ? String(tgUser.id) : undefined;
-    if (!tgUserId) return errorResponse(res, 400, 'Telegram user not found');
-
-    const partnerUser = await prisma.partnerUser.findFirst({
-      where: { companyId: config.companyId, telegramId: tgUserId },
-      select: { partnerId: true }
-    });
-    if (!partnerUser?.partnerId) return errorResponse(res, 403, 'Access denied');
-
-    const requests = await prisma.b2bRequest.findMany({
-      where: { companyId: config.companyId, requesterPartnerId: partnerUser.partnerId },
-      select: { id: true }
-    });
-    const requestIds = requests.map(r => r.id);
-    if (!requestIds.length) return res.json({ ok: true, items: [] });
-
-    const variants = await prisma.requestVariant.findMany({
-      where: { requestId: { in: requestIds } },
-      include: { request: true },
-      orderBy: { createdAt: 'desc' }
-    });
+    const access = await resolveMiniAppAccess(slug, initData);
+    if (!access.ok) return errorResponse(res, access.status, access.message);
+    if (!access.adminAllowed && !access.partnerId) return errorResponse(res, 403, 'Access denied');
 
     res.json({
       ok: true,
-      items: variants.map(v => ({
-        id: v.id,
-        requestId: v.requestId,
-        requestPublicId: v.request?.publicId || v.requestId,
-        status: v.status,
-        requesterDecision: v.requesterDecision,
-        title: v.title,
-        price: v.price,
-        year: v.year,
-        mileage: v.mileage,
-        location: v.location,
-        thumbnail: v.thumbnail,
-        mediaUrls: v.mediaUrls || [],
-        specs: v.specs || {},
-        createdAt: v.createdAt
-      }))
+      items: await requestContractService.listReceivedVariants({
+        companyId: access.config.companyId,
+        partnerId: access.partnerId || undefined
+      })
     });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : 'Failed to load variants';
@@ -411,48 +383,24 @@ router.post('/b2b/variants/:variantId/decision', async (req, res) => {
       return errorResponse(res, 400, 'decision must be FIT or NOT_FIT');
     }
 
-    const config = await miniAppService.getConfig(slug);
-    const initCheck = await requireInitData(initData, config.companyId, config.botId);
-    if (!initCheck.ok) return errorResponse(res, 401, initCheck.message || 'Unauthorized');
-
-    const tgUser = parseTelegramUser(initData);
-    const tgUserId = tgUser?.id ? String(tgUser.id) : undefined;
-    if (!tgUserId) return errorResponse(res, 400, 'Telegram user not found');
-
-    const partnerUser = await prisma.partnerUser.findFirst({
-      where: { companyId: config.companyId, telegramId: tgUserId },
-      select: { partnerId: true }
-    });
-    if (!partnerUser?.partnerId) return errorResponse(res, 403, 'Access denied');
-
-    const variant = await prisma.requestVariant.findUnique({
-      where: { id: variantId },
-      include: { request: true }
-    });
-    if (!variant || variant.request?.companyId !== config.companyId) return errorResponse(res, 404, 'Variant not found');
-    if (variant.request?.requesterPartnerId !== partnerUser.partnerId) return errorResponse(res, 403, 'Forbidden');
-
-    const updated = await prisma.requestVariant.update({
-      where: { id: variantId },
-      data: {
-        requesterDecision: decision === 'FIT' ? 'FIT' : 'NOT_FIT',
-        requesterDecisionAt: new Date(),
-        status: decision === 'FIT' ? 'APPROVED' : 'REJECTED',
-        fitQueueStatus: decision === 'FIT' ? 'NEW' : null,
-        fitQueuedAt: decision === 'FIT' ? new Date() : null
-      }
-    });
+    const access = await resolveMiniAppAccess(slug, initData);
+    if (!access.ok) return errorResponse(res, access.status, access.message);
+    if (!access.adminAllowed && !access.partnerId) return errorResponse(res, 403, 'Access denied');
 
     res.json({
       ok: true,
-      variant: {
-        id: updated.id,
-        requesterDecision: updated.requesterDecision,
-        fitQueueStatus: updated.fitQueueStatus
-      }
+      variant: await requestContractService.applyRequesterDecision({
+        companyId: access.config.companyId,
+        variantId,
+        decision: decision as 'FIT' | 'NOT_FIT',
+        partnerId: access.partnerId || undefined,
+        isAdmin: access.adminAllowed
+      })
     });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : 'Failed to save decision';
+    if (message === 'Forbidden') return errorResponse(res, 403, 'Forbidden');
+    if (message === 'Variant not found') return errorResponse(res, 404, 'Variant not found');
     errorResponse(res, 500, message);
   }
 });
@@ -464,43 +412,18 @@ router.get('/b2b/admin/fit-queue', async (req, res) => {
     if (!slug) return errorResponse(res, 400, 'slug is required');
     if (!initData) return errorResponse(res, 400, 'initData is required');
 
-    const config = await miniAppService.getConfig(slug);
-    const initCheck = await requireInitData(initData, config.companyId, config.botId);
-    if (!initCheck.ok) return errorResponse(res, 401, initCheck.message || 'Unauthorized');
-
-    const tgUser = parseTelegramUser(initData);
-    const tgUserId = tgUser?.id ? String(tgUser.id) : undefined;
-    if (!tgUserId) return errorResponse(res, 400, 'Telegram user not found');
-
-    const adminAllowed = await isMiniAppAdmin(config.companyId, tgUserId, config.botId || undefined);
-    if (!adminAllowed) return errorResponse(res, 403, 'Admin access required');
+    const access = await resolveMiniAppAccess(slug, initData);
+    if (!access.ok) return errorResponse(res, access.status, access.message);
+    if (!access.adminAllowed) return errorResponse(res, 403, 'Admin access required');
 
     const status = readString(req.query.status);
 
-    const items = await prisma.requestVariant.findMany({
-      where: {
-        requesterDecision: 'FIT',
-        request: { companyId: config.companyId },
-        ...(status ? { fitQueueStatus: status as any } : {})
-      },
-      include: {
-        request: true,
-        sellerPartner: true
-      },
-      orderBy: { fitQueuedAt: 'desc' }
-    });
-
     res.json({
       ok: true,
-      items: items.map(item => ({
-        id: item.id,
-        requestPublicId: item.request?.publicId || item.requestId,
-        fitQueueStatus: item.fitQueueStatus,
-        title: item.title,
-        sellerCompany: item.sellerPartner?.name || item.companyName,
-        contact: item.contact,
-        fitQueuedAt: item.fitQueuedAt
-      }))
+      items: await requestContractService.listAdminFitQueue({
+        companyId: access.config.companyId,
+        status: status || undefined
+      })
     });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : 'Failed to load fit queue';
@@ -520,40 +443,25 @@ router.patch('/b2b/admin/fit-queue/:variantId', async (req, res) => {
     if (!initData) return errorResponse(res, 400, 'initData is required');
     if (!fitQueueStatus) return errorResponse(res, 400, 'fitQueueStatus is required');
 
-    const config = await miniAppService.getConfig(slug);
-    const initCheck = await requireInitData(initData, config.companyId, config.botId);
-    if (!initCheck.ok) return errorResponse(res, 401, initCheck.message || 'Unauthorized');
-
-    const tgUser = parseTelegramUser(initData);
-    const tgUserId = tgUser?.id ? String(tgUser.id) : undefined;
-    if (!tgUserId) return errorResponse(res, 400, 'Telegram user not found');
-    const adminAllowed = await isMiniAppAdmin(config.companyId, tgUserId, config.botId || undefined);
-    if (!adminAllowed) return errorResponse(res, 403, 'Admin access required');
-
-    const variant = await prisma.requestVariant.findUnique({
-      where: { id: variantId },
-      include: { request: true }
-    });
-    if (!variant || variant.request?.companyId !== config.companyId) return errorResponse(res, 404, 'Variant not found');
-
-    const updated = await prisma.requestVariant.update({
-      where: { id: variantId },
-      data: {
-        fitQueueStatus: fitQueueStatus as any,
-        fitClosedAt: String(fitQueueStatus).toUpperCase() === 'CLOSED' ? new Date() : null
-      }
-    });
+    const access = await resolveMiniAppAccess(slug, initData);
+    if (!access.ok) return errorResponse(res, access.status, access.message);
+    if (!access.adminAllowed) return errorResponse(res, 403, 'Admin access required');
 
     res.json({
       ok: true,
-      variant: {
-        id: updated.id,
-        fitQueueStatus: updated.fitQueueStatus,
-        fitClosedAt: updated.fitClosedAt
-      }
+      variant: await requestContractService.updateAdminFitQueue({
+        companyId: access.config.companyId,
+        variantId,
+        fitQueueStatus,
+        location: readString(body.location),
+        meetingAt: readString(body.meetingAt),
+        result: readString(body.result)
+      })
     });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : 'Failed to update fit queue';
+    if (message === 'Invalid fitQueueStatus') return errorResponse(res, 400, 'Invalid fitQueueStatus');
+    if (message === 'Variant not found') return errorResponse(res, 404, 'Variant not found');
     errorResponse(res, 500, message);
   }
 });

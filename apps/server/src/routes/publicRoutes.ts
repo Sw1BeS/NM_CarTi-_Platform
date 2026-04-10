@@ -1,9 +1,14 @@
 import { Router, Request, Response } from 'express';
 // @ts-ignore
 import { prisma } from '../services/prisma.js';
-import { RequestStatus } from '@prisma/client';
 import { getUserByTelegramId } from '../services/v41/readService.js';
-import { generatePublicId, mapLeadCreateInput, mapLeadOutput, mapRequestInput, mapRequestOutput, mapVariantInput, mapVariantOutput, mapInventoryOutput } from '../services/dto.js';
+import {
+  mapLeadCreateInput,
+  mapLeadOutput,
+  mapVariantInput,
+  mapVariantOutput,
+  mapInventoryOutput
+} from '../services/dto.js';
 import { parseTelegramUser, verifyTelegramInitData } from '../modules/Communication/telegram/core/telegramAuth.js';
 import { mapBotOutput } from '../modules/Communication/bots/botDto.js';
 import { ShowcaseService } from '../modules/Marketing/showcase/showcase.service.js';
@@ -11,6 +16,7 @@ import { logger } from '../utils/logger.js';
 import { errorResponse } from '../utils/errorResponse.js';
 import { resolvePublicSlug } from '../services/publicSlug.service.js';
 import { getEnvInt } from '../services/featureFlags.js';
+import { requestContractService } from '../services/requestContract.service.js';
 
 const router = Router();
 const showcaseService = new ShowcaseService();
@@ -18,7 +24,7 @@ const showcaseService = new ShowcaseService();
 const requireInitData = async (initData: string | undefined, companyId?: string | null) => {
   if (!initData) return { ok: false, message: 'initData is required' };
   const init = initData;
-  const maxAgeSeconds = Math.max(60, getEnvInt('TELEGRAM_INITDATA_MAX_AGE_SECONDS', 900));
+  const maxAgeSeconds = Math.max(60, getEnvInt('TELEGRAM_INITDATA_MAX_AGE_SECONDS', 43200));
   const bots = await prisma.botConfig.findMany({
     where: {
       isEnabled: true,
@@ -35,7 +41,7 @@ const requireInitData = async (initData: string | undefined, companyId?: string 
 router.get('/:slug/inventory', async (req, res) => {
   try {
     const { slug } = req.params;
-    const resolved = await resolvePublicSlug(slug);
+    const resolved = await resolvePublicSlug(slug, { allowWorkspaceFallback: true });
 
     // Attempt to use ShowcaseService first
     try {
@@ -74,8 +80,12 @@ router.get('/:slug/inventory', async (req, res) => {
         }
     }
 
-    // LEGACY FALLBACK
-    if (!resolved.companyId) return errorResponse(res, 404, 'Company not found');
+    if (resolved.source !== 'workspace_compat' || !resolved.companyId) {
+      return errorResponse(res, 404, 'Showcase not found');
+    }
+
+    // Explicit compatibility-only fallback for legacy workspace-based public URLs.
+    res.set('x-cartie-compatibility', 'legacy_workspace_public_inventory');
 
     const limit = Math.min(100, Number(req.query.limit) || 50);
     const search = typeof req.query.search === 'string' ? req.query.search : undefined;
@@ -135,84 +145,41 @@ router.get('/:slug/inventory', async (req, res) => {
 router.post('/:slug/requests', async (req, res) => {
   try {
     const { slug } = req.params;
-    const resolved = await resolvePublicSlug(slug);
+    const resolved = await resolvePublicSlug(slug, { allowWorkspaceFallback: true });
     if (!resolved.companyId) return errorResponse(res, 404, 'Company not found');
+    if (resolved.source === 'workspace_compat') {
+      res.set('x-cartie-compatibility', 'legacy_workspace_public_request_create');
+    }
 
     const { initData, ...payload } = req.body || {};
     const initCheck = await requireInitData(initData, resolved.companyId);
     if (!initCheck.ok) return errorResponse(res, 401, initCheck.message || 'Unauthorized');
-
-    const { variants, ...raw } = payload;
-    const createData: any = mapRequestInput(raw);
-
-    if (!createData.title) return errorResponse(res, 400, 'Title is required');
-    if (!createData.publicId) createData.publicId = generatePublicId();
-
-    // Force company context
-    createData.companyId = resolved.companyId;
-
-    const request = await prisma.b2bRequest.create({
-      data: createData
-    });
-
-    res.json(mapRequestOutput(request));
+    const request = await requestContractService.createPublicSlugRequest(slug, payload as Record<string, unknown>);
+    res.json(request);
   } catch (e: any) {
     logger.error(e);
-    errorResponse(res, 500, 'Failed to create request');
+    errorResponse(res, 500, e?.message || 'Failed to create request');
   }
 });
 
 // Public Request Status
 router.get('/:slug/request-status', async (req, res) => {
   try {
-    const { slug } = req.params;
-    const resolved = await resolvePublicSlug(slug);
-    if (!resolved.companyId) return errorResponse(res, 404, 'Company not found');
-
-    const publicId = typeof req.query.publicId === 'string' ? req.query.publicId : undefined;
-    const phone = typeof req.query.phone === 'string' ? req.query.phone : undefined;
-    const telegramUserId = typeof req.query.telegramUserId === 'string' ? req.query.telegramUserId : undefined;
-
-    if (!publicId && !phone && !telegramUserId) {
-      return errorResponse(res, 400, 'publicId, phone or telegramUserId is required');
+    const resolved = await resolvePublicSlug(req.params.slug, { allowWorkspaceFallback: true });
+    if (resolved.source === 'workspace_compat') {
+      res.set('x-cartie-compatibility', 'legacy_workspace_public_request_status');
     }
-
-    const where: any = { companyId: resolved.companyId };
-    const or: any[] = [];
-
-    if (publicId) or.push({ publicId });
-    if (telegramUserId) or.push({ chatId: String(telegramUserId) });
-    if (phone) {
-      or.push({
-        payload: {
-          path: ['phone'],
-          equals: String(phone)
-        }
-      });
-    }
-
-    if (or.length) where.OR = or;
-
-    const request = await prisma.b2bRequest.findFirst({
-      where,
-      orderBy: { createdAt: 'desc' }
+    const request = await requestContractService.getRequestStatusBySlug(req.params.slug, {
+      requestId: typeof req.query.requestId === 'string' ? req.query.requestId : (typeof req.query.publicId === 'string' ? req.query.publicId : undefined),
+      phone: typeof req.query.phone === 'string' ? req.query.phone : undefined,
+      telegramUserId: typeof req.query.telegramUserId === 'string' ? req.query.telegramUserId : undefined
     });
 
     if (!request) return errorResponse(res, 404, 'Request not found');
-
-    res.json({
-      ok: true,
-      request: {
-        id: request.id,
-        publicId: request.publicId || request.id,
-        status: request.status,
-        title: request.title,
-        createdAt: request.createdAt
-      }
-    });
+    res.json({ ok: true, request });
   } catch (e: any) {
     logger.error(e);
-    errorResponse(res, 500, 'Failed to fetch request status');
+    errorResponse(res, 500, e?.message || 'Failed to fetch request status');
   }
 });
 
@@ -259,24 +226,12 @@ router.post('/requests', async (req, res) => {
     const { initData } = req.body || {};
     const initCheck = await requireInitData(initData);
     if (!initCheck.ok) return errorResponse(res, 401, initCheck.message || 'Unauthorized');
-
-    const { variants, ...raw } = req.body || {};
-    const createData: any = mapRequestInput(raw);
-    if (!createData.title) {
-      return errorResponse(res, 400, 'Title is required');
-    }
-    if (!createData.publicId) createData.publicId = generatePublicId();
-    if (variants && Array.isArray(variants)) {
-      createData.variants = { create: variants.map((v: any) => mapVariantInput(v)) };
-    }
-    const request = await prisma.b2bRequest.create({
-      data: createData,
-      include: { variants: true }
-    });
-    res.json(mapRequestOutput(request));
+    res.set('x-cartie-compatibility', 'legacy_public_requests_create');
+    const request = await requestContractService.createLegacyPublicRequest((req.body || {}) as Record<string, unknown>);
+    res.json(request);
   } catch (e: any) {
     logger.error(e);
-    errorResponse(res, 500, 'Failed to create request');
+    errorResponse(res, 500, e?.message || 'Failed to create request');
   }
 });
 
@@ -295,6 +250,7 @@ router.post('/requests/:id/variants', async (req, res) => {
         requestId: id
       }
     });
+    res.set('x-cartie-compatibility', 'legacy_public_variants_create');
     res.json(mapVariantOutput(variant));
   } catch (e: any) {
     logger.error(e);
@@ -305,7 +261,7 @@ router.post('/requests/:id/variants', async (req, res) => {
 router.post('/dealer/session', async (req, res) => {
   const { initData } = req.body || {};
   if (!initData) return errorResponse(res, 400, 'initData is required');
-  const maxAgeSeconds = Math.max(60, getEnvInt('TELEGRAM_INITDATA_MAX_AGE_SECONDS', 900));
+  const maxAgeSeconds = Math.max(60, getEnvInt('TELEGRAM_INITDATA_MAX_AGE_SECONDS', 43200));
 
   const bots = await prisma.botConfig.findMany({
     where: { isEnabled: true },
@@ -356,29 +312,8 @@ router.get('/requests', async (req, res) => {
   try {
     const page = Math.max(1, Number(req.query.page) || 1);
     const limit = Math.min(50, Number(req.query.limit) || 20);
-    const skip = (page - 1) * limit;
-
-    const publicStatuses = [RequestStatus.PUBLISHED, RequestStatus.COLLECTING_VARIANTS];
-    const where = { status: { in: publicStatuses } };
-
-    const [total, requests] = await Promise.all([
-      prisma.b2bRequest.count({ where }),
-      prisma.b2bRequest.findMany({
-        where,
-        include: { variants: true },
-        orderBy: { createdAt: 'desc' },
-        take: limit,
-        skip
-      })
-    ]);
-
-    res.json({
-      items: requests.map(request => mapRequestOutput(request)),
-      total,
-      page,
-      limit,
-      totalPages: Math.ceil(total / limit)
-    });
+    const result = await requestContractService.listPublicRequests({ page, limit });
+    res.json(result);
   } catch (e: any) {
     logger.error(e);
     errorResponse(res, 500, 'Failed to fetch public requests');

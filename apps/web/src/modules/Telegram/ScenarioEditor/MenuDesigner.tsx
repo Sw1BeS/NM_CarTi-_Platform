@@ -62,7 +62,10 @@ export const MenuDesigner = ({ bot }: MenuDesignerProps) => {
                 return;
             }
             if (appUrl) {
-                await TelegramAPI.setChatMenuButton(bot.token, "Open App", appUrl);
+                const directUrl = new URL(appUrl);
+                directUrl.searchParams.set('entry', 'inventory');
+                directUrl.searchParams.set('status', 'AVAILABLE');
+                await TelegramAPI.setChatMenuButton(bot.token, "Каталог авто", directUrl.toString());
             }
 
             const commands = scenarios
