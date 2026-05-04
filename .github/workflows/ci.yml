@@ -34,7 +34,7 @@ jobs:
     - name: Building Frontend
       working-directory: ./apps/web
       run: |
-        npm ci
+        npm ci --legacy-peer-deps
         npm run build
       env:
         # Dummy value for build time, replaced at run time or via Docker build args
