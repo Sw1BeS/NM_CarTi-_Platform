@@ -384,11 +384,16 @@ const MiniAppContent = () => {
     const prefillRequestFromCar = (car: CarListing) => {
         const carId = getCarId(car);
         const specs = getCarSpecs(car);
-        setReqData({
+        setReqData(prev => ({
+            ...prev,
             brand: car.title || '',
-            budget: String(car.price?.amount || ''),
-            year: String(car.year || '')
-        });
+            budgetMin: '',
+            budgetMax: String(car.price?.amount || ''),
+            yearMin: String(car.year || ''),
+            yearMax: '',
+            city: car.location || '',
+            brandSearch: ''
+        }));
         setReqMileage(String(toNumberSafe(car.mileage) || ''));
         setReqFuel(specs.fuel || '');
         setReqComment('');
@@ -403,11 +408,16 @@ const MiniAppContent = () => {
         if (!selectedRequestCarIds.length) return;
         if (!reqData.brand && selectedRequestCars[0]) {
             const first = selectedRequestCars[0];
-            setReqData({
+            setReqData(prev => ({
+                ...prev,
                 brand: first.title || '',
-                budget: String(first.price?.amount || ''),
-                year: String(first.year || '')
-            });
+                budgetMin: '',
+                budgetMax: String(first.price?.amount || ''),
+                yearMin: String(first.year || ''),
+                yearMax: '',
+                city: first.location || '',
+                brandSearch: ''
+            }));
         }
         setReqStep(1);
         setView('REQUEST');
@@ -1246,10 +1256,10 @@ const MiniAppContent = () => {
                 clearRequestSelection();
 
                 if (tg && tg.initData) {
-                    tg.close();
-                } else {
-                    setReqStep(3);
+                    tg.HapticFeedback?.notificationOccurred?.('success');
                 }
+                setReqStep(5);
+                pushToast('Запит надіслано.', 'success');
             } catch (e) {
                 emitMiniAppEvent('error', 'MiniApp request submit failed', { error: e instanceof Error ? e.message : String(e) });
                 const message = resolveMiniAppWriteError(e, 'Не вдалося надіслати запит.');
@@ -1279,6 +1289,10 @@ const MiniAppContent = () => {
             hasTelegramInit={hasTelegramInit}
             primaryColor={primaryColor}
             surfaceMode={surfaceMode}
+            manualContactMode={!hasTelegramInit}
+            showInlineAction={true}
+            actionLabel={reqStep >= 4 ? 'Надіслати запит' : 'Далі'}
+            actionDisabled={reqStep === 4 && !hasTelegramInit}
             onNextStep={handleNextStep}
             onHome={() => { setReqStep(1); setView('HOME'); }}
         />
