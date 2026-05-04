@@ -47,6 +47,7 @@ type RequestViewProps = {
   actionLabel: string;
   actionDisabled?: boolean;
   onNextStep: () => void;
+  onBackStep: () => void;
   onHome: () => void;
   tgUser?: any;
 };
@@ -76,6 +77,7 @@ export const RequestView = ({
   actionLabel,
   actionDisabled,
   onNextStep,
+  onBackStep,
   onHome,
   tgUser
 }: RequestViewProps) => {
@@ -341,7 +343,7 @@ export const RequestView = ({
             <div className="pt-6 flex gap-3">
               {reqStep > 1 && (
                 <button
-                  onClick={() => {/* Handle back step */}}
+                  onClick={onBackStep}
                   className="flex-1 py-4 rounded-xl font-bold text-white flex items-center justify-center gap-2 active:scale-95 transition-transform bg-[#1c1c1e] border border-white/10"
                 >
                   <ChevronLeft size={18} />
