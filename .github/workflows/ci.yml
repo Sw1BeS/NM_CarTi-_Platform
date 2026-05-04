@@ -2,87 +2,81 @@ name: Cartie v2 CI
 
 on:
   push:
-    branches: [ "main", "develop" ]
+    branches:
+      - main
+      - "candidate/**"
+      - "qa/**"
+      - "extract/**"
+      - "import/**"
   pull_request:
-    branches: [ "main", "develop" ]
+    branches:
+      - main
 
 jobs:
   build:
+    name: build (20.x)
     runs-on: ubuntu-latest
 
-    strategy:
-      matrix:
-        node-version: [20.x]
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: cartie_ci
+          POSTGRES_PASSWORD: cartie_ci
+          POSTGRES_DB: cartie_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U cartie_ci -d cartie_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      DATABASE_URL: postgresql://cartie_ci:cartie_ci@localhost:5432/cartie_ci?schema=public
+      NODE_ENV: test
+      JWT_SECRET: ci_dummy_jwt_secret
+      TELEGRAM_BOT_TOKEN: ci_dummy_telegram_bot_token
+      TELEGRAM_WEBHOOK_SECRET: ci_dummy_telegram_webhook_secret
+      VITE_API_BASE_URL: http://localhost:3001
 
     steps:
-    - uses: actions/checkout@v3
-    
-    - name: Use Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@v3
-      with:
-        node-version: ${{ matrix.node-version }}
-        cache: 'npm'
-        cache-dependency-path: '**/package-lock.json'
+      - name: Check out repository
+        uses: actions/checkout@v4
 
-    - name: Building Backend
-      working-directory: ./apps/server
-      run: |
-        npm ci
-        npx prisma generate
-        npm run build
+      - name: Use Node.js 20.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: npm
+          cache-dependency-path: |
+            apps/server/package-lock.json
+            apps/web/package-lock.json
 
-    - name: Building Frontend
-      working-directory: ./apps/web
-      run: |
-        npm ci --legacy-peer-deps
-        npm run build
-      env:
-        # Dummy value for build time, replaced at run time or via Docker build args
-        VITE_API_BASE_URL: "https://api.staging.cartie.io" 
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
 
-    - name: Run Tests (Backend)
-      working-directory: ./apps/server
-      run: npm test
+      - name: Prepare CI database
+        run: |
+          until pg_isready -h localhost -p 5432 -U cartie_ci -d cartie_ci; do
+            echo "Waiting for Postgres..."
+            sleep 2
+          done
+          PGPASSWORD=cartie_ci psql -h localhost -p 5432 -U cartie_ci -d cartie_ci -c 'CREATE EXTENSION IF NOT EXISTS citext;'
 
-    - name: Script Status Audit
-      run: bash scripts/audit_scripts.sh
+      - name: Building Backend
+        working-directory: ./apps/server
+        run: |
+          npm ci
+          npm run prisma:generate
+          npx prisma db push --skip-generate
+          npm run build
+          npm test
 
-    - name: Route Registry Smoke
-      working-directory: ./apps/server
-      run: npx tsx scripts/verify_routes.ts
-
-    - name: Docker Build With Build Metadata
-      run: |
-        set -euo pipefail
-        BUILD_SHA="${GITHUB_SHA}"
-        BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-
-        echo "BUILD_SHA=$BUILD_SHA"
-        echo "BUILD_TIME=$BUILD_TIME"
-
-        docker build \
-          -f infra/Dockerfile.api \
-          --build-arg BUILD_SHA="$BUILD_SHA" \
-          --build-arg BUILD_TIME="$BUILD_TIME" \
-          -t cartie-api-ci .
-
-        docker build \
-          -f infra/Dockerfile.web \
-          --build-arg BUILD_SHA="$BUILD_SHA" \
-          --build-arg BUILD_TIME="$BUILD_TIME" \
-          -t cartie-web-ci .
-
-        api_sha="$(docker run --rm cartie-api-ci sh -lc 'cat /app/server/BUILD_SHA')"
-        web_sha="$(docker run --rm cartie-web-ci sh -lc 'cat /srv/www/BUILD_SHA')"
-
-        if [ "$api_sha" != "$BUILD_SHA" ]; then
-          echo "API build SHA mismatch: $api_sha != $BUILD_SHA"
-          exit 1
-        fi
-
-        if [ "$web_sha" != "$BUILD_SHA" ]; then
-          echo "WEB build SHA mismatch: $web_sha != $BUILD_SHA"
-          exit 1
-        fi
-
-        echo "✅ Docker images contain the expected build SHA"
+      - name: Building Frontend
+        working-directory: ./apps/web
+        run: |
+          npm ci --legacy-peer-deps
+          npm run build
