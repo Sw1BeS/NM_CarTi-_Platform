@@ -25,6 +25,24 @@ describe('miniappPayload', () => {
     }
   });
 
+  it('accepts lead_submit_multi payload', () => {
+    const result = parseMiniAppPayload({
+      v: 1,
+      type: 'lead_submit_multi',
+      carIds: ['car_1', 'car_2', 'car_3']
+    });
+    expect(result.ok).toBe(true);
+  });
+
+  it('accepts fav_toggle payload', () => {
+    const result = parseMiniAppPayload({
+      v: 1,
+      type: 'fav_toggle',
+      carId: 'car_7'
+    });
+    expect(result.ok).toBe(true);
+  });
+
   it('rejects unsupported version', () => {
     const result = parseMiniAppPayload({ v: 2, type: 'lead_submit' });
     expect(result.ok).toBe(false);

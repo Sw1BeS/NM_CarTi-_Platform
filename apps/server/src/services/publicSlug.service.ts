@@ -20,10 +20,27 @@ export type PublicSlugResolution = {
   companyId: string | null;
   botId?: string | null;
   showcase?: any | null;
-  source?: 'showcase' | 'workspace' | 'bot_default' | 'bot_username' | 'none';
+  source?: 'showcase' | 'workspace_compat' | 'bot_default' | 'bot_username' | 'none';
+  compatibility?: {
+    kind: 'legacy_workspace_public_owner';
+  };
 };
 
-export const resolvePublicSlug = async (slug: string): Promise<PublicSlugResolution> => {
+export type ResolvePublicSlugOptions = {
+  allowWorkspaceFallback?: boolean;
+};
+
+const resolveWorkspaceSlug = async (candidate: string) => {
+  try {
+    const workspace = await getWorkspaceBySlug(candidate);
+    if (workspace?.id) return workspace;
+  } catch {
+    // ignore workspace errors and continue
+  }
+  return null;
+};
+
+export const resolvePublicSlug = async (slug: string, options: ResolvePublicSlugOptions = {}): Promise<PublicSlugResolution> => {
   const normalized = normalizeSlug(slug);
   if (!normalized) {
     return { slug: '', companyId: null, source: 'none' };
@@ -62,30 +79,30 @@ export const resolvePublicSlug = async (slug: string): Promise<PublicSlugResolut
     }
   }
 
-  try {
-    const workspace = await getWorkspaceBySlug(normalized);
+  if (options.allowWorkspaceFallback) {
+    const workspace = await resolveWorkspaceSlug(normalized);
     if (workspace?.id) {
       return {
         slug: normalized,
         companyId: workspace.id,
-        source: 'workspace'
+        source: 'workspace_compat',
+        compatibility: {
+          kind: 'legacy_workspace_public_owner'
+        }
       };
     }
-  } catch {
-    // ignore workspace errors and continue
-  }
-  if (normalizedLower !== normalized) {
-    try {
-      const workspace = await getWorkspaceBySlug(normalizedLower);
-      if (workspace?.id) {
+    if (normalizedLower !== normalized) {
+      const normalizedWorkspace = await resolveWorkspaceSlug(normalizedLower);
+      if (normalizedWorkspace?.id) {
         return {
           slug: normalizedLower,
-          companyId: workspace.id,
-          source: 'workspace'
+          companyId: normalizedWorkspace.id,
+          source: 'workspace_compat',
+          compatibility: {
+            kind: 'legacy_workspace_public_owner'
+          }
         };
       }
-    } catch {
-      // ignore workspace errors and continue
     }
   }
 

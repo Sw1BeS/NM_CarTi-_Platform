@@ -26,6 +26,37 @@ type B2BRegistrationDraft = {
 };
 
 const toText = (value: unknown) => String(value || '').trim();
+const isBackIntent = (text: string, lang: ReturnType<typeof resolveLang>) => {
+  const normalized = toText(text).toLowerCase();
+  return normalized === toText(button(lang, 'common.back')).toLowerCase() || normalized === 'назад' || normalized === 'back';
+};
+
+const resolveBackStepFromState = (state: string): number | 'menu' => {
+  const map: Record<string, number | 'menu'> = {
+    B2B_REG_COMPANY: 'menu',
+    BR_P_CITY: 1,
+    BR_P_NAME: 2,
+    BR_P_CONTACT: 3,
+    BR_P_NOTE: 4,
+    BR_P_REVIEW: 5,
+    B2B_REG_AGENT_CODE: 'menu',
+    BR_A_NAME: 1,
+    BR_A_CONTACT: 2,
+    BR_A_REVIEW: 3
+  };
+  return map[state] ?? 'menu';
+};
+
+const isAllowedActionForState = (state: string, action: string) => {
+  if (action === ActionTokens.LB_CANCEL || action === ActionTokens.BR_APPROVE || action === ActionTokens.BR_REJECT) return true;
+  if (!(state.startsWith('BR_') || state.startsWith('B2B_REG_'))) return false;
+  if (action.startsWith('br_back_')) return true;
+  if (action === 'br_edit' || action === 'br_j') return state === 'BR_P_REVIEW' || state === 'BR_A_REVIEW';
+  if (action === 'br_p_submit') return state === 'BR_P_REVIEW';
+  if (action === 'br_a_submit') return state === 'BR_A_REVIEW';
+  if (action === 'br_ps_nt' || action === 'br_p_skip_note') return state === 'BR_P_NOTE';
+  return false;
+};
 
 const sendMessage = async (ctx: PipelineContext, text: string, replyMarkup?: any, targetChatId?: string) => {
   if (!ctx.bot) return;
@@ -38,6 +69,22 @@ const sendMessage = async (ctx: PipelineContext, text: string, replyMarkup?: any
     text,
     replyMarkup,
     companyId: ctx.companyId
+  });
+};
+
+const sendUnregisteredMenu = async (ctx: PipelineContext, notice?: string) => {
+  const lang = resolveLang(ctx);
+  if (notice) {
+    await sendMessage(ctx, notice, { remove_keyboard: true });
+  }
+  await sendMessage(ctx, t(lang, 'common.welcome_b2b_unregistered'), {
+    inline_keyboard: [
+      [{ text: button(lang, 'b2b.regNewPartner'), callback_data: buildCallbackData('br_new') },
+      { text: button(lang, 'b2b.regAgent'), callback_data: buildCallbackData('br_agent') }],
+      [{ text: button(lang, 'common.rules'), callback_data: buildCallbackData('cl_rules') },
+      { text: button(lang, 'common.info'), callback_data: buildCallbackData('cl_info_b2b') }],
+      [{ text: button(lang, 'common.privacy'), callback_data: buildCallbackData('cl_privacy') }]
+    ]
   });
 };
 
@@ -114,7 +161,10 @@ const routePartnerStep = async (ctx: PipelineContext, draft: B2BRegistrationDraf
     draft.step = 1;
     await persistDraft(ctx, draft, 'B2B_REG_COMPANY');
     await sendMessage(ctx, `🏢 <b>Реєстрація партнера</b>\n\nКрок 1/5\nВведіть назву компанії (майданчика):`, {
-      inline_keyboard: [[{ text: button(lang, 'common.cancel'), callback_data: buildCallbackData(ActionTokens.LB_CANCEL) }]]
+      inline_keyboard: [[
+        { text: button(lang, 'common.back'), callback_data: buildCallbackData('br_back_0') },
+        { text: button(lang, 'common.cancel'), callback_data: buildCallbackData(ActionTokens.LB_CANCEL) }
+      ]]
     });
     return;
   }
@@ -143,14 +193,18 @@ const routePartnerStep = async (ctx: PipelineContext, draft: B2BRegistrationDraf
 
   if (draft.step === 4) {
     await persistDraft(ctx, draft, 'BR_P_CONTACT');
-    await sendMessage(ctx, 'Крок 4/5\nДодайте контактний номер:', {
-      keyboard: [
-        [{ text: button(lang, 'common.shareContact'), request_contact: true }],
-        [{ text: button(lang, 'common.back') }]
-      ],
-      resize_keyboard: true,
-      one_time_keyboard: true
-    });
+    if (String(ctx.chatType || '') === 'private') {
+      await sendMessage(ctx, 'Крок 4/5\nДодайте контактний номер:', {
+        keyboard: [
+          [{ text: button(lang, 'common.shareContact'), request_contact: true }],
+          [{ text: button(lang, 'common.back') }]
+        ],
+        resize_keyboard: true,
+        one_time_keyboard: true
+      });
+    } else {
+      await sendMessage(ctx, 'Крок 4/5\nВведіть контактний номер вручну:');
+    }
     await sendMessage(ctx, 'Керування кроком:', {
       inline_keyboard: [[
         { text: button(lang, 'common.back'), callback_data: buildCallbackData('br_back_3') },
@@ -164,7 +218,7 @@ const routePartnerStep = async (ctx: PipelineContext, draft: B2BRegistrationDraf
     await persistDraft(ctx, draft, 'BR_P_NOTE');
     await sendMessage(ctx, 'Крок 5/5\nНотатка (необовʼязково):', {
       inline_keyboard: [
-        [{ text: button(lang, 'common.skip'), callback_data: buildCallbackData('br_p_skip_note') }],
+        [{ text: button(lang, 'common.skip'), callback_data: buildCallbackData('br_ps_nt') }],
         [
           { text: button(lang, 'common.back'), callback_data: buildCallbackData('br_back_4') },
           { text: button(lang, 'common.cancel'), callback_data: buildCallbackData(ActionTokens.LB_CANCEL) }
@@ -200,7 +254,10 @@ const routeAgentStep = async (ctx: PipelineContext, draft: B2BRegistrationDraft)
     draft.step = 1;
     await persistDraft(ctx, draft, 'B2B_REG_AGENT_CODE');
     await sendMessage(ctx, '👤 <b>Реєстрація представника партнера</b>\n\nКрок 1/3\nВведіть код партнера (CDL-XXXXXX):', {
-      inline_keyboard: [[{ text: button(lang, 'common.cancel'), callback_data: buildCallbackData(ActionTokens.LB_CANCEL) }]]
+      inline_keyboard: [[
+        { text: button(lang, 'common.back'), callback_data: buildCallbackData('br_back_0') },
+        { text: button(lang, 'common.cancel'), callback_data: buildCallbackData(ActionTokens.LB_CANCEL) }
+      ]]
     });
     return;
   }
@@ -218,14 +275,18 @@ const routeAgentStep = async (ctx: PipelineContext, draft: B2BRegistrationDraft)
 
   if (draft.step === 3) {
     await persistDraft(ctx, draft, 'BR_A_CONTACT');
-    await sendMessage(ctx, 'Крок 3/3\nДодайте контактний номер:', {
-      keyboard: [
-        [{ text: button(lang, 'common.shareContact'), request_contact: true }],
-        [{ text: button(lang, 'common.back') }]
-      ],
-      resize_keyboard: true,
-      one_time_keyboard: true
-    });
+    if (String(ctx.chatType || '') === 'private') {
+      await sendMessage(ctx, 'Крок 3/3\nДодайте контактний номер:', {
+        keyboard: [
+          [{ text: button(lang, 'common.shareContact'), request_contact: true }],
+          [{ text: button(lang, 'common.back') }]
+        ],
+        resize_keyboard: true,
+        one_time_keyboard: true
+      });
+    } else {
+      await sendMessage(ctx, 'Крок 3/3\nВведіть контактний номер вручну:');
+    }
     await sendMessage(ctx, 'Керування кроком:', {
       inline_keyboard: [[
         { text: button(lang, 'common.back'), callback_data: buildCallbackData('br_back_2') },
@@ -295,10 +356,29 @@ const parseNameParts = (text: string) => {
 };
 
 export const handleB2BRegText = async (ctx: PipelineContext, text: string): Promise<boolean> => {
-  const draft = readDraft(ctx);
   const state = String(ctx.session?.state || '');
   const lang = resolveLang(ctx);
+  const vars = (ctx.session?.variables as any) || {};
+  const hasDraft = Boolean(vars.b2bRegDraft && typeof vars.b2bRegDraft === 'object');
+  if ((state.startsWith('BR_') || state.startsWith('B2B_REG_')) && !hasDraft) {
+    await clearDraft(ctx, 'B2B_UNREG', { b2bUnregistered: true });
+    await sendUnregisteredMenu(ctx, '⚠️ Сесія реєстрації втрачена. Почніть ще раз.');
+    return true;
+  }
+  const draft = readDraft(ctx);
   const message = ctx.update?.message;
+
+  if ((state.startsWith('BR_') || state.startsWith('B2B_REG_')) && isBackIntent(text, lang)) {
+    const back = resolveBackStepFromState(state);
+    if (back === 'menu') {
+      await clearDraft(ctx, 'B2B_UNREG', { b2bUnregistered: true });
+      await sendUnregisteredMenu(ctx);
+      return true;
+    }
+    draft.step = back;
+    await routeB2BRegStep(ctx, draft);
+    return true;
+  }
 
   if (state === 'B2B_REG_COMPANY') {
     const companyName = toText(text);
@@ -394,14 +474,28 @@ export const handleB2BRegText = async (ctx: PipelineContext, text: string): Prom
     return true;
   }
 
+  if (state.startsWith('BR_') || state.startsWith('B2B_REG_')) {
+    await sendMessage(ctx, 'Використайте кнопки під повідомленням або «❌ Скасувати».');
+    return true;
+  }
+
   return false;
 };
 
 const notifyPartnerRegistrationToAdmin = async (ctx: PipelineContext, accessRequestId: string, draft: B2BRegistrationDraft) => {
   if (!ctx.bot) return;
+  const from = ctx.update?.message?.from || ctx.update?.callback_query?.from;
+  const tgUserId = String(from?.id || ctx.userId || ctx.chatId || '').trim();
+  const displayName = [from?.first_name, from?.last_name].filter(Boolean).join(' ').trim() || 'Користувач';
+  const username = from?.username ? `@${from.username}` : '—';
+  const profileLink = from?.username ? `https://t.me/${from.username}` : `tg://user?id=${tgUserId || ctx.chatId || ''}`;
   const text = [
     '🟡 [B2B REG]',
     `Заявка на реєстрацію партнера`,
+    `👤 ${displayName}`,
+    `username: ${username}`,
+    `tgUserId: ${tgUserId || '—'}`,
+    `🔗 ${profileLink}`,
     `Компанія: ${draft.data.companyName || '—'}`,
     `Місто: ${draft.data.city || '—'}`,
     `Представник: ${[draft.data.firstName, draft.data.lastName].filter(Boolean).join(' ') || '—'}`,
@@ -427,17 +521,58 @@ const notifyPartnerRegistrationToAdmin = async (ctx: PipelineContext, accessRequ
 };
 
 export const handleB2BRegCallback = async (ctx: PipelineContext, action: string, payload?: string): Promise<boolean> => {
-  const draft = readDraft(ctx);
+  const vars = (ctx.session?.variables as any) || {};
+  const hasDraft = Boolean(vars.b2bRegDraft && typeof vars.b2bRegDraft === 'object');
   const lang = resolveLang(ctx);
+  const state = String(ctx.session?.state || '');
 
-  if (action === ActionTokens.LB_CANCEL) {
-    await clearDraft(ctx, 'B2B_UNREG', { b2bUnregistered: true });
-    await sendMessage(ctx, t(lang, 'cancelled'), { remove_keyboard: true });
+  if (action === 'br_new' || action === 'br_new_partner') {
+    await routeB2BRegStep(ctx, {
+      type: 'PARTNER',
+      step: 1,
+      data: {},
+      history: []
+    });
     return true;
   }
 
+  if (action === 'br_agent') {
+    await routeB2BRegStep(ctx, {
+      type: 'AGENT',
+      step: 1,
+      data: {},
+      history: []
+    });
+    return true;
+  }
+
+  if (action === ActionTokens.LB_CANCEL) {
+    await clearDraft(ctx, 'B2B_UNREG', { b2bUnregistered: true });
+    await sendUnregisteredMenu(ctx, t(lang, 'cancelled'));
+    return true;
+  }
+
+  if (!hasDraft && action !== ActionTokens.BR_APPROVE && action !== ActionTokens.BR_REJECT) {
+    await sendMessage(ctx, '⚠️ Сесія реєстрації неактивна. Почніть реєстрацію з меню.');
+    return true;
+  }
+
+  if (action !== ActionTokens.BR_APPROVE && action !== ActionTokens.BR_REJECT) {
+    if (!isAllowedActionForState(state, action)) {
+      await sendMessage(ctx, '⚠️ Ця дія недоступна на поточному кроці.');
+      return true;
+    }
+  }
+
+  const draft = readDraft(ctx);
+
   if (action.startsWith('br_back_')) {
     const step = Number(action.replace('br_back_', ''));
+    if (Number.isFinite(step) && step === 0) {
+      await clearDraft(ctx, 'B2B_UNREG', { b2bUnregistered: true });
+      await sendUnregisteredMenu(ctx);
+      return true;
+    }
     if (!Number.isFinite(step) || step < 1) return true;
     draft.step = step;
     await routeB2BRegStep(ctx, draft);
@@ -457,7 +592,7 @@ export const handleB2BRegCallback = async (ctx: PipelineContext, action: string,
     return true;
   }
 
-  if (action === 'br_p_skip_note') {
+  if (action === 'br_ps_nt' || action === 'br_p_skip_note') {
     draft.data.note = null;
     draft.step = 6;
     await routeB2BRegStep(ctx, draft);
@@ -519,16 +654,23 @@ export const handleB2BRegCallback = async (ctx: PipelineContext, action: string,
     await clearDraft(ctx, 'B2B_MENU', { b2bUnregistered: false, b2bPartnerId: result.partnerCompany.id, b2bPartnerName: result.partnerCompany.name });
     await sendMessage(ctx, '✅ Ви успішно приєднані як представник партнера.', {
       keyboard: [
-        [{ text: button(lang, 'b2bMenu.newRequest') }, { text: button(lang, 'b2bMenu.myInventory') }],
-        [{ text: button(lang, 'common.rules') }, { text: button(lang, 'common.info') }]
+        [{ text: button(lang, 'b2bMenu.newRequest') }, { text: button(lang, 'b2bMenu.sell') }],
+        [{ text: button(lang, 'b2bMenu.myInventory') }, { text: button(lang, 'common.info') }]
       ],
       resize_keyboard: true
     });
 
     if (ctx.bot?.adminChatId) {
+      const from = ctx.update?.message?.from || ctx.update?.callback_query?.from;
+      const tgUserId = String(from?.id || ctx.userId || ctx.chatId || '').trim();
+      const username = from?.username ? `@${from.username}` : '—';
+      const profileLink = from?.username ? `https://t.me/${from.username}` : `tg://user?id=${tgUserId || ctx.chatId || ''}`;
       await sendMessage(ctx, [
         '🟡 [B2B REG]',
         'Додано нового представника партнера',
+        `username: ${username}`,
+        `tgUserId: ${tgUserId || '—'}`,
+        `🔗 ${profileLink}`,
         `Компанія: ${result.partnerCompany.name}`,
         `Код: ${draft.data.inviteCode || '—'}`,
         `Представник: ${[draft.data.firstName, draft.data.lastName].filter(Boolean).join(' ') || '—'}`,

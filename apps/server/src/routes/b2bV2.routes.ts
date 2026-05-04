@@ -1,9 +1,9 @@
 import { Router } from 'express';
-import { FitQueueStatus, RequesterDecision, VariantStatus } from '@prisma/client';
+import { RequesterDecision } from '@prisma/client';
 import { prisma } from '../services/prisma.js';
 import { authenticateToken, requireRole } from '../middleware/auth.js';
 import { b2bWhitelistService } from '../services/b2bWhitelist.service.js';
-import { mapVariantOutput } from '../services/dto.js';
+import { requestContractService } from '../services/requestContract.service.js';
 import { errorResponse } from '../utils/errorResponse.js';
 
 const router = Router();
@@ -77,33 +77,18 @@ router.get('/requests/my', async (req, res) => {
     const partnerIdRaw = typeof req.query.partnerId === 'string' ? req.query.partnerId : undefined;
     const partnerId = await resolvePartnerId(companyId, tgUserId, partnerIdRaw);
 
-    const where: any = { companyId };
-    if (partnerId) {
-      where.requesterPartnerId = partnerId;
-    } else if (!['OWNER', 'ADMIN', 'MANAGER', 'SUPER_ADMIN'].includes(userRole)) {
-      return errorResponse(res, 400, 'partnerId or tgUserId is required for partner scope');
+    try {
+      requestContractService.ensurePartnerScope(partnerId, userRole);
+    } catch (error: any) {
+      return errorResponse(res, 400, error?.message || 'partnerId or tgUserId is required for partner scope');
     }
-
-    const requests = await prisma.b2bRequest.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      include: {
-        channelPosts: true,
-        variants: true
-      }
-    });
 
     return res.json({
       ok: true,
-      items: requests.map(r => ({
-        id: r.id,
-        publicId: r.publicId || r.id,
-        title: r.title,
-        status: r.status,
-        channelPostUrl: r.channelPostUrl,
-        variantsCount: r.variants.length,
-        createdAt: r.createdAt
-      }))
+      items: await requestContractService.listPartnerRequests({
+        companyId,
+        partnerId: partnerId || undefined
+      })
     });
   } catch (error: any) {
     return errorResponse(res, 500, error?.message || 'Failed to load requests');
@@ -120,36 +105,17 @@ router.get('/variants/received', async (req, res) => {
     const partnerIdRaw = typeof req.query.partnerId === 'string' ? req.query.partnerId : undefined;
     const partnerId = await resolvePartnerId(companyId, tgUserId, partnerIdRaw);
 
-    if (!partnerId && !['OWNER', 'ADMIN', 'MANAGER', 'SUPER_ADMIN'].includes(userRole)) {
-      return errorResponse(res, 400, 'partnerId or tgUserId is required for partner scope');
+    try {
+      requestContractService.ensurePartnerScope(partnerId, userRole);
+    } catch (error: any) {
+      return errorResponse(res, 400, error?.message || 'partnerId or tgUserId is required for partner scope');
     }
-
-    const requests = await prisma.b2bRequest.findMany({
-      where: {
-        companyId,
-        ...(partnerId ? { requesterPartnerId: partnerId } : {})
-      },
-      select: { id: true }
-    });
-
-    const requestIds = requests.map(r => r.id);
-    if (!requestIds.length) return res.json({ ok: true, items: [] });
-
-    const variants = await prisma.requestVariant.findMany({
-      where: { requestId: { in: requestIds } },
-      include: { request: true },
-      orderBy: { createdAt: 'desc' }
-    });
 
     return res.json({
       ok: true,
-      items: variants.map(v => {
-        const mapped = mapVariantOutput(v, { includeContact: false });
-        return {
-          ...mapped,
-          requestPublicId: v.request?.publicId || v.requestId,
-          requesterDecision: v.requesterDecision
-        };
+      items: await requestContractService.listReceivedVariants({
+        companyId,
+        partnerId: partnerId || undefined
       })
     });
   } catch (error: any) {
@@ -175,49 +141,29 @@ router.post('/variants/:variantId/decision', async (req, res) => {
 
     const role = (req as any).user?.role || 'USER';
     const isAdmin = ['OWNER', 'ADMIN', 'MANAGER', 'SUPER_ADMIN'].includes(role);
+    const body = (req.body || {}) as Record<string, unknown>;
+    const tgUserId = typeof body.tgUserId === 'string' ? body.tgUserId : undefined;
+    const partnerId = await resolvePartnerId(companyId, tgUserId, typeof body.partnerId === 'string' ? body.partnerId : undefined);
 
     if (!isAdmin) {
-      const tgUserId = typeof (req.body || {}).tgUserId === 'string' ? (req.body || {}).tgUserId : undefined;
-      const partnerId = await resolvePartnerId(companyId, tgUserId, typeof (req.body || {}).partnerId === 'string' ? (req.body || {}).partnerId : undefined);
       if (!partnerId || variant.request?.requesterPartnerId !== partnerId) {
         return errorResponse(res, 403, 'Forbidden');
       }
     }
 
-    const updated = await prisma.requestVariant.update({
-      where: { id: variantId },
-      data: {
-        requesterDecision: decision,
-        requesterDecisionAt: new Date(),
-        status: decision === RequesterDecision.FIT ? VariantStatus.APPROVED : VariantStatus.REJECTED,
-        fitQueueStatus: decision === RequesterDecision.FIT ? FitQueueStatus.NEW : null,
-        fitQueuedAt: decision === RequesterDecision.FIT ? new Date() : null
-      },
-      include: { request: true }
-    });
-
-    await prisma.integrationEventLog.create({
-      data: {
-        companyId,
-        integration: 'telegram',
-        action: decision === RequesterDecision.FIT ? 'variant.fit_marked' : 'variant.not_fit_marked',
-        status: 'SUCCESS',
-        entityType: 'request_variant',
-        entityId: updated.id,
-        message: `Decision ${decision}`
-      }
-    }).catch(() => null);
-
     return res.json({
       ok: true,
-      variant: {
-        id: updated.id,
-        requesterDecision: updated.requesterDecision,
-        fitQueueStatus: updated.fitQueueStatus,
-        status: updated.status
-      }
+      variant: await requestContractService.applyRequesterDecision({
+        companyId,
+        variantId,
+        decision,
+        partnerId: partnerId || undefined,
+        isAdmin
+      })
     });
   } catch (error: any) {
+    if (error?.message === 'Forbidden') return errorResponse(res, 403, 'Forbidden');
+    if (error?.message === 'Variant not found') return errorResponse(res, 404, 'Variant not found');
     return errorResponse(res, 500, error?.message || 'Failed to save decision');
   }
 });
@@ -229,33 +175,12 @@ router.get('/admin/fit-queue', requireRole(['OWNER', 'ADMIN', 'MANAGER', 'SUPER_
 
     const status = typeof req.query.status === 'string' ? req.query.status.toUpperCase() : undefined;
 
-    const items = await prisma.requestVariant.findMany({
-      where: {
-        requesterDecision: RequesterDecision.FIT,
-        request: { companyId },
-        ...(status ? { fitQueueStatus: status as any } : {})
-      },
-      include: {
-        request: true,
-        sellerPartner: true
-      },
-      orderBy: { fitQueuedAt: 'desc' }
-    });
-
     return res.json({
       ok: true,
-      items: items.map(item => ({
-        id: item.id,
-        requestId: item.requestId,
-        requestPublicId: item.request?.publicId || item.requestId,
-        fitQueueStatus: item.fitQueueStatus,
-        requesterDecisionAt: item.requesterDecisionAt,
-        fitQueuedAt: item.fitQueuedAt,
-        sellerCompany: item.sellerPartner?.name || item.companyName,
-        contact: item.contact,
-        title: item.title,
-        price: item.price
-      }))
+      items: await requestContractService.listAdminFitQueue({
+        companyId,
+        status
+      })
     });
   } catch (error: any) {
     return errorResponse(res, 500, error?.message || 'Failed to load fit queue');
@@ -268,51 +193,45 @@ router.patch('/admin/fit-queue/:variantId', requireRole(['OWNER', 'ADMIN', 'MANA
     if (!companyId) return errorResponse(res, 400, 'Company context required');
 
     const variantId = String(req.params.variantId || '').trim();
-    const statusRaw = String((req.body || {}).fitQueueStatus || '').toUpperCase();
-    const allowed: FitQueueStatus[] = [
-      FitQueueStatus.NEW,
-      FitQueueStatus.IN_PROGRESS,
-      FitQueueStatus.AGREED,
-      FitQueueStatus.MEETING_SCHEDULED,
-      FitQueueStatus.CLOSED
-    ];
-    if (!allowed.includes(statusRaw as FitQueueStatus)) {
-      return errorResponse(res, 400, 'Invalid fitQueueStatus');
-    }
-
-    const variant = await prisma.requestVariant.findUnique({
-      where: { id: variantId },
-      include: { request: true }
-    });
-    if (!variant || variant.request?.companyId !== companyId) return errorResponse(res, 404, 'Variant not found');
-
-    const updated = await prisma.requestVariant.update({
-      where: { id: variantId },
-      data: {
-        fitQueueStatus: statusRaw as FitQueueStatus,
-        fitClosedAt: statusRaw === FitQueueStatus.CLOSED ? new Date() : null,
-        specs: {
-          ...(variant.specs as any || {}),
-          fitQueueMeta: {
-            location: (req.body || {}).location || undefined,
-            meetingAt: (req.body || {}).meetingAt || undefined,
-            result: (req.body || {}).result || undefined,
-            updatedAt: new Date().toISOString()
-          }
-        }
-      }
-    });
+    const body = (req.body || {}) as Record<string, unknown>;
 
     return res.json({
       ok: true,
-      variant: {
-        id: updated.id,
-        fitQueueStatus: updated.fitQueueStatus,
-        fitClosedAt: updated.fitClosedAt
-      }
+      variant: await requestContractService.updateAdminFitQueue({
+        companyId,
+        variantId,
+        fitQueueStatus: String(body.fitQueueStatus || ''),
+        location: typeof body.location === 'string' ? body.location : undefined,
+        meetingAt: typeof body.meetingAt === 'string' ? body.meetingAt : undefined,
+        result: typeof body.result === 'string' ? body.result : undefined
+      })
     });
   } catch (error: any) {
+    if (error?.message === 'Invalid fitQueueStatus') return errorResponse(res, 400, 'Invalid fitQueueStatus');
+    if (error?.message === 'Variant not found') return errorResponse(res, 404, 'Variant not found');
     return errorResponse(res, 500, error?.message || 'Failed to update fit queue');
+  }
+});
+
+router.post('/admin/fit-queue/:variantId/contact-share', requireRole(['OWNER', 'ADMIN', 'MANAGER', 'SUPER_ADMIN']), async (req, res) => {
+  try {
+    const companyId = getCompanyId(req as any);
+    if (!companyId) return errorResponse(res, 400, 'Company context required');
+
+    const variantId = String(req.params.variantId || '').trim();
+    if (!variantId) return errorResponse(res, 400, 'variantId is required');
+
+    return res.json({
+      ok: true,
+      reveal: await requestContractService.shareAdminFitQueueContacts({
+        companyId,
+        variantId
+      })
+    });
+  } catch (error: any) {
+    if (error?.message === 'Variant not found') return errorResponse(res, 404, 'Variant not found');
+    if (error?.message === 'Contacts unavailable') return errorResponse(res, 400, 'Contacts unavailable');
+    return errorResponse(res, 500, error?.message || 'Failed to share contacts');
   }
 });
 

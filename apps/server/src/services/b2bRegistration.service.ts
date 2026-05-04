@@ -55,8 +55,15 @@ const slugify = (value: string) => {
   return base || 'partner';
 };
 
-const parseReasonPayload = <T extends object>(reason?: string | null): T | null => {
-  const raw = String(reason || '').trim();
+const parseAccessRequestPayload = <T extends object>(input: {
+  payload?: unknown;
+  reason?: string | null;
+}): T | null => {
+  if (input.payload && typeof input.payload === 'object' && !Array.isArray(input.payload)) {
+    return input.payload as T;
+  }
+
+  const raw = String(input.reason || '').trim();
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw);
@@ -124,7 +131,7 @@ class B2bRegistrationService {
     if (!accessRequest) return null;
     return {
       accessRequest,
-      payload: parseReasonPayload<NewPartnerPayload>(accessRequest.reason)
+      payload: parseAccessRequestPayload<NewPartnerPayload>(accessRequest)
     } as const;
   }
 
@@ -204,6 +211,7 @@ class B2bRegistrationService {
       tgUserId: input.identity.tgUserId,
       username: input.identity.username || null,
       fullName,
+      payload: payload as any,
       reason: JSON.stringify(payload),
       status: AccessRequestStatus.NEW
     };
@@ -227,7 +235,7 @@ class B2bRegistrationService {
     });
     if (!accessRequest) return null;
 
-    const payload = parseReasonPayload<NewPartnerPayload>(accessRequest.reason);
+    const payload = parseAccessRequestPayload<NewPartnerPayload>(accessRequest);
     if (!payload || payload.kind !== 'NEW_PARTNER') {
       throw new Error('unsupported_access_request_kind');
     }
@@ -351,7 +359,7 @@ class B2bRegistrationService {
 
     return {
       accessRequest: reviewed,
-      payload: parseReasonPayload<NewPartnerPayload>(accessRequest.reason)
+      payload: parseAccessRequestPayload<NewPartnerPayload>(accessRequest)
     } as const;
   }
 

@@ -67,34 +67,54 @@ const inPairs = (items: string[], action: string, payloadFn?: (v: string) => str
     return rows;
 };
 
-const navRow = (backAction: string, skipAction?: string): any[] => {
+const navRow = (backAction: string, skipAction?: string, cancelAction = 'lb_cancel'): any[] => {
     const row: any[] = [{ text: '⬅️ Назад', callback_data: buildCallbackData(backAction) }];
     if (skipAction) row.push({ text: 'Пропустити', callback_data: buildCallbackData(skipAction) });
-    row.push({ text: '❌ Скасувати', callback_data: buildCallbackData('lb_cancel') });
+    row.push({ text: '❌ Скасувати', callback_data: buildCallbackData(cancelAction) });
     return row;
 };
 
 // ---------------------------------------------------------------------------
 // Brand keyboard (2-column, §2)
 // ---------------------------------------------------------------------------
-export const buildBrandKeyboard = (_lang: Lang): any[][] => {
-    const rows = inPairs(BRANDS, 'lb_e_b', (_v) => encodePickToken(BRANDS.indexOf(_v)));
-    rows.push([{ text: 'Інша марка (ввести)', callback_data: buildCallbackData('lb_e_b', 'OTHER') }]);
-    rows.push([{ text: '❌ Скасувати', callback_data: buildCallbackData('lb_cancel') }]);
+export const buildBrandKeyboard = (
+    _lang: Lang,
+    opts?: { action?: string; cancelAction?: string; backAction?: string }
+): any[][] => {
+    const action = opts?.action || 'lb_e_b';
+    const cancelAction = opts?.cancelAction || 'lb_cancel';
+    const backAction = opts?.backAction || '';
+    const rows = inPairs(BRANDS, action, (_v) => encodePickToken(BRANDS.indexOf(_v)));
+    rows.push([{ text: 'Інша марка (ввести)', callback_data: buildCallbackData(action, 'OTHER') }]);
+    if (backAction) {
+        rows.push([
+            { text: '⬅️ Назад', callback_data: buildCallbackData(backAction) },
+            { text: '❌ Скасувати', callback_data: buildCallbackData(cancelAction) }
+        ]);
+    } else {
+        rows.push([{ text: '❌ Скасувати', callback_data: buildCallbackData(cancelAction) }]);
+    }
     return rows;
 };
 
 // ---------------------------------------------------------------------------
 // Model keyboard for brand
 // ---------------------------------------------------------------------------
-export const buildModelKeyboard = (brand: string, _lang: Lang): any[][] => {
+export const buildModelKeyboard = (
+    brand: string,
+    _lang: Lang,
+    opts?: { action?: string; backAction?: string; cancelAction?: string }
+): any[][] => {
+    const action = opts?.action || 'lb_e_m';
+    const backAction = opts?.backAction || 'lb_e_b_back';
+    const cancelAction = opts?.cancelAction || 'lb_cancel';
     const models = BRAND_MODELS[brand] || [];
-    const rows = inPairs(models, 'lb_e_m', (_v) => encodePickToken(models.indexOf(_v)));
+    const rows = inPairs(models, action, (_v) => encodePickToken(models.indexOf(_v)));
     rows.push([
-        { text: 'Інша модель (ввести)', callback_data: buildCallbackData('lb_e_m', 'OTHER') },
-        { text: 'Пропустити', callback_data: buildCallbackData('lb_e_m', 'SKIP') }
+        { text: 'Інша модель (ввести)', callback_data: buildCallbackData(action, 'OTHER') },
+        { text: 'Пропустити', callback_data: buildCallbackData(action, 'SKIP') }
     ]);
-    rows.push(navRow('lb_e_b_back'));
+    rows.push(navRow(backAction, undefined, cancelAction));
     return rows;
 };
 
@@ -163,50 +183,87 @@ export const buildMileageKeyboard = (_lang: Lang): any[][] => [
 // ---------------------------------------------------------------------------
 // Fuel keyboard
 // ---------------------------------------------------------------------------
-export const buildFuelKeyboard = (_lang: Lang): any[][] => [
-    ...inPairs(FUEL_OPTIONS, 'lb_e_fu', (_v) => encodePickToken(FUEL_OPTIONS.indexOf(_v))),
-    [{ text: 'Пропустити', callback_data: buildCallbackData('lb_e_fu', 'SKIP') }],
-    navRow('lb_back_fu', undefined),
-];
+export const buildFuelKeyboard = (
+    _lang: Lang,
+    opts?: { action?: string; backAction?: string; cancelAction?: string }
+): any[][] => {
+    const action = opts?.action || 'lb_e_fu';
+    const backAction = opts?.backAction || 'lb_back_fu';
+    const cancelAction = opts?.cancelAction || 'lb_cancel';
+    return [
+        ...inPairs(FUEL_OPTIONS, action, (_v) => encodePickToken(FUEL_OPTIONS.indexOf(_v))),
+        [{ text: 'Пропустити', callback_data: buildCallbackData(action, 'SKIP') }],
+        navRow(backAction, undefined, cancelAction),
+    ];
+};
 
 // ---------------------------------------------------------------------------
 // City keyboard
 // ---------------------------------------------------------------------------
-export const buildCityKeyboard = (_lang: Lang): any[][] => [
-    ...inPairs(CITY_OPTIONS, 'lb_e_ct', (_v) => encodePickToken(CITY_OPTIONS.indexOf(_v))),
-    [
-        { text: 'Інше (ввести)', callback_data: buildCallbackData('lb_e_ct', 'OTHER') },
-        { text: 'Пропустити', callback_data: buildCallbackData('lb_e_ct', 'SKIP') },
-    ],
-    navRow('lb_back_ct', undefined),
-];
+export const buildCityKeyboard = (
+    _lang: Lang,
+    opts?: { action?: string; backAction?: string; cancelAction?: string }
+): any[][] => {
+    const action = opts?.action || 'lb_e_ct';
+    const backAction = opts?.backAction || 'lb_back_ct';
+    const cancelAction = opts?.cancelAction || 'lb_cancel';
+    return [
+        ...inPairs(CITY_OPTIONS, action, (_v) => encodePickToken(CITY_OPTIONS.indexOf(_v))),
+        [
+            { text: 'Інше (ввести)', callback_data: buildCallbackData(action, 'OTHER') },
+            { text: 'Пропустити', callback_data: buildCallbackData(action, 'SKIP') },
+        ],
+        navRow(backAction, undefined, cancelAction),
+    ];
+};
 
 // ---------------------------------------------------------------------------
 // Transmission / Drive / Condition (for SELL wizard — ls_ prefix)
 // ---------------------------------------------------------------------------
-export const buildTransmissionKeyboard = (): any[][] => [
-    ...inPairs(TRANS_OPTIONS, 'ls_e_tr', (_v) => encodePickToken(TRANS_OPTIONS.indexOf(_v))),
-    [{ text: 'Пропустити', callback_data: buildCallbackData('ls_e_tr', 'SKIP') }],
-    [
-        { text: '⬅️ Назад', callback_data: buildCallbackData('ls_back_tr') },
-        { text: '❌ Скасувати', callback_data: buildCallbackData('lb_cancel') },
-    ],
-];
+export const buildTransmissionKeyboard = (
+    opts?: { action?: string; backAction?: string; cancelAction?: string }
+): any[][] => {
+    const action = opts?.action || 'ls_e_tr';
+    const backAction = opts?.backAction || 'ls_back_tr';
+    const cancelAction = opts?.cancelAction || 'lb_cancel';
+    return [
+        ...inPairs(TRANS_OPTIONS, action, (_v) => encodePickToken(TRANS_OPTIONS.indexOf(_v))),
+        [{ text: 'Пропустити', callback_data: buildCallbackData(action, 'SKIP') }],
+        [
+            { text: '⬅️ Назад', callback_data: buildCallbackData(backAction) },
+            { text: '❌ Скасувати', callback_data: buildCallbackData(cancelAction) },
+        ],
+    ];
+};
 
-export const buildDriveKeyboard = (): any[][] => [
-    ...inPairs(DRIVE_OPTIONS, 'ls_e_dr', (_v) => encodePickToken(DRIVE_OPTIONS.indexOf(_v))),
-    [{ text: 'Пропустити', callback_data: buildCallbackData('ls_e_dr', 'SKIP') }],
-    [
-        { text: '⬅️ Назад', callback_data: buildCallbackData('ls_back_dr') },
-        { text: '❌ Скасувати', callback_data: buildCallbackData('lb_cancel') },
-    ],
-];
+export const buildDriveKeyboard = (
+    opts?: { action?: string; backAction?: string; cancelAction?: string }
+): any[][] => {
+    const action = opts?.action || 'ls_e_dr';
+    const backAction = opts?.backAction || 'ls_back_dr';
+    const cancelAction = opts?.cancelAction || 'lb_cancel';
+    return [
+        ...inPairs(DRIVE_OPTIONS, action, (_v) => encodePickToken(DRIVE_OPTIONS.indexOf(_v))),
+        [{ text: 'Пропустити', callback_data: buildCallbackData(action, 'SKIP') }],
+        [
+            { text: '⬅️ Назад', callback_data: buildCallbackData(backAction) },
+            { text: '❌ Скасувати', callback_data: buildCallbackData(cancelAction) },
+        ],
+    ];
+};
 
-export const buildConditionKeyboard = (): any[][] => [
-    ...inPairs(COND_OPTIONS, 'ls_e_cd', (_v) => encodePickToken(COND_OPTIONS.indexOf(_v))),
-    [{ text: 'Пропустити', callback_data: buildCallbackData('ls_e_cd', 'SKIP') }],
-    [
-        { text: '⬅️ Назад', callback_data: buildCallbackData('ls_back_cd') },
-        { text: '❌ Скасувати', callback_data: buildCallbackData('lb_cancel') },
-    ],
-];
+export const buildConditionKeyboard = (
+    opts?: { action?: string; backAction?: string; cancelAction?: string }
+): any[][] => {
+    const action = opts?.action || 'ls_e_cd';
+    const backAction = opts?.backAction || 'ls_back_cd';
+    const cancelAction = opts?.cancelAction || 'lb_cancel';
+    return [
+        ...inPairs(COND_OPTIONS, action, (_v) => encodePickToken(COND_OPTIONS.indexOf(_v))),
+        [{ text: 'Пропустити', callback_data: buildCallbackData(action, 'SKIP') }],
+        [
+            { text: '⬅️ Назад', callback_data: buildCallbackData(backAction) },
+            { text: '❌ Скасувати', callback_data: buildCallbackData(cancelAction) },
+        ],
+    ];
+};

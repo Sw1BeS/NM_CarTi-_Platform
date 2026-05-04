@@ -33,7 +33,18 @@ export const ActionTokens = {
   BQ_PUB: 'bq_pub',
   BV_SEND: 'bv_send',
   BV_FIT: 'bv_fit',
-  BV_NFIT: 'bv_nfit'
+  BV_NFIT: 'bv_nfit',
+
+  // B2B inventory
+  B2B_INV_EDIT: 'b2b_ie',
+  B2B_INV_DELETE: 'b2b_del',
+  B2B_INV_DELETE_CONFIRM: 'b2b_delc',
+
+  // Admin test panel
+  AD_TEST: 'ad_test',
+  TEST_GO: 'tst_go',
+  TEST_REFRESH: 'tst_rf',
+  TEST_CLOSE: 'tst_x'
 };
 
 const sanitize = (value: string, max: number) =>
@@ -53,13 +64,14 @@ export type ParsedCallback = {
 };
 
 export const buildCallbackData = (action: string, id?: string) => {
-  const safeAction = sanitize(action, 24);
+  // Keep action tokens short by contract (<=12 chars) to stay far from 64-byte ceiling.
+  const safeAction = sanitize(action, 12);
   const safeId = id ? sanitize(id, 32) : undefined;
   let data = buildV1(safeAction, safeId);
 
   if (Buffer.byteLength(data, 'utf8') <= MAX_CALLBACK_BYTES) return data;
 
-  const shorterAction = sanitize(action, 12);
+  const shorterAction = safeAction;
   const shorterId = id ? sanitize(id, 16) : undefined;
   data = buildV1(shorterAction, shorterId);
 

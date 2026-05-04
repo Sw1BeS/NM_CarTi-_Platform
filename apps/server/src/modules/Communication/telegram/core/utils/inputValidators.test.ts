@@ -8,7 +8,7 @@ import { parseYearInput, parseBudgetUSD, parseMileageKm, normalizePhoneUA, conta
 
 describe('parseYearInput', () => {
     it('parses single year', () => {
-        expect(parseYearInput('2020')).toEqual({ min: 2020, max: 2020 });
+        expect(parseYearInput('2020')).toEqual({ min: 2020, max: null });
     });
     it('parses year range with dash', () => {
         expect(parseYearInput('2018-2022')).toEqual({ min: 2018, max: 2022 });
@@ -18,10 +18,8 @@ describe('parseYearInput', () => {
         expect(r).toBeTruthy();
         expect(r!.min).toBe(2018);
     });
-    it('normalizes 2-digit year (20 → 2020)', () => {
-        const r = parseYearInput('20');
-        expect(r).toBeTruthy();
-        expect(r!.min).toBe(2020);
+    it('rejects 2-digit year', () => {
+        expect(parseYearInput('20')).toBeNull();
     });
     it('returns null for out of range', () => {
         expect(parseYearInput('1980')).toBeNull();
@@ -89,8 +87,8 @@ describe('normalizePhoneUA', () => {
     it('normalizes 0-prefixed', () => {
         expect(normalizePhoneUA('0991234567')).toBe('+380991234567');
     });
-    it('normalizes 9-digit (no prefix)', () => {
-        expect(normalizePhoneUA('991234567')).toBe('+380991234567');
+    it('rejects 9-digit number without prefix', () => {
+        expect(normalizePhoneUA('991234567')).toBeNull();
     });
     it('strips formatting', () => {
         expect(normalizePhoneUA('+38 099 123 45 67')).toBe('+380991234567');

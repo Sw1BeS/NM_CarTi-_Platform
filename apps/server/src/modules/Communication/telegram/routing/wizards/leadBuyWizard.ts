@@ -27,6 +27,8 @@ import {
 import { buildAfterBatchControls, buildLeadBuyCardButtons, renderLeadBuyCard } from '../../../../../services/cardRenderer.js';
 import { createOrMergeLead } from '../../core/leadService.js';
 import { externalSearchService } from '../../../../Integrations/external-search/externalSearch.service.js';
+import { quotaService } from '../../../../../services/quota.service.js';
+import { getEnvInt } from '../../../../../services/featureFlags.js';
 
 type LeadBuyData = {
   brand: string;
@@ -40,6 +42,13 @@ type LeadBuyData = {
   city?: string | null;
   comment?: string | null;
   phone?: string | null;
+};
+
+type LeadBuyIdentity = {
+  displayName: string;
+  username: string | null;
+  tgUserId: string;
+  userLink: string;
 };
 
 type LeadBuyResultsState = {
@@ -87,6 +96,7 @@ const getCompanyId = (ctx: PipelineContext) => {
 };
 
 const stepHeader = (n: number) => `Крок ${n}/${TOTAL_STEPS}`;
+const LEAD_BUY_DAILY_LIMIT = Math.max(1, getEnvInt('BOT_LEAD_BUY_DAILY_LIMIT', 5));
 
 const stateByStep: Record<number, string> = {
   1: 'LB_BRAND',
@@ -153,6 +163,15 @@ const readDraft = (ctx: PipelineContext): LeadBuyDraft => {
 const persistDraft = async (ctx: PipelineContext, draft: LeadBuyDraft, state?: string) => {
   if (!ctx.session) return;
   const vars = (ctx.session.variables as any) || {};
+  const source = draft.results?.source === 'external' ? 'EXTERNAL' : 'INVENTORY';
+  const batch = draft.results
+    ? {
+      carIds: Array.isArray(draft.results.pageIds) ? draft.results.pageIds : [],
+      offset: Number(draft.results.cursor || 0),
+      totalEstimate: Number((draft.results.ids || []).length || 0),
+      source
+    }
+    : null;
   ctx.session = await prisma.botSession.update({
     where: { id: ctx.session.id },
     data: {
@@ -160,7 +179,10 @@ const persistDraft = async (ctx: PipelineContext, draft: LeadBuyDraft, state?: s
       variables: {
         ...vars,
         leadBuyDraft: draft,
-        leadBuy: null
+        leadBuy: {
+          ...((vars.leadBuy && typeof vars.leadBuy === 'object') ? vars.leadBuy : {}),
+          batch
+        }
       },
       lastActive: new Date()
     }
@@ -179,6 +201,18 @@ const sendMessage = async (ctx: PipelineContext, text: string, replyMarkup?: any
   });
 };
 
+const sendLeadMenu = async (ctx: PipelineContext) => {
+  const lang = resolveLang(ctx);
+  await sendMessage(ctx, t(lang, 'lead.menu_title'), {
+    keyboard: [
+      [{ text: button(lang, 'leadMenu.buy') }],
+      [{ text: button(lang, 'leadMenu.stock') }, { text: button(lang, 'leadMenu.transit') }],
+      [{ text: button(lang, 'leadMenu.sell') }, { text: button(lang, 'leadMenu.support') }]
+    ],
+    resize_keyboard: true
+  });
+};
+
 const clearDraftAndReturnToMenu = async (ctx: PipelineContext, notice?: string) => {
   if (!ctx.session || !ctx.bot) return;
   const vars = (ctx.session.variables as any) || {};
@@ -189,7 +223,10 @@ const clearDraftAndReturnToMenu = async (ctx: PipelineContext, notice?: string) 
       variables: {
         ...vars,
         leadBuyDraft: null,
-        leadBuy: null
+        leadBuy: {
+          ...((vars.leadBuy && typeof vars.leadBuy === 'object') ? vars.leadBuy : {}),
+          batch: null
+        }
       },
       lastActive: new Date()
     }
@@ -197,10 +234,11 @@ const clearDraftAndReturnToMenu = async (ctx: PipelineContext, notice?: string) 
   if (notice) {
     await sendMessage(ctx, notice, { remove_keyboard: true });
   }
+  await sendLeadMenu(ctx);
 };
 
 const parseYearHint = (data: LeadBuyData) => {
-  if (data.yearMin && data.yearMax && data.yearMin !== data.yearMax) {
+  if (data.yearMin && data.yearMax) {
     return `${data.yearMin}-${data.yearMax}`;
   }
   if (data.yearMin) return String(data.yearMin);
@@ -265,6 +303,87 @@ const parseStepNumber = (value?: string | null) => {
   return num;
 };
 
+const isBackIntent = (text: string, lang: ReturnType<typeof resolveLang>) => {
+  const n = norm(text);
+  return n === norm(button(lang, 'common.back')) || n === 'назад' || n === 'back';
+};
+
+const resolveBackStepFromState = (state: string): number | 'menu' => {
+  const map: Record<string, number | 'menu'> = {
+    LB_BRAND: 'menu',
+    LB_BRAND_TXT: 'menu',
+    LB_MODEL: 1,
+    LB_MODEL_TXT: 1,
+    LB_YEAR: 2,
+    LB_YEAR_TXT: 2,
+    LB_BUDGET: 3,
+    LB_BUDGET_TXT: 3,
+    LB_MILEAGE: 4,
+    LB_MILEAGE_TXT: 4,
+    LB_FUEL: 5,
+    LB_CITY: 6,
+    LB_CITY_TXT: 6,
+    LB_COMMENT: 7,
+    LB_CONTACT: 8,
+    LB_REVIEW: 9,
+    LB_RESULTS: 9,
+    LB_FAVORITES: 9
+  };
+  return map[state] ?? 'menu';
+};
+
+const isAllowedLeadBuyActionForState = (state: string, action: string) => {
+  if (action === ActionTokens.LB_CANCEL) return true;
+  if (!state.startsWith('LB_')) return false;
+  if (action.startsWith('lb_back_')) return true;
+  if (action === 'lb_back_review') return state === 'LB_REVIEW';
+
+  const allowByState: Record<string, string[]> = {
+    LB_BRAND: [ActionTokens.LB_EDIT_BRAND],
+    LB_BRAND_TXT: [],
+    LB_MODEL: [ActionTokens.LB_EDIT_MODEL],
+    LB_MODEL_TXT: [],
+    LB_YEAR: [ActionTokens.LB_EDIT_YEAR],
+    LB_YEAR_TXT: [],
+    LB_BUDGET: [ActionTokens.LB_EDIT_BUDGET],
+    LB_BUDGET_TXT: [],
+    LB_MILEAGE: [ActionTokens.LB_EDIT_MILEAGE],
+    LB_MILEAGE_TXT: [],
+    LB_FUEL: [ActionTokens.LB_EDIT_FUEL],
+    LB_CITY: [ActionTokens.LB_EDIT_CITY],
+    LB_CITY_TXT: [],
+    LB_COMMENT: ['lb_s_cmt', 'lb_skip_comment'],
+    LB_CONTACT: [],
+    LB_REVIEW: [ActionTokens.LB_EDIT, 'lb_j', ActionTokens.LB_FAV_SEND],
+    LB_RESULTS: [ActionTokens.LB_NEXT, ActionTokens.LB_INTEREST, ActionTokens.LB_FAV_TOGGLE, ActionTokens.LB_FAV_OPEN, ActionTokens.LB_FAV_SEND],
+    LB_FAVORITES: ['lb_fvp', 'lb_fvn', ActionTokens.LB_FAV_TOGGLE, ActionTokens.LB_FAV_DEL, ActionTokens.LB_FAV_SEND]
+  };
+
+  if (action === 'lb_e_b_back') {
+    return state === 'LB_MODEL' || state === 'LB_MODEL_TXT';
+  }
+
+  return (allowByState[state] || []).includes(action);
+};
+
+const resolveLeadBuyIdentity = (ctx: PipelineContext): LeadBuyIdentity => {
+  const from = ctx.update?.callback_query?.from || ctx.update?.message?.from;
+  const tgUserId = String(from?.id || ctx.userId || ctx.chatId || '').trim();
+  const displayName = [
+    String(from?.first_name || '').trim(),
+    String(from?.last_name || '').trim()
+  ].filter(Boolean).join(' ') || 'Клієнт';
+  const username = String(from?.username || '').trim() || null;
+  const userLink = username ? `https://t.me/${username}` : (tgUserId ? `tg://user?id=${tgUserId}` : '—');
+
+  return {
+    displayName,
+    username,
+    tgUserId,
+    userLink
+  };
+};
+
 const getFavoriteIds = async (ctx: PipelineContext): Promise<string[]> => {
   const tgUserId = getTgUserId(ctx);
   const companyId = getCompanyId(ctx);
@@ -317,7 +436,7 @@ const fetchCarsOrdered = async (ids: string[]) => {
   return ids.map((id) => map.get(id)).filter((row): row is any => Boolean(row));
 };
 
-const scoreCar = (car: any, criteria: LeadBuyData) => {
+const getLeadBuyRank = (car: any, criteria: LeadBuyData) => {
   const title = norm(car.title);
   const specs = (car.specs || {}) as Record<string, any>;
   const brand = norm(criteria.brand);
@@ -326,43 +445,29 @@ const scoreCar = (car: any, criteria: LeadBuyData) => {
   const carModel = norm(specs.model);
 
   const brandMatch = Boolean(brand) && (title.includes(brand) || carBrand.includes(brand));
-  const modelMatch = Boolean(model) && (title.includes(model) || carModel.includes(model));
+  if (!brandMatch) return null;
 
-  if (!brandMatch) return Number.NEGATIVE_INFINITY;
+  const modelMatch = model ? (title.includes(model) || carModel.includes(model)) : false;
+  const exactBrandModelRank = model ? (modelMatch ? 1 : 0) : 0;
+  const brandRank = brandMatch ? 1 : 0;
 
-  let score = 0;
-  if (brandMatch && model && modelMatch) score += 300;
-  else if (brandMatch) score += 150;
+  const yearDiff = criteria.yearMin && Number.isFinite(Number(car.year))
+    ? Math.abs(Number(car.year) - Number(criteria.yearMin))
+    : Number.MAX_SAFE_INTEGER;
 
-  if (criteria.fuel) {
-    const fuel = norm(criteria.fuel);
-    const carFuel = norm(specs.fuel || car.fuel);
-    if (carFuel && carFuel.includes(fuel)) score += 40;
-    else score -= 20;
-  }
+  const priceDiff = criteria.budget && Number.isFinite(Number(car.price))
+    ? Math.abs(Number(car.price) - Number(criteria.budget))
+    : Number.MAX_SAFE_INTEGER;
 
-  if (criteria.city) {
-    const city = norm(criteria.city);
-    const carCity = norm(car.location || specs.city);
-    if (carCity && carCity.includes(city)) score += 20;
-  }
+  const postedAtMs = new Date(car.postedAt || car.updatedAt || car.createdAt || 0).getTime() || 0;
 
-  if (criteria.yearMin && car.year) {
-    score += Math.max(0, 50 - Math.abs(Number(car.year) - Number(criteria.yearMin)));
-  }
-
-  if (criteria.budget && car.price) {
-    const diff = Math.abs(Number(car.price) - Number(criteria.budget));
-    score += Math.max(0, 45 - Math.round(diff / 1000));
-  }
-
-  if (criteria.mileage && car.mileage) {
-    const diff = Math.abs(Number(car.mileage) - Number(criteria.mileage));
-    score += Math.max(0, 25 - Math.round(diff / 5000));
-  }
-
-  score += Math.max(0, Math.min(35, Number(car.year || 0) - 1990));
-  return score;
+  return {
+    exactBrandModelRank,
+    brandRank,
+    yearDiff,
+    priceDiff,
+    postedAtMs
+  };
 };
 
 const findInventoryMatches = async (ctx: PipelineContext, criteria: LeadBuyData) => {
@@ -381,12 +486,27 @@ const findInventoryMatches = async (ctx: PipelineContext, criteria: LeadBuyData)
   });
 
   const ranked = rows
-    .map((car) => ({ car, score: scoreCar(car, criteria) }))
-    .filter((item) => Number.isFinite(item.score) && item.score > Number.NEGATIVE_INFINITY)
+    .map((car) => ({ car, rank: getLeadBuyRank(car, criteria) }))
+    .filter((item): item is { car: any; rank: NonNullable<ReturnType<typeof getLeadBuyRank>> } => Boolean(item.rank))
     .sort((a, b) => {
-      if (b.score !== a.score) return b.score - a.score;
-      if ((b.car.year || 0) !== (a.car.year || 0)) return (b.car.year || 0) - (a.car.year || 0);
-      return (a.car.price || 0) - (b.car.price || 0);
+      // 1) exact brand+model match
+      if (b.rank.exactBrandModelRank !== a.rank.exactBrandModelRank) {
+        return b.rank.exactBrandModelRank - a.rank.exactBrandModelRank;
+      }
+      // 2) brand match
+      if (b.rank.brandRank !== a.rank.brandRank) {
+        return b.rank.brandRank - a.rank.brandRank;
+      }
+      // 3) year closeness to yearMin
+      if (a.rank.yearDiff !== b.rank.yearDiff) {
+        return a.rank.yearDiff - b.rank.yearDiff;
+      }
+      // 4) price closeness to budgetMax
+      if (a.rank.priceDiff !== b.rank.priceDiff) {
+        return a.rank.priceDiff - b.rank.priceDiff;
+      }
+      // 5) newest postedAt
+      return b.rank.postedAtMs - a.rank.postedAtMs;
     })
     .map((item) => item.car);
 
@@ -473,8 +593,9 @@ const sendResultPage = async (ctx: PipelineContext, draft: LeadBuyDraft, startIn
   };
 
   const favCount = favoriteIds.size;
+  const hasMore = startIndex + pageIds.length < ids.length;
   await persistDraft(ctx, draft, 'LB_RESULTS');
-  await sendMessage(ctx, t(resolveLang(ctx), 'lead.buy.next_actions'), buildAfterBatchControls(favCount));
+  await sendMessage(ctx, t(resolveLang(ctx), 'lead.buy.next_actions'), buildAfterBatchControls(favCount, hasMore));
 };
 
 const showFavoritesPage = async (ctx: PipelineContext, draft: LeadBuyDraft, page = 0) => {
@@ -521,7 +642,23 @@ const createLeadAndNotifyAdmin = async (
   carIds: string[],
   source: 'single' | 'favorites' | 'no_match'
 ) => {
-  if (!ctx.bot) return;
+  if (!ctx.bot) return false;
+  const identity = resolveLeadBuyIdentity(ctx);
+  if (identity.tgUserId) {
+    const dailyQuota = await quotaService.consume({
+      companyId: ctx.companyId || null,
+      botId: ctx.bot.id,
+      tgUserId: identity.tgUserId,
+      scope: 'lead.buy.submit.day',
+      limit: LEAD_BUY_DAILY_LIMIT,
+      period: 'day'
+    });
+    if (!dailyQuota.allowed) {
+      await sendMessage(ctx, `⛔️ Досягнуто ліміт заявок на добу (${LEAD_BUY_DAILY_LIMIT}). Спробуйте завтра.`);
+      return false;
+    }
+  }
+
   const data = draft.data;
   const selectedCars = await fetchCarsOrdered(carIds);
   const title = source === 'favorites'
@@ -532,17 +669,10 @@ const createLeadAndNotifyAdmin = async (
     botId: ctx.bot.id,
     companyId: ctx.companyId || null,
     chatId: ctx.chatId,
-    userId: getTgUserId(ctx),
-    name: ctx.update?.callback_query?.from?.first_name
-      || ctx.update?.message?.from?.first_name
-      || 'Клієнт',
-    telegramUsername: ctx.update?.callback_query?.from?.username
-      || ctx.update?.message?.from?.username
-      || null,
-    telegramName: [
-      ctx.update?.callback_query?.from?.first_name || ctx.update?.message?.from?.first_name,
-      ctx.update?.callback_query?.from?.last_name || ctx.update?.message?.from?.last_name
-    ].filter(Boolean).join(' '),
+    userId: identity.tgUserId || getTgUserId(ctx),
+    name: identity.displayName,
+    telegramUsername: identity.username,
+    telegramName: identity.displayName,
     phone: data.phone || undefined,
     request: title,
     source: 'TELEGRAM',
@@ -567,7 +697,14 @@ const createLeadAndNotifyAdmin = async (
 
   if (ctx.bot.adminChatId) {
     const carsLine = selectedCars.length
-      ? selectedCars.map((car, index) => `${index + 1}. ${car.title} ${car.year || ''} — ${car.price || '—'} ${car.currency || 'USD'}`).join('\n')
+      ? selectedCars.map((car, index) => {
+        const marks: string[] = [];
+        if (car.partnerCompanyId) marks.push('PARTNER');
+        if (car.external || car.source === 'EXTERNAL' || car.sourceProvider) marks.push('EXTERNAL');
+        const markText = marks.length ? ` [${marks.join('|')}]` : '';
+        const urlText = car.sourceUrl ? ` (${car.sourceUrl})` : '';
+        return `${index + 1}. ${car.title} ${car.year || ''} — ${car.price || '—'} ${car.currency || 'USD'}${markText}${urlText}`;
+      }).join('\n')
       : '—';
     await telegramOutbox.sendMessage({
       botId: ctx.bot.id,
@@ -576,6 +713,10 @@ const createLeadAndNotifyAdmin = async (
       text: [
         '🟢 [LEAD BUY]',
         `Джерело: ${source === 'favorites' ? 'обране' : source === 'single' ? 'картка' : 'без збігів'}`,
+        `👤 ${identity.displayName}`,
+        `username: ${identity.username ? `@${identity.username}` : '—'}`,
+        `tgUserId: ${identity.tgUserId || '—'}`,
+        `🔗 ${identity.userLink}`,
         `Марка/модель: ${data.brand || '—'} ${data.model || ''}`.trim(),
         `Рік: ${parseYearHint(data) || '—'}`,
         `Бюджет: ${data.budget ? `${data.budget} USD` : '—'}`,
@@ -588,6 +729,8 @@ const createLeadAndNotifyAdmin = async (
       companyId: ctx.companyId
     }).catch(() => null);
   }
+
+  return true;
 };
 
 const submitFavoritesLead = async (ctx: PipelineContext, draft: LeadBuyDraft) => {
@@ -596,8 +739,10 @@ const submitFavoritesLead = async (ctx: PipelineContext, draft: LeadBuyDraft) =>
     await sendMessage(ctx, t(resolveLang(ctx), 'lead.fav.empty'));
     return;
   }
-  await createLeadAndNotifyAdmin(ctx, draft, favoriteIds, 'favorites');
-  await sendMessage(ctx, '✅ Запит по обраному передано менеджеру.');
+  const sent = await createLeadAndNotifyAdmin(ctx, draft, favoriteIds, 'favorites');
+  if (sent) {
+    await sendMessage(ctx, '✅ Запит по обраному передано менеджеру.');
+  }
 };
 
 const confirmAndSearch = async (ctx: PipelineContext, draft: LeadBuyDraft) => {
@@ -666,7 +811,13 @@ const routeStep = async (ctx: PipelineContext, draft: LeadBuyDraft) => {
     await sendMessage(
       ctx,
       `${t(lang, 'lead.buy.title')}\n\n${stepHeader(1)}\nОберіть марку авто.\n\n${t(lang, 'common.step_hint_brand')}`,
-      { inline_keyboard: buildBrandKeyboard(lang) }
+      {
+        inline_keyboard: buildBrandKeyboard(lang, {
+          action: ActionTokens.LB_EDIT_BRAND,
+          cancelAction: ActionTokens.LB_CANCEL,
+          backAction: ActionTokens.LB_CANCEL
+        })
+      }
     );
     return;
   }
@@ -727,7 +878,7 @@ const routeStep = async (ctx: PipelineContext, draft: LeadBuyDraft) => {
     await persistDraft(ctx, draft, 'LB_COMMENT');
     await sendMessage(ctx, `${stepHeader(8)}\nДодайте коментар (необовʼязково):`, {
       inline_keyboard: [
-        [{ text: button(lang, 'common.skip'), callback_data: buildCallbackData('lb_skip_comment') }],
+        [{ text: button(lang, 'common.skip'), callback_data: buildCallbackData('lb_s_cmt') }],
         [
           { text: button(lang, 'common.back'), callback_data: buildCallbackData('lb_back_7') },
           { text: button(lang, 'common.cancel'), callback_data: buildCallbackData(ActionTokens.LB_CANCEL) }
@@ -790,19 +941,33 @@ const resolveCarIdByIndex = (draft: LeadBuyDraft, payload?: string) => {
 const parseManualYear = (value: string) => {
   const parsed = parseYearInput(value);
   if (!parsed) return null;
+  const normalizedYear = parsed.max ? `${parsed.min}-${parsed.max}` : String(parsed.min);
   return {
     yearMin: parsed.min,
     yearMax: parsed.max,
-    year: parsed.min === parsed.max ? String(parsed.min) : `${parsed.min}-${parsed.max}`
+    year: normalizedYear
   };
 };
 
 export const handleLeadBuyCallback = async (ctx: PipelineContext, action: string, payload?: string): Promise<boolean> => {
+  const vars = (ctx.session?.variables as any) || {};
+  const hasDraft = Boolean(vars.leadBuyDraft && typeof vars.leadBuyDraft === 'object');
+  const state = String(ctx.session?.state || '');
+  if (!hasDraft && !state.startsWith('LB_') && action !== ActionTokens.LB_CANCEL) {
+    await sendMessage(ctx, '⚠️ Сесія підбору неактивна. Почніть з меню «Купити авто».');
+    return true;
+  }
+
   const draft = readDraft(ctx);
   const lang = resolveLang(ctx);
 
   if (action === ActionTokens.LB_CANCEL) {
     await clearDraftAndReturnToMenu(ctx, t(lang, 'cancelled'));
+    return true;
+  }
+
+  if (!isAllowedLeadBuyActionForState(state, action)) {
+    await sendMessage(ctx, '⚠️ Ця дія недоступна на поточному кроці.');
     return true;
   }
 
@@ -866,13 +1031,15 @@ export const handleLeadBuyCallback = async (ctx: PipelineContext, action: string
   if (action === ActionTokens.LB_INTEREST) {
     const carId = resolveCarIdByIndex(draft, payload);
     if (!carId) return true;
-    await createLeadAndNotifyAdmin(ctx, draft, [carId], 'single');
-    await sendMessage(ctx, '✅ Запит передано менеджеру.');
+    const sent = await createLeadAndNotifyAdmin(ctx, draft, [carId], 'single');
+    if (sent) {
+      await sendMessage(ctx, '✅ Запит передано менеджеру.');
+    }
     return true;
   }
 
   if (action === ActionTokens.LB_FAV_SEND) {
-    if (draft.step >= 10 || ctx.session?.state === 'LB_REVIEW') {
+    if (ctx.session?.state === 'LB_REVIEW') {
       await confirmAndSearch(ctx, draft);
       return true;
     }
@@ -885,7 +1052,7 @@ export const handleLeadBuyCallback = async (ctx: PipelineContext, action: string
     return true;
   }
 
-  if (action === 'lb_skip_comment') {
+  if (action === 'lb_s_cmt' || action === 'lb_skip_comment') {
     draft.data.comment = null;
     await applyAndContinue(ctx, draft, 9);
     return true;
@@ -977,7 +1144,7 @@ export const handleLeadBuyCallback = async (ctx: PipelineContext, action: string
       return true;
     }
 
-    draft.data.year = `від ${yearMin}`;
+    draft.data.year = String(yearMin);
     draft.data.yearMin = yearMin;
     draft.data.yearMax = null;
     await applyAndContinue(ctx, draft, 4);
@@ -1068,7 +1235,24 @@ export const handleLeadBuyCallback = async (ctx: PipelineContext, action: string
 export const handleLeadBuyText = async (ctx: PipelineContext, text: string): Promise<boolean> => {
   const state = String(ctx.session?.state || '');
   const lang = resolveLang(ctx);
+  const vars = (ctx.session?.variables as any) || {};
+  const hasDraft = Boolean(vars.leadBuyDraft && typeof vars.leadBuyDraft === 'object');
+  if (state.startsWith('LB_') && !hasDraft) {
+    await clearDraftAndReturnToMenu(ctx, '⚠️ Сесія підбору втрачена. Почнімо заново.');
+    return true;
+  }
   const draft = readDraft(ctx);
+
+  if (state.startsWith('LB_') && isBackIntent(text, lang)) {
+    const back = resolveBackStepFromState(state);
+    if (back === 'menu') {
+      await clearDraftAndReturnToMenu(ctx);
+      return true;
+    }
+    draft.step = back;
+    await routeStep(ctx, draft);
+    return true;
+  }
 
   if (state === 'LB_BRAND_TXT') {
     const value = toText(text);
@@ -1132,7 +1316,7 @@ export const handleLeadBuyText = async (ctx: PipelineContext, text: string): Pro
   if (state === 'LB_COMMENT') {
     if (containsForbiddenContacts(text)) {
       await sendMessage(ctx, t(lang, 'common.err.contacts_forbidden'), {
-        inline_keyboard: [[{ text: button(lang, 'common.skip'), callback_data: buildCallbackData('lb_skip_comment') }]]
+        inline_keyboard: [[{ text: button(lang, 'common.skip'), callback_data: buildCallbackData('lb_s_cmt') }]]
       });
       return true;
     }
@@ -1167,6 +1351,11 @@ export const handleLeadBuyText = async (ctx: PipelineContext, text: string): Pro
     }
     draft.data.phone = normalized;
     await showReview(ctx, draft);
+    return true;
+  }
+
+  if (state.startsWith('LB_')) {
+    await sendMessage(ctx, 'Використайте кнопки під повідомленням або «❌ Скасувати».');
     return true;
   }
 

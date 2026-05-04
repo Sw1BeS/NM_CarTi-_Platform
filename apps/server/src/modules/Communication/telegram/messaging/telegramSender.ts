@@ -156,6 +156,17 @@ class Sender {
       text
     }).catch(() => null);
   }
+
+  async getMe(token: string) {
+    return this.call(token, 'getMe', {});
+  }
+
+  async getChatMember(token: string, chatId: string, userId: string | number) {
+    return this.call(token, 'getChatMember', {
+      chat_id: chatId,
+      user_id: userId
+    });
+  }
 }
 
 export const TelegramSender = new Sender();

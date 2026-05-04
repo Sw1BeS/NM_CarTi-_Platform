@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { renderRequestCard, renderVariantCard } from './cardRenderer.js';
+import {
+  renderB2bChannelPost,
+  renderChannelCarPost,
+  renderRequestCard,
+  renderVariantCard
+} from './cardRenderer.js';
 
 describe('cardRenderer redaction', () => {
   it('hides request contact fields when includeContact=false', () => {
@@ -55,5 +60,64 @@ describe('cardRenderer redaction', () => {
     expect(text).toContain('VOLVO XC90');
     expect(text).not.toContain('+380931234567');
     expect(text).not.toContain('@volvo_seller');
+  });
+
+  it('sanitizes b2b channel card fields to avoid contact leaks', () => {
+    const { text } = renderB2bChannelPost({
+      id: '1',
+      publicId: 'CD-123',
+      title: 'BMW X5 +380671111111',
+      description: 'Терміново, пишіть @dealer_one або t.me/dealer_one',
+      payload: {
+        request: {
+          companyName: 'Dealer +380501112233',
+          fuel: 'diesel @fuel',
+          mileageText: 'до 120000 км',
+          comment: 'viber +380931234567'
+        }
+      }
+    });
+
+    expect(text).toContain('Запит #CD-123');
+    expect(text).not.toContain('+380');
+    expect(text).not.toContain('@dealer_one');
+    expect(text).not.toContain('t.me/dealer_one');
+  });
+
+  it('uses a private deep-link for b2b channel CTA when responseUrl is provided', () => {
+    const { replyMarkup } = renderB2bChannelPost({
+      id: '1',
+      publicId: 'CD-123',
+      title: 'BMW X5'
+    }, {
+      responseUrl: 'https://t.me/CarDealer_Lviv_Bot?start=b2bv_CD-123'
+    });
+
+    expect(replyMarkup?.inline_keyboard?.[0]?.[0]).toEqual({
+      text: 'Є авто',
+      url: 'https://t.me/CarDealer_Lviv_Bot?start=b2bv_CD-123'
+    });
+  });
+
+  it('sanitizes channel car post damage/description fields', () => {
+    const text = renderChannelCarPost({
+      title: 'Audi A6',
+      year: 2020,
+      status: 'AVAILABLE',
+      mileage: 100000,
+      price: 32000,
+      description: 'Контакт +380671111111, telegram @audiseller',
+      specs: {
+        damage: 't.me/audi_seller',
+        fuel: 'дизель',
+        transmission: 'автомат',
+        drive: 'повний'
+      }
+    });
+
+    expect(text).toContain('Audi A6 2020');
+    expect(text).not.toContain('+380');
+    expect(text).not.toContain('@audiseller');
+    expect(text).not.toContain('t.me/audi_seller');
   });
 });
