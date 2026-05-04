@@ -146,9 +146,7 @@ app.use('/media/telegram', express.static(path.join(mediaStorageRoot, 'telegram'
 app.use('/media', express.static(mediaStoragePath));
 
 if (hasClientBuild) {
-  if (hasClientBuild) {
   app.use(express.static(clientBuildPath));
-}
 }
 
 // SPA Catch-all (must be after API routes)
