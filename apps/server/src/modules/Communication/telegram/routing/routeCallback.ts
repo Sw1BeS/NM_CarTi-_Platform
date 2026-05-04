@@ -5,6 +5,7 @@ import { ScenarioEngine } from '../../bots/scenario.engine.js';
 import { telegramOutbox } from '../messaging/outbox/telegramOutbox.js';
 import { buildCallbackData, parseCallbackData, ActionTokens } from '../core/utils/callbackUtils.js';
 import { button, resolveLang, t } from '../core/utils/telegramText.js';
+import { buildMiniAppUrl } from '../core/utils/miniappUrl.js';
 import {
   finalizeB2BRequest,
   finalizeCatalogSell,
@@ -748,6 +749,71 @@ export const routeCallback = async (ctx: PipelineContext) => {
             userId: ctx.userId || undefined
           }).catch(() => null);
         }
+        return true;
+      }
+      // Client bot MiniApp and support actions
+      case 'open_miniapp_inventory': {
+        const url = buildMiniAppUrl(ctx.bot, { entry: 'inventory', status: 'AVAILABLE' });
+        await sendMessage(ctx, button(lang, 'common.openMiniApp'), {
+          inline_keyboard: [[{ text: button(lang, 'common.openMiniApp'), web_app: { url } }]]
+        });
+        return true;
+      }
+      case 'open_miniapp_request': {
+        const url = buildMiniAppUrl(ctx.bot, { entry: 'request' });
+        await sendMessage(ctx, button(lang, 'common.openMiniApp'), {
+          inline_keyboard: [[{ text: button(lang, 'common.openMiniApp'), web_app: { url } }]]
+        });
+        return true;
+      }
+      case 'open_miniapp_favorites': {
+        const url = buildMiniAppUrl(ctx.bot, { entry: 'favorites' });
+        await sendMessage(ctx, button(lang, 'common.openMiniApp'), {
+          inline_keyboard: [[{ text: button(lang, 'common.openMiniApp'), web_app: { url } }]]
+        });
+        return true;
+      }
+      case 'open_miniapp_status': {
+        const url = buildMiniAppUrl(ctx.bot, { entry: 'status' });
+        await sendMessage(ctx, button(lang, 'common.openMiniApp'), {
+          inline_keyboard: [[{ text: button(lang, 'common.openMiniApp'), web_app: { url } }]]
+        });
+        return true;
+      }
+      case 'open_miniapp_sell': {
+        const url = buildMiniAppUrl(ctx.bot, { entry: 'request', type: 'SELL' });
+        await sendMessage(ctx, button(lang, 'common.openMiniApp'), {
+          inline_keyboard: [[{ text: button(lang, 'common.openMiniApp'), web_app: { url } }]]
+        });
+        return true;
+      }
+      case 'open_support': {
+        await sendMessage(ctx, '📞 Підтримка\n\nНаш менеджер зв\'яжеться з вами найближчим часом.\n\nВи також можете написати нам прямо зараз:', {
+          inline_keyboard: [
+            [{ text: '📝 Написати менеджеру', url: 'https://t.me/cartie_manager' }],
+            [{ text: '🔙 Назад', callback_data: 'menu' }]
+          ]
+        });
+        return true;
+      }
+      case 'show_about': {
+        await sendMessage(ctx, `ℹ️ Про CarTié
+
+🚗 CarTié - це сервіс з пошуку та купівлі автомобілів.
+
+Ми допомагаємо:
+• Знайти ідеальне авто за вашими критеріями
+• Перевірити історію та технічний стан
+• Оформити купівлю безпечно та швидко
+• Продати ваш автомобіль за ринковою ціною
+
+🎯 Наша місія - зробити процес купівлі авто прозорим та комфортним.
+
+📞 Для зв\'язку: @cartie_manager
+
+🌐 Веб-сайт: https://cartie.com`, {
+          inline_keyboard: [[{ text: '🔙 Назад', callback_data: 'menu' }]]
+        });
         return true;
       }
       default:
