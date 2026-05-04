@@ -124,6 +124,7 @@ app.use('/api', apiRoutes);
 
 // Serve Frontend (Vite Build)
 import path from 'path';
+import { existsSync } from 'fs';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -131,6 +132,12 @@ const __dirname = path.dirname(__filename);
 
 // apps/server/dist/index.js -> apps/web/dist
 const clientBuildPath = path.join(__dirname, '../../web/dist');
+const clientIndexPath = path.join(clientBuildPath, 'index.html');
+const hasClientBuild = existsSync(clientIndexPath);
+
+if (!hasClientBuild) {
+  console.warn(`[StaticFallback] Client build not found at ${clientIndexPath}; API container will not serve SPA fallback.`);
+}
 const mediaStorageRoot = process.env.MEDIA_STORAGE_PATH || path.join(__dirname, '../../storage');
 const mediaStoragePath = path.join(mediaStorageRoot, 'media');
 
@@ -138,7 +145,9 @@ const mediaStoragePath = path.join(mediaStorageRoot, 'media');
 app.use('/media/telegram', express.static(path.join(mediaStorageRoot, 'telegram')));
 app.use('/media', express.static(mediaStoragePath));
 
-app.use(express.static(clientBuildPath));
+if (hasClientBuild) {
+  app.use(express.static(clientBuildPath));
+}
 
 // SPA Catch-all (must be after API routes)
 app.get('*', (req, res) => {
@@ -146,7 +155,11 @@ app.get('*', (req, res) => {
   if (req.path.startsWith('/api')) {
     return errorResponse(res, 404, 'API endpoint not found');
   }
-  res.sendFile(path.join(clientBuildPath, 'index.html'));
+  if (!hasClientBuild) {
+    return res.status(404).json({ ok: false, error: 'CLIENT_BUILD_NOT_AVAILABLE' });
+  }
+
+  res.sendFile(clientIndexPath);
 });
 
 import { initEventHandlers } from './services/event-handlers.js';
