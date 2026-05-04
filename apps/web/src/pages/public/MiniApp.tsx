@@ -264,7 +264,7 @@ const MiniAppContent = () => {
 
     // Request Form State
     const [reqStep, setReqStep] = useState(1);
-    const [reqData, setReqData] = useState({ brand: '', budget: '', year: '' });
+    const [reqData, setReqData] = useState({ brand: '', budgetMin: '', budgetMax: '', yearMin: '', yearMax: '', city: '', brandSearch: '' });
     const [reqMileage, setReqMileage] = useState('');
     const [reqFuel, setReqFuel] = useState('');
     const [reqCompany, setReqCompany] = useState('');
@@ -1202,8 +1202,8 @@ const MiniAppContent = () => {
                 const listingId = selectedListingIds[0] || undefined;
                 const descriptionParts = [
                     reqData.brand ? `Марка/модель: ${reqData.brand}` : null,
-                    reqData.year ? `Рік: ${reqData.year}+` : null,
-                    reqData.budget ? `Бюджет: ${reqData.budget}` : null,
+                    reqData.yearMin ? `Рік: ${reqData.yearMin}+` : null,
+                    reqData.budgetMin ? `Бюджет: ${reqData.budgetMin}` : null,
                     reqMileage ? `Пробіг: ${reqMileage}` : null,
                     reqFuel ? `Пальне: ${reqFuel}` : null,
                     reqCompany ? `Компанія: ${reqCompany}` : null,
@@ -1219,10 +1219,10 @@ const MiniAppContent = () => {
                         ? `${isB2BMode ? 'B2B запит' : 'Запит'}: ${selectedTitles.length} авто`
                         : (listingId && selectedCar?.title
                             ? `${isB2BMode ? 'B2B запит' : 'Запит'}: ${selectedCar.title}`
-                            : `${isB2BMode ? 'B2B запит' : 'Запит'}: ${reqData.brand || 'Авто'} ${reqData.year || ''}`.trim()),
+                            : `${isB2BMode ? 'B2B запит' : 'Запит'}: ${reqData.brand || 'Авто'} ${reqData.yearMin || ''}`.trim()),
                     description: descriptionParts.length ? descriptionParts.join('\n') : undefined,
-                    budgetMax: reqData.budget ? Number(reqData.budget) : undefined,
-                    yearMin: reqData.year ? Number(reqData.year) : undefined,
+                    budgetMax: reqData.budgetMax ? Number(reqData.budgetMax) : undefined,
+                    yearMin: reqData.yearMin ? Number(reqData.yearMin) : undefined,
                     phone: reqPhone || undefined,
                     comment: reqComment || undefined,
                     carListingId: listingId || undefined,

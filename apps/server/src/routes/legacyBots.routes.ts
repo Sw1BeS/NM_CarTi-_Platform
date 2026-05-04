@@ -21,9 +21,9 @@ const resolveCompanyId = async (requestedCompanyId?: string | null, userCompanyI
 
 const syncMenuButton = async (bot: any) => {
     if (!bot?.token) return;
-    const miniAppUrl = buildMiniAppUrl(bot, {});
+    const miniAppUrl = buildMiniAppUrl(bot, { entry: 'inventory', status: 'AVAILABLE' });
     if (!miniAppUrl) return;
-    const menuText = String((bot?.config as any)?.menuButtonText || 'Відкрити застосунок').trim() || 'Відкрити застосунок';
+    const menuText = String((bot?.config as any)?.menuButtonText || 'Каталог авто').trim() || 'Каталог авто';
     await callTelegram(bot.token, 'setChatMenuButton', {
         menu_button: {
             type: 'web_app',

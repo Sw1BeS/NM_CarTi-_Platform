@@ -10,30 +10,29 @@ const CURRENT_YEAR = new Date().getFullYear();
 // Accepts: "2018" | "2018-2022" | "від 2018"
 // Returns parsed { min, max } or null if invalid.
 // ---------------------------------------------------------------------------
-export type YearRange = { min: number; max: number };
+export type YearRange = { min: number; max: number | null };
 
 export const parseYearInput = (text: string): YearRange | null => {
-    const raw = text.trim().replace(/[^\d\-–—]/g, ' ').trim();
-    const nums = raw
-        .split(/[\s\-–—]+/)
-        .map(v => parseInt(v, 10))
-        .filter(n => !isNaN(n));
+    const raw = String(text || '').trim().replace(/[^\d\-–—]/g, ' ').trim();
+    if (!raw) return null;
 
-    if (!nums.length) return null;
+    const rangeMatch = raw.match(/(\d{4})\s*[-–—]\s*(\d{4})/);
+    if (rangeMatch) {
+        const a = Number(rangeMatch[1]);
+        const b = Number(rangeMatch[2]);
+        if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
+        const min = Math.min(a, b);
+        const max = Math.max(a, b);
+        if (min < 1990 || max > CURRENT_YEAR + 1) return null;
+        return { min, max };
+    }
 
-    const normalize = (v: number) => {
-        if (v >= 1000) return v;
-        return v <= 30 ? 2000 + v : 1900 + v;
-    };
-
-    const first = normalize(nums[0]);
-    const second = nums[1] !== undefined ? normalize(nums[1]) : first;
-
-    const min = Math.min(first, second);
-    const max = Math.max(first, second);
-
-    if (min < 1990 || max > CURRENT_YEAR + 1) return null;
-    return { min, max };
+    const singleMatch = raw.match(/\b(\d{4})\b/);
+    if (!singleMatch) return null;
+    const year = Number(singleMatch[1]);
+    if (!Number.isFinite(year)) return null;
+    if (year < 1990 || year > CURRENT_YEAR + 1) return null;
+    return { min: year, max: null };
 };
 
 // ---------------------------------------------------------------------------
@@ -94,9 +93,6 @@ export const normalizePhoneUA = (text: string): string | null => {
     if (digits.startsWith('0') && digits.length === 10) {
         return `+38${digits}`;
     }
-    if (digits.length === 9) {
-        return `+380${digits}`;
-    }
     return null;
 };
 
@@ -109,9 +105,10 @@ export const containsForbiddenContacts = (text: string): boolean => {
     const patterns = [
         /\+?380\d{9}/,            // UA phone
         /\b0\d{9}\b/,             // UA short phone
+        /\b0\d{2}[\d\s\-()]{5,}\b/, // generic UA-like phone body
         /\d{7,}/,                 // any 7+ digit sequence
         /t\.me\//,                // Telegram link
-        /@[a-z0-9_]{5,}/,         // @username
+        /@[a-z0-9_]{2,}/,         // @username
         /viber/,
         /whatsapp/,
         /telegram/,

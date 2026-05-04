@@ -5,6 +5,8 @@ import { mtprotoWorker } from '../modules/Integrations/mtproto/mtproto.worker.js
 import { parsingWorker } from './parsing.worker.js';
 import { logIntegrationEvent } from '../services/integrationEventLog.service.js';
 import { logger } from '../utils/logger.js';
+import { skillPackService } from '../modules/Orchestration/skillPack.service.js';
+import { importService } from '../modules/Orchestration/import.service.js';
 
 const prisma = new PrismaClient();
 let scheduledJobsTableAvailable = true;
@@ -58,7 +60,27 @@ export const startScheduler = () => {
         }
     });
 
-    logger.info('⏰ Scheduler: Started. Jobs: [sync_telegram_channels, mtproto_import_jobs, parsing_jobs, scheduled_jobs]');
+    // Refresh stale orchestration skill packs every 15 minutes
+    cron.schedule('*/15 * * * *', async () => {
+        logger.info('⏰ Scheduler: Starting Job [orchestration_refresh]');
+        try {
+            await skillPackService.refreshStaleSkillPacks();
+        } catch (e) {
+            logger.error('⏰ Scheduler: Job [orchestration_refresh] Failed', e);
+        }
+    });
+
+    // Process staged imports every minute
+    cron.schedule('* * * * *', async () => {
+        logger.info('⏰ Scheduler: Starting Job [import_analysis]');
+        try {
+            await importService.processPendingBatches();
+        } catch (e) {
+            logger.error('⏰ Scheduler: Job [import_analysis] Failed', e);
+        }
+    });
+
+    logger.info('⏰ Scheduler: Started. Jobs: [sync_telegram_channels, mtproto_import_jobs, parsing_jobs, scheduled_jobs, orchestration_refresh, import_analysis]');
 };
 
 async function syncAllChannels() {

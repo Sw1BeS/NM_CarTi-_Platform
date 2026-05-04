@@ -105,6 +105,7 @@ enum NormalizationType {
   brand
   model
   city
+  intent
 }
 
 enum IntegrationType {
@@ -924,6 +925,319 @@ model ScheduledJob {
   @@index([status, runAt])
 }
 
+model OrchestrationPolicy {
+  id                           String    @id @default(cuid())
+  companyId                    String    @unique
+  workspace                    Workspace @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  internalDocsPreferred        Boolean   @default(true)
+  officialDocsPreferred        Boolean   @default(true)
+  externalRefsMode             String    @default("SUPPLEMENTAL_ONLY")
+  autoCanonicalWrite           Boolean   @default(false)
+  promptRefinementEnabled      Boolean   @default(true)
+  councilRequiresManualTrigger Boolean   @default(true)
+  maxFreshSkillPackAgeHours    Int       @default(72)
+  createdAt                    DateTime  @default(now())
+  updatedAt                    DateTime  @updatedAt
+
+  @@index([companyId])
+}
+
+model AutomationIntake {
+  id              String               @id @default(cuid())
+  companyId       String
+  workspace       Workspace            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  sourceType      String
+  status          String               @default("ACTIVE")
+  title           String?
+  inputText       String?
+  sourceUrl       String?
+  normalizedText  String?
+  classification  String?
+  relatedEntities Json?                @db.JsonB
+  metadata        Json?                @db.JsonB
+  createdBy       String?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  sourceRefs    AutomationSourceRef[]
+  skillPacks    AutomationSkillPack[]
+  runs          AutomationRun[]
+  importSources ImportSource[]
+  reviewQueue   AutomationReviewQueue[]
+
+  @@index([companyId, createdAt])
+  @@index([companyId, sourceType])
+  @@index([companyId, status])
+}
+
+model AutomationSourceRef {
+  id             String           @id @default(cuid())
+  companyId      String
+  workspace      Workspace        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  intakeId       String
+  intake         AutomationIntake @relation(fields: [intakeId], references: [id], onDelete: Cascade)
+  refType        String
+  label          String
+  location       String
+  trustLevel     String           @default("MEDIUM")
+  freshnessState String           @default("REVIEW")
+  rank           Int              @default(0)
+  metadata       Json?            @db.JsonB
+  createdAt      DateTime         @default(now())
+
+  @@index([companyId, refType])
+  @@index([intakeId, rank])
+}
+
+model AutomationSkillPack {
+  id                       String           @id @default(cuid())
+  companyId                String
+  workspace                Workspace        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  intakeId                 String
+  intake                   AutomationIntake @relation(fields: [intakeId], references: [id], onDelete: Cascade)
+  status                   String           @default("ACTIVE")
+  taskContext              Json?            @db.JsonB
+  relatedEntities          Json?            @db.JsonB
+  sourcesUsed              Json?            @db.JsonB
+  internalDocsUsed         Json?            @db.JsonB
+  officialDocsUsed         Json?            @db.JsonB
+  externalReferencesUsed   Json?            @db.JsonB
+  bestPracticesUsed        Json?            @db.JsonB
+  freshnessState           String           @default("REVIEW")
+  riskLevel                String           @default("LOW")
+  suggestedPromptAdditions Json?            @db.JsonB
+  suggestedTools           String[]         @default([])
+  operatorNotes            String?
+  generatedAt              DateTime         @default(now())
+  updatedAt                DateTime         @updatedAt
+
+  runs AutomationRun[]
+
+  @@index([companyId, freshnessState])
+  @@index([companyId, generatedAt])
+  @@index([intakeId, generatedAt])
+}
+
+model AutomationRun {
+  id             String               @id @default(cuid())
+  companyId      String
+  workspace      Workspace            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  intakeId       String?
+  intake         AutomationIntake?    @relation(fields: [intakeId], references: [id], onDelete: SetNull)
+  skillPackId    String?
+  skillPack      AutomationSkillPack? @relation(fields: [skillPackId], references: [id], onDelete: SetNull)
+  runType        String
+  status         String               @default("PENDING")
+  triggerSource  String               @default("MANUAL")
+  beforeText     String?
+  afterText      String?
+  matchedAliases String[]             @default([])
+  explanation    String?
+  result         Json?                @db.JsonB
+  createdBy      String?
+  startedAt      DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  steps AutomationRunStep[]
+
+  @@index([companyId, runType, createdAt])
+  @@index([companyId, status])
+  @@index([intakeId])
+  @@index([skillPackId])
+}
+
+model AutomationRunStep {
+  id          String        @id @default(cuid())
+  runId       String
+  run         AutomationRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  stepKey     String
+  status      String        @default("PENDING")
+  sequence    Int           @default(0)
+  message     String?
+  details     Json?         @db.JsonB
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([runId, sequence])
+}
+
+model ImportSource {
+  id           String            @id @default(cuid())
+  companyId    String
+  workspace    Workspace         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  intakeId     String?
+  intake       AutomationIntake? @relation(fields: [intakeId], references: [id], onDelete: SetNull)
+  name         String
+  sourceType   String
+  status       String            @default("REGISTERED")
+  sourceUri    String?
+  contentType  String?
+  description  String?
+  metadata     Json?             @db.JsonB
+  registeredAt DateTime          @default(now())
+  analyzedAt   DateTime?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  batches ImportBatch[]
+
+  @@index([companyId, sourceType])
+  @@index([companyId, status])
+  @@index([intakeId])
+}
+
+model ImportBatch {
+  id                 String                     @id @default(cuid())
+  companyId          String
+  workspace          Workspace                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  importSourceId     String
+  importSource       ImportSource               @relation(fields: [importSourceId], references: [id], onDelete: Cascade)
+  status             String                     @default("REGISTERED")
+  batchLabel         String?
+  itemCount          Int                        @default(0)
+  rawPayload         Json?                      @db.JsonB
+  analysisSummary    Json?                      @db.JsonB
+  startedAt          DateTime?
+  finishedAt         DateTime?
+  createdAt          DateTime                   @default(now())
+  updatedAt          DateTime                   @updatedAt
+
+  items              ImportItem[]
+  linkageCandidates  ImportLinkageCandidate[]
+  recommendedActions ImportRecommendedAction[]
+  writeCandidates    ImportWriteCandidate[]
+  reviewQueue        AutomationReviewQueue[]
+
+  @@index([companyId, status])
+  @@index([importSourceId, createdAt])
+}
+
+model ImportItem {
+  id             String                  @id @default(cuid())
+  companyId      String
+  workspace      Workspace               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  importBatchId  String
+  importBatch    ImportBatch             @relation(fields: [importBatchId], references: [id], onDelete: Cascade)
+  externalId     String?
+  sourceUrl      String?
+  mimeType       String?
+  title          String?
+  contentText    String?
+  rawPayload     Json?                   @db.JsonB
+  classification Json?                   @db.JsonB
+  status         String                  @default("REGISTERED")
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+
+  linkageCandidates  ImportLinkageCandidate[]
+  recommendedActions ImportRecommendedAction[]
+  writeCandidates    ImportWriteCandidate[]
+
+  @@index([companyId, status])
+  @@index([importBatchId, createdAt])
+  @@index([externalId])
+}
+
+model ImportLinkageCandidate {
+  id            String      @id @default(cuid())
+  companyId     String
+  workspace     Workspace   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  importBatchId String
+  importBatch   ImportBatch @relation(fields: [importBatchId], references: [id], onDelete: Cascade)
+  importItemId  String?
+  importItem    ImportItem? @relation(fields: [importItemId], references: [id], onDelete: SetNull)
+  targetType    String
+  targetId      String?
+  confidence    Float       @default(0)
+  reason        String?
+  payload       Json?       @db.JsonB
+  status        String      @default("PROPOSED")
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([companyId, status])
+  @@index([importBatchId, confidence])
+  @@index([importItemId])
+}
+
+model ImportRecommendedAction {
+  id            String      @id @default(cuid())
+  companyId     String
+  workspace     Workspace   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  importBatchId String
+  importBatch   ImportBatch @relation(fields: [importBatchId], references: [id], onDelete: Cascade)
+  importItemId  String?
+  importItem    ImportItem? @relation(fields: [importItemId], references: [id], onDelete: SetNull)
+  actionType    String
+  priority      String      @default("MEDIUM")
+  reason        String
+  payload       Json?       @db.JsonB
+  status        String      @default("PROPOSED")
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([companyId, priority])
+  @@index([companyId, status])
+  @@index([importBatchId, actionType])
+  @@index([importItemId])
+}
+
+model ImportWriteCandidate {
+  id            String                @id @default(cuid())
+  companyId     String
+  workspace     Workspace             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  importBatchId String
+  importBatch   ImportBatch           @relation(fields: [importBatchId], references: [id], onDelete: Cascade)
+  importItemId  String?
+  importItem    ImportItem?           @relation(fields: [importItemId], references: [id], onDelete: SetNull)
+  targetTable   String
+  operation     String
+  payload       Json                  @db.JsonB
+  status        String                @default("PROPOSED")
+  reason        String?
+  reviewedAt    DateTime?
+  reviewedBy    String?
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+
+  reviewQueue AutomationReviewQueue[]
+
+  @@index([companyId, status])
+  @@index([importBatchId, targetTable])
+  @@index([importItemId])
+}
+
+model AutomationReviewQueue {
+  id               String                @id @default(cuid())
+  companyId        String
+  workspace        Workspace             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  queueType        String
+  status           String                @default("PENDING")
+  title            String
+  summary          String?
+  payload          Json?                 @db.JsonB
+  intakeId         String?
+  intake           AutomationIntake?     @relation(fields: [intakeId], references: [id], onDelete: SetNull)
+  importBatchId    String?
+  importBatch      ImportBatch?          @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+  writeCandidateId String?
+  writeCandidate   ImportWriteCandidate? @relation(fields: [writeCandidateId], references: [id], onDelete: SetNull)
+  reviewedAt       DateTime?
+  reviewedBy       String?
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+
+  @@index([companyId, queueType, status])
+  @@index([companyId, createdAt])
+  @@index([intakeId])
+  @@index([importBatchId])
+  @@index([writeCandidateId])
+}
+
 model PartnerCompany {
   id        String     @id @default(cuid())
   name      String
@@ -1198,6 +1512,18 @@ model Workspace {
   chatMacros           ChatMacro[]
   chatNotes            ChatNote[]
   parsingJobs          ParsingJob[]
+  orchestrationPolicy  OrchestrationPolicy?
+  automationIntakes    AutomationIntake[]
+  automationSourceRefs AutomationSourceRef[]
+  automationSkillPacks AutomationSkillPack[]
+  automationRuns       AutomationRun[]
+  automationReviewQueue AutomationReviewQueue[]
+  importSources        ImportSource[]
+  importBatches        ImportBatch[]
+  importItems          ImportItem[]
+  importLinkageCandidates ImportLinkageCandidate[]
+  importRecommendedActions ImportRecommendedAction[]
+  importWriteCandidates ImportWriteCandidate[]
 
   @@index([deleted_at])
   @@map("workspaces")

@@ -14,6 +14,20 @@ const toString = (value: any) => {
   return NormalizationService.cleanString(value) || undefined;
 };
 
+const isRecord = (value: unknown): value is Record<string, unknown> => {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+};
+
+const extractRequestContact = (request: any) => {
+  const payload = isRecord(request?.payload) ? request.payload : {};
+  const nested = isRecord(payload.request) ? payload.request : {};
+  return toString(request?.contact)
+    || toString(payload.contact)
+    || toString(payload.phone)
+    || toString(nested.contact)
+    || toString(nested.phone);
+};
+
 const normalizeSpecLabel = (key: 'fuel' | 'transmission' | 'drive' | 'condition', value: any) => {
   const raw = toString(value);
   if (!raw) return undefined;
@@ -296,6 +310,115 @@ export const mapVariantOutput = (variant: any, opts: { includeContact?: boolean 
     updatedAt: variant.updatedAt
   };
 };
+
+const mapMoneyOutput = (amount: any, currency: any) => ({
+  amount: toNumber(amount) ?? 0,
+  currency: currency || DEFAULT_CURRENCY
+});
+
+export const mapRequestContractCreateOutput = (request: any) => ({
+  id: request.id,
+  publicId: request.publicId || request.id,
+  title: request.title,
+  status: request.status ?? DbRequestStatus.DRAFT,
+  createdAt: request.createdAt
+});
+
+export const mapRequestStatusContractOutput = (request: any) => ({
+  id: request.id,
+  publicId: request.publicId || request.id,
+  status: request.status ?? DbRequestStatus.DRAFT,
+  title: request.title,
+  createdAt: request.createdAt
+});
+
+export const mapPublicRequestListItemOutput = (request: any) => ({
+  id: request.id,
+  publicId: request.publicId || request.id,
+  title: request.title,
+  description: request.description ?? '',
+  budgetMin: request.budgetMin ?? 0,
+  budgetMax: request.budgetMax ?? 0,
+  yearMin: request.yearMin ?? 0,
+  yearMax: request.yearMax ?? 0,
+  city: request.city ?? '',
+  language: request.language ?? undefined,
+  status: request.status ?? DbRequestStatus.DRAFT,
+  priority: request.priority ?? 'NORMAL',
+  createdAt: request.createdAt,
+  updatedAt: request.updatedAt
+});
+
+export const mapPartnerRequestListItemOutput = (request: any) => ({
+  id: request.id,
+  publicId: request.publicId || request.id,
+  title: request.title,
+  status: request.status ?? DbRequestStatus.DRAFT,
+  channelPostUrl: request.channelPostUrl ?? undefined,
+  variantsCount: Array.isArray(request.variants) ? request.variants.length : (toNumber(request?._count?.variants) ?? 0),
+  createdAt: request.createdAt
+});
+
+export const mapReceivedVariantContractOutput = (variant: any, extras: { requestPublicId?: string } = {}) => {
+  const mapped = mapVariantOutput(variant, { includeContact: false });
+  return {
+    id: mapped.id,
+    requestId: mapped.requestId,
+    requestPublicId: extras.requestPublicId || variant.request?.publicId || mapped.requestId,
+    status: mapped.status,
+    requesterDecision: mapped.requesterDecision ?? 'PENDING',
+    fitQueueStatus: variant.fitQueueStatus ?? undefined,
+    contactShared: String(variant.request?.status || '') === 'CONTACT_SHARED',
+    contactAvailable: Boolean(toString(variant.contact)),
+    sellerCompany: variant.sellerPartner?.name || variant.companyName || '',
+    title: mapped.title,
+    price: mapped.price,
+    year: mapped.year,
+    mileage: mapped.mileage,
+    location: mapped.location,
+    thumbnail: mapped.thumbnail,
+    mediaUrls: mapped.mediaUrls,
+    mediaItems: mapped.mediaItems,
+    specs: mapped.specs,
+    url: mapped.url,
+    sourceUrl: mapped.sourceUrl,
+    createdAt: mapped.createdAt,
+    updatedAt: mapped.updatedAt
+  };
+};
+
+export const mapVariantDecisionContractOutput = (
+  variant: any,
+  opts: { includeFitQueueStatus?: boolean } = {}
+) => ({
+  id: variant.id,
+  requesterDecision: variant.requesterDecision ?? 'PENDING',
+  status: variant.status,
+  ...(opts.includeFitQueueStatus ? { fitQueueStatus: variant.fitQueueStatus ?? undefined } : {})
+});
+
+export const mapAdminFitQueueItemOutput = (variant: any) => ({
+  id: variant.id,
+  requestId: variant.requestId,
+  requestPublicId: variant.request?.publicId || variant.requestId,
+  requestStatus: variant.request?.status ?? undefined,
+  fitQueueStatus: variant.fitQueueStatus,
+  requesterDecisionAt: variant.requesterDecisionAt ?? undefined,
+  fitQueuedAt: variant.fitQueuedAt ?? undefined,
+  title: variant.title,
+  sellerCompany: variant.sellerPartner?.name || variant.companyName || '',
+  price: mapMoneyOutput(variant.price, variant.currency),
+  contactShared: String(variant.request?.status || '') === 'CONTACT_SHARED',
+  requesterContactAvailable: Boolean(extractRequestContact(variant.request)),
+  sellerContactAvailable: Boolean(toString(variant.contact)),
+  contactAvailable: Boolean(extractRequestContact(variant.request) || toString(variant.contact))
+});
+
+export const mapFitQueueUpdateOutput = (variant: any) => ({
+  id: variant.id,
+  fitQueueStatus: variant.fitQueueStatus,
+  fitClosedAt: variant.fitClosedAt ?? undefined
+});
 
 export const mapRequestInput = (input: any) => {
   const data: any = {};

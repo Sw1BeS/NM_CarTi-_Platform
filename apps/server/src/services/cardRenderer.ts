@@ -7,6 +7,20 @@ import { ActionTokens, buildCallbackData } from '../modules/Communication/telegr
 
 const dash = (v: any) => (v !== null && v !== undefined && String(v).trim() !== '' ? String(v) : '—');
 
+const sanitizePublicText = (value: unknown, maxLen = 220) => {
+  const raw = String(value ?? '').trim();
+  if (!raw) return '';
+  const sanitized = raw
+    .replace(/(?:\+?\d[\d\s()\-]{6,}\d)/g, '[hidden]')
+    .replace(/@[a-zA-Z0-9_]{3,}/g, '@hidden')
+    .replace(/(?:https?:\/\/)?(?:t\.me|wa\.me)\/\S+/gi, '[hidden-link]')
+    .replace(/\b(?:telegram|телеграм|viber|вайбер|whatsapp|ватсап)\b/gi, '[hidden]')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!sanitized) return '';
+  return sanitized.length > maxLen ? `${sanitized.slice(0, maxLen)}…` : sanitized;
+};
+
 /**
  * §4 Lead user car card (HTML)
  * Used in bot when showing inventory matches to client.
@@ -59,15 +73,14 @@ export const buildLeadBuyCardButtons = (carId: string, isFavorited: boolean, idx
  * §4 After-batch control message buttons.
  * favCount — number of favorites currently saved.
  */
-export const buildAfterBatchControls = (favCount: number) => {
-  const rows: any[][] = [
-    [{ text: 'Показати ще', callback_data: buildCallbackData(ActionTokens.LB_NEXT) }]
-  ];
+export const buildAfterBatchControls = (favCount: number, hasMore = true) => {
+  const rows: any[][] = [];
+  if (hasMore) {
+    rows.push([{ text: 'Показати ще', callback_data: buildCallbackData(ActionTokens.LB_NEXT) }]);
+  }
+  rows.push([{ text: `⭐ Обране (${favCount})`, callback_data: buildCallbackData(ActionTokens.LB_FAV_OPEN) }]);
   if (favCount > 0) {
-    rows.push([
-      { text: `⭐ Обране (${favCount})`, callback_data: buildCallbackData(ActionTokens.LB_FAV_OPEN) },
-      { text: 'Звʼязатися по обраному', callback_data: buildCallbackData(ActionTokens.LB_FAV_SEND) }
-    ]);
+    rows.push([{ text: 'Звʼязатися по обраному', callback_data: buildCallbackData(ActionTokens.LB_FAV_SEND) }]);
   }
   rows.push([
     { text: 'Змінити фільтри', callback_data: buildCallbackData(ActionTokens.LB_EDIT) },
@@ -80,15 +93,18 @@ export const buildAfterBatchControls = (favCount: number) => {
  * §4 B2B channel request post (NO contacts).
  * Returns { text, replyMarkup } — text has no phone numbers or personal links.
  */
-export const renderB2bChannelPost = (request: any): { text: string; replyMarkup: any } => {
+export const renderB2bChannelPost = (
+  request: any,
+  options?: { responseUrl?: string | null }
+): { text: string; replyMarkup: any } => {
   const payload = (request?.payload || {}) as Record<string, any>;
   const reqPayload = (payload.request || {}) as Record<string, any>;
 
-  const companyName = String(reqPayload.companyName || payload.companyName || 'Невідома компанія');
+  const companyName = sanitizePublicText(reqPayload.companyName || payload.companyName || 'Невідома компанія', 80) || 'Невідома компанія';
   const publicId = request.publicId || request.id || '?';
 
   const titleParts = [request.title || reqPayload.brand || reqPayload.make, reqPayload.model].filter(Boolean);
-  const titleLine = titleParts.join(' ') || '—';
+  const titleLine = sanitizePublicText(titleParts.join(' '), 100) || '—';
 
   const yearMin = request.yearMin || reqPayload.yearMin;
   const yearMax = request.yearMax || reqPayload.yearMax;
@@ -103,11 +119,11 @@ export const renderB2bChannelPost = (request: any): { text: string; replyMarkup:
     : budgetMin ? `від ${budgetMin.toLocaleString()} USD` : '—';
 
   const mileageLine = reqPayload.mileageText || reqPayload.mileageMax
-    ? (reqPayload.mileageText || `до ${reqPayload.mileageMax} км`)
+    ? (sanitizePublicText(reqPayload.mileageText || `до ${reqPayload.mileageMax} км`, 80) || '—')
     : '—';
 
-  const fuelLine = reqPayload.fuel || payload.fuel || '—';
-  const noteLine = String(request.description || reqPayload.comment || '—').slice(0, 200);
+  const fuelLine = sanitizePublicText(reqPayload.fuel || payload.fuel || '—', 60) || '—';
+  const noteLine = sanitizePublicText(request.description || reqPayload.comment || '—', 200) || '—';
 
   const text = [
     `🔵 <b>Запит #${publicId}</b>`,
@@ -120,10 +136,12 @@ export const renderB2bChannelPost = (request: any): { text: string; replyMarkup:
     `🏢 Хто шукає: ${companyName}`
   ].join('\n');
 
+  const responseUrl = String(options?.responseUrl || '').trim();
+  const actionButton = responseUrl
+    ? { text: 'Є авто', url: responseUrl }
+    : { text: 'Є авто', callback_data: buildCallbackData(ActionTokens.BV_SEND, String(request.publicId || request.id).slice(0, 28)) };
   const replyMarkup = {
-    inline_keyboard: [[
-      { text: 'Є авто', callback_data: buildCallbackData(ActionTokens.BV_SEND, String(request.publicId || request.id).slice(0, 28)) }
-    ]]
+    inline_keyboard: [[actionButton]]
   };
   return { text, replyMarkup };
 };
@@ -132,27 +150,52 @@ export const renderB2bChannelPost = (request: any): { text: string; replyMarkup:
  * §4 CarTié channel car post template (channel publication style).
  */
 export const renderChannelCarPost = (car: any): string => {
-  const rawTitle = String(car.title || '').trim();
-  const yearStr = car.year ? String(car.year) : '';
-  const titleDisplay = `${rawTitle} ${yearStr}`.trim().replace(/\s+/g, ' ');
-
-  const statusTag = String(car.status || 'AVAILABLE').toUpperCase();
-  const statusText: Record<string, string> = {
-    AVAILABLE: 'в наявності', RESERVED: 'резерв', SOLD: 'продано', PENDING: 'очікування'
+  const specs = (car?.specs || {}) as Record<string, any>;
+  const pick = (...values: any[]) => {
+    for (const value of values) {
+      const text = String(value ?? '').trim();
+      if (text) return text;
+    }
+    return '';
   };
 
-  const mileageNum = Number(car.mileage || 0);
-  const mileageTxt = mileageNum > 0
-    ? (mileageNum >= 1000 ? `${Math.round(mileageNum / 1000)} тис. км` : `${mileageNum} км`)
+  const rawTitle = pick(car?.title);
+  const titleParts = rawTitle.split(/\s+/).filter(Boolean);
+  const brand = pick(specs.brand, specs.make, titleParts[0]);
+  const modelFromTitle = titleParts.length > 1 ? titleParts.slice(1).join(' ') : '';
+  const model = pick(specs.model, modelFromTitle);
+  const yearNum = Number(car?.year || specs.year || 0);
+  const year = Number.isFinite(yearNum) && yearNum > 0 ? String(Math.round(yearNum)) : '';
+
+  const titleDisplay = sanitizePublicText(pick(
+    [brand, model, year].filter(Boolean).join(' ').trim(),
+    [rawTitle, year].filter(Boolean).join(' ').trim(),
+    rawTitle
+  ) || 'Авто', 120) || 'Авто';
+
+  const statusTag = String(car?.status || specs.status || 'AVAILABLE').toUpperCase();
+  const statusText: Record<string, string> = {
+    AVAILABLE: 'в наявності',
+    RESERVED: 'резерв',
+    SOLD: 'продано',
+    PENDING: 'очікування',
+    HIDDEN: 'приховано'
+  };
+
+  const mileageNum = Number(car?.mileage || specs.mileage || 0);
+  const mileageTxt = Number.isFinite(mileageNum) && mileageNum > 0
+    ? (mileageNum >= 1000 ? `${Math.round(mileageNum / 1000)} тис. км` : `${Math.round(mileageNum)} км`)
     : '—';
 
-  const powerOrBattery = car.specs?.engine || car.specs?.battery || '—';
-  const safety = car.specs?.safety || car.specs?.airbags || '—';
-  const driveTxt = car.specs?.drive || '—';
-  const damageTxt = car.specs?.damage || car.specs?.condition || 'не вказано';
-  const runTag = car.specs?.runs === false ? '❌ не на ходу' : '✅ на ходу';
+  const powerOrBattery = sanitizePublicText(pick(specs.engine, specs.power, specs.hp, specs.battery) || '—', 80) || '—';
+  const safety = sanitizePublicText(pick(specs.safety, specs.airbags) || '—', 120) || '—';
+  const driveTxt = sanitizePublicText(pick(specs.drive) || '—', 80) || '—';
+  const damageTxt = sanitizePublicText(pick(specs.damage, specs.condition, car?.description) || '—', 180) || '—';
+  const runs = specs.runs;
+  const runTag = runs === false ? '❌ не на ходу' : runs === true ? '✅ на ходу' : '✅ на ходу';
 
-  const price = car.price?.amount ?? car.price ?? 0;
+  const price = Number(car?.price?.amount ?? car?.price ?? specs.price ?? 0);
+  const priceTxt = Number.isFinite(price) && price > 0 ? price.toLocaleString('uk-UA') : '—';
 
   return [
     `🇺🇸<b>${titleDisplay}</b>`,
@@ -165,8 +208,8 @@ export const renderChannelCarPost = (car: any): string => {
     `🚙 ${driveTxt}`,
     `🛠 Пошкодження: ${damageTxt}`,
     '',
-    `💵 Ціна за розмитнене авто у Львові: ${price ? price.toLocaleString('uk-UA') : '—'}$`,
-    `<i>*ціна може змінюватися залежно від курсу та доставки</i>`
+    `💵 Ціна за розмитнене авто у Львові: ${priceTxt}$`,
+    '<i>*ціна може змінюватися залежно від курсу та доставки</i>'
   ].join('\n');
 };
 

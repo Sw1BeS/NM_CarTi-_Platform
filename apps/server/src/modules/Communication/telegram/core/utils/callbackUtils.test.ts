@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildCallbackData, parseCallbackData } from './callbackUtils.js';
+import { ActionTokens, buildCallbackData, parseCallbackData } from './callbackUtils.js';
 
 const toBase64 = (value: string) => Buffer.from(value, 'utf8').toString('base64');
 
@@ -35,5 +35,22 @@ describe('callbackUtils', () => {
   it('builds sanitized callback data', () => {
     const data = buildCallbackData('lb_sendfav', '123');
     expect(data).toBe('v1:lb_sendfav:123');
+  });
+
+  it('supports admin test panel tokens', () => {
+    const data = buildCallbackData(ActionTokens.TEST_GO, '2');
+    expect(data).toBe('v1:tst_go:2');
+    const parsed = parseCallbackData(data);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.action).toBe(ActionTokens.TEST_GO);
+    expect(parsed.id).toBe('2');
+  });
+
+  it('keeps callback_data compact for long tokens', () => {
+    const data = buildCallbackData('lead_sell_super_long_action_name', '1234567890abcdefghijklmnopqrstuvwxyz');
+    expect(Buffer.byteLength(data, 'utf8')).toBeLessThanOrEqual(64);
+    const parsed = parseCallbackData(data);
+    expect(parsed.ok).toBe(true);
+    expect((parsed.action || '').length).toBeLessThanOrEqual(12);
   });
 });

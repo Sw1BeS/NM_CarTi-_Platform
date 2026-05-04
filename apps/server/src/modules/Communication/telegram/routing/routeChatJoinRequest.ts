@@ -38,13 +38,17 @@ export const routeChatJoinRequest: PipelineMiddleware = async (ctx, next) => {
   }
 
   if (bot.adminChatId) {
+    const profileLink = username
+      ? `https://t.me/${username.replace(/^@/, '')}`
+      : (userId ? `tg://user?id=${userId}` : '—');
     const adminText = [
-      '[B2B REG]',
+      '🟡 [B2B REG]',
       approved ? '✅ Join request підтверджено автоматично' : '⏳ Новий chat_join_request',
       `Канал: ${chatId}`,
       `Користувач: ${fullName || '—'}`,
-      username ? `Username: @${username.replace(/^@/, '')}` : null,
-      `TG User ID: ${userId || '—'}`
+      `username: ${username ? `@${username.replace(/^@/, '')}` : '—'}`,
+      `tgUserId: ${userId || '—'}`,
+      `🔗 ${profileLink}`
     ].filter(Boolean).join('\n');
 
     await telegramOutbox.sendMessage({

@@ -5,6 +5,39 @@ import { FEATURE_FLAGS } from '../src/utils/constants.js';
 
 const prisma = new PrismaClient();
 
+async function seedOrchestrationDefaults(companyId: string) {
+  try {
+    await prisma.orchestrationPolicy.upsert({
+      where: { companyId },
+      update: {},
+      create: {
+        companyId,
+        internalDocsPreferred: true,
+        officialDocsPreferred: true,
+        externalRefsMode: 'SUPPLEMENTAL_ONLY',
+        autoCanonicalWrite: false,
+        promptRefinementEnabled: true,
+        councilRequiresManualTrigger: true,
+        maxFreshSkillPackAgeHours: 72
+      }
+    });
+
+    await prisma.normalizationAlias.createMany({
+      data: [
+        { companyId, type: 'intent', alias: 'prompt', canonical: 'prompt' },
+        { companyId, type: 'intent', alias: 'promt', canonical: 'prompt' },
+        { companyId, type: 'intent', alias: 'промт', canonical: 'prompt' },
+        { companyId, type: 'intent', alias: 'промпт', canonical: 'prompt' }
+      ],
+      skipDuplicates: true
+    });
+
+    console.log(`✅ Orchestration defaults ensured for company ${companyId}`);
+  } catch (e) {
+    console.warn(`⚠️ Failed to seed orchestration defaults for company ${companyId}`, e);
+  }
+}
+
 async function ensureSystemCompany() {
   const existing = await (prisma as any).workspace.findUnique({ where: { id: 'company_system' } })
     ?? await (prisma as any).workspace.findUnique({ where: { slug: 'system' } });
@@ -124,6 +157,8 @@ async function main() {
 
   const systemCompany = await ensureSystemCompany();
   const cartieCompany = await ensureCartieCompany();
+  await seedOrchestrationDefaults(systemCompany.id);
+  await seedOrchestrationDefaults(cartieCompany.id);
 
   // Get v4.1 workspace and account IDs if dual-write enabled
   let systemWorkspace: any = null;

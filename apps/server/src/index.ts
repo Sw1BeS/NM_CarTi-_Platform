@@ -13,6 +13,7 @@ import miniAppRoutes from './routes/miniAppRoutes.js';
 import companyRoutes from './modules/Core/companies/company.routes.js';
 import templateRoutes from './modules/Core/templates/template.routes.js';
 import integrationRoutes from './modules/Integrations/integration.routes.js';
+import orchestrationRoutes from './modules/Orchestration/orchestration.routes.js';
 import superadminRoutes from './modules/Core/superadmin/superadmin.routes.js';
 import qaRoutes from './routes/qaRoutes.js';
 import b2bV2Routes from './routes/b2bV2.routes.js';
@@ -87,6 +88,7 @@ app.use('/api/requests', requestsRoutes);
 app.use('/api/companies', companyRoutes); // Stage C: Multi-tenancy
 app.use('/api/templates', templateRoutes); // Stage C: Marketplace
 app.use('/api/integrations', integrationRoutes); // Stage C: Integrations
+app.use('/api/orchestration', orchestrationRoutes);
 app.use('/api/superadmin', superadminRoutes); // Stage C: System admin
 app.use('/api/qa', qaRoutes);
 app.use('/api/b2b', b2bV2Routes);
@@ -109,6 +111,7 @@ apiV2Router.use('/requests', requestsRoutes);
 apiV2Router.use('/companies', companyRoutes);
 apiV2Router.use('/templates', templateRoutes);
 apiV2Router.use('/integrations', integrationRoutes);
+apiV2Router.use('/orchestration', orchestrationRoutes);
 apiV2Router.use('/superadmin', superadminRoutes);
 apiV2Router.use('/qa', qaRoutes);
 apiV2Router.use('/b2b', b2bV2Routes);
