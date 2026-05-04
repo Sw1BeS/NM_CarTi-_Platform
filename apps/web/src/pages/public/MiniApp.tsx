@@ -307,16 +307,41 @@ const MiniAppContent = () => {
         return s.trim();
     };
 
-    const getCarImages = (car: CarListing) => {
-        const itemUrls = (car.mediaItems || [])
-            .map(item => item.url || item.previewUrl)
-            .filter(Boolean) as string[];
-        const baseUrls = itemUrls.length ? itemUrls : (car.mediaUrls || []);
-        const combined = car.thumbnail ? [car.thumbnail, ...baseUrls] : baseUrls;
-        return Array.from(new Set(combined.filter(Boolean)));
+    const normalizeMiniAppImageUrl = (value: unknown): string => {
+        const raw = String(value || '').trim();
+        if (!raw) return '';
+        if (/^https?:\/\//i.test(raw) || raw.startsWith('/')) return raw;
+        if (raw.startsWith('media/')) return `/${raw}`;
+        return raw;
     };
 
-    const getCarId = (car?: CarListing | null) => car?.canonicalId || car?.id || '';
+    const collectMediaItemUrls = (item: unknown): string[] => {
+        if (!item || typeof item !== 'object') return [];
+        const record = item as Record<string, unknown>;
+        return [
+            record.url,
+            record.previewUrl,
+            record.publicUrl,
+            record.src,
+            record.path,
+            record.localPath,
+            record.mediaUrl,
+            record.imageUrl
+        ].map(normalizeMiniAppImageUrl).filter(Boolean);
+    };
+
+    const getCarImages = (car: CarListing) => {
+        const mediaItems = Array.isArray(car.mediaItems) ? car.mediaItems : [];
+        const itemUrls = mediaItems.flatMap(collectMediaItemUrls);
+        const mediaUrls = Array.isArray(car.mediaUrls)
+            ? car.mediaUrls.map(normalizeMiniAppImageUrl).filter(Boolean)
+            : [];
+        const thumbnail = normalizeMiniAppImageUrl((car as any).thumbnail);
+        const combined = [thumbnail, ...itemUrls, ...mediaUrls].filter(Boolean);
+        return Array.from(new Set(combined));
+    };
+
+    const getCarId = (car?: CarListing | null) => car?.id || car?.canonicalId || '';
 
     const isFavorite = (carId: string) => favorites.includes(carId);
     const isSelectedForRequest = (carId: string) => selectedRequestCarIds.includes(carId);
@@ -639,22 +664,26 @@ const MiniAppContent = () => {
 
     const handleAction = (act: MiniAppConfig['actions'][number]) => {
         const tg = (window as any).Telegram?.WebApp;
+        const value = String(act.value || '').trim();
+
         if (act.actionType === 'VIEW') {
-            if (act.value === 'HOME') setView('HOME');
-            if (act.value === 'INVENTORY') setView('INVENTORY');
-            if (act.value === 'REQUEST') setView('REQUEST');
-            if (act.value === 'FAVORITES') setView('FAVORITES');
-            if (act.value === 'STATUS') setView('STATUS');
-            if (act.value === 'PROFILE') setView('PROFILE');
+            const targetView = value as MiniAppView;
+            if (['HOME', 'INVENTORY', 'REQUEST', 'FAVORITES', 'STATUS', 'PROFILE'].includes(targetView)) {
+                setView(targetView);
+            }
         } else if (act.actionType === 'LINK') {
+            if (!value) {
+                setConfigWarning('Посилання для цієї кнопки ще не налаштоване.');
+                return;
+            }
             if (tg && tg.openLink) {
-                tg.openLink(act.value);
+                tg.openLink(value);
             } else {
-                window.open(act.value, '_blank');
+                window.open(value, '_blank');
             }
         } else if (act.actionType === 'SCENARIO') {
             if (tg?.initData) {
-                tg.sendData(JSON.stringify({ type: 'RUN_SCENARIO', scenarioId: act.value }));
+                tg.sendData(JSON.stringify({ type: 'RUN_SCENARIO', scenarioId: value }));
                 tg.close();
             } else {
                 setConfigWarning('Сценарні дії доступні лише всередині Telegram.');
@@ -777,13 +806,37 @@ const MiniAppContent = () => {
 
     const primaryColor = config.primaryColor || '#D4AF37';
     const surfaceMode: MiniAppSurfaceMode = config.surfaceMode === 'B2B' ? 'B2B' : 'LEAD';
-    const navItems = (config.navItems && config.navItems.length > 0)
+    type MiniAppNavItem = NonNullable<MiniAppConfig['navItems']>[number];
+
+    const normalizeMiniAppNavItem = (item: MiniAppNavItem, index: number): MiniAppNavItem => {
+        const label = String(item?.label || '').trim();
+        const value = String(item?.value || '').trim();
+        const lower = label.toLowerCase();
+
+        if (item?.actionType === 'LINK' && !value) {
+            if (lower.includes('instagram') || lower.includes('інвентар') || lower.includes('склад')) {
+                return { ...item, id: item.id || `nav_${index}`, label: 'Інвентар', icon: 'LayoutGrid', actionType: 'VIEW', value: 'INVENTORY' };
+            }
+            if (lower.includes('tik') || lower.includes('обран')) {
+                return { ...item, id: item.id || `nav_${index}`, label: 'Обране', icon: 'Heart', actionType: 'VIEW', value: 'FAVORITES' };
+            }
+            if (lower.includes('сайт') || lower.includes('статус')) {
+                return { ...item, id: item.id || `nav_${index}`, label: 'Запит', icon: 'Search', actionType: 'VIEW', value: 'REQUEST' };
+            }
+            return { ...item, id: item.id || `nav_${index}`, actionType: 'VIEW', value: 'HOME' };
+        }
+
+        return item;
+    };
+
+    const rawNavItems: MiniAppNavItem[] = (config.navItems && config.navItems.length > 0)
         ? config.navItems
         : [
             { id: 'nav_home', label: 'Головна', icon: 'Home', actionType: 'VIEW', value: 'HOME' },
             { id: 'nav_stock', label: 'Склад', icon: 'LayoutGrid', actionType: 'VIEW', value: 'INVENTORY' },
             { id: 'nav_saved', label: 'Обране', icon: 'Star', actionType: 'VIEW', value: 'FAVORITES' }
         ];
+    const navItems = rawNavItems.map(normalizeMiniAppNavItem);
     const showBottomNav = view !== 'LISTING' && view !== 'REQUEST' && view !== 'STATUS';
     const showBackArrow = ((view !== 'HOME' && view !== 'LISTING') || reqStep > 1) && !lightboxCar;
 
@@ -1008,7 +1061,7 @@ const MiniAppContent = () => {
                 isSelectedForRequest={isSelectedForRequest}
                 onOpenLightbox={(car) => { setLightboxCar(car); setLightboxImageIndex(0); }}
                 onToggleFavorite={toggleFavorite}
-                onPrimaryAction={(car) => surfaceMode === 'B2B' ? prefillRequestFromCar(car) : handleCarInterest(car)}
+                onPrimaryAction={prefillRequestFromCar}
                 onToggleRequestSelection={toggleRequestSelection}
                 onOpenListing={openListing}
             />
@@ -1178,93 +1231,87 @@ const MiniAppContent = () => {
 
     const handleNextStep = async () => {
         const isB2BMode = surfaceMode === 'B2B';
-        if (reqStep === 1) {
-            if (isB2BMode) {
-                if (!reqData.brand.trim()) {
-                    setConfigWarning('Для B2B запиту вкажіть марку та модель.');
-                    return;
-                }
-                if (!reqCompany.trim()) {
-                    setConfigWarning('Для B2B запиту вкажіть назву компанії.');
-                    return;
-                }
-                if (!reqPhone.trim()) {
-                    setConfigWarning('Для B2B запиту додайте контакт.');
-                    return;
-                }
-            }
-            setReqStep(2);
-        } else {
-            const tg = (window as any).Telegram?.WebApp;
 
-            if (!hasTelegramInit) {
-                setConfigWarning('Надсилання запиту доступне лише в Telegram Mini App.');
+        if (reqStep < 4) {
+            if (reqStep === 1 && !reqData.brand.trim() && selectedRequestCarIds.length === 0) {
+                setConfigWarning('Оберіть марку або авто для запиту.');
                 return;
             }
+            setReqStep(prev => Math.min(4, prev + 1));
+            return;
+        }
 
-            try {
-                const slug = targetSlug || 'system';
-                const fallbackListingId = getCarId(selectedCar);
-                const selectedListingIds = selectedRequestCarIds.length
-                    ? selectedRequestCarIds
-                    : (fallbackListingId ? [fallbackListingId] : []);
-                const selectedTitles = selectedRequestCars.map(car => car.title).filter(Boolean);
-                const listingId = selectedListingIds[0] || undefined;
-                const descriptionParts = [
-                    reqData.brand ? `Марка/модель: ${reqData.brand}` : null,
-                    reqData.yearMin ? `Рік: ${reqData.yearMin}+` : null,
-                    reqData.budgetMin ? `Бюджет: ${reqData.budgetMin}` : null,
-                    reqMileage ? `Пробіг: ${reqMileage}` : null,
-                    reqFuel ? `Пальне: ${reqFuel}` : null,
-                    reqCompany ? `Компанія: ${reqCompany}` : null,
-                    reqComment ? `Коментар: ${reqComment}` : null,
-                    reqPhone ? `Контакт: ${reqPhone}` : null,
-                    selectedTitles.length > 1 ? `Обрані авто: ${selectedTitles.join(', ')}` : null
-                ].filter(Boolean);
+        const tg = (window as any).Telegram?.WebApp;
 
-                const requestPayload = {
-                    slug,
-                    initData,
-                    title: selectedTitles.length > 1
-                        ? `${isB2BMode ? 'B2B запит' : 'Запит'}: ${selectedTitles.length} авто`
-                        : (listingId && selectedCar?.title
-                            ? `${isB2BMode ? 'B2B запит' : 'Запит'}: ${selectedCar.title}`
-                            : `${isB2BMode ? 'B2B запит' : 'Запит'}: ${reqData.brand || 'Авто'} ${reqData.yearMin || ''}`.trim()),
-                    description: descriptionParts.length ? descriptionParts.join('\n') : undefined,
-                    budgetMax: reqData.budgetMax ? Number(reqData.budgetMax) : undefined,
-                    yearMin: reqData.yearMin ? Number(reqData.yearMin) : undefined,
-                    phone: reqPhone || undefined,
-                    comment: reqComment || undefined,
-                    carListingId: listingId || undefined,
-                    carListingIds: selectedListingIds.length ? selectedListingIds : undefined,
-                    payload: {
-                        mode: isB2BMode ? 'B2B' : 'LEAD',
-                        mileage: reqMileage || undefined,
-                        fuel: reqFuel || undefined,
-                        companyName: reqCompany || undefined,
-                        selectedCars: selectedTitles.length ? selectedTitles : undefined
-                    },
-                    tracking: trackingMeta,
-                    telegram: {
-                        userId: tgUser?.id ? String(tgUser.id) : undefined,
-                        username: tgUser?.username,
-                        name: [tgUser?.first_name, tgUser?.last_name].filter(Boolean).join(' ')
-                    }
-                };
+        if (!hasTelegramInit) {
+            setConfigWarning('Надсилання запиту доступне лише в Telegram Mini App.');
+            return;
+        }
 
-                await createMiniAppRequest(requestPayload);
-                clearRequestSelection();
+        try {
+            const slug = targetSlug || 'system';
+            const fallbackListingId = getCarId(selectedCar);
+            const selectedListingIds = selectedRequestCarIds.length
+                ? selectedRequestCarIds
+                : (fallbackListingId ? [fallbackListingId] : []);
+            const selectedTitles = selectedRequestCars.map(car => car.title).filter(Boolean);
+            const listingId = selectedListingIds[0] || undefined;
+            const descriptionParts = [
+                reqData.brand ? `Марка/модель: ${reqData.brand}` : null,
+                reqData.yearMin ? `Рік: ${reqData.yearMin}+` : null,
+                reqData.budgetMin || reqData.budgetMax ? `Бюджет: ${reqData.budgetMin || '0'}-${reqData.budgetMax || ''}` : null,
+                reqData.city ? `Локація: ${reqData.city}` : null,
+                reqMileage ? `Пробіг: ${reqMileage}` : null,
+                reqFuel ? `Пальне: ${reqFuel}` : null,
+                reqCompany ? `Компанія: ${reqCompany}` : null,
+                reqComment ? `Коментар: ${reqComment}` : null,
+                reqPhone ? `Контакт: ${reqPhone}` : null,
+                selectedTitles.length > 1 ? `Обрані авто: ${selectedTitles.join(', ')}` : null
+            ].filter(Boolean);
 
-                if (tg && tg.initData) {
-                    tg.HapticFeedback?.notificationOccurred?.('success');
+            const requestPayload = {
+                slug,
+                initData,
+                title: selectedTitles.length > 1
+                    ? `${isB2BMode ? 'B2B запит' : 'Запит'}: ${selectedTitles.length} авто`
+                    : (listingId && selectedCar?.title
+                        ? `${isB2BMode ? 'B2B запит' : 'Запит'}: ${selectedCar.title}`
+                        : `${isB2BMode ? 'B2B запит' : 'Запит'}: ${reqData.brand || 'Авто'} ${reqData.yearMin || ''}`.trim()),
+                description: descriptionParts.length ? descriptionParts.join('\n') : undefined,
+                budgetMax: reqData.budgetMax ? Number(reqData.budgetMax) : undefined,
+                yearMin: reqData.yearMin ? Number(reqData.yearMin) : undefined,
+                phone: reqPhone || undefined,
+                comment: reqComment || undefined,
+                carListingId: listingId || undefined,
+                carListingIds: selectedListingIds.length ? selectedListingIds : undefined,
+                payload: {
+                    mode: isB2BMode ? 'B2B' : 'LEAD',
+                    city: reqData.city || undefined,
+                    mileage: reqMileage || undefined,
+                    fuel: reqFuel || undefined,
+                    companyName: reqCompany || undefined,
+                    selectedCars: selectedTitles.length ? selectedTitles : undefined
+                },
+                tracking: trackingMeta,
+                telegram: {
+                    userId: tgUser?.id ? String(tgUser.id) : undefined,
+                    username: tgUser?.username,
+                    name: [tgUser?.first_name, tgUser?.last_name].filter(Boolean).join(' ')
                 }
-                setReqStep(5);
-                pushToast('Запит надіслано.', 'success');
-            } catch (e) {
-                emitMiniAppEvent('error', 'MiniApp request submit failed', { error: e instanceof Error ? e.message : String(e) });
-                const message = resolveMiniAppWriteError(e, 'Не вдалося надіслати запит.');
-                pushToast(message, 'error');
+            };
+
+            await createMiniAppRequest(requestPayload);
+            clearRequestSelection();
+
+            if (tg && tg.initData) {
+                tg.HapticFeedback?.notificationOccurred?.('success');
             }
+            setReqStep(5);
+            pushToast('Запит надіслано.', 'success');
+        } catch (e) {
+            emitMiniAppEvent('error', 'MiniApp request submit failed', { error: e instanceof Error ? e.message : String(e) });
+            const message = resolveMiniAppWriteError(e, 'Не вдалося надіслати запит.');
+            pushToast(message, 'error');
         }
     };
 
@@ -1294,6 +1341,7 @@ const MiniAppContent = () => {
             actionLabel={reqStep >= 4 ? 'Надіслати запит' : 'Далі'}
             actionDisabled={reqStep === 4 && !hasTelegramInit}
             onNextStep={handleNextStep}
+            onBackStep={goBack}
             onHome={() => { setReqStep(1); setView('HOME'); }}
         />
     );
