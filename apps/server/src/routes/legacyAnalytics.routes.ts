@@ -33,6 +33,12 @@ const buildDateFilter = (from?: Date, to?: Date) => {
     return range;
 };
 
+const isMissingTableError = (error: any, tableName: string) => {
+    return error?.code === 'P2021'
+        && typeof error?.meta?.table === 'string'
+        && String(error.meta.table).includes(tableName);
+};
+
 router.get('/events', requireRole(['ADMIN', 'MANAGER']), async (req, res) => {
     try {
         const companyId = (req as any).user?.companyId;
@@ -134,6 +140,48 @@ router.get('/metrics/dashboard', requireRole(['OWNER', 'ADMIN', 'MANAGER', 'OPER
             prisma.campaign.count({ where: campaignWhere })
         ]);
 
+        let orchestrationStats = {
+            skillPacksFresh: 0,
+            reviewQueuePending: 0,
+            importsAwaitingReview: 0
+        };
+        try {
+            orchestrationStats = {
+                skillPacksFresh: await prisma.automationSkillPack.count({
+                    where: {
+                        companyId,
+                        freshnessState: 'FRESH'
+                    }
+                }),
+                reviewQueuePending: await prisma.automationReviewQueue.count({
+                    where: {
+                        companyId,
+                        status: 'PENDING'
+                    }
+                }),
+                importsAwaitingReview: await prisma.importBatch.count({
+                    where: {
+                        companyId,
+                        status: 'REVIEW_REQUIRED'
+                    }
+                })
+            };
+        } catch (e: any) {
+            if (
+                isMissingTableError(e, 'AutomationSkillPack')
+                || isMissingTableError(e, 'AutomationReviewQueue')
+                || isMissingTableError(e, 'ImportBatch')
+            ) {
+                orchestrationStats = {
+                    skillPacksFresh: 0,
+                    reviewQueuePending: 0,
+                    importsAwaitingReview: 0
+                };
+            } else {
+                throw e;
+            }
+        }
+
         const requests = await prisma.b2bRequest.findMany({
             where: requestWhere,
             select: {
@@ -219,7 +267,10 @@ router.get('/metrics/dashboard', requireRole(['OWNER', 'ADMIN', 'MANAGER', 'OPER
                 campaignsActive,
                 leadsToday,
                 draftsScheduled,
-                draftsPosted: draftsPostedToday
+                draftsPosted: draftsPostedToday,
+                skillPacksFresh: orchestrationStats.skillPacksFresh,
+                reviewQueuePending: orchestrationStats.reviewQueuePending,
+                importsAwaitingReview: orchestrationStats.importsAwaitingReview
             },
             funnel: {
                 incoming: messagesCount,

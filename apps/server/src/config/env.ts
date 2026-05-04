@@ -26,7 +26,7 @@ const envSchema = z.object({
     FF_B2B_WHITELIST_ENFORCED: z.string().optional(),
     FF_B2B_FIT_QUEUE_V2: z.string().optional(),
     FF_MINIAPP_B2B_CABINET: z.string().optional(),
-    TELEGRAM_INITDATA_MAX_AGE_SECONDS: intWithDefault(900),
+    TELEGRAM_INITDATA_MAX_AGE_SECONDS: intWithDefault(43200),
     BOT_A_DAILY_LEAD_LIMIT: intWithDefault(5, 1),
     BOT_STEP_RATE_LIMIT_PER_MIN: intWithDefault(30, 1),
     BOT_MEDIA_MAX_PHOTO_BYTES: intWithDefault(10485760, 1024)

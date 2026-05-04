@@ -1,6 +1,6 @@
 import { prisma } from './prisma.js';
 
-export type QuotaPeriod = 'minute' | 'day' | 'month';
+export type QuotaPeriod = 'second' | 'minute' | 'day' | 'month';
 
 export type QuotaConsumeParams = {
   companyId?: string | null;
@@ -28,8 +28,10 @@ const buildPeriodKey = (date: Date, period: QuotaPeriod) => {
   const d = pad2(date.getUTCDate());
   const h = pad2(date.getUTCHours());
   const min = pad2(date.getUTCMinutes());
+  const sec = pad2(date.getUTCSeconds());
 
   if (period === 'month') return `${y}-${m}`;
+  if (period === 'second') return `${y}-${m}-${d}-${h}:${min}:${sec}`;
   if (period === 'minute') return `${y}-${m}-${d}-${h}:${min}`;
   return `${y}-${m}-${d}`;
 };
