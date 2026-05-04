@@ -1,6 +1,9 @@
 import React from 'react';
 import { ArrowRight, CheckCircle, Search, ChevronLeft } from 'lucide-react';
 
+const miniAppSafeLower = (value: unknown): string => String(value ?? '').toLowerCase();
+
+
 type MiniAppSurfaceMode = 'LEAD' | 'B2B';
 
 type RequestViewProps = {
@@ -129,8 +132,8 @@ export const RequestView = ({
   };
 
   const filteredBrands = popularBrands.filter(brand =>
-    brand.name.toLowerCase().includes(reqData.brandSearch.toLowerCase()) ||
-    brand.name_uk.toLowerCase().includes(reqData.brandSearch.toLowerCase())
+    brand.name.toLowerCase().includes(miniAppSafeLower(reqData.brandSearch ?? reqData.brand ?? reqData.make ?? reqData.title ?? reqData.model ?? '')) ||
+    brand.name_uk.toLowerCase().includes(miniAppSafeLower(reqData.brandSearch ?? reqData.brand ?? reqData.make ?? reqData.title ?? reqData.model ?? ''))
   );
 
   return (
