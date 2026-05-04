@@ -229,6 +229,8 @@ const MiniAppContent = () => {
     const [initError, setInitError] = useState<string | null>(null);
     const [configWarning, setConfigWarning] = useState<string | null>(null);
     const [isConfigLoading, setIsConfigLoading] = useState(true);
+    const [initialView, setInitialView] = useState<MiniAppView>('HOME');
+    const [initialCarId, setInitialCarId] = useState<string | undefined>();
     const [visitorId] = useState(() => {
         try {
             const existing = localStorage.getItem('miniapp_visitor_id');
@@ -564,10 +566,39 @@ const MiniAppContent = () => {
                 buildSha: buildVersion
             });
 
-            // 2. Determine Target Slug (priority: URL slug > start_param > system)
+            // 2. Determine Target Slug and View from start_param
             const rawSlug = slug || startParam || 'system';
             const resolvedSlug = normalizeSlug(rawSlug) || 'system';
-            emitMiniAppEvent('info', 'Resolved target slug', { resolvedSlug, rawSlug });
+
+            // Parse start_param for view navigation
+            let initialView: MiniAppView = 'HOME';
+            let initialCarId: string | undefined;
+
+            if (startParam) {
+                const param = startParam.toLowerCase().trim();
+                if (param === 'view_inventory' || param === 'inventory') {
+                    initialView = 'INVENTORY';
+                } else if (param === 'view_transit' || param === 'transit') {
+                    initialView = 'INVENTORY';
+                    setTab('IN_TRANSIT');
+                } else if (param === 'view_request' || param === 'request') {
+                    initialView = 'REQUEST';
+                } else if (param === 'view_favorites' || param === 'favorites') {
+                    initialView = 'FAVORITES';
+                } else if (param === 'view_status' || param === 'status') {
+                    initialView = 'STATUS';
+                } else if (param === 'sell_car' || param === 'sell') {
+                    initialView = 'REQUEST';
+                    setReqData(prev => ({ ...prev, brand: '', budgetMin: '', budgetMax: '', yearMin: '', yearMax: '', city: '', brandSearch: '' }));
+                } else if (param.startsWith('car_')) {
+                    // Format: car_<carId>
+                    const carId = param.replace(/^car_/, '');
+                    initialView = 'LISTING';
+                    initialCarId = carId;
+                }
+            }
+
+            emitMiniAppEvent('info', 'Resolved target slug and view', { resolvedSlug, rawSlug, initialView, initialCarId });
 
             // 3. Load Mini App Configuration
             try {
@@ -613,6 +644,30 @@ const MiniAppContent = () => {
                     tgUserId: resolvedUser?.id ? String(resolvedUser.id) : undefined,
                     visitorId
                 });
+
+                // Apply initial view from start_param
+                if (initialView !== 'HOME') {
+                    setView(initialView);
+                    viewHistoryRef.current = [initialView];
+                }
+
+                // Load specific car if requested
+                if (initialCarId && initialView === 'LISTING') {
+                    const targetCar = cars.find(car => getCarId(car) === initialCarId);
+                    if (targetCar) {
+                        setSelectedCar(targetCar);
+                    } else {
+                        // Try to fetch the specific car
+                        try {
+                            const carRes = await import('../../services/publicApi').then(m => m.getPublicCar(initialCarId, conf.publicSlug));
+                            if (carRes) {
+                                setSelectedCar(carRes);
+                            }
+                        } catch {
+                            // Ignore if car not found
+                        }
+                    }
+                }
 
             } catch (e) {
                 emitMiniAppEvent('error', 'MiniApp init failed', { error: e instanceof Error ? e.message : String(e) });
