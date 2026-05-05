@@ -9,6 +9,7 @@ import { telegramOutbox } from '../telegram/messaging/outbox/telegramOutbox.js';
 import { BotRepository } from '../../../repositories/index.js';
 import { logger } from '../../../utils/logger.js';
 import { buildMiniAppUrl } from '../telegram/core/utils/miniappUrl.js';
+import { DEFAULT_CLIENT_LEAD_MENU_BUTTONS, getPrimaryMenuButton, mapBotActionToMiniAppUrl } from '../telegram/core/utils/botMenuMapper.js';
 
 
 
@@ -148,13 +149,14 @@ class BotInstance {
     }
 
     private async syncChatMenuButton() {
-        const miniAppUrl = buildMiniAppUrl(this.config as any, { entry: 'inventory', status: 'AVAILABLE' });
+        const primaryButton = getPrimaryMenuButton(DEFAULT_CLIENT_LEAD_MENU_BUTTONS);
+        const miniAppUrl = mapBotActionToMiniAppUrl(this.config as any, primaryButton.action);
         if (!miniAppUrl) return;
-        const menuText = String((this.config.config as any)?.menuButtonText || 'Каталог авто').trim() || 'Каталог авто';
+        const menuText = primaryButton.label.slice(0, 64);
         await axios.post(`https://api.telegram.org/bot${this.config.token}/setChatMenuButton`, {
             menu_button: {
                 type: 'web_app',
-                text: menuText.slice(0, 64),
+                text: menuText,
                 web_app: { url: miniAppUrl }
             }
         });

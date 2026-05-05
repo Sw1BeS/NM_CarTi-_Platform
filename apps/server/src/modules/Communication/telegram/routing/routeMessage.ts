@@ -23,6 +23,7 @@ import { logger } from '../../../../utils/logger.js';
 import { buildTelegramChannelPostUrl, normalizeBotConfigChatId } from '../core/utils/telegramChatId.js';
 import { buildTelegramPhotoMedia, collectCarMediaSources } from '../core/utils/carMedia.js';
 import { resolveReplyMarkupForChat } from '../core/utils/telegramReplyMarkup.js';
+import { DEFAULT_CLIENT_LEAD_MENU_BUTTONS, buildMenuButtonKeyboard } from '../core/utils/botMenuMapper.js';
 import { b2bRoutingService } from '../../../../services/b2bRouting.service.js';
 import { startLeadBuyWizard, handleLeadBuyText } from './wizards/leadBuyWizard.js';
 import { startLeadSellWizard, handleLeadSellText } from './wizards/leadSellWizard.js';
@@ -233,23 +234,7 @@ export const showMenu = async (ctx: PipelineContext, lang: Lang, template: strin
       return;
     }
 
-    const pickUrl = buildMiniAppUrl(ctx.bot, { entry: 'request' });
-    const stockUrl = buildMiniAppUrl(ctx.bot, { entry: 'inventory', status: 'AVAILABLE' });
-    const transitUrl = buildMiniAppUrl(ctx.bot, { entry: 'inventory', status: 'PENDING' });
-    const leadKeyboard = pickUrl && stockUrl && transitUrl
-      ? [
-        [{ text: button(lang, 'leadMenu.buy'), web_app: { url: pickUrl } }],
-        [
-          { text: button(lang, 'leadMenu.stock'), web_app: { url: stockUrl } },
-          { text: button(lang, 'leadMenu.transit'), web_app: { url: transitUrl } }
-        ],
-        [{ text: button(lang, 'leadMenu.sell') }, { text: button(lang, 'leadMenu.support') }]
-      ]
-      : [
-        [{ text: button(lang, 'leadMenu.buy') }],
-        [{ text: button(lang, 'leadMenu.stock') }, { text: button(lang, 'leadMenu.transit') }],
-        [{ text: button(lang, 'leadMenu.sell') }, { text: button(lang, 'leadMenu.support') }]
-      ];
+    const leadKeyboard = buildMenuButtonKeyboard(ctx.bot, DEFAULT_CLIENT_LEAD_MENU_BUTTONS);
 
     await sendMessage(ctx, t(lang, 'common.welcome_lead', { bot: botName }), {
       keyboard: leadKeyboard,

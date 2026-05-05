@@ -100,7 +100,7 @@ type TelegramBootstrapContext = {
 };
 
 type MiniAppSurfaceMode = 'LEAD' | 'B2B';
-type MiniAppView = 'HOME' | 'INVENTORY' | 'LISTING' | 'FAVORITES' | 'REQUEST' | 'STATUS' | 'PROFILE';
+type MiniAppView = 'HOME' | 'INVENTORY' | 'LISTING' | 'FAVORITES' | 'REQUEST' | 'STATUS' | 'PROFILE' | 'SUPPORT' | 'ABOUT';
 
 const resolveMiniAppWriteError = (error: unknown, fallback = 'Не вдалося виконати дію.') => {
     const message = error instanceof Error ? String(error.message || '').trim() : '';
@@ -590,6 +590,10 @@ const MiniAppContent = () => {
                 } else if (param === 'sell_car' || param === 'sell') {
                     initialView = 'REQUEST';
                     setReqData(prev => ({ ...prev, brand: '', budgetMin: '', budgetMax: '', yearMin: '', yearMax: '', city: '', brandSearch: '' }));
+                } else if (param === 'support') {
+                    initialView = 'SUPPORT';
+                } else if (param === 'about') {
+                    initialView = 'ABOUT';
                 } else if (param.startsWith('car_')) {
                     // Format: car_<carId>
                     const carId = param.replace(/^car_/, '');
@@ -1411,6 +1415,54 @@ const MiniAppContent = () => {
         />
     );
 
+    const renderSupport = () => (
+        <div className="p-4">
+            <h2 className="text-xl font-bold mb-4" style={{ color: primaryColor }}>Підтримка</h2>
+            <div className="bg-[#1e1e24] rounded-xl p-4 mb-4">
+                <p className="text-white/80 mb-4">
+                    Потрібна допомога? Зв'яжіться з нами через Telegram:
+                </p>
+                <a
+                    href="https://t.me/cartie_support"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-block px-4 py-2 rounded-lg font-bold text-white text-sm"
+                    style={{ backgroundColor: primaryColor }}
+                >
+                    Написати в підтримку
+                </a>
+            </div>
+            <div className="bg-[#1e1e24] rounded-xl p-4">
+                <p className="text-white/60 text-sm">
+                    Ми відповідаємо протягом робочого дня (9:00-18:00, Пн-Пт).
+                </p>
+            </div>
+        </div>
+    );
+
+    const renderAbout = () => (
+        <div className="p-4">
+            <h2 className="text-xl font-bold mb-4" style={{ color: primaryColor }}>Про CarTié</h2>
+            <div className="bg-[#1e1e24] rounded-xl p-4 mb-4">
+                <p className="text-white/80 mb-4">
+                    CarTié — це сервіс з підбору та продажу автомобілів з Європи.
+                </p>
+                <p className="text-white/80 mb-4">
+                    Ми допомагаємо знайти ідеальний автомобіль за вашими критеріями та забезпечуємо повний супровід від вибору до доставки.
+                </p>
+            </div>
+            <div className="bg-[#1e1e24] rounded-xl p-4">
+                <h3 className="text-white font-bold mb-2">Наші послуги:</h3>
+                <ul className="text-white/80 text-sm space-y-2">
+                    <li>• Підбір авто за вашими критеріями</li>
+                    <li>• Перевірка історії та технічного стану</li>
+                    <li>• Допомога з оформленням документів</li>
+                    <li>• Логістика та доставка</li>
+                </ul>
+            </div>
+        </div>
+    );
+
     const renderSelectionBar = () => {
         if (!selectedRequestCarIds.length) return null;
         if (view === 'REQUEST' || view === 'STATUS') return null;
@@ -1504,6 +1556,8 @@ const MiniAppContent = () => {
                 {view === 'REQUEST' && renderRequest()}
                 {view === 'STATUS' && renderStatus()}
                 {view === 'PROFILE' && renderProfile()}
+                {view === 'SUPPORT' && renderSupport()}
+                {view === 'ABOUT' && renderAbout()}
                 {renderSelectionBar()}
 
                 {lightboxCar && (

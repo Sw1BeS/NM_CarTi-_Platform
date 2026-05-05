@@ -11,6 +11,7 @@ import { logger } from '../utils/logger.js';
 import { errorResponse } from '../utils/errorResponse.js';
 import { normalizeBotConfigChatId } from '../modules/Communication/telegram/core/utils/telegramChatId.js';
 import { buildMiniAppUrl } from '../modules/Communication/telegram/core/utils/miniappUrl.js';
+import { DEFAULT_CLIENT_LEAD_MENU_BUTTONS, getPrimaryMenuButton, mapBotActionToMiniAppUrl } from '../modules/Communication/telegram/core/utils/botMenuMapper.js';
 
 const router = Router();
 const resolveCompanyId = async (requestedCompanyId?: string | null, userCompanyId?: string | null) => {
@@ -21,13 +22,14 @@ const resolveCompanyId = async (requestedCompanyId?: string | null, userCompanyI
 
 const syncMenuButton = async (bot: any) => {
     if (!bot?.token) return;
-    const miniAppUrl = buildMiniAppUrl(bot, { entry: 'inventory', status: 'AVAILABLE' });
+    const primaryButton = getPrimaryMenuButton(DEFAULT_CLIENT_LEAD_MENU_BUTTONS);
+    const miniAppUrl = mapBotActionToMiniAppUrl(bot, primaryButton.action);
     if (!miniAppUrl) return;
-    const menuText = String((bot?.config as any)?.menuButtonText || 'Каталог авто').trim() || 'Каталог авто';
+    const menuText = primaryButton.label.slice(0, 64);
     await callTelegram(bot.token, 'setChatMenuButton', {
         menu_button: {
             type: 'web_app',
-            text: menuText.slice(0, 64),
+            text: menuText,
             web_app: { url: miniAppUrl }
         }
     });
