@@ -143,7 +143,17 @@ const appendMiniAppQuery = (rawUrl: string, params: Record<string, string>) => {
   }
 };
 
-const LEAD_BUTTON_IDS = new Set(['btn_buy', 'btn_sell', 'btn_support', 'btn_info', 'btn_app']);
+const LEAD_BUTTON_IDS = new Set([
+  'btn_buy',
+  'btn_pick',
+  'btn_sell',
+  'btn_stock',
+  'btn_transit',
+  'btn_favorites',
+  'btn_support',
+  'btn_info',
+  'btn_app'
+]);
 const B2B_BUTTON_IDS = new Set([
   'btn_b2b_req',
   'btn_b2b_offer',
@@ -206,9 +216,11 @@ const shouldReplaceB2BWelcome = (value?: string | null) => {
 };
 
 const mergePresetButtons = (existingButtons: MenuButton[] | undefined, requiredButtons: MenuButton[]) => {
+  const allowedTypes = new Set(['SCENARIO', 'LINK', 'TEXT', 'WEB_APP']);
   const existing = Array.isArray(existingButtons)
     ? existingButtons
       .filter((btn): btn is MenuButton => Boolean(btn && typeof btn === 'object'))
+      .filter((btn) => allowedTypes.has(String(btn.type || '').toUpperCase()))
       .map((btn, idx) => ({ ...btn, id: btn.id || `custom_${idx}` }))
     : [];
 
@@ -295,12 +307,12 @@ const buildB2BMiniAppConfig = (url: string, showcaseSlug: string): MiniAppConfig
 });
 
 const baseLeadButtons = (scenarioIds: Record<string, string>, miniAppUrl: string): MenuButton[] => [
-  { id: 'btn_pick', label: '⏱ Підібрати авто за 1 хвилину', label_uk: '⏱ Підібрати авто за 1 хвилину', label_ru: '⏱ Підібрати авто за 1 хвилину', type: 'WEB_APP', value: appendMiniAppQuery(miniAppUrl, { entry: 'request' }), row: 0, col: 0 },
+  { id: 'btn_pick', label: '⏱ Підібрати авто за 1 хвилину', label_uk: '⏱ Підібрати авто за 1 хвилину', label_ru: '⏱ Підібрати авто за 1 хвилину', type: 'WEB_APP', value: appendMiniAppQuery(miniAppUrl, { entry: 'request', type: 'BUY' }), row: 0, col: 0 },
+  { id: 'btn_sell', label: '💰 Продати своє авто', label_uk: '💰 Продати своє авто', label_ru: '💰 Продати своє авто', type: 'WEB_APP', value: appendMiniAppQuery(miniAppUrl, { entry: 'request', type: 'SELL' }), row: 0, col: 1 },
   { id: 'btn_stock', label: '🚘 Авто в наявності', label_uk: '🚘 Авто в наявності', label_ru: '🚘 Авто в наявності', type: 'WEB_APP', value: appendMiniAppQuery(miniAppUrl, { entry: 'inventory', status: 'AVAILABLE' }), row: 1, col: 0 },
   { id: 'btn_transit', label: '🚚 Авто в дорозі', label_uk: '🚚 Авто в дорозі', label_ru: '🚚 Авто в дорозі', type: 'WEB_APP', value: appendMiniAppQuery(miniAppUrl, { entry: 'inventory', status: 'PENDING' }), row: 1, col: 1 },
-  { id: 'btn_sell', label: '💰 Продати своє авто', label_uk: '💰 Продати своє авто', label_ru: '💰 Продати своє авто', type: 'SCENARIO', value: scenarioIds.sell || 'scn_sell', row: 2, col: 0 },
-  { id: 'btn_support', label: '🆘 Підтримка', label_uk: '🆘 Підтримка', label_ru: '🆘 Підтримка', type: 'SCENARIO', value: scenarioIds.support || 'scn_support', row: 2, col: 1 },
-  { id: 'btn_social', label: '📱 Соцмережі', label_uk: '📱 Соцмережі', label_ru: '📱 Соцмережі', type: 'TEXT', value: 'social_links', row: 3, col: 0 }
+  { id: 'btn_favorites', label: '⭐ Обране', label_uk: '⭐ Обране', label_ru: '⭐ Избранное', type: 'WEB_APP', value: appendMiniAppQuery(miniAppUrl, { entry: 'favorites' }), row: 2, col: 0 },
+  { id: 'btn_support', label: '🆘 Підтримка', label_uk: '🆘 Підтримка', label_ru: '🆘 Підтримка', type: 'WEB_APP', value: appendMiniAppQuery(miniAppUrl, { entry: 'support' }), row: 2, col: 1 }
 ];
 
 const baseB2BButtons = (scenarioIds: Record<string, string>, _miniAppUrl: string): MenuButton[] => [
@@ -314,9 +326,29 @@ const baseB2BButtons = (scenarioIds: Record<string, string>, _miniAppUrl: string
 const maybePatchMenuLinks = (buttons: MenuButton[] | undefined, miniAppUrl: string): MenuButton[] => {
   const list = Array.isArray(buttons) ? buttons : [];
   return list.map(btn => {
-    if ((btn.type === 'WEB_APP' || btn.type === 'LINK') && (!btn.value || btn.value === '{{MINI_APP_URL}}' || /\/p\/app\//.test(btn.value))) {
+    if (btn.type !== 'WEB_APP' && btn.type !== 'LINK') {
+      return btn;
+    }
+
+    const rawValue = String(btn.value || '').trim();
+    if (!rawValue || rawValue === '{{MINI_APP_URL}}') {
       return { ...btn, value: miniAppUrl };
     }
+
+    if (/\/p\/app\//.test(rawValue)) {
+      try {
+        const source = new URL(rawValue);
+        const next = new URL(miniAppUrl);
+        source.searchParams.forEach((value, key) => {
+          if (key === 'v' && next.searchParams.has('v')) return;
+          next.searchParams.set(key, value);
+        });
+        return { ...btn, value: next.toString() };
+      } catch {
+        return { ...btn, value: miniAppUrl };
+      }
+    }
+
     return btn;
   });
 };
@@ -862,8 +894,9 @@ export const getTemplatePresetStatus = async (input: {
     });
     const commandSet = new Set(available.map(s => s.triggerCommand || '').filter(Boolean));
     const hasScenarios = Array.from(required).every(cmd => commandSet.has(cmd));
-    const scenarioButtons = menuButtons.filter(btn => btn.type === 'SCENARIO');
-    const hasMenu = scenarioButtons.length >= 4;
+    const requiredButtonIds = ['btn_pick', 'btn_sell', 'btn_stock', 'btn_transit', 'btn_favorites', 'btn_support'];
+    const buttonIds = new Set(menuButtons.map(btn => String(btn.id || '').trim()));
+    const hasMenu = requiredButtonIds.every(id => buttonIds.has(id));
     const score = [hasScenarios, hasMenu, hasMini].filter(Boolean).length;
     if (score === 3) return 'ready';
     if (score === 0) return 'missing';

@@ -2,6 +2,8 @@ import { PrismaClient, Showcase, CarListing } from '@prisma/client';
 import { prisma } from '../../../services/prisma.js';
 import { CarRepository } from '../../../repositories/car.repository.js';
 
+const MINIAPP_PUBLIC_STATUSES = new Set(['AVAILABLE', 'PENDING', 'RESERVED', 'SOLD']);
+
 interface ShowcaseRules {
     mode: 'FILTER' | 'MANUAL' | 'HYBRID';
     partnerCompanyId?: string;
@@ -89,12 +91,48 @@ export class ShowcaseService {
         maxPrice?: number;
         minYear?: number;
         maxYear?: number;
+        status?: string;
     } = {}): Promise<{ showcase: Showcase; items: CarListing[]; total: number }> {
-        const showcase = await this.getShowcaseBySlug(slug);
-        if (!showcase) throw new Error('Showcase not found');
+        let showcase = await this.getShowcaseBySlug(slug);
+        if (!showcase) {
+            const bot = await prisma.botConfig.findFirst({
+                where: {
+                    isEnabled: true,
+                    OR: [
+                        { config: { path: ['defaultShowcaseSlug'], equals: slug } },
+                        { config: { path: ['miniAppConfig', 'showcaseSlug'], equals: slug } },
+                        { config: { path: ['botUsername'], equals: slug } },
+                        { config: { path: ['username'], equals: slug } }
+                    ]
+                },
+                orderBy: { createdAt: 'asc' }
+            });
+
+            if (!bot?.companyId) throw new Error('Showcase not found');
+
+            const now = new Date();
+            showcase = {
+                id: `bot:${bot.id}`,
+                workspaceId: bot.companyId,
+                name: bot.name || slug,
+                slug,
+                isPublic: true,
+                botId: bot.id,
+                rules: {
+                    mode: 'FILTER',
+                    filters: {
+                        status: ['AVAILABLE']
+                    }
+                } as any,
+                createdAt: now,
+                updatedAt: now
+            } as Showcase;
+        }
 
         const rules = showcase.rules as unknown as ShowcaseRules;
         const mode = rules.mode || 'FILTER';
+        const requestedStatus = String(options.status || '').trim().toUpperCase();
+        const runtimeStatus = MINIAPP_PUBLIC_STATUSES.has(requestedStatus) ? requestedStatus : '';
 
         let items: CarListing[] = [];
         let total = 0;
@@ -166,6 +204,10 @@ export class ShowcaseService {
             if (yearRange) where.year = yearRange;
         }
 
+        if (runtimeStatus) {
+            where.status = runtimeStatus;
+        }
+
         // --- Execution ---
 
         // Handle Hybrid Includes separate from main query?
@@ -194,6 +236,7 @@ export class ShowcaseService {
             // Apply ranges?
             if (where.price) explicitWhere.price = where.price;
             if (where.year) explicitWhere.year = where.year;
+            if (runtimeStatus) explicitWhere.status = runtimeStatus;
 
             explicitItems = await prisma.carListing.findMany({ where: explicitWhere });
         }

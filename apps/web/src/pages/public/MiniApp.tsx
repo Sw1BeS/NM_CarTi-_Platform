@@ -2,8 +2,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Bot, MiniAppConfig, CarListing } from '../../types';
-import { getPublicBots, getShowcaseInventory } from '../../services/publicApi';
-import { createMiniAppRequest, getMiniAppConfig, getMiniAppFavorites, getMiniAppRequestStatus, toggleMiniAppFavorite, type MiniAppTrackingMeta } from '../../services/miniappApi';
+import { getPublicInventory } from '../../services/publicApi';
+import { createMiniAppRequest, getMiniAppConfig, getMiniAppFavorites, getMiniAppRequestStatus, getMiniAppShowcaseInventory, toggleMiniAppFavorite, type MiniAppTrackingMeta } from '../../services/miniappApi';
 import {
     Search, LayoutGrid, User, Plus, Filter, DollarSign,
     MessageSquare, Zap, List as ListIcon, Star, Phone, Home, Heart, ClipboardList,
@@ -100,7 +100,70 @@ type TelegramBootstrapContext = {
 };
 
 type MiniAppSurfaceMode = 'LEAD' | 'B2B';
-type MiniAppView = 'HOME' | 'INVENTORY' | 'LISTING' | 'FAVORITES' | 'REQUEST' | 'STATUS' | 'PROFILE';
+type MiniAppView = 'HOME' | 'INVENTORY' | 'LISTING' | 'FAVORITES' | 'REQUEST' | 'STATUS' | 'PROFILE' | 'SUPPORT';
+type RequestType = 'BUY' | 'SELL';
+
+type MiniAppEntryIntent = {
+    view?: MiniAppView;
+    tab?: InventoryTab;
+    requestType?: RequestType;
+    consumedStartParam?: boolean;
+};
+
+const parseEntryIntent = (params: URLSearchParams, startParam?: string): MiniAppEntryIntent => {
+    const entry = String(params.get('entry') || '').trim().toLowerCase();
+    const status = String(params.get('status') || '').trim().toUpperCase();
+    const type = String(params.get('type') || params.get('requestType') || '').trim().toUpperCase();
+    const start = String(startParam || '').trim().toLowerCase();
+    const intent: MiniAppEntryIntent = {};
+
+    const applyEntry = (value: string) => {
+        if (value === 'home') intent.view = 'HOME';
+        if (value === 'inventory' || value === 'catalog' || value === 'stock') intent.view = 'INVENTORY';
+        if (value === 'favorites' || value === 'favourites' || value === 'favorite') intent.view = 'FAVORITES';
+        if (value === 'request' || value === 'buy') intent.view = 'REQUEST';
+        if (value === 'support') intent.view = 'SUPPORT';
+        if (value === 'status') intent.view = 'STATUS';
+        if (value === 'profile') intent.view = 'PROFILE';
+    };
+
+    if (entry) applyEntry(entry);
+    if (status === 'PENDING' || status === 'IN_TRANSIT') {
+        intent.view = 'INVENTORY';
+        intent.tab = 'IN_TRANSIT';
+    } else if (status === 'AVAILABLE') {
+        intent.view = 'INVENTORY';
+        intent.tab = 'IN_STOCK';
+    }
+    if (type === 'SELL') {
+        intent.view = 'REQUEST';
+        intent.requestType = 'SELL';
+    } else if (type === 'BUY') {
+        intent.requestType = 'BUY';
+    }
+
+    if (!entry && start) {
+        const aliases: Record<string, MiniAppEntryIntent> = {
+            view_inventory: { view: 'INVENTORY', tab: 'IN_STOCK' },
+            view_stock: { view: 'INVENTORY', tab: 'IN_STOCK' },
+            view_transit: { view: 'INVENTORY', tab: 'IN_TRANSIT' },
+            view_request: { view: 'REQUEST', requestType: 'BUY' },
+            view_favorites: { view: 'FAVORITES' },
+            view_status: { view: 'STATUS' },
+            sell_car: { view: 'REQUEST', requestType: 'SELL' },
+            support: { view: 'SUPPORT' },
+            about: { view: 'SUPPORT' }
+        };
+        const alias = aliases[start];
+        if (alias) {
+            Object.assign(intent, alias, { consumedStartParam: true });
+        } else if (start.startsWith('car_')) {
+            Object.assign(intent, { view: 'INVENTORY', consumedStartParam: true });
+        }
+    }
+
+    return intent;
+};
 
 const resolveMiniAppWriteError = (error: unknown, fallback = 'Не вдалося виконати дію.') => {
     const message = error instanceof Error ? String(error.message || '').trim() : '';
@@ -269,6 +332,8 @@ const MiniAppContent = () => {
     const [reqFuel, setReqFuel] = useState('');
     const [reqCompany, setReqCompany] = useState('');
     const [reqPhone, setReqPhone] = useState('');
+    const [requestType, setRequestType] = useState<RequestType>('BUY');
+    const [isRequestSubmitting, setIsRequestSubmitting] = useState(false);
     const [statusQuery, setStatusQuery] = useState({ publicId: '', phone: '' });
     const [statusResult, setStatusResult] = useState<any>(null);
     const [trackingMeta, setTrackingMeta] = useState<MiniAppTrackingMeta>({});
@@ -277,6 +342,7 @@ const MiniAppContent = () => {
     const hasTelegramInit = Boolean(initData);
     const viewHistoryRef = useRef<MiniAppView[]>(['HOME']);
     const suppressHistoryPushRef = useRef(false);
+    const requestSubmitIdRef = useRef<string | null>(null);
 
     const goBack = useCallback(() => {
         if (lightboxCar) {
@@ -328,6 +394,12 @@ const MiniAppContent = () => {
     };
 
     const clearRequestSelection = () => setSelectedRequestCarIds([]);
+
+    const openRequest = (type: RequestType = 'BUY') => {
+        setRequestType(type);
+        setReqStep(1);
+        setView('REQUEST');
+    };
 
     const selectedRequestCars = React.useMemo(() => {
         if (!selectedRequestCarIds.length) return [] as CarListing[];
@@ -386,8 +458,12 @@ const MiniAppContent = () => {
         const specs = getCarSpecs(car);
         setReqData({
             brand: car.title || '',
-            budget: String(car.price?.amount || ''),
-            year: String(car.year || '')
+            budgetMin: '',
+            budgetMax: String(car.price?.amount || ''),
+            yearMin: String(car.year || ''),
+            yearMax: '',
+            city: '',
+            brandSearch: ''
         });
         setReqMileage(String(toNumberSafe(car.mileage) || ''));
         setReqFuel(specs.fuel || '');
@@ -395,8 +471,7 @@ const MiniAppContent = () => {
         if (carId) {
             setSelectedRequestCarIds([carId]);
         }
-        setReqStep(1);
-        setView('REQUEST');
+        openRequest('BUY');
     };
 
     const openRequestForSelectedCars = () => {
@@ -405,12 +480,15 @@ const MiniAppContent = () => {
             const first = selectedRequestCars[0];
             setReqData({
                 brand: first.title || '',
-                budget: String(first.price?.amount || ''),
-                year: String(first.year || '')
+                budgetMin: '',
+                budgetMax: String(first.price?.amount || ''),
+                yearMin: String(first.year || ''),
+                yearMax: '',
+                city: '',
+                brandSearch: ''
             });
         }
-        setReqStep(1);
-        setView('REQUEST');
+        openRequest('BUY');
     };
 
     const buildFallbackConfig = (target: string, mode: MiniAppSurfaceMode = 'LEAD'): MiniAppConfig => {
@@ -462,6 +540,16 @@ const MiniAppContent = () => {
         };
     };
 
+    const applyEntryIntent = (intent: MiniAppEntryIntent) => {
+        if (intent.tab) setTab(intent.tab);
+        if (intent.requestType) setRequestType(intent.requestType);
+        if (intent.view) {
+            if (intent.view === 'REQUEST') setReqStep(1);
+            suppressHistoryPushRef.current = true;
+            setView(intent.view);
+        }
+    };
+
     const meta = import.meta as { env?: { VITE_BUILD_ID?: string; MODE?: string } };
     const buildVersion = meta.env?.VITE_BUILD_ID || meta.env?.MODE || 'dev';
 
@@ -511,6 +599,7 @@ const MiniAppContent = () => {
             }
 
             const urlParams = new URLSearchParams(window.location.search);
+            const entryIntent = parseEntryIntent(urlParams, startParam);
             const utm = {
                 source: urlParams.get('utm_source') || undefined,
                 medium: urlParams.get('utm_medium') || undefined,
@@ -529,8 +618,8 @@ const MiniAppContent = () => {
                 buildSha: buildVersion
             });
 
-            // 2. Determine Target Slug (priority: URL slug > start_param > system)
-            const rawSlug = slug || startParam || 'system';
+            // 2. Determine Target Slug (priority: URL slug > non-entry start_param > system)
+            const rawSlug = slug || (entryIntent.consumedStartParam ? '' : startParam) || 'system';
             const resolvedSlug = normalizeSlug(rawSlug) || 'system';
             emitMiniAppEvent('info', 'Resolved target slug', { resolvedSlug, rawSlug });
 
@@ -578,6 +667,7 @@ const MiniAppContent = () => {
                     tgUserId: resolvedUser?.id ? String(resolvedUser.id) : undefined,
                     visitorId
                 });
+                applyEntryIntent(entryIntent);
 
             } catch (e) {
                 emitMiniAppEvent('error', 'MiniApp init failed', { error: e instanceof Error ? e.message : String(e) });
@@ -630,13 +720,23 @@ const MiniAppContent = () => {
     const handleAction = (act: MiniAppConfig['actions'][number]) => {
         const tg = (window as any).Telegram?.WebApp;
         if (act.actionType === 'VIEW') {
-            if (act.value === 'HOME') setView('HOME');
-            if (act.value === 'INVENTORY') setView('INVENTORY');
-            if (act.value === 'REQUEST') setView('REQUEST');
-            if (act.value === 'FAVORITES') setView('FAVORITES');
-            if (act.value === 'STATUS') setView('STATUS');
-            if (act.value === 'PROFILE') setView('PROFILE');
+            const value = String(act.value || '').trim().toUpperCase();
+            if (value === 'HOME') setView('HOME');
+            if (value === 'INVENTORY') setView('INVENTORY');
+            if (value === 'INVENTORY_STOCK') { setTab('IN_STOCK'); setView('INVENTORY'); }
+            if (value === 'INVENTORY_TRANSIT') { setTab('IN_TRANSIT'); setView('INVENTORY'); }
+            if (value === 'REQUEST') openRequest('BUY');
+            if (value === 'SELL') openRequest('SELL');
+            if (value === 'FAVORITES') setView('FAVORITES');
+            if (value === 'SUPPORT') setView('SUPPORT');
+            if (value === 'STATUS') setView('STATUS');
+            if (value === 'PROFILE') setView('PROFILE');
         } else if (act.actionType === 'LINK') {
+            if (!act.value) {
+                emitMiniAppEvent('warn', 'Ignored empty MiniApp link action', { actionId: act.id });
+                setConfigWarning('Посилання для цієї дії не налаштовано.');
+                return;
+            }
             if (tg && tg.openLink) {
                 tg.openLink(act.value);
             } else {
@@ -701,18 +801,19 @@ const MiniAppContent = () => {
 
                 const apiFilters = {
                     search,
-                    minYear: filters.minYear,
-                    maxYear: filters.maxYear,
-                    minPrice: filters.minPrice,
-                    maxPrice: filters.maxPrice
+                    minYear: Number(filters.minYear) || undefined,
+                    maxYear: Number(filters.maxYear) || undefined,
+                    minPrice: Number(filters.minPrice) || undefined,
+                    maxPrice: Number(filters.maxPrice) || undefined,
+                    status: tab === 'IN_TRANSIT' ? 'PENDING' as const : 'AVAILABLE' as const
                 };
 
                 const target = targetSlug || 'system';
                 try {
-                    const res = await getShowcaseInventory(target, apiFilters);
+                    const res = await getMiniAppShowcaseInventory({ slug: target, ...apiFilters });
                     setCars(res.items);
                 } catch (e) {
-                    const res = await import('../../services/publicApi').then(m => m.getPublicInventory(target, apiFilters));
+                    const res = await getPublicInventory(target, apiFilters);
                     setCars(res.items);
                 }
             } catch (e) {
@@ -779,12 +880,6 @@ const MiniAppContent = () => {
 
     const applyFiltersAndSort = () => {
         let filtered = [...cars];
-
-        filtered = filtered.filter(car => {
-            const isTransit = isTransitCar(car);
-            if (tab === 'IN_TRANSIT') return isTransit;
-            return !isTransit;
-        });
 
         const brandNeedle = filters.brand.trim().toLowerCase();
         if (brandNeedle) {
@@ -998,9 +1093,10 @@ const MiniAppContent = () => {
                 isSelectedForRequest={isSelectedForRequest}
                 onOpenLightbox={(car) => { setLightboxCar(car); setLightboxImageIndex(0); }}
                 onToggleFavorite={toggleFavorite}
-                onPrimaryAction={(car) => surfaceMode === 'B2B' ? prefillRequestFromCar(car) : handleCarInterest(car)}
+                onPrimaryAction={prefillRequestFromCar}
                 onToggleRequestSelection={toggleRequestSelection}
                 onOpenListing={openListing}
+                onEmptyRequest={() => openRequest('BUY')}
             />
         );
     };
@@ -1166,8 +1262,60 @@ const MiniAppContent = () => {
         </div>
     );
 
+    const openSupportLink = () => {
+        const tg = (window as any).Telegram?.WebApp;
+        const configuredLink = String(
+            (config as any)?.supportUrl
+            || (config as any)?.supportLink
+            || (config?.actions || []).find(action => /support|підтрим/i.test(String(action.label || '')) && action.actionType === 'LINK')?.value
+            || ''
+        ).trim();
+        const username = String(activeBot?.botUsername || activeBot?.username || '').replace(/^@/, '').trim();
+        const fallbackLink = username ? `https://t.me/${username}` : '';
+        const link = configuredLink || fallbackLink;
+        if (!link) {
+            setConfigWarning('Контакт підтримки не налаштовано. Напишіть у чаті бота.');
+            return;
+        }
+        if (/^https:\/\/t\.me\//i.test(link) && tg?.openTelegramLink) {
+            tg.openTelegramLink(link);
+            return;
+        }
+        if (tg?.openLink) {
+            tg.openLink(link);
+            return;
+        }
+        window.open(link, '_blank');
+    };
+
+    const renderSupport = () => (
+        <div className="animate-fade-in pb-24 p-6 h-full overflow-y-auto flex flex-col bg-black">
+            <div className="bg-[#1c1c1e] border border-white/10 rounded-2xl p-5">
+                <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center mb-4" style={{ color: primaryColor }}>
+                    <MessageSquare size={24} />
+                </div>
+                <h2 className="text-2xl font-bold text-white mb-2">Підтримка</h2>
+                <p className="text-white/60 text-sm mb-5">Менеджер допоможе з підбором, продажем або статусом запиту.</p>
+                <button
+                    onClick={openSupportLink}
+                    className="w-full py-4 rounded-xl font-bold text-black"
+                    style={{ backgroundColor: primaryColor }}
+                >
+                    Написати менеджеру
+                </button>
+                <button
+                    onClick={() => openRequest('BUY')}
+                    className="w-full mt-3 py-3 rounded-xl font-bold text-white/80 border border-white/10"
+                >
+                    Залишити запит
+                </button>
+            </div>
+        </div>
+    );
+
     const handleNextStep = async () => {
         const isB2BMode = surfaceMode === 'B2B';
+        if (isRequestSubmitting) return;
         if (reqStep === 1) {
             if (isB2BMode) {
                 if (!reqData.brand.trim()) {
@@ -1184,7 +1332,14 @@ const MiniAppContent = () => {
                 }
             }
             setReqStep(2);
-        } else {
+            return;
+        }
+        if (reqStep < 4) {
+            setReqStep(prev => Math.min(4, prev + 1));
+            return;
+        }
+
+        {
             const tg = (window as any).Telegram?.WebApp;
 
             if (!hasTelegramInit) {
@@ -1193,6 +1348,7 @@ const MiniAppContent = () => {
             }
 
             try {
+                setIsRequestSubmitting(true);
                 const slug = targetSlug || 'system';
                 const fallbackListingId = getCarId(selectedCar);
                 const selectedListingIds = selectedRequestCarIds.length
@@ -1200,7 +1356,11 @@ const MiniAppContent = () => {
                     : (fallbackListingId ? [fallbackListingId] : []);
                 const selectedTitles = selectedRequestCars.map(car => car.title).filter(Boolean);
                 const listingId = selectedListingIds[0] || undefined;
+                const submitId = requestSubmitIdRef.current
+                    || (window.crypto?.randomUUID ? window.crypto.randomUUID() : `submit_${Date.now()}_${Math.random().toString(16).slice(2)}`);
+                requestSubmitIdRef.current = submitId;
                 const descriptionParts = [
+                    requestType === 'SELL' ? 'Тип: продаж авто' : 'Тип: підбір авто',
                     reqData.brand ? `Марка/модель: ${reqData.brand}` : null,
                     reqData.yearMin ? `Рік: ${reqData.yearMin}+` : null,
                     reqData.budgetMin ? `Бюджет: ${reqData.budgetMin}` : null,
@@ -1215,11 +1375,12 @@ const MiniAppContent = () => {
                 const requestPayload = {
                     slug,
                     initData,
+                    requestType,
                     title: selectedTitles.length > 1
-                        ? `${isB2BMode ? 'B2B запит' : 'Запит'}: ${selectedTitles.length} авто`
+                        ? `${isB2BMode ? 'B2B запит' : (requestType === 'SELL' ? 'Продаж' : 'Запит')}: ${selectedTitles.length} авто`
                         : (listingId && selectedCar?.title
-                            ? `${isB2BMode ? 'B2B запит' : 'Запит'}: ${selectedCar.title}`
-                            : `${isB2BMode ? 'B2B запит' : 'Запит'}: ${reqData.brand || 'Авто'} ${reqData.yearMin || ''}`.trim()),
+                            ? `${isB2BMode ? 'B2B запит' : (requestType === 'SELL' ? 'Продаж' : 'Запит')}: ${selectedCar.title}`
+                            : `${isB2BMode ? 'B2B запит' : (requestType === 'SELL' ? 'Продаж' : 'Запит')}: ${reqData.brand || 'Авто'} ${reqData.yearMin || ''}`.trim()),
                     description: descriptionParts.length ? descriptionParts.join('\n') : undefined,
                     budgetMax: reqData.budgetMax ? Number(reqData.budgetMax) : undefined,
                     yearMin: reqData.yearMin ? Number(reqData.yearMin) : undefined,
@@ -1229,12 +1390,13 @@ const MiniAppContent = () => {
                     carListingIds: selectedListingIds.length ? selectedListingIds : undefined,
                     payload: {
                         mode: isB2BMode ? 'B2B' : 'LEAD',
+                        requestType,
                         mileage: reqMileage || undefined,
                         fuel: reqFuel || undefined,
                         companyName: reqCompany || undefined,
                         selectedCars: selectedTitles.length ? selectedTitles : undefined
                     },
-                    tracking: trackingMeta,
+                    tracking: { ...trackingMeta, submitId, requestType },
                     telegram: {
                         userId: tgUser?.id ? String(tgUser.id) : undefined,
                         username: tgUser?.username,
@@ -1244,16 +1406,14 @@ const MiniAppContent = () => {
 
                 await createMiniAppRequest(requestPayload);
                 clearRequestSelection();
-
-                if (tg && tg.initData) {
-                    tg.close();
-                } else {
-                    setReqStep(3);
-                }
+                requestSubmitIdRef.current = null;
+                setReqStep(5);
             } catch (e) {
                 emitMiniAppEvent('error', 'MiniApp request submit failed', { error: e instanceof Error ? e.message : String(e) });
                 const message = resolveMiniAppWriteError(e, 'Не вдалося надіслати запит.');
                 pushToast(message, 'error');
+            } finally {
+                setIsRequestSubmitting(false);
             }
         }
     };
@@ -1279,8 +1439,15 @@ const MiniAppContent = () => {
             hasTelegramInit={hasTelegramInit}
             primaryColor={primaryColor}
             surfaceMode={surfaceMode}
+            requestType={requestType}
+            manualContactMode={false}
+            showInlineAction
+            actionLabel={isRequestSubmitting ? 'Надсилання...' : (reqStep >= 4 ? 'Надіслати' : 'Далі')}
+            actionDisabled={isRequestSubmitting}
             onNextStep={handleNextStep}
+            onBackStep={() => setReqStep(prev => Math.max(1, prev - 1))}
             onHome={() => { setReqStep(1); setView('HOME'); }}
+            tgUser={tgUser}
         />
     );
 
@@ -1387,6 +1554,7 @@ const MiniAppContent = () => {
                 {view === 'REQUEST' && renderRequest()}
                 {view === 'STATUS' && renderStatus()}
                 {view === 'PROFILE' && renderProfile()}
+                {view === 'SUPPORT' && renderSupport()}
                 {renderSelectionBar()}
 
                 {lightboxCar && (

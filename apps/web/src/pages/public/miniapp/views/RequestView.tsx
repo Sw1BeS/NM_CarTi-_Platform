@@ -2,6 +2,7 @@ import React from 'react';
 import { ArrowRight, CheckCircle, Search, ChevronLeft } from 'lucide-react';
 
 type MiniAppSurfaceMode = 'LEAD' | 'B2B';
+type RequestType = 'BUY' | 'SELL';
 
 type RequestViewProps = {
   reqStep: number;
@@ -40,10 +41,12 @@ type RequestViewProps = {
   hasTelegramInit: boolean;
   primaryColor: string;
   surfaceMode: MiniAppSurfaceMode;
+  requestType: RequestType;
   showInlineAction: boolean;
   actionLabel: string;
   actionDisabled?: boolean;
   onNextStep: () => void;
+  onBackStep: () => void;
   onHome: () => void;
   tgUser?: any;
 };
@@ -69,10 +72,12 @@ export const RequestView = ({
   hasTelegramInit,
   primaryColor,
   surfaceMode,
+  requestType,
   showInlineAction,
   actionLabel,
   actionDisabled,
   onNextStep,
+  onBackStep,
   onHome,
   tgUser
 }: RequestViewProps) => {
@@ -151,7 +156,9 @@ export const RequestView = ({
           {/* Progress Indicator */}
           <div className="mb-6">
             <div className="flex justify-between items-center mb-2">
-              <h2 className="text-2xl font-bold text-white">{surfaceMode === 'B2B' ? 'Створити B2B запит' : 'Підібрати авто за 1 хвилину'}</h2>
+              <h2 className="text-2xl font-bold text-white">
+                {surfaceMode === 'B2B' ? 'Створити B2B запит' : (requestType === 'SELL' ? 'Продати авто' : 'Підібрати авто за 1 хвилину')}
+              </h2>
               <span className="text-sm font-bold" style={{ color: primaryColor }}>{reqStep}/4</span>
             </div>
             <div className="flex gap-2">
@@ -338,7 +345,7 @@ export const RequestView = ({
             <div className="pt-6 flex gap-3">
               {reqStep > 1 && (
                 <button
-                  onClick={() => {/* Handle back step */}}
+                  onClick={onBackStep}
                   className="flex-1 py-4 rounded-xl font-bold text-white flex items-center justify-center gap-2 active:scale-95 transition-transform bg-[#1c1c1e] border border-white/10"
                 >
                   <ChevronLeft size={18} />

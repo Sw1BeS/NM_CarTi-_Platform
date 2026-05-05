@@ -21,6 +21,7 @@ export type MiniAppTelegram = {
 
 export type MiniAppRequestInput = {
   slug: string;
+  requestType?: string;
   title?: string;
   description?: string;
   budgetMax?: number | string;
@@ -233,6 +234,14 @@ export class MiniAppService {
     const tracking = isRecord(input.tracking) ? input.tracking : {};
     const telegram = isRecord(input.telegram) ? input.telegram : {};
     const payloadFromInput = isRecord(input.payload) ? input.payload : {};
+    const requestType = String(
+      toOptionalString(input.requestType)
+      || toOptionalString((payloadFromInput as Record<string, unknown>).requestType)
+      || toOptionalString((tracking as Record<string, unknown>).requestType)
+      || 'BUY'
+    ).toUpperCase() === 'SELL' ? 'SELL' : 'BUY';
+    const submitId = toOptionalString((tracking as Record<string, unknown>).submitId)
+      || toOptionalString((payloadFromInput as Record<string, unknown>).submitId);
 
     const payload = {
       ...payloadFromInput,
@@ -240,6 +249,7 @@ export class MiniAppService {
       phone: phone || undefined,
       tracking,
       telegram,
+      requestType,
       request: {
         carListingId: carListingId || undefined,
         carListingIds: selectedCarIds.length ? selectedCarIds : undefined,
@@ -247,6 +257,20 @@ export class MiniAppService {
         comment: comment || undefined
       }
     };
+
+    if (submitId) {
+      const existing = await prisma.b2bRequest.findFirst({
+        where: {
+          companyId,
+          payload: {
+            path: ['tracking', 'submitId'],
+            equals: submitId
+          }
+        },
+        orderBy: { createdAt: 'desc' }
+      });
+      if (existing) return mapRequestOutput(existing);
+    }
 
     const requestInput = mapRequestInput({
       title,
@@ -257,6 +281,7 @@ export class MiniAppService {
       botId,
       payload
     });
+    requestInput.type = requestType;
 
     if (!requestInput.publicId) requestInput.publicId = generatePublicId();
     requestInput.companyId = companyId;
@@ -282,7 +307,7 @@ export class MiniAppService {
           request: title || undefined,
           source: 'TELEGRAM',
           payload: payload as Record<string, any>,
-          leadType: 'BUY',
+          leadType: requestType,
           createRequest: false
         }, botConfig?.config as any);
         leadId = leadResult.lead?.id || undefined;

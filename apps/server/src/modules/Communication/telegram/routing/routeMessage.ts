@@ -11,6 +11,7 @@ import { renderCarCardForBot } from '../../../../services/carCardRenderer.v2.js'
 import { renderLeadCard, renderRequestCard } from '../../../../services/cardRenderer.js';
 import { generateRequestLink } from '../../../../utils/deeplink.utils.js';
 import { buildMiniAppUrl } from '../core/utils/miniappUrl.js';
+import { buildClientLeadMiniAppKeyboard } from '../core/utils/clientLeadMiniAppMenu.js';
 import { generatePublicId, mapRequestInput } from '../../../../services/dto.js';
 import { ActionTokens, buildCallbackData } from '../core/utils/callbackUtils.js';
 import { button, isCommand, resolveLang, t, type Lang } from '../core/utils/telegramText.js';
@@ -233,23 +234,7 @@ export const showMenu = async (ctx: PipelineContext, lang: Lang, template: strin
       return;
     }
 
-    const pickUrl = buildMiniAppUrl(ctx.bot, { entry: 'request' });
-    const stockUrl = buildMiniAppUrl(ctx.bot, { entry: 'inventory', status: 'AVAILABLE' });
-    const transitUrl = buildMiniAppUrl(ctx.bot, { entry: 'inventory', status: 'PENDING' });
-    const leadKeyboard = pickUrl && stockUrl && transitUrl
-      ? [
-        [{ text: button(lang, 'leadMenu.buy'), web_app: { url: pickUrl } }],
-        [
-          { text: button(lang, 'leadMenu.stock'), web_app: { url: stockUrl } },
-          { text: button(lang, 'leadMenu.transit'), web_app: { url: transitUrl } }
-        ],
-        [{ text: button(lang, 'leadMenu.sell') }, { text: button(lang, 'leadMenu.support') }]
-      ]
-      : [
-        [{ text: button(lang, 'leadMenu.buy') }],
-        [{ text: button(lang, 'leadMenu.stock') }, { text: button(lang, 'leadMenu.transit') }],
-        [{ text: button(lang, 'leadMenu.sell') }, { text: button(lang, 'leadMenu.support') }]
-      ];
+    const leadKeyboard = buildClientLeadMiniAppKeyboard(ctx.bot, lang);
 
     await sendMessage(ctx, t(lang, 'common.welcome_lead', { bot: botName }), {
       keyboard: leadKeyboard,

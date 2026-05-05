@@ -155,6 +155,7 @@ router.get('/showcases/:slug/inventory', async (req, res) => {
     const maxPrice = readNumber(req.query.maxPrice);
     const minYear = readNumber(req.query.minYear);
     const maxYear = readNumber(req.query.maxYear);
+    const status = readString(req.query.status);
 
     const { showcase, items, total } = await showcaseService.getInventoryForShowcase(slug, {
       page,
@@ -163,7 +164,8 @@ router.get('/showcases/:slug/inventory', async (req, res) => {
       minPrice,
       maxPrice,
       minYear,
-      maxYear
+      maxYear,
+      status
     });
 
     if (!showcase.isPublic) return errorResponse(res, 404, 'Showcase not found');
@@ -655,6 +657,7 @@ router.post('/requests', async (req, res) => {
 
     const request = await miniAppService.createRequest({
       slug,
+      requestType: readString(body.requestType) || readString(body.type),
       title: readString(body.title),
       description: readString(body.description),
       budgetMax: readNumber(body.budgetMax),

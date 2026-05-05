@@ -56,6 +56,7 @@ type CatalogViewProps = {
   onPrimaryAction: (car: CarListing) => void;
   onToggleRequestSelection: (car: CarListing) => void;
   onOpenListing: (car: CarListing) => void;
+  onEmptyRequest: () => void;
 };
 
 export const CatalogView = ({
@@ -87,9 +88,10 @@ export const CatalogView = ({
   onToggleFavorite,
   onPrimaryAction,
   onToggleRequestSelection,
-  onOpenListing
+  onOpenListing,
+  onEmptyRequest
 }: CatalogViewProps) => {
-  const cardActionLabel = surfaceMode === 'B2B' ? 'Створити B2B запит' : 'Запит на підбір';
+  const cardActionLabel = surfaceMode === 'B2B' ? 'Створити B2B запит' : 'Зацікавило це авто';
 
   return (
     <div className="animate-fade-in pb-24 h-full flex flex-col bg-black">
@@ -292,7 +294,19 @@ export const CatalogView = ({
             </div>
           );
         })}
-        {filteredCars.length === 0 && <div className="text-center text-white/50 mt-10">Авто не знайдено. Спробуйте змінити фільтри.</div>}
+        {filteredCars.length === 0 && (
+          <div className="text-center text-white/60 mt-10 bg-[#1c1c1e] border border-white/10 rounded-2xl p-5">
+            <div className="font-bold text-white mb-2">Авто не знайдено</div>
+            <div className="text-sm mb-4">Спробуйте змінити фільтри або залиште запит на підбір.</div>
+            <button
+              onClick={onEmptyRequest}
+              className="w-full py-3 rounded-xl font-bold text-black"
+              style={{ backgroundColor: primaryColor }}
+            >
+              Підібрати авто
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

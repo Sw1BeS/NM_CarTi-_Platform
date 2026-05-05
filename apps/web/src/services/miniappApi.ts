@@ -20,11 +20,14 @@ export type MiniAppTrackingMeta = {
   referrer?: string;
   miniappVersion?: string;
   buildSha?: string;
+  submitId?: string;
+  requestType?: 'BUY' | 'SELL';
 };
 
 export type MiniAppRequestPayload = {
   slug: string;
   initData?: string;
+  requestType?: 'BUY' | 'SELL';
   title?: string;
   description?: string;
   budgetMax?: number;
@@ -130,6 +133,7 @@ export async function getMiniAppShowcaseInventory(params: {
   maxPrice?: number;
   minYear?: number;
   maxYear?: number;
+  status?: 'AVAILABLE' | 'PENDING';
 }) {
   const query = new URLSearchParams();
   if (params.page) query.append('page', String(params.page));
@@ -139,6 +143,7 @@ export async function getMiniAppShowcaseInventory(params: {
   if (typeof params.maxPrice === 'number') query.append('maxPrice', String(params.maxPrice));
   if (typeof params.minYear === 'number') query.append('minYear', String(params.minYear));
   if (typeof params.maxYear === 'number') query.append('maxYear', String(params.maxYear));
+  if (params.status) query.append('status', params.status);
   return await apiFetch(`/miniapp/showcases/${encodeURIComponent(params.slug)}/inventory?${query.toString()}`, {
     method: 'GET',
     skipAuth: true

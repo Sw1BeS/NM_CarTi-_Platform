@@ -175,7 +175,8 @@ export const routeWebApp = async (ctx: PipelineContext) => {
 
   if (payload.type === 'fav_toggle') {
     const tgUserId = String(from?.id || ctx.userId || '').trim();
-    if (!tgUserId) {
+    const visitorId = String((payload.meta as any)?.visitorId || '').trim();
+    if (!tgUserId && !visitorId) {
       await sendMessage(ctx, '⚠️ Не вдалося визначити користувача для обраного.');
       return true;
     }
@@ -203,7 +204,7 @@ export const routeWebApp = async (ctx: PipelineContext) => {
     const existing = await prisma.miniAppFavorite.findFirst({
       where: {
         companyId,
-        tgUserId,
+        ...(tgUserId ? { tgUserId } : { visitorId }),
         carListingId: listing.id
       }
     });
@@ -214,7 +215,8 @@ export const routeWebApp = async (ctx: PipelineContext) => {
       await prisma.miniAppFavorite.create({
         data: {
           companyId,
-          tgUserId,
+          tgUserId: tgUserId || null,
+          visitorId: visitorId || null,
           carListingId: listing.id
         }
       });
@@ -230,6 +232,7 @@ export const routeWebApp = async (ctx: PipelineContext) => {
       payload: {
         type: payload.type,
         carId: primaryCarId,
+        visitorId: visitorId || undefined,
         valid: true
       }
     });
