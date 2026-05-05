@@ -1,54 +1,71 @@
-# Logs
-logs
+```markdown
+# Logs and temp files
 *.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
+*.tmp
+*.swp
+
+# Environment
 .env
+.env.local
+.env.*
 
-node_modules
-dist
-dist-ssr
-**/dist
-apps/web/node_modules
-apps/server/node_modules
-apps/web/.env*
-*.local
+# Dependencies
+node_modules/
+.venv/
+venv/
+__pycache__/
+.mypy_cache/
+.pytest_cache/
+dist/
+build/
+target/
+.gradle/
 
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea
+# Editors
+.vscode/
+.idea/
+
+# System files
 .DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
-infra/*.bak.*
+Thumbs.db
 
-# Local/ops backups (never commit)
-.gitignore.bak.*
-*.bak.*
-**/*.bak.*
-infra.bak.*
-**/infra.bak.*
-**/backups/
-**/backup/
-**/*_backup*
-**/*.backup
-**/tmp/
-**/dumps/
+# Compiled files
+*.pyc
+*.class
+*.o
+*.exe
+*.dll
+*.so
+*.a
+*.obj
+*.out
 
-# Local/Auto-generated files
-_backup_root/
-_backups/
-_archive/
-_logs/
-apps/*.tgz
-apps/cartie2_repo/
-data/
-env/storage/
-.deploy/
+# Coverage
+coverage/
+htmlcov/
+.coverage
+
+# Compressed files
+*.zip
+*.gz
+*.tar
+*.tgz
+*.bz2
+*.xz
+*.7z
+*.rar
+*.zst
+*.lz4
+*.lzh
+*.cab
+*.arj
+*.rpm
+*.deb
+*.Z
+*.lz
+*.lzo
+*.tar.gz
+*.tar.bz2
+*.tar.xz
+*.tar.zst
+```
