@@ -12,10 +12,62 @@ import { emitPlatformEvent } from '../core/events/eventEmitter.js';
 import { ScenarioEngine } from '../../bots/scenario.engine.js';
 import { resolveLang, t } from '../core/utils/telegramText.js';
 import { requestContractService } from '../../../../services/requestContract.service.js';
+import crypto from 'crypto';
 
 const shouldBypassScenarioEngine = (ctx: PipelineContext) => {
   const template = String(ctx.bot?.template || '').toUpperCase();
   return template === 'CLIENT_LEAD' || template === 'B2B';
+};
+
+// Idempotency key generator for MiniApp submissions
+const generateIdempotencyKey = (data: {
+  tgUserId?: string;
+  chatId?: string;
+  type: string;
+  carIds?: string[];
+  phone?: string;
+  timestamp: number;
+}): string => {
+  const payload = JSON.stringify({
+    u: data.tgUserId || data.chatId,
+    t: data.type,
+    c: data.carIds?.sort().join(',') || '',
+    p: data.phone || '',
+    d: Math.floor(data.timestamp / 60000) // Round to minute for dedup window
+  });
+  return crypto.createHash('sha256').update(payload).digest('hex').slice(0, 32);
+};
+
+// Check if request was already processed in the last 5 minutes
+const checkIdempotency = async (key: string, botId: string): Promise<boolean> => {
+  const existing = await prisma.platformEvent.findFirst({
+    where: {
+      botId,
+      eventType: 'miniapp.idempotency_check',
+      createdAt: {
+        gte: new Date(Date.now() - 5 * 60 * 1000) // 5 minutes window
+      },
+      payload: {
+        path: ['idempotencyKey'],
+        equals: key
+      }
+    }
+  });
+  
+  if (existing) {
+    return true; // Already processed
+  }
+  
+  // Record this key
+  await prisma.platformEvent.create({
+    data: {
+      botId,
+      eventType: 'miniapp.idempotency_check',
+      payload: { idempotencyKey: key }
+    }
+  });
+  
+  return false; // First time
 };
 
 const sendMessage = async (ctx: PipelineContext, text: string, replyMarkup?: any, targetChatId?: string) => {
@@ -95,6 +147,29 @@ export const routeWebApp = async (ctx: PipelineContext) => {
   ).trim();
 
   if (payload.type === 'interest_click') {
+    // Idempotency check for interest clicks
+    const idemKey = generateIdempotencyKey({
+      tgUserId: String(from?.id || ''),
+      chatId: ctx.chatId,
+      type: 'interest_click',
+      carIds: payloadCarIds,
+      phone: fields.phone,
+      timestamp: Date.now()
+    });
+    
+    const alreadyProcessed = await checkIdempotency(idemKey, ctx.bot.id);
+    if (alreadyProcessed) {
+      await emitPlatformEvent({
+        companyId: ctx.companyId,
+        botId: ctx.bot.id,
+        eventType: 'miniapp.submitted',
+        userId: ctx.userId,
+        chatId: ctx.chatId,
+        payload: { valid: true, skipped: true, reason: 'duplicate_interest_click', idempotencyKey: idemKey }
+      });
+      return true; // Silently skip duplicate
+    }
+    
     const selectedCars = payloadCarIds.length
       ? await prisma.carListing.findMany({
         where: { id: { in: payloadCarIds } },
@@ -252,6 +327,30 @@ export const routeWebApp = async (ctx: PipelineContext) => {
     : [];
   const selectedCarsMap = new Map(selectedCars.map((car) => [car.id, car]));
   const selectedCarsOrdered = payloadCarIds.map((id) => selectedCarsMap.get(id)).filter((item): item is typeof selectedCars[number] => Boolean(item));
+
+  // Idempotency check for lead submissions (BUY/SELL)
+  const idemKey = generateIdempotencyKey({
+    tgUserId: String(ctx.userId || ''),
+    chatId: ctx.chatId,
+    type: payload.type,
+    carIds: payloadCarIds,
+    phone: phone || fields.phone,
+    timestamp: Date.now()
+  });
+  
+  const alreadyProcessed = await checkIdempotency(idemKey, ctx.bot.id);
+  if (alreadyProcessed) {
+    await emitPlatformEvent({
+      companyId: ctx.companyId,
+      botId: ctx.bot.id,
+      eventType: 'miniapp.submitted',
+      userId: ctx.userId,
+      chatId: ctx.chatId,
+      payload: { valid: true, skipped: true, reason: 'duplicate_lead_submit', idempotencyKey: idemKey, type: payload.type }
+    });
+    await sendMessage(ctx, '✅ Запит вже оброблено. Очікуйте на звʼязок.');
+    return true; // Silently skip duplicate
+  }
 
   let requestTitle = [brand, model].filter(Boolean).join(' ').trim();
   if (!requestTitle && primaryCarId) {
