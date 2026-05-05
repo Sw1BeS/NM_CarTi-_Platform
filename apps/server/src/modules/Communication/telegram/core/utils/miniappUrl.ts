@@ -13,7 +13,24 @@ const readBuildSha = () => {
   }
 };
 
-export const buildMiniAppUrl = (bot: BotConfig, filters: Record<string, any>) => {
+export type MiniAppEntryType = 
+  | 'home'
+  | 'request'        // Підібрати авто за 1 хвилину
+  | 'inventory'      // Авто в наявності
+  | 'in_transit'     // Авто в дорозі
+  | 'favorites'      // Обране
+  | 'sell'           // Продати авто
+  | 'support'        // Підтримка
+  | 'profile';       // Профіль
+
+export interface MiniAppFilters {
+  entry?: MiniAppEntryType;
+  status?: 'AVAILABLE' | 'PENDING' | 'SOLD';
+  carId?: string;
+  [key: string]: string | undefined;
+}
+
+export const buildMiniAppUrl = (bot: BotConfig, filters: MiniAppFilters = {}) => {
   const config = (bot.config || {}) as any;
 
   const baseUrl = config?.miniAppConfig?.url
@@ -47,8 +64,24 @@ export const buildMiniAppUrl = (bot: BotConfig, filters: Record<string, any>) =>
     url.pathname = path;
   } // else: already correct
 
+  // Add entry point parameter for direct navigation
+  if (filters.entry) {
+    url.searchParams.set('entry', filters.entry);
+    
+    // Add status filter for inventory views
+    if (filters.entry === 'inventory' && filters.status) {
+      url.searchParams.set('status', filters.status);
+    }
+    
+    // Add specific car ID for detail views
+    if (filters.carId) {
+      url.searchParams.set('carId', filters.carId);
+    }
+  }
+
+  // Add remaining filters
   Object.entries(filters || {}).forEach(([key, value]) => {
-    if (value === undefined || value === null || value === '') return;
+    if (value === undefined || value === null || value === '' || key === 'entry' || key === 'status' || key === 'carId') return;
     url.searchParams.set(key, String(value));
   });
 
@@ -58,4 +91,34 @@ export const buildMiniAppUrl = (bot: BotConfig, filters: Record<string, any>) =>
   }
 
   return url.toString();
+};
+
+/**
+ * Helper to build URL for specific entry points
+ */
+export const buildMiniAppEntryUrl = (
+  bot: BotConfig,
+  entry: MiniAppEntryType,
+  additionalParams?: Record<string, string>
+): string => {
+  const filters: MiniAppFilters = { entry };
+  
+  // Pre-configured filters for common entry points
+  switch (entry) {
+    case 'inventory':
+      filters.status = 'AVAILABLE';
+      break;
+    case 'in_transit':
+      filters.status = 'PENDING';
+      break;
+    case 'request':
+      filters.entry = 'request';
+      break;
+  }
+
+  if (additionalParams) {
+    Object.assign(filters, additionalParams);
+  }
+
+  return buildMiniAppUrl(bot, filters);
 };
