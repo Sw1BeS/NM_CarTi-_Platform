@@ -31,4 +31,31 @@ describe('miniappUrl', () => {
     expect(url.searchParams.get('entry')).toBe('inventory');
     expect(url.searchParams.get('status')).toBe('PENDING');
   });
+
+  it('replaces stale build tags while preserving navigation params', () => {
+    const previousBuildSha = process.env.BUILD_SHA;
+    process.env.BUILD_SHA = 'fresh_sha';
+
+    try {
+      const url = new URL(buildMiniAppUrl({
+        config: {
+          miniAppConfig: { url: 'https://example.com/p/app/cartie?v=old_sha&entry=favorites' },
+          defaultShowcaseSlug: 'cartie'
+        }
+      } as any, {
+        entry: 'inventory',
+        status: 'AVAILABLE'
+      }));
+
+      expect(url.searchParams.get('v')).toBe('fresh_sha');
+      expect(url.searchParams.get('entry')).toBe('inventory');
+      expect(url.searchParams.get('status')).toBe('AVAILABLE');
+    } finally {
+      if (previousBuildSha === undefined) {
+        delete process.env.BUILD_SHA;
+      } else {
+        process.env.BUILD_SHA = previousBuildSha;
+      }
+    }
+  });
 });

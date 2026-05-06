@@ -71,7 +71,7 @@ export const buildMiniAppUrl = (bot: BotConfig, filters: MiniAppFilters = {}) =>
   });
 
   const buildSha = readBuildSha();
-  if (buildSha && !url.searchParams.has('v')) {
+  if (buildSha) {
     url.searchParams.set('v', buildSha.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 24));
   }
 
