@@ -80,6 +80,7 @@ export interface MiniAppConfig {
         instagram?: string;
         website?: string;
         phone?: string;
+        address?: string;
         links?: Array<{ label: string; url: string }>;
     };
     url?: string;

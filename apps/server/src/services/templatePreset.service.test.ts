@@ -162,4 +162,43 @@ describe('templatePreset.service', () => {
       'PROFILE'
     ]);
   });
+
+  it('seeds official CarTié contacts for CLIENT_LEAD MiniApp config', async () => {
+    const result = await applyTemplatePreset({
+      template: 'CLIENT_LEAD',
+      companyId: 'company_test',
+      botId: 'bot_test',
+      defaultShowcaseSlug: 'cartie',
+      config: {
+        publicBaseUrl: 'https://example.com',
+        menuConfig: { welcomeMessage: 'Custom welcome', buttons: [] },
+        miniAppConfig: {
+          isEnabled: true,
+          title: 'Existing',
+          welcomeText: 'Existing',
+          primaryColor: '#111111',
+          layout: 'GRID',
+          actions: [],
+          navItems: [],
+          url: 'https://old.example/p/app/cartie',
+          showcaseSlug: 'cartie'
+        }
+      } as any
+    });
+
+    expect(result.config.miniAppConfig?.contacts).toMatchObject({
+      telegramChannel: 'https://t.me/cartieimport',
+      telegramBot: 'https://t.me/yura_cartie',
+      instagram: 'https://www.instagram.com/cartie.import/',
+      website: 'https://cartie.adsquiz.io/',
+      phone: '+38 (063) 505-52-52',
+      address: 'м. Львів, Кільцева дорога 1, 79000'
+    });
+    expect(result.config.miniAppConfig?.contacts?.links).toEqual(expect.arrayContaining([
+      { label: 'Авто в наявності', url: 'https://t.me/CarTie_Showroom' },
+      { label: 'TikTok', url: 'https://www.tiktok.com/@cartie.import' },
+      { label: 'YouTube', url: 'https://www.youtube.com/@cartie_avto' },
+      { label: 'Локація', url: 'https://maps.app.goo.gl/n6MACQaVP9cEoNDo7?g_st=ipc' }
+    ]));
+  });
 });

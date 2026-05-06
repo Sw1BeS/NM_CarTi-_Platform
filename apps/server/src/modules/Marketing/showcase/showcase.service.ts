@@ -3,6 +3,18 @@ import { prisma } from '../../../services/prisma.js';
 import { CarRepository } from '../../../repositories/car.repository.js';
 
 const MINIAPP_PUBLIC_STATUSES = new Set(['AVAILABLE', 'PENDING', 'RESERVED', 'SOLD']);
+const TRANSIT_TEXT_CONDITION = {
+    OR: [
+        { title: { contains: '#вдорозі', mode: 'insensitive' } },
+        { title: { contains: 'в дорозі', mode: 'insensitive' } },
+        { title: { contains: 'in_transit', mode: 'insensitive' } },
+        { title: { contains: 'прямує', mode: 'insensitive' } },
+        { description: { contains: '#вдорозі', mode: 'insensitive' } },
+        { description: { contains: 'в дорозі', mode: 'insensitive' } },
+        { description: { contains: 'in_transit', mode: 'insensitive' } },
+        { description: { contains: 'прямує', mode: 'insensitive' } }
+    ]
+};
 
 interface ShowcaseRules {
     mode: 'FILTER' | 'MANUAL' | 'HYBRID';
@@ -205,7 +217,33 @@ export class ShowcaseService {
         }
 
         if (runtimeStatus) {
-            where.status = runtimeStatus;
+            if (runtimeStatus === 'PENDING') {
+                const searchClause = Array.isArray(where.OR) ? where.OR : null;
+                delete where.status;
+                delete where.OR;
+                const pendingClause = {
+                    OR: [
+                        { status: 'PENDING' },
+                        {
+                            AND: [
+                                { status: 'AVAILABLE' },
+                                TRANSIT_TEXT_CONDITION
+                            ]
+                        }
+                    ]
+                };
+                if (searchClause) {
+                    where.AND = [
+                        ...(Array.isArray(where.AND) ? where.AND : []),
+                        { OR: searchClause },
+                        pendingClause
+                    ];
+                } else {
+                    where.OR = pendingClause.OR;
+                }
+            } else {
+                where.status = runtimeStatus;
+            }
         }
 
         // --- Execution ---

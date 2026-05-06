@@ -59,7 +59,38 @@ describe('ShowcaseService MiniApp inventory routing', () => {
     expect(carCount).toHaveBeenCalledWith(expect.objectContaining({
       where: expect.objectContaining({
         companyId: 'company_1',
-        status: 'PENDING'
+        OR: expect.arrayContaining([
+          { status: 'PENDING' }
+        ])
+      })
+    }));
+  });
+
+  it('includes legacy AVAILABLE cars that are textually marked as in transit when MiniApp requests PENDING', async () => {
+    showcaseFindUnique.mockResolvedValue(makeShowcase());
+
+    const { ShowcaseService } = await import('./showcase.service.js');
+    await new ShowcaseService().getInventoryForShowcase('cartie', {
+      status: 'PENDING'
+    } as any);
+
+    expect(carFindMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        companyId: 'company_1',
+        OR: expect.arrayContaining([
+          { status: 'PENDING' },
+          expect.objectContaining({
+            AND: expect.arrayContaining([
+              { status: 'AVAILABLE' },
+              expect.objectContaining({
+                OR: expect.arrayContaining([
+                  { description: expect.objectContaining({ contains: '#вдорозі' }) },
+                  { description: expect.objectContaining({ contains: 'прямує' }) }
+                ])
+              })
+            ])
+          })
+        ])
       })
     }));
   });

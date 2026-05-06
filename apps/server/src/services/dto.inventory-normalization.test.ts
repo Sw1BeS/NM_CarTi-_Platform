@@ -106,4 +106,36 @@ describe('mapInventoryOutput normalization', () => {
     expect(mapped.presentation.hasImages).toBe(false);
     expect(mapped.presentation.imageCount).toBe(0);
   });
+
+  it('replaces noisy AutoRIA VIN-check titles with the actual vehicle title from raw text', () => {
+    const rawText = [
+      'Перевірений VIN-код AUTO.RIA перевірив VIN-код',
+      'Tesla Model X Одеса',
+      'Tesla Model X 2017',
+      'І покоління • 75D 75 kWh Dual Motor (333 к.с.) AWD • Base',
+      '25 000 $',
+      '112 тис. км',
+      'Електро, 75 кВт-год',
+      'UA, Одеська обл., Одеса, 65000'
+    ].join(' ');
+
+    const mapped = mapInventoryOutput({
+      id: 'ext_auto_ria_1',
+      sourceProvider: 'AUTO_RIA',
+      title: 'Перевірений VIN-код',
+      price: 0,
+      year: 2017,
+      mileage: 0,
+      location: '',
+      specs: { rawText },
+      originalRaw: { rawText }
+    } as any);
+
+    expect(mapped.title).toBe('Tesla Model X 2017');
+    expect(mapped.presentation.title).toBe('Tesla Model X 2017');
+    expect(mapped.presentation.title).not.toContain('Перевірений VIN-код');
+    expect(mapped.presentation.priceLabel).toBe('$25,000');
+    expect(mapped.presentation.mileageLabel).toBe('112 000 км');
+    expect(mapped.presentation.subtitle).toContain('Одеса');
+  });
 });

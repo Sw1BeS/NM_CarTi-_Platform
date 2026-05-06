@@ -20,6 +20,49 @@ const isRecord = (value: unknown): value is Record<string, unknown> => {
   return !!value && typeof value === 'object' && !Array.isArray(value);
 };
 
+const isNoisyVehicleTitle = (value: unknown) => {
+  const title = toString(value) || '';
+  return /перевірений\s+vin[-\s]?код|verified\s+vin|vin[-\s]?check/i.test(title);
+};
+
+const readRawVehicleText = (car: Record<string, unknown>, specs: Record<string, unknown>, description: string) => {
+  const originalRaw = isRecord(car.originalRaw) ? car.originalRaw : {};
+  return [
+    description,
+    toString(specs.rawText),
+    toString(originalRaw.rawText),
+    toString(originalRaw.text)
+  ].filter(Boolean).join(' ');
+};
+
+const parseNumberText = (value: string) => Number(value.replace(/[^\d]/g, ''));
+
+const extractAutoRiaTitleFromRaw = (rawText: string) => {
+  const matches = Array.from(rawText.matchAll(/\b([A-Z][A-Za-z0-9.'-]*(?:\s+[A-Z0-9][A-Za-z0-9.'-]*){0,4})\s+((?:19|20)\d{2})\b/g));
+  const candidate = matches
+    .map(match => `${match[1]} ${match[2]}`.replace(/\s+/g, ' ').trim())
+    .find(title => !isNoisyVehicleTitle(title));
+  return candidate || undefined;
+};
+
+const extractAutoRiaPriceFromRaw = (rawText: string) => {
+  const match = rawText.match(/(\d{1,3}(?:[\s\u00A0]\d{3})+|\d{4,7})\s*\$/);
+  return match ? parseNumberText(match[1]) : undefined;
+};
+
+const extractAutoRiaMileageFromRaw = (rawText: string) => {
+  const match = rawText.match(/(\d{1,3}(?:[\s\u00A0]\d{3})*|\d+)\s*(тис\.?|тисяч|k)?\s*км/i);
+  if (!match) return undefined;
+  const base = parseNumberText(match[1]);
+  if (!base) return undefined;
+  return match[2] ? base * 1000 : base;
+};
+
+const extractAutoRiaLocationFromRaw = (rawText: string) => {
+  const match = rawText.match(/UA,\s*([^,]+),\s*([^,]+)(?:,\s*\d{4,6})?/i);
+  return toString(match?.[2]);
+};
+
 const extractRequestContact = (request: any) => {
   const payload = isRecord(request?.payload) ? request.payload : {};
   const nested = isRecord(payload.request) ? payload.request : {};
@@ -545,11 +588,16 @@ export const mapInventoryInput = (input: Record<string, unknown>): InventoryInpu
 export const mapInventoryOutput = (car: Record<string, unknown>) => {
   const normalized = (() => {
     const description = toString(car.description) || '';
-    const parsed = description ? parseCarData(description) : {};
     const rawSpecs = car.specs;
     const baseSpecs = rawSpecs && typeof rawSpecs === 'object' && !Array.isArray(rawSpecs)
       ? { ...(rawSpecs as Record<string, unknown>) }
       : {};
+    const rawVehicleText = readRawVehicleText(car, baseSpecs, description);
+    const parsed = (description || rawVehicleText) ? parseCarData(description || rawVehicleText) : {};
+    const rawTitle = extractAutoRiaTitleFromRaw(rawVehicleText);
+    const rawPrice = extractAutoRiaPriceFromRaw(rawVehicleText);
+    const rawMileage = extractAutoRiaMileageFromRaw(rawVehicleText);
+    const rawLocation = extractAutoRiaLocationFromRaw(rawVehicleText);
 
     const mergedSpecs: Record<string, unknown> = {
       ...baseSpecs
@@ -598,9 +646,15 @@ export const mapInventoryOutput = (car: Record<string, unknown>) => {
     const normalizedThumbnail = normalizeMediaUrl(car.thumbnail);
     const thumbnail = isPublicMediaUrl(normalizedThumbnail) ? normalizedThumbnail : mediaUrls[0] || '';
     const year = toNumber(car.year) ?? toNumber(parsed.year) ?? 0;
-    const mileage = toNumber(car.mileage) ?? toNumber(parsed.mileage) ?? 0;
-    const location = toString(car.location) || toString(parsed.location) || '';
-    const title = toString(car.title) || toString(parsed.title) || 'Unknown Car';
+    const mileage = toNumber(car.mileage) || toNumber(parsed.mileage) || rawMileage || 0;
+    const location = toString(car.location) || toString(parsed.location) || rawLocation || '';
+    const sourceTitle = toString(car.title);
+    const parsedTitle = toString(parsed.title);
+    const title = (sourceTitle && !isNoisyVehicleTitle(sourceTitle) ? sourceTitle : undefined)
+      || rawTitle
+      || (parsedTitle && !isNoisyVehicleTitle(parsedTitle) ? parsedTitle : undefined)
+      || sourceTitle
+      || 'Unknown Car';
     const modelFromSource = toString((car as any).model) || toString((mergedSpecs as any).model) || '';
     const modelFromParsed = toString(parsed.model) || '';
     const modelLooksNoisy = /(?:color|condition|пробіг|пробег|ціна|цена|price|бюджет|грн|usd|eur)/i.test(modelFromSource)
@@ -621,6 +675,7 @@ export const mapInventoryOutput = (car: Record<string, unknown>) => {
       year,
       mileage,
       location,
+      derivedPrice: rawPrice,
       thumbnail,
       mediaUrls,
       mediaItems,
@@ -633,7 +688,7 @@ export const mapInventoryOutput = (car: Record<string, unknown>) => {
     ...normalized,
     canonicalId: car.id,
     price: {
-      amount: toNumber(car.price) ?? 0,
+      amount: toNumber(car.price) || toNumber((normalized as any).derivedPrice) || 0,
       currency: car.currency || DEFAULT_CURRENCY
     }
   };

@@ -8,7 +8,8 @@ import {
     Search, LayoutGrid, User, Plus, Filter, DollarSign,
     MessageSquare, Zap, List as ListIcon, Star, Phone, Home, Heart, ClipboardList,
     ChevronRight, MapPin, Calendar, CheckCircle, SlidersHorizontal,
-    X, ChevronLeft, ChevronRight as ChevronRightIcon, Image as ImageIcon, Loader2, Share2, Globe, Instagram
+    X, ChevronLeft, ChevronRight as ChevronRightIcon, Image as ImageIcon, Loader2, Share2, Globe, Instagram,
+    Send, MapPinned, Youtube, Video
 } from 'lucide-react';
 import { initTelegramViewport } from './miniapp/telegramViewport';
 import { popViewHistory, pushViewHistory } from './miniapp/navigation';
@@ -19,6 +20,7 @@ import { FavoritesView } from './miniapp/views/FavoritesView';
 import { ProfileView } from './miniapp/views/ProfileView';
 import { RequestView, type RequestFormData } from './miniapp/views/RequestView';
 import { MiniAppImage } from './miniapp/components/MiniAppImage';
+import { parseMiniAppEntryIntent, type MiniAppEntryIntent } from './miniapp/entryIntent';
 
 const emitMiniAppEvent = (level: 'info' | 'warn' | 'error', message: string, meta?: Record<string, unknown>) => {
     try {
@@ -105,83 +107,6 @@ type MiniAppView = 'HOME' | 'INVENTORY' | 'LISTING' | 'FAVORITES' | 'REQUEST' | 
 type RequestType = 'BUY' | 'SELL';
 type RequestSubtype = MiniAppRequestSubtype;
 
-type MiniAppEntryIntent = {
-    view?: MiniAppView;
-    tab?: InventoryTab;
-    requestType?: RequestType;
-    consumedStartParam?: boolean;
-};
-
-const parseEntryIntent = (params: URLSearchParams, startParam?: string): MiniAppEntryIntent => {
-    const entry = String(params.get('entry') || '').trim().toLowerCase();
-    const status = String(params.get('status') || '').trim().toUpperCase();
-    const type = String(params.get('type') || params.get('requestType') || '').trim().toUpperCase();
-    const start = String(startParam || '').trim().toLowerCase();
-    const intent: MiniAppEntryIntent = {};
-
-    const applyEntry = (value: string) => {
-        if (value === 'home') intent.view = 'HOME';
-        if (value === 'inventory' || value === 'catalog' || value === 'stock') intent.view = 'INVENTORY';
-        if (value === 'favorites' || value === 'favourites' || value === 'favorite') intent.view = 'FAVORITES';
-        if (value === 'request' || value === 'buy') intent.view = 'REQUEST';
-        if (value === 'support') intent.view = 'SUPPORT';
-        if (value === 'contacts' || value === 'contact') intent.view = 'CONTACTS';
-        if (value === 'status') intent.view = 'STATUS';
-        if (value === 'profile') intent.view = 'PROFILE';
-    };
-
-    if (entry) applyEntry(entry);
-    if (status === 'PENDING' || status === 'IN_TRANSIT') {
-        intent.view = 'INVENTORY';
-        intent.tab = 'IN_TRANSIT';
-    } else if (status === 'AVAILABLE') {
-        intent.view = 'INVENTORY';
-        intent.tab = 'IN_STOCK';
-    }
-    if (type === 'SELL') {
-        intent.view = 'REQUEST';
-        intent.requestType = 'SELL';
-    } else if (type === 'BUY') {
-        intent.requestType = 'BUY';
-    }
-
-    if (!entry && start) {
-        const aliases: Record<string, MiniAppEntryIntent> = {
-            app: { view: 'HOME' },
-            miniapp: { view: 'HOME' },
-            main: { view: 'HOME' },
-            home: { view: 'HOME' },
-            view_inventory: { view: 'INVENTORY', tab: 'IN_STOCK' },
-            inventory: { view: 'INVENTORY' },
-            stock: { view: 'INVENTORY', tab: 'IN_STOCK' },
-            view_stock: { view: 'INVENTORY', tab: 'IN_STOCK' },
-            view_transit: { view: 'INVENTORY', tab: 'IN_TRANSIT' },
-            transit: { view: 'INVENTORY', tab: 'IN_TRANSIT' },
-            view_request: { view: 'REQUEST', requestType: 'BUY' },
-            request: { view: 'REQUEST', requestType: 'BUY' },
-            view_favorites: { view: 'FAVORITES' },
-            favorites: { view: 'FAVORITES' },
-            favourites: { view: 'FAVORITES' },
-            view_status: { view: 'STATUS' },
-            status: { view: 'STATUS' },
-            sell_car: { view: 'REQUEST', requestType: 'SELL' },
-            sell: { view: 'REQUEST', requestType: 'SELL' },
-            support: { view: 'SUPPORT' },
-            about: { view: 'SUPPORT' },
-            contacts: { view: 'CONTACTS' },
-            contact: { view: 'CONTACTS' }
-        };
-        const alias = aliases[start];
-        if (alias) {
-            Object.assign(intent, alias, { consumedStartParam: true });
-        } else if (start.startsWith('car_')) {
-            Object.assign(intent, { view: 'INVENTORY', consumedStartParam: true });
-        }
-    }
-
-    return intent;
-};
-
 const deriveRequestSubtype = (ids: string[]): RequestSubtype => {
     const count = Array.from(new Set(ids.filter(Boolean))).length;
     if (count > 1) return 'MULTI_SELECT';
@@ -247,6 +172,10 @@ const premiumCtaStyle: React.CSSProperties = {
     background: 'linear-gradient(135deg, #f7f8fa 0%, #d7dbe1 34%, #a4abb4 68%, #f1f3f6 100%)',
     color: '#101216',
     boxShadow: '0 12px 26px rgba(210,216,224,0.18), inset 0 1px 0 rgba(255,255,255,0.86)'
+};
+const graphitePanelStyle: React.CSSProperties = {
+    background: 'linear-gradient(145deg, rgba(37,41,46,0.94) 0%, rgba(17,19,22,0.98) 58%, rgba(8,9,11,1) 100%)',
+    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.08), 0 18px 45px rgba(0,0,0,0.34)'
 };
 
 const normalizeMiniAppAccent = (value?: string) => {
@@ -420,6 +349,23 @@ const MiniAppContent = () => {
     const viewHistoryRef = useRef<MiniAppView[]>(['HOME']);
     const suppressHistoryPushRef = useRef(false);
     const requestSubmitIdRef = useRef<string | null>(null);
+
+    const buildSafeRuntimeDiagnostics = (extra: Record<string, unknown> = {}) => {
+        const params = new URLSearchParams(window.location.search);
+        const tg = (window as any).Telegram?.WebApp;
+        return {
+            slug: targetSlug || slug || undefined,
+            view,
+            entry: params.get('entry') || undefined,
+            status: params.get('status') || undefined,
+            type: params.get('type') || params.get('requestType') || undefined,
+            startParam: trackingMeta.startParam,
+            hasInitData: Boolean(initData || readRuntimeTelegramInitData()),
+            platform: tg?.platform || (hasTelegramUserAgent() ? 'telegram-ua' : 'browser'),
+            version: tg?.version || undefined,
+            ...extra
+        };
+    };
 
     const goBack = useCallback(() => {
         if (lightboxCar) {
@@ -770,7 +716,21 @@ const MiniAppContent = () => {
 
             const platform = telegramContext.tg?.platform || (hasTelegramUserAgent() ? 'telegram-ua' : 'url-fallback');
             const version = telegramContext.tg?.version || 'n/a';
+            const urlParams = new URLSearchParams(window.location.search);
+            const safeLaunchMeta = {
+                slug: slug || undefined,
+                pathname: window.location.pathname,
+                entry: urlParams.get('entry') || undefined,
+                status: urlParams.get('status') || undefined,
+                type: urlParams.get('type') || urlParams.get('requestType') || undefined,
+                startParam: startParam || undefined,
+                routeSource: urlParams.has('tgWebAppStartParam') ? 'tgWebAppStartParam' : (startParam ? 'start_param' : 'path'),
+                platform,
+                version,
+                hasInitData: Boolean(telegramContext.initData)
+            };
             emitMiniAppEvent('info', 'Telegram context detected', {
+                ...safeLaunchMeta,
                 platform,
                 version,
                 hasInitData: Boolean(telegramContext.initData)
@@ -781,8 +741,7 @@ const MiniAppContent = () => {
                 setConfigWarning('Telegram відкрито без initData. Для дій відкрийте Mini App повторно через кнопку меню бота.');
             }
 
-            const urlParams = new URLSearchParams(window.location.search);
-            const entryIntent = parseEntryIntent(urlParams, startParam);
+            const rawEntryIntent = parseMiniAppEntryIntent(urlParams, startParam);
             const utm = {
                 source: urlParams.get('utm_source') || undefined,
                 medium: urlParams.get('utm_medium') || undefined,
@@ -802,9 +761,9 @@ const MiniAppContent = () => {
             });
 
             // 2. Determine Target Slug (priority: URL slug > non-entry start_param > system)
-            const rawSlug = slug || (entryIntent.consumedStartParam ? '' : startParam) || 'system';
+            const rawSlug = slug || (rawEntryIntent.consumedStartParam ? '' : startParam) || 'system';
             const resolvedSlug = normalizeSlug(rawSlug) || 'system';
-            emitMiniAppEvent('info', 'Resolved target slug', { resolvedSlug, rawSlug });
+            emitMiniAppEvent('info', 'Resolved target slug', { ...safeLaunchMeta, resolvedSlug, rawSlug });
 
             // 3. Load Mini App Configuration
             try {
@@ -850,7 +809,18 @@ const MiniAppContent = () => {
                     tgUserId: resolvedUser?.id ? String(resolvedUser.id) : undefined,
                     visitorId
                 });
-                if (resolvedMode === 'LEAD' && entryIntent.requestType === 'SELL') {
+                const entryIntent = parseMiniAppEntryIntent(urlParams, startParam, resolvedMode);
+                emitMiniAppEvent('info', 'Resolved MiniApp entry intent', {
+                    ...safeLaunchMeta,
+                    resolvedSlug,
+                    surfaceMode: resolvedMode,
+                    view: entryIntent.view,
+                    tab: entryIntent.tab,
+                    requestType: entryIntent.requestType,
+                    botFlow: entryIntent.botFlow
+                });
+
+                if (resolvedMode === 'LEAD' && entryIntent.botFlow === 'SELL') {
                     if (telegramContext.initData) {
                         await startMiniAppBotFlow({
                             slug: conf.publicSlug || resolvedSlug,
@@ -859,6 +829,10 @@ const MiniAppContent = () => {
                         });
                         closeMiniAppOrShowSuccess('Бот відкрив сценарій продажу авто у чаті.');
                     } else {
+                        emitMiniAppEvent('warn', 'Lead sell handoff blocked without initData', {
+                            ...safeLaunchMeta,
+                            resolvedSlug
+                        });
                         setConfigWarning('Продаж авто відкривається у чаті бота. Відкрийте Mini App через кнопку меню бота.');
                     }
                 } else {
@@ -1018,7 +992,11 @@ const MiniAppContent = () => {
             trackEvent('lead_intent_price_terms_submitted', { carListingId: carId });
             closeMiniAppOrShowSuccess();
         } catch (e) {
-            emitMiniAppEvent('error', 'MiniApp price intent submit failed', { error: e instanceof Error ? e.message : String(e), carId });
+            emitMiniAppEvent('error', 'MiniApp price intent submit failed', buildSafeRuntimeDiagnostics({
+                error: e instanceof Error ? e.message : String(e),
+                code: typeof e === 'object' && e && 'code' in e ? String((e as any).code || '') : undefined,
+                carId
+            }));
             pushToast(resolveMiniAppWriteError(e, 'Не вдалося надіслати запит по авто.'), 'error');
         } finally {
             setIsRequestSubmitting(false);
@@ -1044,7 +1022,11 @@ const MiniAppContent = () => {
                 ? 'Бот відкрив сценарій продажу авто у чаті.'
                 : 'Бот відкрив сценарій підтримки у чаті.');
         } catch (e) {
-            emitMiniAppEvent('error', 'MiniApp bot flow failed', { flow, error: e instanceof Error ? e.message : String(e) });
+            emitMiniAppEvent('error', 'MiniApp bot flow failed', buildSafeRuntimeDiagnostics({
+                flow,
+                error: e instanceof Error ? e.message : String(e),
+                code: typeof e === 'object' && e && 'code' in e ? String((e as any).code || '') : undefined
+            }));
             pushToast(resolveMiniAppWriteError(e, 'Не вдалося відкрити сценарій у боті.'), 'error');
         } finally {
             setIsRequestSubmitting(false);
@@ -1069,7 +1051,11 @@ const MiniAppContent = () => {
             clearRequestSelection();
             closeMiniAppOrShowSuccess();
         } catch (e) {
-            emitMiniAppEvent('error', 'MiniApp selected cars intent failed', { error: e instanceof Error ? e.message : String(e) });
+            emitMiniAppEvent('error', 'MiniApp selected cars intent failed', buildSafeRuntimeDiagnostics({
+                error: e instanceof Error ? e.message : String(e),
+                code: typeof e === 'object' && e && 'code' in e ? String((e as any).code || '') : undefined,
+                selectedCarsCount: selectedRequestCarIds.length
+            }));
             pushToast(resolveMiniAppWriteError(e, 'Не вдалося надіслати запит по обраних авто.'), 'error');
         } finally {
             setIsRequestSubmitting(false);
@@ -1252,114 +1238,161 @@ const MiniAppContent = () => {
 
     const getStatusLabel = (car: CarListing) => car.presentation?.statusLabel || (isTransitCar(car) ? 'В дорозі' : 'В наявності');
 
-    const renderHome = () => (
-        <div className="animate-fade-in pb-24 h-full overflow-y-auto">
-            {/* Header */}
-            <div
-                className="pt-8 pb-8 px-6 rounded-b-[40px] shadow-lg relative overflow-hidden"
-                style={{
-                    background: config.headerImageUrl
-                        ? `linear-gradient(135deg, rgba(0,0,0,0.68), rgba(0,0,0,0.92)), url(${config.headerImageUrl}) center/cover`
-                        : `linear-gradient(135deg, ${primaryColor}30 0%, #000000 100%)`
-                }}
-            >
-                <div className="relative z-10">
-                    <div className="flex items-center gap-3 mb-2">
-                        {config.logoUrl && (
-                            <img src={config.logoUrl} className="w-10 h-10 rounded-xl object-cover border border-white/20 bg-white/10" />
-                        )}
-                        <h1 className="text-2xl font-bold text-white">{config.title}</h1>
-                    </div>
-                    <p className="text-white/70 text-sm">{config.welcomeText}</p>
+    const renderHome = () => {
+        const featuredCar = cars[0];
+        const featuredImages = featuredCar ? getCarImages(featuredCar) : [];
+        const featuredTitle = featuredCar?.presentation?.title || featuredCar?.title || (surfaceMode === 'B2B' ? 'CarTié B2B Network' : 'CarTié Import');
+        const featuredSubtitle = featuredCar
+            ? [
+                featuredCar.presentation?.subtitle,
+                featuredCar.presentation?.mileageLabel || formatMileage(featuredCar.mileage),
+                getStatusLabel(featuredCar)
+            ].filter(Boolean).slice(0, 3).join(' • ')
+            : (surfaceMode === 'B2B' ? 'Угоди, склад і комунікація з партнерами' : 'Підбір, імпорт і супровід авто під ключ');
+        const visibleActions = (config.actions || []).slice(0, 4);
+        const greetingName = tgUser?.first_name || (surfaceMode === 'B2B' ? 'партнере' : 'друже');
 
-                    {tgUser && (
-                        <div className="mt-6 flex items-center gap-3 bg-white/10 p-2.5 rounded-xl backdrop-blur-md border border-white/5 shadow-inner">
-                            <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-yellow-400 to-yellow-600 flex items-center justify-center text-black font-bold text-sm shadow-md overflow-hidden">
-                                {tgUser.photo_url ? <img src={tgUser.photo_url} className="w-full h-full object-cover" /> : tgUser.first_name?.[0]}
-                            </div>
-                            <div className="text-xs">
-                                <p className="text-white font-bold text-sm">Вітаємо, {tgUser.first_name}</p>
-                                <p className="text-white/50">{surfaceMode === 'B2B' ? 'Учасник B2B мережі' : 'Клієнт CarTié'}</p>
+        return (
+            <div className="animate-fade-in pb-24 h-full overflow-y-auto bg-[#050608]">
+                <div className="px-5 pt-7 pb-5">
+                    <div className="flex items-center justify-between mb-5">
+                        <div>
+                            <div className="text-[24px] font-black tracking-[0.18em] text-white">CARTIÉ</div>
+                            <div className="text-xs text-white/45 mt-0.5">
+                                {surfaceMode === 'B2B' ? 'B2B dealer network' : 'Telegram Mini App'}
                             </div>
                         </div>
-                    )}
-                </div>
-            </div>
+                        {tgUser?.photo_url ? (
+                            <img src={tgUser.photo_url} className="w-10 h-10 rounded-full object-cover border border-white/15 bg-white/10" />
+                        ) : (
+                            <div className="w-10 h-10 rounded-full bg-white/10 border border-white/10 flex items-center justify-center text-white/70">
+                                <User size={19} />
+                            </div>
+                        )}
+                    </div>
 
-            {/* Quick Actions */}
-            <div className="px-4 -mt-6 relative z-20">
-                <div className="bg-[#1c1c1e] rounded-2xl p-4 shadow-2xl border border-white/5">
-                    <div className={`grid gap-3 ${config.layout === 'GRID' ? 'grid-cols-2' : 'grid-cols-1'}`}>
-                        {(config.actions || []).map(act => (
-                            <button
-                                key={act.id}
-                                onClick={() => handleAction(act)}
-                                className="bg-[#2c2c2e] hover:bg-[#3a3a3c] transition-colors p-4 rounded-xl flex flex-col items-center justify-center gap-2 text-center group active:scale-95 duration-100 border border-transparent hover:border-white/5"
-                            >
-                                <div className="w-12 h-12 rounded-full bg-black/30 flex items-center justify-center shadow-inner" style={{ color: primaryColor }}>
-                                    {renderIcon(act.icon, 24)}
+                    <div className="mb-4">
+                        <h1 className="text-[25px] font-bold leading-tight text-white">
+                            Привіт, {greetingName} 👋
+                        </h1>
+                        <p className="text-white/62 text-sm mt-1 leading-relaxed">
+                            {surfaceMode === 'B2B'
+                                ? 'Твій фокус — B2B угоди. Склад, заявки і підтримка під рукою.'
+                                : 'Підберемо преміальне авто, покажемо наявність і швидко звʼяжемо з менеджером.'}
+                        </p>
+                    </div>
+
+                    <div className="relative overflow-hidden rounded-[30px] border border-white/10 min-h-[330px]" style={graphitePanelStyle}>
+                        <div className="absolute inset-0">
+                            {featuredImages[0] ? (
+                                <MiniAppImage
+                                    src={featuredImages[0]}
+                                    sources={featuredImages}
+                                    alt={featuredTitle}
+                                    className="w-full h-full object-cover opacity-72"
+                                />
+                            ) : (
+                                <MiniAppImage
+                                    src={config.headerImageUrl || PLACEHOLDER_IMAGE}
+                                    alt={featuredTitle}
+                                    className="w-full h-full object-cover opacity-62"
+                                />
+                            )}
+                            <div className="absolute inset-0 bg-gradient-to-t from-black via-black/58 to-black/10" />
+                        </div>
+                        <div className="relative z-10 flex min-h-[330px] flex-col justify-end p-5">
+                            <div className="mb-3 inline-flex w-fit items-center gap-2 rounded-full bg-black/48 border border-white/10 px-3 py-1 text-[11px] font-bold text-white/84 backdrop-blur">
+                                <Star size={13} className="text-white/70" />
+                                {surfaceMode === 'B2B' ? 'Актуальна угода' : 'Рекомендовано'}
+                            </div>
+                            <h2 className="text-2xl font-bold text-white leading-tight">{featuredTitle}</h2>
+                            <p className="mt-2 text-sm text-white/66 leading-relaxed">{featuredSubtitle}</p>
+                            <div className="mt-4 flex items-center justify-between gap-3">
+                                <div className="text-xl font-black text-[#F3F4F6]">
+                                    {featuredCar?.presentation?.priceLabel || (featuredCar ? formatPrice(featuredCar.price) : 'Підбір під бюджет')}
                                 </div>
-                                <span className="text-sm font-medium text-white">{act.label}</span>
-                            </button>
-                        ))}
+                                <button
+                                    onClick={() => featuredCar ? (surfaceMode === 'B2B' ? prefillRequestFromCar(featuredCar) : handleCarInterest(featuredCar)) : openRequest('BUY')}
+                                    className="shrink-0 rounded-2xl px-4 py-3 text-sm font-bold active:scale-95 transition-transform"
+                                    style={premiumCtaStyle}
+                                >
+                                    {surfaceMode === 'B2B' ? 'В угоду' : 'Дізнатись ціну'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="mt-5">
+                        <h3 className="text-sm font-bold text-white/86 mb-3">Швидкі дії</h3>
+                        <div className="grid grid-cols-2 gap-3">
+                            {visibleActions.map(act => (
+                                <button
+                                    key={act.id}
+                                    onClick={() => handleAction(act)}
+                                    className="min-h-[104px] rounded-2xl border border-white/10 bg-[#171a1d] p-4 text-left active:scale-[0.98] transition-transform"
+                                    style={{ boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)' }}
+                                >
+                                    <div className="w-11 h-11 rounded-2xl bg-black/32 border border-white/10 flex items-center justify-center text-white/78 mb-3">
+                                        {renderIcon(act.icon, 23)}
+                                    </div>
+                                    <div className="text-sm font-bold text-white leading-tight">{act.label}</div>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="mt-7">
+                        <div className="flex justify-between items-center mb-3">
+                            <h3 className="font-bold text-white text-lg">{surfaceMode === 'B2B' ? 'Склад мережі' : 'Featured cars'}</h3>
+                            <button onClick={() => setView('INVENTORY')} className="text-xs font-bold text-white/62">Дивитись всі</button>
+                        </div>
+                        <div className="space-y-3">
+                            {cars.slice(0, 4).map(car => {
+                                const images = getCarImages(car);
+                                const cover = images[0];
+                                const specs = getCarSpecs(car);
+                                const presentation = car.presentation;
+                                const carId = getCarId(car);
+
+                                return (
+                                    <button
+                                        key={carId || `home_${car.title}_${car.year}`}
+                                        onClick={() => openListing(car)}
+                                        className="w-full overflow-hidden rounded-2xl border border-white/10 bg-[#15171a] p-2 text-left flex gap-3 active:scale-[0.99] transition-transform"
+                                    >
+                                        <div className="relative w-[112px] h-[88px] shrink-0 rounded-xl overflow-hidden bg-[#202226]">
+                                            <MiniAppImage
+                                                src={cover}
+                                                sources={images}
+                                                alt={presentation?.title || car.title || 'Авто'}
+                                                className="w-full h-full object-cover"
+                                            />
+                                            <div className="absolute left-2 top-2 rounded-md bg-black/55 px-1.5 py-0.5 text-[9px] font-bold text-white/84">
+                                                {getStatusLabel(car)}
+                                            </div>
+                                        </div>
+                                        <div className="min-w-0 flex-1 py-1">
+                                            <div className="flex items-start justify-between gap-2">
+                                                <h4 className="text-sm font-bold text-white leading-snug line-clamp-2">{presentation?.title || car.title}</h4>
+                                                <Star size={15} className={isFavorite(carId) ? 'text-yellow-400 fill-yellow-400 shrink-0' : 'text-white/35 shrink-0'} />
+                                            </div>
+                                            <p className="text-[11px] text-white/48 mt-1 truncate">
+                                                {(presentation?.specChips || []).slice(0, 2).join(' • ') || pickText(specs.engine, specs.fuel) || '—'} • {presentation?.mileageLabel || formatMileage(car.mileage)}
+                                            </p>
+                                            <div className="mt-2 flex items-center justify-between gap-2">
+                                                <span className="font-black text-[#F4F5F7]">{presentation?.priceLabel || formatPrice(car.price)}</span>
+                                                <span className="text-[10px] text-white/45">{car.year || '—'}</span>
+                                            </div>
+                                        </div>
+                                    </button>
+                                );
+                            })}
+                        </div>
                     </div>
                 </div>
             </div>
-
-            {/* Recent Inventory */}
-            <div className="px-4 mt-8">
-                <div className="flex justify-between items-center mb-4">
-                    <h3 className="font-bold text-white text-lg">{surfaceMode === 'B2B' ? 'Актуальні варіанти мережі' : 'Нові авто'}</h3>
-                    <button onClick={() => setView('INVENTORY')} className="text-xs font-bold" style={{ color: primaryColor }}>Дивитись всі</button>
-                </div>
-                <div className="flex gap-4 overflow-x-auto pb-4 hide-scrollbar">
-                    {cars.slice(0, 5).map(car => {
-                        const images = getCarImages(car);
-                        const cover = images[0];
-                        const specs = getCarSpecs(car);
-                        const presentation = car.presentation;
-
-                        return (
-                            <div key={getCarId(car) || `home_${car.title}_${car.year}`} className="min-w-[230px] bg-[#1c1c1e] rounded-xl overflow-hidden border border-white/5 shadow-lg">
-                                <div className="h-36 bg-gray-800 relative cursor-pointer" onClick={() => openListing(car)}>
-                                    <MiniAppImage
-                                        src={cover}
-                                        sources={images}
-                                        alt={presentation?.title || car.title || 'Авто'}
-                                        className="w-full h-full object-cover opacity-90"
-                                    />
-                                    <button
-                                        onClick={(e) => { e.stopPropagation(); toggleFavorite(car); }}
-                                        className="absolute top-2 left-2 w-8 h-8 rounded-full bg-black/60 flex items-center justify-center"
-                                    >
-                                        <Star size={14} className={isFavorite(getCarId(car)) ? 'text-yellow-400 fill-yellow-400' : 'text-white/70'} />
-                                    </button>
-                                    <div className="absolute top-2 right-2 bg-black/60 backdrop-blur px-2 py-1 rounded text-[10px] font-bold text-white">
-                                        {car.year}
-                                    </div>
-                                </div>
-                                <div className="p-3">
-                                    <h4 className="text-sm font-bold text-white truncate">{presentation?.title || car.title}</h4>
-                                    <p className="text-xs text-white/50 mt-1 mb-2">
-                                        {(presentation?.specChips || []).slice(0, 2).join(' • ') || pickText(specs.engine, specs.fuel) || '—'} • {presentation?.mileageLabel || formatMileage(car.mileage)}
-                                    </p>
-                                    <div className="font-bold text-sm text-[#E4E7EC]">
-                                        {presentation?.priceLabel || formatPrice(car.price)}
-                                    </div>
-                                    <button
-                                        onClick={() => openListing(car)}
-                                        className="mt-2 w-full text-xs py-2 rounded-lg bg-white/5 text-white/80"
-                                    >
-                                        Деталі
-                                    </button>
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
-            </div>
-        </div>
-    );
+        );
+    };
 
     const renderInventory = () => {
         return (
@@ -1444,7 +1477,7 @@ const MiniAppContent = () => {
             <div className="animate-fade-in pb-24 h-full overflow-y-auto bg-black">
                 <div className="p-4 flex items-center gap-3 border-b border-white/10 bg-[#000000]/90 backdrop-blur-md">
                     <button onClick={goBack} className="text-white/70 text-sm">← Назад</button>
-                    <h2 className="text-white font-bold truncate">{selectedCar.title}</h2>
+                    <h2 className="text-white font-bold truncate">{presentation?.title || selectedCar.title}</h2>
                 </div>
                 <div className="p-4 space-y-4">
                     <div className="h-60 bg-gray-800 rounded-2xl overflow-hidden relative cursor-pointer" onClick={() => { setLightboxCar(selectedCar); setLightboxImageIndex(0); }}>
@@ -1579,14 +1612,37 @@ const MiniAppContent = () => {
             || activeBot?.username
             || ''
         ).replace(/^@/, '').trim();
+        const links = Array.isArray(contacts.links) ? contacts.links : [];
+        const mapsLink = links.find(link => /лок|map|maps/i.test(`${link.label} ${link.url}`))?.url;
+        const iconForLink = (label: string, url: string) => {
+            const text = `${label} ${url}`.toLowerCase();
+            if (text.includes('instagram')) return 'Instagram';
+            if (text.includes('youtube')) return 'Youtube';
+            if (text.includes('tiktok')) return 'Video';
+            if (text.includes('maps') || text.includes('локац')) return 'MapPinned';
+            if (text.includes('t.me') || text.includes('telegram')) return 'Send';
+            return 'Globe';
+        };
+        const normalizeTelegramBotUrl = (value: string) => {
+            if (/^https?:\/\//i.test(value)) return value;
+            return `https://t.me/${value.replace(/^@/, '')}`;
+        };
         const items = [
-            contacts.telegramChannel ? { label: 'Telegram-канал', url: contacts.telegramChannel, icon: 'MessageCircle' } : null,
-            username ? { label: 'Telegram-бот', url: `https://t.me/${username}`, icon: 'MessageCircle' } : null,
-            contacts.instagram ? { label: 'Instagram', url: contacts.instagram, icon: 'Instagram' } : null,
-            contacts.website ? { label: 'Сайт', url: contacts.website, icon: 'Globe' } : null,
-            contacts.phone ? { label: 'Телефон', url: `tel:${contacts.phone}`, icon: 'Phone' } : null,
-            ...(Array.isArray(contacts.links) ? contacts.links.map(link => ({ label: link.label, url: link.url, icon: 'Globe' })) : [])
-        ].filter((item): item is { label: string; url: string; icon: string } => Boolean(item?.url));
+            contacts.telegramChannel ? { label: 'Telegram канал', caption: 'Новини та актуальні пропозиції', url: contacts.telegramChannel, icon: 'Send' } : null,
+            username ? { label: 'Менеджер у Telegram', caption: 'Швидкий звʼязок по авто', url: normalizeTelegramBotUrl(username), icon: 'MessageCircle' } : null,
+            contacts.instagram ? { label: 'Instagram', caption: 'Фото, відео та новини', url: contacts.instagram, icon: 'Instagram' } : null,
+            contacts.website ? { label: 'Сайт / квіз', caption: 'Залишити заявку на підбір', url: contacts.website, icon: 'Globe' } : null,
+            mapsLink && contacts.address ? { label: 'Локація', caption: contacts.address, url: mapsLink, icon: 'MapPinned' } : null,
+            contacts.phone ? { label: 'Телефон', caption: contacts.phone, url: `tel:${contacts.phone.replace(/[^\d+]/g, '')}`, icon: 'Phone' } : null,
+            ...links
+                .filter(link => !mapsLink || link.url !== mapsLink)
+                .map(link => ({
+                    label: link.label,
+                    caption: link.url.replace(/^https?:\/\//, ''),
+                    url: link.url,
+                    icon: iconForLink(link.label, link.url)
+                }))
+        ].filter((item): item is { label: string; caption?: string; url: string; icon: string } => Boolean(item?.url));
         return items;
     };
 
@@ -1648,23 +1704,41 @@ const MiniAppContent = () => {
     const renderContacts = () => {
         const links = getContactLinks();
         return (
-            <div className="animate-fade-in pb-24 p-6 h-full overflow-y-auto flex flex-col bg-black">
-                <div className="bg-[#1c1c1e] border border-white/10 rounded-2xl p-5">
-                    <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center mb-4 text-[#E4E7EC]">
-                        <Phone size={22} />
+            <div className="animate-fade-in pb-24 p-5 h-full overflow-y-auto flex flex-col bg-black">
+                <div className="relative overflow-hidden rounded-[28px] border border-white/10 p-5" style={graphitePanelStyle}>
+                    <div className="absolute inset-x-0 top-0 h-32 bg-[radial-gradient(circle_at_30%_0%,rgba(255,255,255,0.18),transparent_55%)] pointer-events-none" />
+                    <div className="relative z-10">
+                        <div className="w-12 h-12 rounded-2xl bg-white/10 flex items-center justify-center mb-4 text-[#E4E7EC] border border-white/10">
+                            <Phone size={22} />
+                        </div>
+                        <p className="text-[11px] uppercase tracking-[0.18em] text-white/45 font-bold">CarTié contacts</p>
+                        <h2 className="text-3xl font-bold text-white mt-1 mb-2">Звʼяжіться з нами</h2>
+                        <p className="text-white/60 text-sm mb-5 leading-relaxed">
+                            Офіційні канали, шоурум, менеджер і соцмережі CarTié в одному місці.
+                        </p>
                     </div>
-                    <h2 className="text-2xl font-bold text-white mb-2">Контакти</h2>
-                    <p className="text-white/60 text-sm mb-5">Офіційні канали CarTié для звʼязку та оновлень.</p>
-                    <div className="space-y-2">
+                    <div className="relative z-10 space-y-2">
                         {links.map(link => (
                             <button
                                 key={`${link.label}_${link.url}`}
                                 onClick={() => openContactUrl(link.url)}
-                                className="w-full min-h-[52px] rounded-xl border border-white/10 bg-black/25 text-white flex items-center justify-between px-4"
+                                className="w-full min-h-[66px] rounded-2xl border border-white/10 bg-white/[0.055] text-white flex items-center justify-between px-4 active:scale-[0.99] transition-transform"
                             >
-                                <span className="flex items-center gap-3">
-                                    {link.icon === 'Instagram' ? <Instagram size={18} /> : link.icon === 'Globe' ? <Globe size={18} /> : link.icon === 'Phone' ? <Phone size={18} /> : <MessageSquare size={18} />}
-                                    <span className="font-semibold">{link.label}</span>
+                                <span className="flex min-w-0 items-center gap-3">
+                                    <span className="w-10 h-10 shrink-0 rounded-2xl bg-black/35 border border-white/10 flex items-center justify-center text-white/86">
+                                        {link.icon === 'Instagram' ? <Instagram size={19} />
+                                            : link.icon === 'Globe' ? <Globe size={19} />
+                                                : link.icon === 'Phone' ? <Phone size={19} />
+                                                    : link.icon === 'MapPinned' ? <MapPinned size={19} />
+                                                        : link.icon === 'Youtube' ? <Youtube size={19} />
+                                                            : link.icon === 'Video' ? <Video size={19} />
+                                                                : link.icon === 'Send' ? <Send size={19} />
+                                                                    : <MessageSquare size={19} />}
+                                    </span>
+                                    <span className="min-w-0 text-left">
+                                        <span className="block font-semibold leading-tight truncate">{link.label}</span>
+                                        {link.caption && <span className="block text-xs text-white/48 truncate mt-1">{link.caption}</span>}
+                                    </span>
                                 </span>
                                 <ChevronRight size={18} className="text-white/40" />
                             </button>
@@ -1677,10 +1751,10 @@ const MiniAppContent = () => {
                     </div>
                     <button
                         onClick={() => startBotFlow('SUPPORT')}
-                        className="w-full mt-4 py-4 rounded-xl font-bold"
+                        className="relative z-10 w-full mt-4 py-4 rounded-2xl font-bold"
                         style={premiumCtaStyle}
                     >
-                        Написати в бот
+                        Написати менеджеру
                     </button>
                 </div>
             </div>
@@ -1824,7 +1898,11 @@ const MiniAppContent = () => {
                 requestSubmitIdRef.current = null;
                 setReqStep(5);
             } catch (e) {
-                emitMiniAppEvent('error', 'MiniApp request submit failed', { error: e instanceof Error ? e.message : String(e) });
+                emitMiniAppEvent('error', 'MiniApp request submit failed', buildSafeRuntimeDiagnostics({
+                    error: e instanceof Error ? e.message : String(e),
+                    code: typeof e === 'object' && e && 'code' in e ? String((e as any).code || '') : undefined,
+                    requestType
+                }));
                 const message = resolveMiniAppWriteError(e, 'Не вдалося надіслати запит.');
                 pushToast(message, 'error');
             } finally {
@@ -1917,6 +1995,10 @@ const MiniAppContent = () => {
                 return <Phone {...props} />;
             case 'Globe': return <Globe {...props} />;
             case 'Instagram': return <Instagram {...props} />;
+            case 'Send': return <Send {...props} />;
+            case 'MapPinned': return <MapPinned {...props} />;
+            case 'Youtube': return <Youtube {...props} />;
+            case 'Video': return <Video {...props} />;
             case 'Heart': return <Heart {...props} />;
             case 'Star': return <Star {...props} />;
             case 'ClipboardList': return <ClipboardList {...props} />;
@@ -1979,7 +2061,7 @@ const MiniAppContent = () => {
                             return (
                                 <>
                                     <div className="p-4 flex justify-between items-center">
-                                        <h3 className="text-white font-bold truncate">{lightboxCar.title}</h3>
+                                        <h3 className="text-white font-bold truncate">{lightboxCar.presentation?.title || lightboxCar.title}</h3>
                                         <div className="flex items-center gap-2">
                                             <button
                                                 onClick={shareLightboxCar}

@@ -40,6 +40,7 @@ type MiniAppConfig = {
     instagram?: string;
     website?: string;
     phone?: string;
+    address?: string;
     links?: Array<{ label: string; url: string }>;
   };
 };
@@ -66,7 +67,11 @@ const mergeMiniAppConfig = (fallback: MiniAppConfig, existing: Partial<MiniAppCo
     primaryColor: coalesceText(source.primaryColor, fallback.primaryColor),
     accentColor: coalesceText(source.accentColor, fallback.accentColor || '#111111'),
     actions: fallback.actions,
-    navItems: fallback.navItems || []
+    navItems: fallback.navItems || [],
+    contacts: {
+      ...(fallback.contacts || {}),
+      ...((source.contacts && typeof source.contacts === 'object') ? source.contacts : {})
+    }
   };
 };
 
@@ -149,6 +154,21 @@ const appendMiniAppQuery = (rawUrl: string, params: Record<string, string>) => {
   } catch {
     return rawUrl;
   }
+};
+
+const CARTIE_PUBLIC_CONTACTS: NonNullable<MiniAppConfig['contacts']> = {
+  telegramChannel: 'https://t.me/cartieimport',
+  telegramBot: 'https://t.me/yura_cartie',
+  instagram: 'https://www.instagram.com/cartie.import/',
+  website: 'https://cartie.adsquiz.io/',
+  phone: '+38 (063) 505-52-52',
+  address: 'м. Львів, Кільцева дорога 1, 79000',
+  links: [
+    { label: 'Авто в наявності', url: 'https://t.me/CarTie_Showroom' },
+    { label: 'TikTok', url: 'https://www.tiktok.com/@cartie.import' },
+    { label: 'YouTube', url: 'https://www.youtube.com/@cartie_avto' },
+    { label: 'Локація', url: 'https://maps.app.goo.gl/n6MACQaVP9cEoNDo7?g_st=ipc' }
+  ]
 };
 
 const LEAD_BUTTON_IDS = new Set([
@@ -288,6 +308,7 @@ const buildClientLeadMiniAppConfig = (url: string, showcaseSlug: string): MiniAp
     { id: 'nav_contacts', label: 'Контакти', icon: 'MessageCircle', actionType: 'VIEW', value: 'CONTACTS' },
     { id: 'nav_profile', label: 'Профіль', icon: 'User', actionType: 'VIEW', value: 'PROFILE' }
   ],
+  contacts: CARTIE_PUBLIC_CONTACTS,
   url,
   showcaseSlug
 });
@@ -313,6 +334,7 @@ const buildB2BMiniAppConfig = (url: string, showcaseSlug: string): MiniAppConfig
     { id: 'nav_support', label: 'Підтримка', icon: 'MessageCircle', actionType: 'VIEW', value: 'SUPPORT' },
     { id: 'nav_profile', label: 'Профіль', icon: 'User', actionType: 'VIEW', value: 'PROFILE' }
   ],
+  contacts: CARTIE_PUBLIC_CONTACTS,
   url,
   showcaseSlug
 });
