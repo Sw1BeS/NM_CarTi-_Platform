@@ -9,6 +9,20 @@ export interface ApiResponse<T = any> {
     details?: any;
 }
 
+export class ApiFetchError extends Error {
+    status: number;
+    code?: string;
+    details?: any;
+
+    constructor(message: string, status: number, details?: any) {
+        super(message);
+        this.name = 'ApiFetchError';
+        this.status = status;
+        this.details = details;
+        this.code = details?.code || details?.error?.code;
+    }
+}
+
 type QueryPrimitive = string | number | boolean | null | undefined;
 type QueryValue = QueryPrimitive | QueryPrimitive[];
 type QueryParams = URLSearchParams | Record<string, QueryValue>;
@@ -134,11 +148,12 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
                 localStorage.removeItem('cartie_token');
                 window.dispatchEvent(new Event('auth-error'));
             }
-            console.warn(`[API] ${requestInit.method || 'GET'} ${url} → ${response.status}`, data.message || response.statusText);
+            const errorMessage = data.message || data.error?.message || data.error || response.statusText;
+            console.warn(`[API] ${requestInit.method || 'GET'} ${url} → ${response.status}`, errorMessage);
             return {
                 ok: false,
                 status: response.status,
-                message: data.message || response.statusText,
+                message: errorMessage,
                 details: data
             };
         }
@@ -163,7 +178,7 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
 export async function apiFetch<T = any>(endpoint: string, options: any = {}): Promise<T> {
     const res = await request<T>(endpoint, options);
     if (!res.ok) {
-        throw new Error(res.message || 'Network error');
+        throw new ApiFetchError(res.message || 'Network error', res.status, res.details);
     }
     return res.data as T;
 }

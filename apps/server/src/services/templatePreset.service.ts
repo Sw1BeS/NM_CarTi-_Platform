@@ -5,7 +5,7 @@ import fs from 'node:fs';
 type BotTemplate = 'CLIENT_LEAD' | 'B2B' | 'CATALOG' | string;
 export type PresetStatus = 'ready' | 'partial' | 'missing';
 
-export const TEMPLATE_PRESET_VERSION = '2026.02.18-r7';
+export const TEMPLATE_PRESET_VERSION = '2026.02.18-r8';
 
 const LEGACY_LEAD_WELCOME_EN = '👋 Welcome to CarTié! Choose an option below:';
 const LEGACY_B2B_WELCOME_EN = '🤝 CarDealer Lviv B2B\n\nCreate a structured request and get offers from partner dealers.';
@@ -34,11 +34,39 @@ type MiniAppConfig = {
   url?: string;
   showcaseSlug?: string;
   homeBlocks?: unknown[];
+  contacts?: {
+    telegramChannel?: string;
+    telegramBot?: string;
+    instagram?: string;
+    website?: string;
+    phone?: string;
+    links?: Array<{ label: string; url: string }>;
+  };
 };
 
 const coalesceText = (value: unknown, fallback: string) => {
   const text = typeof value === 'string' ? value.trim() : '';
   return text || fallback;
+};
+
+const mergeMiniAppItems = <T extends { id: string; value: string }>(fallback: T[], source?: T[]): T[] => {
+  const existing = Array.isArray(source)
+    ? source.filter((item): item is T => Boolean(item && typeof item === 'object'))
+    : [];
+  if (!existing.length) return fallback;
+
+  const seen = new Set(existing.map((item) => `${item.id}:${item.value}`));
+  const values = new Set(existing.map((item) => String(item.value || '').toUpperCase()));
+  const merged = [...existing];
+  for (const item of fallback) {
+    const signature = `${item.id}:${item.value}`;
+    const value = String(item.value || '').toUpperCase();
+    if (seen.has(signature) || values.has(value)) continue;
+    merged.push(item);
+    seen.add(signature);
+    values.add(value);
+  }
+  return merged;
 };
 
 const mergeMiniAppConfig = (fallback: MiniAppConfig, existing: Partial<MiniAppConfig> | undefined): MiniAppConfig => {
@@ -57,8 +85,8 @@ const mergeMiniAppConfig = (fallback: MiniAppConfig, existing: Partial<MiniAppCo
     welcomeText: coalesceText(source.welcomeText, fallback.welcomeText),
     primaryColor: coalesceText(source.primaryColor, fallback.primaryColor),
     accentColor: coalesceText(source.accentColor, fallback.accentColor || '#111111'),
-    actions: Array.isArray(source.actions) && source.actions.length ? source.actions : fallback.actions,
-    navItems: Array.isArray(source.navItems) && source.navItems.length ? source.navItems : fallback.navItems
+    actions: mergeMiniAppItems(fallback.actions, source.actions),
+    navItems: mergeMiniAppItems(fallback.navItems || [], source.navItems)
   };
 };
 
@@ -268,16 +296,17 @@ const buildClientLeadMiniAppConfig = (url: string, showcaseSlug: string): MiniAp
   accentColor: '#111111',
   layout: 'GRID',
   actions: [
-    { id: 'act_pick', label: 'Підібрати авто за 1 хвилину', icon: 'Search', actionType: 'VIEW', value: 'REQUEST' },
-    { id: 'act_stock', label: 'Авто в наявності', icon: 'LayoutGrid', actionType: 'VIEW', value: 'INVENTORY_STOCK' },
+    { id: 'act_stock', label: 'Каталог авто', icon: 'LayoutGrid', actionType: 'VIEW', value: 'INVENTORY_STOCK' },
+    { id: 'act_pick', label: 'Підбір за параметрами', icon: 'Search', actionType: 'VIEW', value: 'REQUEST' },
     { id: 'act_transit', label: 'Авто в дорозі', icon: 'Zap', actionType: 'VIEW', value: 'INVENTORY_TRANSIT' },
-    { id: 'act_support', label: 'Підтримка', icon: 'MessageCircle', actionType: 'VIEW', value: 'SUPPORT' }
+    { id: 'act_contacts', label: 'Звʼязатися', icon: 'MessageCircle', actionType: 'VIEW', value: 'CONTACTS' }
   ],
   navItems: [
     { id: 'nav_home', label: 'Головна', icon: 'Home', actionType: 'VIEW', value: 'HOME' },
     { id: 'nav_stock', label: 'Каталог', icon: 'LayoutGrid', actionType: 'VIEW', value: 'INVENTORY' },
-    { id: 'nav_request', label: 'Підбір', icon: 'Search', actionType: 'VIEW', value: 'REQUEST' },
-    { id: 'nav_support', label: 'Підтримка', icon: 'MessageCircle', actionType: 'VIEW', value: 'SUPPORT' }
+    { id: 'nav_request', label: 'Заявки', icon: 'Search', actionType: 'VIEW', value: 'REQUEST' },
+    { id: 'nav_contacts', label: 'Контакти', icon: 'MessageCircle', actionType: 'VIEW', value: 'CONTACTS' },
+    { id: 'nav_profile', label: 'Профіль', icon: 'User', actionType: 'VIEW', value: 'PROFILE' }
   ],
   url,
   showcaseSlug
@@ -288,19 +317,21 @@ const buildB2BMiniAppConfig = (url: string, showcaseSlug: string): MiniAppConfig
   surfaceMode: 'B2B',
   title: 'CarDealer Lviv B2B',
   welcomeText: 'Інвентар партнерів та статуси B2B-запитів у реальному часі.',
-  primaryColor: '#2AA876',
-  accentColor: '#0B1F17',
+  primaryColor: '#C9CDD3',
+  accentColor: '#15181C',
   layout: 'GRID',
   actions: [
-    { id: 'act_stock', label: 'Інвентар', icon: 'Grid', actionType: 'VIEW', value: 'INVENTORY' },
-    { id: 'act_fav', label: 'Обране', icon: 'Heart', actionType: 'VIEW', value: 'FAVORITES' },
-    { id: 'act_status', label: 'Статуси', icon: 'ClipboardList', actionType: 'VIEW', value: 'STATUS' }
+    { id: 'act_deals', label: 'Мої угоди (B2B)', icon: 'ClipboardList', actionType: 'VIEW', value: 'STATUS' },
+    { id: 'act_stock', label: 'Склад (B2B)', icon: 'Grid', actionType: 'VIEW', value: 'INVENTORY' },
+    { id: 'act_leads', label: 'Нові ліди', icon: 'Zap', actionType: 'VIEW', value: 'STATUS' },
+    { id: 'act_support', label: 'Підтримка', icon: 'MessageCircle', actionType: 'VIEW', value: 'SUPPORT' }
   ],
   navItems: [
     { id: 'nav_home', label: 'Головна', icon: 'Home', actionType: 'VIEW', value: 'HOME' },
-    { id: 'nav_stock', label: 'Інвентар', icon: 'LayoutGrid', actionType: 'VIEW', value: 'INVENTORY' },
-    { id: 'nav_saved', label: 'Обране', icon: 'Heart', actionType: 'VIEW', value: 'FAVORITES' },
-    { id: 'nav_status', label: 'Статуси', icon: 'ClipboardList', actionType: 'VIEW', value: 'STATUS' }
+    { id: 'nav_deals', label: 'Угоди', icon: 'ClipboardList', actionType: 'VIEW', value: 'STATUS' },
+    { id: 'nav_stock', label: 'Склад', icon: 'LayoutGrid', actionType: 'VIEW', value: 'INVENTORY' },
+    { id: 'nav_support', label: 'Підтримка', icon: 'MessageCircle', actionType: 'VIEW', value: 'SUPPORT' },
+    { id: 'nav_profile', label: 'Профіль', icon: 'User', actionType: 'VIEW', value: 'PROFILE' }
   ],
   url,
   showcaseSlug
@@ -308,7 +339,7 @@ const buildB2BMiniAppConfig = (url: string, showcaseSlug: string): MiniAppConfig
 
 const baseLeadButtons = (scenarioIds: Record<string, string>, miniAppUrl: string): MenuButton[] => [
   { id: 'btn_pick', label: '⏱ Підібрати авто за 1 хвилину', label_uk: '⏱ Підібрати авто за 1 хвилину', label_ru: '⏱ Підібрати авто за 1 хвилину', type: 'WEB_APP', value: appendMiniAppQuery(miniAppUrl, { entry: 'request', type: 'BUY' }), row: 0, col: 0 },
-  { id: 'btn_sell', label: '💰 Продати своє авто', label_uk: '💰 Продати своє авто', label_ru: '💰 Продати своє авто', type: 'WEB_APP', value: appendMiniAppQuery(miniAppUrl, { entry: 'request', type: 'SELL' }), row: 0, col: 1 },
+  { id: 'btn_sell', label: '💰 Продати своє авто', label_uk: '💰 Продати своє авто', label_ru: '💰 Продати своє авто', type: 'SCENARIO', value: scenarioIds.sell || 'sell', row: 0, col: 1 },
   { id: 'btn_stock', label: '🚘 Авто в наявності', label_uk: '🚘 Авто в наявності', label_ru: '🚘 Авто в наявності', type: 'WEB_APP', value: appendMiniAppQuery(miniAppUrl, { entry: 'inventory', status: 'AVAILABLE' }), row: 1, col: 0 },
   { id: 'btn_transit', label: '🚚 Авто в дорозі', label_uk: '🚚 Авто в дорозі', label_ru: '🚚 Авто в дорозі', type: 'WEB_APP', value: appendMiniAppQuery(miniAppUrl, { entry: 'inventory', status: 'PENDING' }), row: 1, col: 1 },
   { id: 'btn_favorites', label: '⭐ Обране', label_uk: '⭐ Обране', label_ru: '⭐ Избранное', type: 'WEB_APP', value: appendMiniAppQuery(miniAppUrl, { entry: 'favorites' }), row: 2, col: 0 },

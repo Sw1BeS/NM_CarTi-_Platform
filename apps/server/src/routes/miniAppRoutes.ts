@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { Prisma } from '@prisma/client';
 import { miniAppService } from '../services/miniapp.service.js';
 import { errorResponse } from '../utils/errorResponse.js';
 import { parseTelegramUser } from '../modules/Communication/telegram/core/telegramAuth.js';
@@ -11,9 +12,19 @@ import { renderCarCardForBot } from '../services/carCardRenderer.v2.js';
 import { telegramOutbox } from '../modules/Communication/telegram/messaging/outbox/telegramOutbox.js';
 import { emitPlatformEvent } from '../modules/Communication/telegram/core/events/eventEmitter.js';
 import { verifyMiniAppInitDataForScope } from '../services/miniAppAuth.service.js';
+import { requestContractService } from '../services/requestContract.service.js';
+import { startLeadSellWizard } from '../modules/Communication/telegram/routing/wizards/leadSellWizard.js';
 
 const router = Router();
 const showcaseService = new ShowcaseService();
+
+const MINIAPP_ERROR_CODES = {
+  INITDATA_REQUIRED: 'TELEGRAM_INITDATA_REQUIRED',
+  INITDATA_INVALID: 'TELEGRAM_INITDATA_INVALID',
+  VALIDATION: 'VALIDATION_ERROR',
+  BOT_FLOW_UNAVAILABLE: 'BOT_FLOW_UNAVAILABLE',
+  CONTACT_REQUEST_SEND_FAILED: 'CONTACT_REQUEST_SEND_FAILED'
+} as const;
 
 const readString = (value: unknown): string | undefined => {
   if (typeof value === 'string') {
@@ -31,6 +42,16 @@ const readNumber = (value: unknown): number | undefined => {
   return Number.isFinite(n) ? n : undefined;
 };
 
+const isRecord = (value: unknown): value is Record<string, unknown> => {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+};
+
+const readStringArray = (value: unknown): string[] | undefined => {
+  if (!Array.isArray(value)) return undefined;
+  const items = value.map((item) => readString(item)).filter((item): item is string => Boolean(item));
+  return items.length ? Array.from(new Set(items)) : undefined;
+};
+
 const resolveCompanyIdBySlug = async (slug?: string | null) => {
   const trimmed = String(slug || '').trim();
   if (!trimmed) return null;
@@ -40,6 +61,95 @@ const resolveCompanyIdBySlug = async (slug?: string | null) => {
 
 const requireInitData = async (initData: string | undefined, companyId?: string | null, botId?: string | null) => {
   return verifyMiniAppInitDataForScope(initData, { companyId, botId });
+};
+
+const parseMiniAppTelegramIdentity = (initData: string) => {
+  const tgUser = parseTelegramUser(initData) as any;
+  const userId = tgUser?.id ? String(tgUser.id) : undefined;
+  const name = [tgUser?.first_name, tgUser?.last_name].filter(Boolean).join(' ').trim()
+    || readString(tgUser?.name)
+    || undefined;
+  return {
+    userId,
+    username: readString(tgUser?.username),
+    name,
+    raw: tgUser
+  };
+};
+
+const getMiniAppBotForSend = async (botId?: string | null, companyId?: string | null) => {
+  if (botId) {
+    const bot = await prisma.botConfig.findFirst({
+      where: { id: botId, isEnabled: true },
+      select: { id: true, token: true, companyId: true, config: true, template: true, name: true }
+    });
+    if (bot) return bot;
+  }
+
+  return prisma.botConfig.findFirst({
+    where: { ...(companyId ? { companyId } : {}), isEnabled: true },
+    orderBy: { createdAt: 'asc' },
+    select: { id: true, token: true, companyId: true, config: true, template: true, name: true }
+  });
+};
+
+const ensureMiniAppBotSession = async (params: {
+  botId: string;
+  chatId: string;
+  variables?: Record<string, unknown>;
+  state?: string;
+}) => {
+  const existing = await prisma.botSession.findUnique({
+    where: {
+      botId_chatId: {
+        botId: params.botId,
+        chatId: params.chatId
+      }
+    }
+  });
+
+  if (existing) {
+    if (!params.state && !params.variables) return existing;
+    const nextVariables = JSON.parse(JSON.stringify({
+      ...((existing.variables as Record<string, unknown>) || {}),
+      ...(params.variables || {})
+    })) as Prisma.InputJsonValue;
+    return prisma.botSession.update({
+      where: { id: existing.id },
+      data: {
+        ...(params.state ? { state: params.state } : {}),
+        variables: nextVariables,
+        lastActive: new Date()
+      }
+    });
+  }
+
+  return prisma.botSession.create({
+    data: {
+      botId: params.botId,
+      chatId: params.chatId,
+      platform: 'TG',
+      state: params.state || 'CL_MENU',
+      variables: JSON.parse(JSON.stringify(params.variables || {})) as Prisma.InputJsonValue
+    }
+  });
+};
+
+const buildContactRequestKeyboard = () => ({
+  keyboard: [[{ text: '📱 Поділитися контактом', request_contact: true }], [{ text: '⬅️ Назад' }]],
+  resize_keyboard: true,
+  one_time_keyboard: true
+});
+
+const normalizeLeadIntentKind = (value: unknown) => {
+  const normalized = String(value || '').trim().toUpperCase();
+  if (['PICK', 'REQUEST', 'BUY'].includes(normalized)) {
+    return { kind: 'PICK' as const, intentType: 'REQUEST' as const };
+  }
+  if (['PRICE_TERMS', 'PRICE', 'TERMS', 'INTEREST', 'SPECIFIC', 'LEASING'].includes(normalized)) {
+    return { kind: 'PRICE_TERMS' as const, intentType: 'INTEREST' as const };
+  }
+  return null;
 };
 
 const isMiniAppAdmin = async (companyId: string, tgUserId: string, botId?: string | null) => {
@@ -613,6 +723,207 @@ router.post('/favorites/:carListingId', async (req, res) => {
     res.json({ ok: true, ...result });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : 'Failed to toggle favorite';
+    errorResponse(res, 500, message);
+  }
+});
+
+router.post('/lead-intents', async (req, res) => {
+  try {
+    const body = (req.body || {}) as Record<string, unknown>;
+    const slug = readString(body.slug);
+    const initData = readString(body.initData);
+    const kind = normalizeLeadIntentKind(readString(body.kind) || readString(body.intentType) || readString(body.type));
+    const requestId = readString(req.get('x-request-id')) || `miniapp_${Date.now().toString(36)}`;
+
+    if (!slug) return errorResponse(res, 400, 'slug is required', MINIAPP_ERROR_CODES.VALIDATION);
+    if (!initData) {
+      return errorResponse(res, 400, 'initData is required', MINIAPP_ERROR_CODES.INITDATA_REQUIRED);
+    }
+    if (!kind) {
+      return errorResponse(res, 400, 'kind must be PICK or PRICE_TERMS', MINIAPP_ERROR_CODES.VALIDATION);
+    }
+    if (readString(body.phone)) {
+      return errorResponse(res, 400, 'phone is collected through Telegram contact request', MINIAPP_ERROR_CODES.VALIDATION);
+    }
+
+    const config = await miniAppService.getConfig(slug).catch(() => null);
+    if (!config?.companyId) return errorResponse(res, 404, 'Company not found');
+
+    const initCheck = await requireInitData(initData, config.companyId, config.botId);
+    if (!initCheck.ok) {
+      return errorResponse(res, 401, initCheck.message || 'Invalid Telegram init data', MINIAPP_ERROR_CODES.INITDATA_INVALID);
+    }
+
+    const telegram = parseMiniAppTelegramIdentity(initData);
+    if (!telegram.userId) {
+      return errorResponse(res, 400, 'Telegram user not found', MINIAPP_ERROR_CODES.INITDATA_INVALID);
+    }
+
+    const criteria = isRecord(body.criteria) ? body.criteria : {};
+    const tracking = isRecord(body.tracking) ? body.tracking : undefined;
+    const payloadFromInput = isRecord(body.payload) ? body.payload : {};
+    const carListingIds = readStringArray(body.carListingIds);
+    const pending = await requestContractService.createPendingLeadIntent({
+      slug,
+      intentType: kind.intentType,
+      title: readString(body.title),
+      description: readString(body.description),
+      budgetMax: readNumber(body.budgetMax) ?? readNumber(criteria.budgetMax),
+      yearMin: readNumber(body.yearMin) ?? readNumber(criteria.yearMin) ?? readNumber(criteria.yearFrom),
+      comment: readString(body.comment) || readString(criteria.comment),
+      carListingId: readString(body.carListingId),
+      carListingIds,
+      tracking,
+      payload: {
+        ...payloadFromInput,
+        kind: kind.kind,
+        criteria,
+        source: 'miniapp_lead_intent',
+        requestId
+      },
+      telegram: {
+        userId: telegram.userId,
+        username: telegram.username,
+        name: telegram.name
+      }
+    });
+
+    const bot = await getMiniAppBotForSend(pending.botId || config.botId, config.companyId);
+    if (!bot?.token) return errorResponse(res, 400, 'Bot not found', MINIAPP_ERROR_CODES.BOT_FLOW_UNAVAILABLE);
+
+    try {
+      const askText = kind.kind === 'PICK'
+        ? '✅ Запит на підбір отримано. Поділіться контактом у чаті, щоб менеджер міг продовжити підбір.'
+        : '✅ Запит по авто отримано. Поділіться контактом у чаті, щоб менеджер міг уточнити ціну та умови.';
+      await telegramOutbox.sendMessage({
+        botId: bot.id,
+        token: bot.token,
+        chatId: pending.chatId || telegram.userId,
+        text: askText,
+        replyMarkup: buildContactRequestKeyboard(),
+        companyId: config.companyId,
+        userId: telegram.userId
+      });
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : 'Failed to send contact request';
+      logger.warn('[MiniApp] failed to send contact request', {
+        requestId,
+        slug,
+        botId: bot.id,
+        error: message
+      });
+      return errorResponse(res, 502, 'Failed to send contact request', MINIAPP_ERROR_CODES.CONTACT_REQUEST_SEND_FAILED);
+    }
+
+    res.json({
+      ok: true,
+      contactRequested: true,
+      closeMiniApp: true,
+      duplicate: Boolean((pending as any).isDuplicate),
+      intent: {
+        kind: kind.kind,
+        type: pending.intentType,
+        title: pending.title
+      }
+    });
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'Failed to create lead intent';
+    errorResponse(res, 500, message);
+  }
+});
+
+router.post('/bot-flows', async (req, res) => {
+  try {
+    const body = (req.body || {}) as Record<string, unknown>;
+    const slug = readString(body.slug);
+    const initData = readString(body.initData);
+    const flow = String(readString(body.flow) || '').toUpperCase();
+
+    if (!slug) return errorResponse(res, 400, 'slug is required', MINIAPP_ERROR_CODES.VALIDATION);
+    if (!initData) return errorResponse(res, 400, 'initData is required', MINIAPP_ERROR_CODES.INITDATA_REQUIRED);
+    if (!['SELL', 'SUPPORT'].includes(flow)) {
+      return errorResponse(res, 400, 'flow must be SELL or SUPPORT', MINIAPP_ERROR_CODES.BOT_FLOW_UNAVAILABLE);
+    }
+
+    const config = await miniAppService.getConfig(slug).catch(() => null);
+    if (!config?.companyId) return errorResponse(res, 404, 'Company not found');
+
+    const initCheck = await requireInitData(initData, config.companyId, config.botId);
+    if (!initCheck.ok) {
+      return errorResponse(res, 401, initCheck.message || 'Invalid Telegram init data', MINIAPP_ERROR_CODES.INITDATA_INVALID);
+    }
+
+    const telegram = parseMiniAppTelegramIdentity(initData);
+    if (!telegram.userId) return errorResponse(res, 400, 'Telegram user not found', MINIAPP_ERROR_CODES.INITDATA_INVALID);
+
+    const bot = await getMiniAppBotForSend(config.botId || initCheck.verifiedBotId, config.companyId);
+    if (!bot?.token) return errorResponse(res, 400, 'Bot not found', MINIAPP_ERROR_CODES.BOT_FLOW_UNAVAILABLE);
+
+    const session = await ensureMiniAppBotSession({
+      botId: bot.id,
+      chatId: telegram.userId,
+      variables: {
+        miniappBotFlow: {
+          flow,
+          slug,
+          createdAt: new Date().toISOString()
+        }
+      }
+    });
+
+    try {
+      if (flow === 'SELL') {
+        await startLeadSellWizard({
+          bot,
+          session,
+          chatId: telegram.userId,
+          userId: telegram.userId,
+          companyId: config.companyId,
+          chatType: 'private',
+          update: {
+            message: {
+              chat: { id: Number(telegram.userId), type: 'private' },
+              from: telegram.raw
+            }
+          }
+        } as any);
+      } else {
+        await ensureMiniAppBotSession({
+          botId: bot.id,
+          chatId: telegram.userId,
+          state: 'CL_SUPPORT_TEXT',
+          variables: {
+            supportDraft: { mode: 'new', source: 'miniapp_bot_flow' }
+          }
+        });
+        await telegramOutbox.sendMessage({
+          botId: bot.id,
+          token: bot.token,
+          chatId: telegram.userId,
+          text: '🆘 Напишіть, будь ласка, ваше питання одним повідомленням. Менеджер отримає звернення у CarTié.',
+          replyMarkup: { remove_keyboard: true },
+          companyId: config.companyId,
+          userId: telegram.userId
+        });
+      }
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : 'Failed to start bot flow';
+      logger.warn('[MiniApp] failed to start bot flow', {
+        slug,
+        botId: bot.id,
+        flow,
+        error: message
+      });
+      return errorResponse(res, 502, 'Failed to start bot flow', MINIAPP_ERROR_CODES.CONTACT_REQUEST_SEND_FAILED);
+    }
+
+    res.json({
+      ok: true,
+      flow,
+      closeMiniApp: true
+    });
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'Failed to start bot flow';
     errorResponse(res, 500, message);
   }
 });

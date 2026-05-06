@@ -120,6 +120,34 @@ describe('requestContract.service', () => {
     }));
   });
 
+  it('deduplicates pending lead intents by tracking submitId', async () => {
+    mockPrisma.botSession.findUnique.mockResolvedValue({
+      id: 'sess_1',
+      variables: {
+        miniappPendingIntent: {
+          version: 1,
+          intentType: 'REQUEST',
+          slug: 'cartie',
+          title: 'Existing request',
+          tracking: { submitId: 'submit_1' },
+          createdAt: new Date().toISOString()
+        }
+      }
+    });
+
+    const result = await requestContractService.createPendingLeadIntent({
+      slug: 'cartie',
+      intentType: 'REQUEST',
+      title: 'New request',
+      tracking: { submitId: 'submit_1' },
+      telegram: { userId: '1001', username: 'client_one', name: 'Client One' }
+    });
+
+    expect(result.isDuplicate).toBe(true);
+    expect(mockPrisma.botSession.update).not.toHaveBeenCalled();
+    expect(mockPrisma.botSession.create).not.toHaveBeenCalled();
+  });
+
   it('finalizes pending lead intent through lead/request creation and clears session state', async () => {
     mockPrisma.botSession.findUnique.mockResolvedValue({
       id: 'sess_1',

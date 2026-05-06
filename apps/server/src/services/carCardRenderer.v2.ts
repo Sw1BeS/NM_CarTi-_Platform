@@ -1,6 +1,7 @@
 import { renderCarListingCard } from './cardRenderer.js';
 import { resolveCardSettings, type CarCardSettings } from './cardSettings.resolver.js';
 import { isEnvFlagEnabled } from './featureFlags.js';
+import { buildVehiclePresentation } from './vehiclePresentation.js';
 
 const toNumber = (value: any): number | undefined => {
   if (value === null || value === undefined || value === '') return undefined;
@@ -49,6 +50,8 @@ const deriveMakeModel = (car: any) => {
 };
 
 const derivePowertrainLine = (car: any) => {
+  const presentation = buildVehiclePresentation(car);
+  const fuelChip = presentation.specChips.find((chip) => ['Дизель', 'Бензин', 'Гібрид', 'Електро', 'Газ'].includes(chip));
   const specs = (car?.specs || {}) as Record<string, any>;
   const battery = specs.battery || specs.batteryKwh || specs.battery_kw || specs.battery_kwh;
   if (battery) {
@@ -56,7 +59,7 @@ const derivePowertrainLine = (car: any) => {
   }
 
   const engine = String(specs.engine || '').trim();
-  const fuel = String(specs.fuel || '').trim();
+  const fuel = fuelChip || String(specs.fuel || '').trim();
   if (engine && fuel) return `Двигун ${engine} ${fuel.toLowerCase()}`;
   if (engine) return `Двигун ${engine}`;
   if (fuel) return `Пальне ${fuel.toLowerCase()}`;
@@ -82,6 +85,7 @@ const toPrice = (car: any) => {
 };
 
 export const renderCarCardV2 = (car: any, settings: CarCardSettings) => {
+  const presentation = buildVehiclePresentation(car);
   const derived = deriveMakeModel(car);
   const status = deriveStatus(car, settings);
   const flag = status.flag || settings.defaultFlag || '';
@@ -91,8 +95,10 @@ export const renderCarCardV2 = (car: any, settings: CarCardSettings) => {
   const mileage = formatMileageThousands(car?.mileage);
   const powertrainLine = derivePowertrainLine(car);
   const safetyLine = String((car?.specs || {}).safety || settings.safetyLine || '—');
-  const driveLine = String((car?.specs || {}).drive || settings.driveLineFallback || '—');
-  const damageLine = String((car?.specs || {}).damage || settings.damageLineFallback || '—');
+  const driveLine = presentation.detailRows.find((row) => row.label === 'Привід')?.value
+    || String((car?.specs || {}).drive || settings.driveLineFallback || '—');
+  const damageLine = presentation.detailRows.find((row) => row.label === 'Пошкодження')?.value
+    || String((car?.specs || {}).damage || settings.damageLineFallback || '—');
   const city = String(settings.city || car?.location || 'Львові');
   const price = toPrice(car);
   const priceNote = String(settings.priceNote || '');

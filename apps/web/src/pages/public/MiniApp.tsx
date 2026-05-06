@@ -3,12 +3,12 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Bot, MiniAppConfig, CarListing } from '../../types';
 import { getPublicInventory } from '../../services/publicApi';
-import { createMiniAppRequest, getMiniAppConfig, getMiniAppFavorites, getMiniAppRequestStatus, getMiniAppShowcaseInventory, toggleMiniAppFavorite, trackMiniAppEvent, type MiniAppRequestSubtype, type MiniAppTrackingMeta } from '../../services/miniappApi';
+import { createMiniAppLeadIntent, createMiniAppRequest, getMiniAppConfig, getMiniAppFavorites, getMiniAppRequestStatus, getMiniAppShowcaseInventory, startMiniAppBotFlow, toggleMiniAppFavorite, trackMiniAppEvent, type MiniAppRequestSubtype, type MiniAppTrackingMeta } from '../../services/miniappApi';
 import {
     Search, LayoutGrid, User, Plus, Filter, DollarSign,
     MessageSquare, Zap, List as ListIcon, Star, Phone, Home, Heart, ClipboardList,
     ChevronRight, MapPin, Calendar, CheckCircle, SlidersHorizontal,
-    X, ChevronLeft, ChevronRight as ChevronRightIcon, Image as ImageIcon, Loader2, Share2
+    X, ChevronLeft, ChevronRight as ChevronRightIcon, Image as ImageIcon, Loader2, Share2, Globe, Instagram
 } from 'lucide-react';
 import { initTelegramViewport } from './miniapp/telegramViewport';
 import { popViewHistory, pushViewHistory } from './miniapp/navigation';
@@ -17,7 +17,7 @@ import { MiniAppShell } from './miniapp/MiniAppShell';
 import { CatalogView } from './miniapp/views/CatalogView';
 import { FavoritesView } from './miniapp/views/FavoritesView';
 import { ProfileView } from './miniapp/views/ProfileView';
-import { RequestView } from './miniapp/views/RequestView';
+import { RequestView, type RequestFormData } from './miniapp/views/RequestView';
 
 const emitMiniAppEvent = (level: 'info' | 'warn' | 'error', message: string, meta?: Record<string, unknown>) => {
     try {
@@ -100,7 +100,7 @@ type TelegramBootstrapContext = {
 };
 
 type MiniAppSurfaceMode = 'LEAD' | 'B2B';
-type MiniAppView = 'HOME' | 'INVENTORY' | 'LISTING' | 'FAVORITES' | 'REQUEST' | 'STATUS' | 'PROFILE' | 'SUPPORT';
+type MiniAppView = 'HOME' | 'INVENTORY' | 'LISTING' | 'FAVORITES' | 'REQUEST' | 'STATUS' | 'PROFILE' | 'SUPPORT' | 'CONTACTS';
 type RequestType = 'BUY' | 'SELL';
 type RequestSubtype = MiniAppRequestSubtype;
 
@@ -124,6 +124,7 @@ const parseEntryIntent = (params: URLSearchParams, startParam?: string): MiniApp
         if (value === 'favorites' || value === 'favourites' || value === 'favorite') intent.view = 'FAVORITES';
         if (value === 'request' || value === 'buy') intent.view = 'REQUEST';
         if (value === 'support') intent.view = 'SUPPORT';
+        if (value === 'contacts' || value === 'contact') intent.view = 'CONTACTS';
         if (value === 'status') intent.view = 'STATUS';
         if (value === 'profile') intent.view = 'PROFILE';
     };
@@ -165,7 +166,9 @@ const parseEntryIntent = (params: URLSearchParams, startParam?: string): MiniApp
             sell_car: { view: 'REQUEST', requestType: 'SELL' },
             sell: { view: 'REQUEST', requestType: 'SELL' },
             support: { view: 'SUPPORT' },
-            about: { view: 'SUPPORT' }
+            about: { view: 'SUPPORT' },
+            contacts: { view: 'CONTACTS' },
+            contact: { view: 'CONTACTS' }
         };
         const alias = aliases[start];
         if (alias) {
@@ -193,6 +196,16 @@ const isBrowserImageUrl = (value: unknown): value is string => {
 
 const resolveMiniAppWriteError = (error: unknown, fallback = 'Не вдалося виконати дію.') => {
     const message = error instanceof Error ? String(error.message || '').trim() : '';
+    const code = typeof error === 'object' && error && 'code' in error ? String((error as any).code || '') : '';
+    if (code === 'TELEGRAM_INITDATA_REQUIRED' || code === 'TELEGRAM_INITDATA_INVALID') {
+        return 'Сесія Telegram застаріла. Відкрийте Mini App повторно через кнопку меню бота.';
+    }
+    if (code === 'VALIDATION_ERROR') {
+        return message || 'Перевірте заповнення форми.';
+    }
+    if (code === 'CONTACT_REQUEST_SEND_FAILED') {
+        return 'Запит збережено, але бот не зміг попросити контакт. Відкрийте чат з ботом і натисніть /start.';
+    }
     if (!message) return fallback;
     const lower = message.toLowerCase();
     if (
@@ -226,6 +239,20 @@ const readRuntimeTelegramInitData = (): string => {
         ? String((window as any).Telegram.WebApp.initData).trim()
         : '';
     return bridgeInitData || readTelegramLaunchValue('tgWebAppData');
+};
+
+const PREMIUM_SILVER = '#C9CDD3';
+const premiumCtaStyle: React.CSSProperties = {
+    background: 'linear-gradient(135deg, #f7f8fa 0%, #d7dbe1 34%, #a4abb4 68%, #f1f3f6 100%)',
+    color: '#101216',
+    boxShadow: '0 12px 26px rgba(210,216,224,0.18), inset 0 1px 0 rgba(255,255,255,0.86)'
+};
+
+const normalizeMiniAppAccent = (value?: string) => {
+    const raw = String(value || '').trim();
+    if (!raw) return PREMIUM_SILVER;
+    if (/teal|cyan|turquoise|#2aa876|#14b8a6|#06b6d4|#00/i.test(raw)) return PREMIUM_SILVER;
+    return PREMIUM_SILVER;
 };
 
 const parseTelegramUserFromInitData = (rawInitData?: string): TgUser | null => {
@@ -364,14 +391,13 @@ const MiniAppContent = () => {
 
     // Request Form State
     const [reqStep, setReqStep] = useState(1);
-    const [reqData, setReqData] = useState({ brand: '', budgetMin: '', budgetMax: '', yearMin: '', yearMax: '', city: '', brandSearch: '' });
+    const [reqData, setReqData] = useState<RequestFormData>({ brand: '', model: '', budgetMin: '', budgetMax: '', yearMin: '', yearMax: '', city: '', brandSearch: '', bodyType: '' });
     const [reqMileage, setReqMileage] = useState('');
     const [reqFuel, setReqFuel] = useState('');
     const [reqCompany, setReqCompany] = useState('');
-    const [reqPhone, setReqPhone] = useState('');
     const [requestType, setRequestType] = useState<RequestType>('BUY');
     const [isRequestSubmitting, setIsRequestSubmitting] = useState(false);
-    const [statusQuery, setStatusQuery] = useState({ publicId: '', phone: '' });
+    const [statusQuery, setStatusQuery] = useState({ publicId: '' });
     const [statusResult, setStatusResult] = useState<any>(null);
     const [trackingMeta, setTrackingMeta] = useState<MiniAppTrackingMeta>({});
     const [reqComment, setReqComment] = useState('');
@@ -440,11 +466,12 @@ const MiniAppContent = () => {
     };
 
     const getCarImages = (car: CarListing) => {
+        const presentationUrls = (car.presentation?.mediaUrls || []).filter(isBrowserImageUrl);
         const itemUrls = (car.mediaItems || [])
             .flatMap(item => [item.url, item.previewUrl])
             .filter(isBrowserImageUrl);
         const urlList = (car.mediaUrls || []).filter(isBrowserImageUrl);
-        const combined = car.thumbnail ? [car.thumbnail, ...itemUrls, ...urlList] : [...itemUrls, ...urlList];
+        const combined = car.thumbnail ? [car.thumbnail, ...presentationUrls, ...itemUrls, ...urlList] : [...presentationUrls, ...itemUrls, ...urlList];
         return Array.from(new Set(combined.filter(isBrowserImageUrl)));
     };
 
@@ -591,12 +618,14 @@ const MiniAppContent = () => {
         setSelectedCar(car);
         setReqData({
             brand: car.title || '',
+            model: '',
             budgetMin: '',
             budgetMax: String(car.price?.amount || ''),
             yearMin: String(car.year || ''),
             yearMax: '',
             city: '',
-            brandSearch: ''
+            brandSearch: '',
+            bodyType: ''
         });
         setReqMileage(String(toNumberSafe(car.mileage) || ''));
         setReqFuel(specs.fuel || '');
@@ -613,12 +642,14 @@ const MiniAppContent = () => {
             const first = selectedRequestCars[0];
             setReqData({
                 brand: first.title || '',
+                model: '',
                 budgetMin: '',
                 budgetMax: String(first.price?.amount || ''),
                 yearMin: String(first.year || ''),
                 yearMax: '',
                 city: '',
-                brandSearch: ''
+                brandSearch: '',
+                bodyType: ''
             });
         }
         openRequest('BUY', { selectedIds: selectedRequestCarIds, startStep: selectedRequestCarIds.length ? 4 : 1 });
@@ -632,18 +663,19 @@ const MiniAppContent = () => {
                 title: 'CarDealer Lviv B2B',
                 welcomeText: 'Інвентар партнерів та статуси B2B-запитів.',
                 layout: 'GRID',
-                primaryColor: '#2AA876',
-                accentColor: '#0B1F17',
+                primaryColor: PREMIUM_SILVER,
+                accentColor: '#15181C',
                 actions: [
-                    { id: 'a_inv', label: 'Запити/інвентар', actionType: 'VIEW', value: 'INVENTORY', icon: 'LayoutGrid' },
-                    { id: 'a_fav', label: 'Обране', actionType: 'VIEW', value: 'FAVORITES', icon: 'Star' },
-                    { id: 'a_status', label: 'Статуси', actionType: 'VIEW', value: 'STATUS', icon: 'ClipboardList' }
+                    { id: 'a_deals', label: 'Мої угоди (B2B)', actionType: 'VIEW', value: 'STATUS', icon: 'ClipboardList' },
+                    { id: 'a_inv', label: 'Склад (B2B)', actionType: 'VIEW', value: 'INVENTORY', icon: 'LayoutGrid' },
+                    { id: 'a_support', label: 'Підтримка', actionType: 'VIEW', value: 'SUPPORT', icon: 'MessageCircle' }
                 ],
                 navItems: [
                     { id: 'nav_home', label: 'Головна', icon: 'Home', actionType: 'VIEW', value: 'HOME' },
-                    { id: 'nav_stock', label: 'Мережа', icon: 'LayoutGrid', actionType: 'VIEW', value: 'INVENTORY' },
-                    { id: 'nav_saved', label: 'Обране', icon: 'Star', actionType: 'VIEW', value: 'FAVORITES' },
-                    { id: 'nav_status', label: 'Статуси', icon: 'ClipboardList', actionType: 'VIEW', value: 'STATUS' }
+                    { id: 'nav_deals', label: 'Угоди', icon: 'ClipboardList', actionType: 'VIEW', value: 'STATUS' },
+                    { id: 'nav_stock', label: 'Склад', icon: 'LayoutGrid', actionType: 'VIEW', value: 'INVENTORY' },
+                    { id: 'nav_support', label: 'Підтримка', icon: 'MessageCircle', actionType: 'VIEW', value: 'SUPPORT' },
+                    { id: 'nav_profile', label: 'Профіль', icon: 'User', actionType: 'VIEW', value: 'PROFILE' }
                 ],
                 homeBlocks: [],
                 showcaseSlug: target
@@ -655,18 +687,19 @@ const MiniAppContent = () => {
             title: 'CarTié Premium',
             welcomeText: 'Ваш персональний помічник з підбору авто.',
             layout: 'GRID',
-            primaryColor: '#D4AF37',
+            primaryColor: PREMIUM_SILVER,
             accentColor: '#111',
             actions: [
-                { id: 'a_inv', label: 'Інвентар', actionType: 'VIEW', value: 'INVENTORY', icon: 'LayoutGrid' },
-                { id: 'a_req', label: 'Запит', actionType: 'VIEW', value: 'REQUEST', icon: 'Search' },
-                { id: 'a_fav', label: 'Обране', actionType: 'VIEW', value: 'FAVORITES', icon: 'Star' }
+                { id: 'a_inv', label: 'Каталог авто', actionType: 'VIEW', value: 'INVENTORY', icon: 'LayoutGrid' },
+                { id: 'a_req', label: 'Підбір за параметрами', actionType: 'VIEW', value: 'REQUEST', icon: 'Search' },
+                { id: 'a_contacts', label: 'Звʼязатися', actionType: 'VIEW', value: 'CONTACTS', icon: 'MessageCircle' }
             ],
             navItems: [
                 { id: 'nav_home', label: 'Головна', icon: 'Home', actionType: 'VIEW', value: 'HOME' },
-                { id: 'nav_stock', label: 'Склад', icon: 'LayoutGrid', actionType: 'VIEW', value: 'INVENTORY' },
-                { id: 'nav_saved', label: 'Обране', icon: 'Star', actionType: 'VIEW', value: 'FAVORITES' },
-                { id: 'nav_request', label: 'Запит', icon: 'Search', actionType: 'VIEW', value: 'REQUEST' }
+                { id: 'nav_stock', label: 'Каталог', icon: 'LayoutGrid', actionType: 'VIEW', value: 'INVENTORY' },
+                { id: 'nav_request', label: 'Заявки', icon: 'Search', actionType: 'VIEW', value: 'REQUEST' },
+                { id: 'nav_contacts', label: 'Контакти', icon: 'MessageCircle', actionType: 'VIEW', value: 'CONTACTS' },
+                { id: 'nav_profile', label: 'Профіль', icon: 'User', actionType: 'VIEW', value: 'PROFILE' }
             ],
             homeBlocks: [],
             showcaseSlug: target
@@ -800,7 +833,20 @@ const MiniAppContent = () => {
                     tgUserId: resolvedUser?.id ? String(resolvedUser.id) : undefined,
                     visitorId
                 });
-                applyEntryIntent(entryIntent);
+                if (resolvedMode === 'LEAD' && entryIntent.requestType === 'SELL') {
+                    if (telegramContext.initData) {
+                        await startMiniAppBotFlow({
+                            slug: conf.publicSlug || resolvedSlug,
+                            initData: telegramContext.initData,
+                            flow: 'SELL'
+                        });
+                        closeMiniAppOrShowSuccess('Бот відкрив сценарій продажу авто у чаті.');
+                    } else {
+                        setConfigWarning('Продаж авто відкривається у чаті бота. Відкрийте Mini App через кнопку меню бота.');
+                    }
+                } else {
+                    applyEntryIntent(entryIntent);
+                }
 
             } catch (e) {
                 emitMiniAppEvent('error', 'MiniApp init failed', { error: e instanceof Error ? e.message : String(e) });
@@ -864,9 +910,13 @@ const MiniAppContent = () => {
             if (value === 'INVENTORY_STOCK') { setTab('IN_STOCK'); setView('INVENTORY'); }
             if (value === 'INVENTORY_TRANSIT') { setTab('IN_TRANSIT'); setView('INVENTORY'); }
             if (value === 'REQUEST') openRequest('BUY');
-            if (value === 'SELL') openRequest('SELL');
+            if (value === 'SELL') {
+                if (surfaceMode === 'LEAD') startBotFlow('SELL');
+                else openRequest('SELL');
+            }
             if (value === 'FAVORITES') setView('FAVORITES');
             if (value === 'SUPPORT') setView('SUPPORT');
+            if (value === 'CONTACTS') setView('CONTACTS');
             if (value === 'STATUS') setView('STATUS');
             if (value === 'PROFILE') setView('PROFILE');
         } else if (act.actionType === 'LINK') {
@@ -890,40 +940,123 @@ const MiniAppContent = () => {
         }
     };
 
-    const sendLeadPayload = (payload: Record<string, unknown>) => {
-        const tg = (window as any).Telegram?.WebApp;
-        if (tg && tg.initData) {
-            tg.sendData(JSON.stringify(payload));
-            tg.close();
-        } else {
-            setConfigWarning('Дії із запитом доступні лише всередині Telegram.');
-        }
-    };
-
     const detectLang = () => {
         return 'UK';
     };
 
-    const handleCarInterest = (car: CarListing) => {
+    const closeMiniAppOrShowSuccess = (message = 'Запит відправлено. Відкрийте чат з ботом для передачі контакту.') => {
         const tg = (window as any).Telegram?.WebApp;
+        if (tg?.close) {
+            tg.close();
+            return;
+        }
+        pushToast(message, 'success');
+        setReqStep(5);
+    };
 
-        const titleParts = (car.title || '').split(' ');
-        const payload = {
-            v: 1,
-            type: 'interest_click',
-            carId: car.canonicalId,
-            meta: {
-                startParam: trackingMeta.startParam,
-                utm: trackingMeta.utm,
-                ref: trackingMeta.ref,
-                userId: tgUser?.id,
-                name: tgUser?.first_name,
-                username: tgUser?.username,
-                lang: detectLang()
-            }
-        };
+    const submitLeadIntent = async (params: {
+        kind: 'PICK' | 'PRICE_TERMS';
+        carListingIds?: string[];
+        criteria?: Record<string, unknown>;
+        comment?: string;
+    }) => {
+        const submitInitData = initData || readRuntimeTelegramInitData();
+        if (!submitInitData) {
+            setConfigWarning('Надсилання запиту доступне лише всередині Telegram Mini App.');
+            return false;
+        }
+        if (!initData) setInitData(submitInitData);
+        const submitId = window.crypto?.randomUUID
+            ? window.crypto.randomUUID()
+            : `submit_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+        await createMiniAppLeadIntent({
+            slug: targetSlug || 'system',
+            initData: submitInitData,
+            kind: params.kind,
+            carListingId: params.carListingIds?.[0],
+            carListingIds: params.carListingIds,
+            criteria: params.criteria,
+            comment: params.comment,
+            tracking: { ...trackingMeta, submitId, requestType: 'BUY' }
+        });
+        return true;
+    };
 
-        sendLeadPayload(payload);
+    const handleCarInterest = async (car: CarListing) => {
+        if (isRequestSubmitting) return;
+        const carId = getCarId(car);
+        if (!carId) return;
+        try {
+            setIsRequestSubmitting(true);
+            const ok = await submitLeadIntent({
+                kind: 'PRICE_TERMS',
+                carListingIds: [carId],
+                criteria: {
+                    title: car.presentation?.title || car.title,
+                    price: car.presentation?.priceLabel || formatPrice(car.price),
+                    lang: detectLang()
+                }
+            });
+            if (!ok) return;
+            trackEvent('lead_intent_price_terms_submitted', { carListingId: carId });
+            closeMiniAppOrShowSuccess();
+        } catch (e) {
+            emitMiniAppEvent('error', 'MiniApp price intent submit failed', { error: e instanceof Error ? e.message : String(e), carId });
+            pushToast(resolveMiniAppWriteError(e, 'Не вдалося надіслати запит по авто.'), 'error');
+        } finally {
+            setIsRequestSubmitting(false);
+        }
+    };
+
+    const startBotFlow = async (flow: 'SELL' | 'SUPPORT') => {
+        const submitInitData = initData || readRuntimeTelegramInitData();
+        if (!submitInitData) {
+            setConfigWarning('Цей сценарій доступний лише через Telegram Mini App.');
+            return;
+        }
+        if (!initData) setInitData(submitInitData);
+        try {
+            setIsRequestSubmitting(true);
+            await startMiniAppBotFlow({
+                slug: targetSlug || 'system',
+                initData: submitInitData,
+                flow
+            });
+            trackEvent(`bot_flow_${flow.toLowerCase()}_started`, {});
+            closeMiniAppOrShowSuccess(flow === 'SELL'
+                ? 'Бот відкрив сценарій продажу авто у чаті.'
+                : 'Бот відкрив сценарій підтримки у чаті.');
+        } catch (e) {
+            emitMiniAppEvent('error', 'MiniApp bot flow failed', { flow, error: e instanceof Error ? e.message : String(e) });
+            pushToast(resolveMiniAppWriteError(e, 'Не вдалося відкрити сценарій у боті.'), 'error');
+        } finally {
+            setIsRequestSubmitting(false);
+        }
+    };
+
+    const submitSelectedCarsInterest = async () => {
+        if (!selectedRequestCarIds.length || isRequestSubmitting) return;
+        try {
+            setIsRequestSubmitting(true);
+            const ok = await submitLeadIntent({
+                kind: 'PRICE_TERMS',
+                carListingIds: selectedRequestCarIds,
+                criteria: {
+                    selectedCars: selectedRequestCars.map(car => car.presentation?.title || car.title),
+                    count: selectedRequestCarIds.length,
+                    lang: detectLang()
+                }
+            });
+            if (!ok) return;
+            trackEvent('lead_intent_selected_cars_submitted', { selectedCarsCount: selectedRequestCarIds.length });
+            clearRequestSelection();
+            closeMiniAppOrShowSuccess();
+        } catch (e) {
+            emitMiniAppEvent('error', 'MiniApp selected cars intent failed', { error: e instanceof Error ? e.message : String(e) });
+            pushToast(resolveMiniAppWriteError(e, 'Не вдалося надіслати запит по обраних авто.'), 'error');
+        } finally {
+            setIsRequestSubmitting(false);
+        }
     };
 
     // Refetch when filters change
@@ -1004,16 +1137,18 @@ const MiniAppContent = () => {
         );
     }
 
-    const primaryColor = config.primaryColor || '#D4AF37';
+    const primaryColor = normalizeMiniAppAccent(config.primaryColor);
     const surfaceMode: MiniAppSurfaceMode = config.surfaceMode === 'B2B' ? 'B2B' : 'LEAD';
     const navItems = (config.navItems && config.navItems.length > 0)
         ? config.navItems
         : [
             { id: 'nav_home', label: 'Головна', icon: 'Home', actionType: 'VIEW', value: 'HOME' },
-            { id: 'nav_stock', label: 'Склад', icon: 'LayoutGrid', actionType: 'VIEW', value: 'INVENTORY' },
-            { id: 'nav_saved', label: 'Обране', icon: 'Star', actionType: 'VIEW', value: 'FAVORITES' }
+            { id: 'nav_stock', label: surfaceMode === 'B2B' ? 'Склад' : 'Каталог', icon: 'LayoutGrid', actionType: 'VIEW', value: 'INVENTORY' },
+            { id: 'nav_request', label: surfaceMode === 'B2B' ? 'Угоди' : 'Заявки', icon: 'Search', actionType: 'VIEW', value: surfaceMode === 'B2B' ? 'STATUS' : 'REQUEST' },
+            { id: 'nav_contacts', label: surfaceMode === 'B2B' ? 'Підтримка' : 'Контакти', icon: 'MessageCircle', actionType: 'VIEW', value: surfaceMode === 'B2B' ? 'SUPPORT' : 'CONTACTS' },
+            { id: 'nav_profile', label: 'Профіль', icon: 'User', actionType: 'VIEW', value: 'PROFILE' }
         ];
-    const showBottomNav = view !== 'LISTING' && view !== 'REQUEST' && view !== 'STATUS';
+    const showBottomNav = view !== 'LISTING' && view !== 'REQUEST';
     const showBackArrow = ((view !== 'HOME' && view !== 'LISTING') || reqStep > 1) && !lightboxCar;
 
     const applyFiltersAndSort = () => {
@@ -1044,6 +1179,8 @@ const MiniAppContent = () => {
     const formatPrice = (price?: { amount?: number; currency?: string }) => {
         if (!price || !price.amount) return '—';
         const curr = price.currency || 'USD';
+        if (curr === 'USD') return `$${price.amount.toLocaleString()}`;
+        if (curr === 'EUR') return `€${price.amount.toLocaleString()}`;
         return `${price.amount.toLocaleString()} ${curr}`;
     };
 
@@ -1055,7 +1192,7 @@ const MiniAppContent = () => {
     const formatMileage = (value: unknown) => {
         const mileage = toNumberSafe(value);
         if (!mileage) return '—';
-        return `${mileage.toLocaleString()} km`;
+        return `${mileage.toLocaleString()} км`;
     };
 
     const pickText = (...values: unknown[]) => {
@@ -1082,6 +1219,7 @@ const MiniAppContent = () => {
     };
 
     const formatBrandModel = (car: CarListing | null | undefined) => {
+        if (car?.presentation?.title) return car.presentation.title;
         const specs = getCarSpecs(car);
         const combined = [specs.brand, specs.model].filter(Boolean).join(' ').trim();
         if (combined) return combined;
@@ -1092,10 +1230,10 @@ const MiniAppContent = () => {
         const specs = getCarSpecs(car);
         const condition = (specs.condition || '').toLowerCase();
         const status = String((car as any).status || '').toUpperCase();
-        return condition === 'in_transit' || condition.includes('дороз') || status === 'PENDING' || status === 'IN_TRANSIT';
+        return condition === 'in_transit' || condition.includes('дороз') || car.presentation?.statusLabel === 'В дорозі' || status === 'PENDING' || status === 'IN_TRANSIT';
     };
 
-    const getStatusLabel = (car: CarListing) => isTransitCar(car) ? 'В дорозі' : 'В наявності';
+    const getStatusLabel = (car: CarListing) => car.presentation?.statusLabel || (isTransitCar(car) ? 'В дорозі' : 'В наявності');
 
     const renderHome = () => (
         <div className="animate-fade-in pb-24 h-full overflow-y-auto">
@@ -1162,10 +1300,11 @@ const MiniAppContent = () => {
                         const images = getCarImages(car);
                         const cover = images[0];
                         const specs = getCarSpecs(car);
+                        const presentation = car.presentation;
 
                         return (
-                            <div key={getCarId(car) || `home_${car.title}_${car.year}`} className="min-w-[220px] bg-[#1c1c1e] rounded-xl overflow-hidden border border-white/5 shadow-lg">
-                                <div className="h-32 bg-gray-800 relative cursor-pointer" onClick={() => { setLightboxCar(car); setLightboxImageIndex(0); }}>
+                            <div key={getCarId(car) || `home_${car.title}_${car.year}`} className="min-w-[230px] bg-[#1c1c1e] rounded-xl overflow-hidden border border-white/5 shadow-lg">
+                                <div className="h-36 bg-gray-800 relative cursor-pointer" onClick={() => openListing(car)}>
                                     {cover ? (
                                         <img src={cover} className="w-full h-full object-cover opacity-90" />
                                     ) : (
@@ -1184,12 +1323,12 @@ const MiniAppContent = () => {
                                     </div>
                                 </div>
                                 <div className="p-3">
-                                    <h4 className="text-sm font-bold text-white truncate">{car.title}</h4>
+                                    <h4 className="text-sm font-bold text-white truncate">{presentation?.title || car.title}</h4>
                                     <p className="text-xs text-white/50 mt-1 mb-2">
-                                        {pickText(specs.engine, specs.fuel) || '—'} • {formatMileage(car.mileage)}
+                                        {(presentation?.specChips || []).slice(0, 2).join(' • ') || pickText(specs.engine, specs.fuel) || '—'} • {presentation?.mileageLabel || formatMileage(car.mileage)}
                                     </p>
-                                    <div className="font-bold text-sm" style={{ color: primaryColor }}>
-                                        {formatPrice(car.price)}
+                                    <div className="font-bold text-sm text-[#E4E7EC]">
+                                        {presentation?.priceLabel || formatPrice(car.price)}
                                     </div>
                                     <button
                                         onClick={() => openListing(car)}
@@ -1236,9 +1375,8 @@ const MiniAppContent = () => {
                 getStatusLabel={getStatusLabel}
                 isFavorite={isFavorite}
                 isSelectedForRequest={isSelectedForRequest}
-                onOpenLightbox={(car) => { setLightboxCar(car); setLightboxImageIndex(0); }}
                 onToggleFavorite={toggleFavorite}
-                onPrimaryAction={prefillRequestFromCar}
+                onPrimaryAction={surfaceMode === 'B2B' ? prefillRequestFromCar : handleCarInterest}
                 onToggleRequestSelection={toggleRequestSelection}
                 onOpenListing={openListing}
                 onEmptyRequest={() => openRequest('BUY')}
@@ -1274,6 +1412,17 @@ const MiniAppContent = () => {
         }
         const images = getCarImages(selectedCar);
         const cover = images[0];
+        const presentation = selectedCar.presentation;
+        const detailRows = presentation?.detailRows?.length
+            ? presentation.detailRows
+            : [
+                { label: 'Рік', value: String(toNumberSafe(selectedCar.year) || '—') },
+                { label: 'Пробіг', value: formatMileage(selectedCar.mileage) },
+                { label: 'Пальне', value: getCarSpecs(selectedCar).fuel || '—' },
+                { label: 'КПП', value: getCarSpecs(selectedCar).transmission || '—' },
+                { label: 'Привід', value: getCarSpecs(selectedCar).drive || '—' },
+                { label: 'Локація', value: pickText(selectedCar.location) || '—' }
+            ];
 
         return (
             <div className="animate-fade-in pb-24 h-full overflow-y-auto bg-black">
@@ -1306,7 +1455,7 @@ const MiniAppContent = () => {
 
                     <div className="bg-[#1c1c1e] rounded-2xl p-4 border border-white/5">
                         <div className="flex justify-between items-center mb-2">
-                            <div className="text-xl font-bold text-white">{formatPrice(selectedCar.price)}</div>
+                            <div className="text-xl font-bold text-white">{presentation?.priceLabel || formatPrice(selectedCar.price)}</div>
                             <button
                                 onClick={() => toggleFavorite(selectedCar)}
                                 className="w-10 h-10 rounded-full bg-black/40 flex items-center justify-center"
@@ -1314,16 +1463,20 @@ const MiniAppContent = () => {
                                 <Star size={18} className={isFavorite(getCarId(selectedCar)) ? 'text-yellow-400 fill-yellow-400' : 'text-white/70'} />
                             </button>
                         </div>
-                        <div className="text-xs text-white/50 mb-1">{getStatusLabel(selectedCar)}</div>
-                        <div className="text-sm text-white/60">{formatBrandModel(selectedCar)}</div>
-                        <div className="text-sm text-white/60">{toNumberSafe(selectedCar.year) || '—'} • {formatMileage(selectedCar.mileage)}</div>
-                        <div className="text-sm text-white/60 mt-1">{getCarSpecs(selectedCar).engine || '—'} • {getCarSpecs(selectedCar).fuel || '—'}</div>
+                        <div className="text-xs text-white/50 mb-1">{presentation?.statusLabel || getStatusLabel(selectedCar)}</div>
+                        <div className="text-sm text-white/60">{presentation?.subtitle || formatBrandModel(selectedCar)}</div>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                            {(presentation?.specChips || []).slice(0, 6).map(chip => (
+                                <span key={chip} className="text-[11px] px-2 py-1 rounded-lg bg-white/10 border border-white/10 text-white/80">{chip}</span>
+                            ))}
+                        </div>
                         <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-white/70">
-                            <div className="bg-black/30 p-2 rounded border border-white/5">⛽ {getCarSpecs(selectedCar).fuel || '—'}</div>
-                            <div className="bg-black/30 p-2 rounded border border-white/5">⚙️ {getCarSpecs(selectedCar).transmission || '—'}</div>
-                            <div className="bg-black/30 p-2 rounded border border-white/5">🛞 {getCarSpecs(selectedCar).drive || '—'}</div>
-                            <div className="bg-black/30 p-2 rounded border border-white/5">📍 {pickText(selectedCar.location) || '—'}</div>
-                            <div className="bg-black/30 p-2 rounded border border-white/5">🎨 {getCarSpecs(selectedCar).color || '—'}</div>
+                            {detailRows.slice(0, 8).map(row => (
+                                <div key={row.label} className="bg-black/30 p-2 rounded border border-white/5">
+                                    <div className="text-[9px] uppercase text-white/35 mb-1">{row.label}</div>
+                                    <div className="font-semibold text-white/80">{row.value}</div>
+                                </div>
+                            ))}
                         </div>
                         {(getCarSpecs(selectedCar).vin || getCarSpecs(selectedCar).condition || selectedCar.description) && (
                             <div className="mt-3 text-xs text-white/70 space-y-1">
@@ -1337,11 +1490,11 @@ const MiniAppContent = () => {
                     </div>
 
                     <button
-                        onClick={() => prefillRequestFromCar(selectedCar)}
+                        onClick={() => surfaceMode === 'B2B' ? prefillRequestFromCar(selectedCar) : handleCarInterest(selectedCar)}
                         className="w-full py-4 rounded-xl font-bold text-black flex items-center justify-center gap-2"
-                        style={{ backgroundColor: primaryColor }}
+                        style={premiumCtaStyle}
                     >
-                        <MessageSquare size={18} /> {surfaceMode === 'B2B' ? 'Створити B2B запит' : 'Запит на це авто'}
+                        <MessageSquare size={18} /> {surfaceMode === 'B2B' ? 'Створити B2B запит' : 'Дізнатись ціну та умови'}
                     </button>
                     <button
                         onClick={() => toggleRequestSelection(selectedCar)}
@@ -1357,16 +1510,12 @@ const MiniAppContent = () => {
     const renderStatus = () => (
         <div className="animate-fade-in pb-24 p-6 h-full overflow-y-auto flex flex-col bg-black">
             <h2 className="text-2xl font-bold text-white mb-2">Статус запиту</h2>
-            <p className="text-white/50 mb-6">Перевірте запит за ID, номером телефону або Telegram.</p>
+            <p className="text-white/50 mb-6">Перевірте запит за ID або за вашим Telegram профілем.</p>
 
             <div className="space-y-4">
                 <div>
                     <label className="text-xs font-bold text-white/70 uppercase mb-2 block">ID запиту</label>
                     <input className="w-full bg-[#1c1c1e] text-white p-4 rounded-xl outline-none border border-white/10" placeholder="напр. RQ-12345" value={statusQuery.publicId} onChange={e => setStatusQuery({ ...statusQuery, publicId: e.target.value })} />
-                </div>
-                <div>
-                    <label className="text-xs font-bold text-white/70 uppercase mb-2 block">Телефон</label>
-                    <input className="w-full bg-[#1c1c1e] text-white p-4 rounded-xl outline-none border border-white/10" placeholder="+380 67 123 45 67" value={statusQuery.phone} onChange={e => setStatusQuery({ ...statusQuery, phone: e.target.value })} />
                 </div>
                 <button
                     onClick={async () => {
@@ -1375,7 +1524,6 @@ const MiniAppContent = () => {
                             const res = await getMiniAppRequestStatus({
                                 slug,
                                 requestId: statusQuery.publicId || undefined,
-                                phone: statusQuery.phone || undefined,
                                 telegramUserId: tgUser?.id ? String(tgUser.id) : undefined
                             });
                             setStatusResult(res.request || res);
@@ -1384,7 +1532,7 @@ const MiniAppContent = () => {
                         }
                     }}
                     className="w-full py-4 rounded-xl font-bold text-black"
-                    style={{ backgroundColor: primaryColor }}
+                    style={premiumCtaStyle}
                 >
                     Перевірити статус
                 </button>
@@ -1407,8 +1555,39 @@ const MiniAppContent = () => {
         </div>
     );
 
-    const openSupportLink = () => {
+    const getContactLinks = () => {
+        const contacts = config.contacts || {};
+        const username = String(
+            contacts.telegramBot
+            || activeBot?.botUsername
+            || activeBot?.username
+            || ''
+        ).replace(/^@/, '').trim();
+        const items = [
+            contacts.telegramChannel ? { label: 'Telegram-канал', url: contacts.telegramChannel, icon: 'MessageCircle' } : null,
+            username ? { label: 'Telegram-бот', url: `https://t.me/${username}`, icon: 'MessageCircle' } : null,
+            contacts.instagram ? { label: 'Instagram', url: contacts.instagram, icon: 'Instagram' } : null,
+            contacts.website ? { label: 'Сайт', url: contacts.website, icon: 'Globe' } : null,
+            contacts.phone ? { label: 'Телефон', url: `tel:${contacts.phone}`, icon: 'Phone' } : null,
+            ...(Array.isArray(contacts.links) ? contacts.links.map(link => ({ label: link.label, url: link.url, icon: 'Globe' })) : [])
+        ].filter((item): item is { label: string; url: string; icon: string } => Boolean(item?.url));
+        return items;
+    };
+
+    const openContactUrl = (link: string) => {
         const tg = (window as any).Telegram?.WebApp;
+        if (/^https:\/\/t\.me\//i.test(link) && tg?.openTelegramLink) {
+            tg.openTelegramLink(link);
+            return;
+        }
+        if (/^https?:\/\//i.test(link) && tg?.openLink) {
+            tg.openLink(link);
+            return;
+        }
+        window.open(link, '_blank');
+    };
+
+    const openSupportLink = () => {
         const configuredLink = String(
             (config as any)?.supportUrl
             || (config as any)?.supportLink
@@ -1422,15 +1601,7 @@ const MiniAppContent = () => {
             setConfigWarning('Контакт підтримки не налаштовано. Напишіть у чаті бота.');
             return;
         }
-        if (/^https:\/\/t\.me\//i.test(link) && tg?.openTelegramLink) {
-            tg.openTelegramLink(link);
-            return;
-        }
-        if (tg?.openLink) {
-            tg.openLink(link);
-            return;
-        }
-        window.open(link, '_blank');
+        openContactUrl(link);
     };
 
     const renderSupport = () => (
@@ -1442,21 +1613,63 @@ const MiniAppContent = () => {
                 <h2 className="text-2xl font-bold text-white mb-2">Підтримка</h2>
                 <p className="text-white/60 text-sm mb-5">Менеджер допоможе з підбором, продажем або статусом запиту.</p>
                 <button
-                    onClick={openSupportLink}
+                    onClick={() => startBotFlow('SUPPORT')}
                     className="w-full py-4 rounded-xl font-bold text-black"
-                    style={{ backgroundColor: primaryColor }}
+                    style={premiumCtaStyle}
                 >
-                    Написати менеджеру
+                    Написати менеджеру в боті
                 </button>
                 <button
-                    onClick={() => openRequest('BUY')}
+                    onClick={() => setView('CONTACTS')}
                     className="w-full mt-3 py-3 rounded-xl font-bold text-white/80 border border-white/10"
                 >
-                    Залишити запит
+                    Контакти та соцмережі
                 </button>
             </div>
         </div>
     );
+
+    const renderContacts = () => {
+        const links = getContactLinks();
+        return (
+            <div className="animate-fade-in pb-24 p-6 h-full overflow-y-auto flex flex-col bg-black">
+                <div className="bg-[#1c1c1e] border border-white/10 rounded-2xl p-5">
+                    <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center mb-4 text-[#E4E7EC]">
+                        <Phone size={22} />
+                    </div>
+                    <h2 className="text-2xl font-bold text-white mb-2">Контакти</h2>
+                    <p className="text-white/60 text-sm mb-5">Офіційні канали CarTié для звʼязку та оновлень.</p>
+                    <div className="space-y-2">
+                        {links.map(link => (
+                            <button
+                                key={`${link.label}_${link.url}`}
+                                onClick={() => openContactUrl(link.url)}
+                                className="w-full min-h-[52px] rounded-xl border border-white/10 bg-black/25 text-white flex items-center justify-between px-4"
+                            >
+                                <span className="flex items-center gap-3">
+                                    {link.icon === 'Instagram' ? <Instagram size={18} /> : link.icon === 'Globe' ? <Globe size={18} /> : link.icon === 'Phone' ? <Phone size={18} /> : <MessageSquare size={18} />}
+                                    <span className="font-semibold">{link.label}</span>
+                                </span>
+                                <ChevronRight size={18} className="text-white/40" />
+                            </button>
+                        ))}
+                        {!links.length && (
+                            <div className="text-white/55 text-sm border border-white/10 rounded-xl p-4">
+                                Контакти не налаштовані. Відкрийте чат з ботом і натисніть /start.
+                            </div>
+                        )}
+                    </div>
+                    <button
+                        onClick={() => startBotFlow('SUPPORT')}
+                        className="w-full mt-4 py-4 rounded-xl font-bold"
+                        style={premiumCtaStyle}
+                    >
+                        Написати в бот
+                    </button>
+                </div>
+            </div>
+        );
+    };
 
     const handleNextStep = async () => {
         const isB2BMode = surfaceMode === 'B2B';
@@ -1483,8 +1696,8 @@ const MiniAppContent = () => {
                 return;
             }
             if (!initData) setInitData(submitInitData);
-            if (isB2BMode && (!reqCompany.trim() || !reqPhone.trim())) {
-                setConfigWarning('Для B2B запиту вкажіть компанію та контакт.');
+            if (isB2BMode && !reqCompany.trim()) {
+                setConfigWarning('Для B2B запиту вкажіть компанію.');
                 return;
             }
 
@@ -1501,16 +1714,51 @@ const MiniAppContent = () => {
                 const submitId = requestSubmitIdRef.current
                     || (window.crypto?.randomUUID ? window.crypto.randomUUID() : `submit_${Date.now()}_${Math.random().toString(16).slice(2)}`);
                 requestSubmitIdRef.current = submitId;
+                const criteria = {
+                    brand: reqData.brand || undefined,
+                    model: reqData.model || undefined,
+                    yearFrom: reqData.yearMin || undefined,
+                    yearTo: reqData.yearMax || undefined,
+                    budgetMin: reqData.budgetMin || undefined,
+                    budgetMax: reqData.budgetMax || undefined,
+                    bodyType: reqData.bodyType || undefined,
+                    fuel: reqFuel || undefined,
+                    mileage: reqMileage || undefined,
+                    city: reqData.city || undefined,
+                    selectedCars: selectedTitles.length ? selectedTitles : undefined
+                };
+
+                if (!isB2BMode) {
+                    await createMiniAppLeadIntent({
+                        slug,
+                        initData: submitInitData,
+                        kind: selectedListingIds.length ? 'PRICE_TERMS' : 'PICK',
+                        carListingId: listingId || undefined,
+                        carListingIds: selectedListingIds.length ? selectedListingIds : undefined,
+                        criteria,
+                        comment: reqComment || undefined,
+                        tracking: { ...trackingMeta, submitId, requestType: 'BUY' }
+                    });
+                    trackEvent('lead_intent_pick_submitted', {
+                        requestSubtype: effectiveRequestSubtype,
+                        selectedCarsCount: selectedListingIds.length
+                    });
+                    clearRequestSelection();
+                    requestSubmitIdRef.current = null;
+                    closeMiniAppOrShowSuccess();
+                    return;
+                }
+
                 const descriptionParts = [
                     requestType === 'SELL' ? 'Тип: продаж авто' : 'Тип: підбір авто',
-                    reqData.brand ? `Марка/модель: ${reqData.brand}` : null,
-                    reqData.yearMin ? `Рік: ${reqData.yearMin}+` : null,
-                    reqData.budgetMin ? `Бюджет: ${reqData.budgetMin}` : null,
+                    [reqData.brand, reqData.model].filter(Boolean).length ? `Марка/модель: ${[reqData.brand, reqData.model].filter(Boolean).join(' ')}` : null,
+                    reqData.yearMin || reqData.yearMax ? `Рік: ${reqData.yearMin || 'будь-який'} - ${reqData.yearMax || 'будь-який'}` : null,
+                    reqData.budgetMin || reqData.budgetMax ? `Бюджет: ${reqData.budgetMin || '0'} - ${reqData.budgetMax || '∞'}` : null,
+                    reqData.bodyType ? `Кузов: ${reqData.bodyType}` : null,
                     reqMileage ? `Пробіг: ${reqMileage}` : null,
                     reqFuel ? `Пальне: ${reqFuel}` : null,
                     reqCompany ? `Компанія: ${reqCompany}` : null,
                     reqComment ? `Коментар: ${reqComment}` : null,
-                    reqPhone ? `Контакт: ${reqPhone}` : null,
                     selectedTitles.length > 1 ? `Обрані авто: ${selectedTitles.join(', ')}` : null
                 ].filter(Boolean);
 
@@ -1527,7 +1775,6 @@ const MiniAppContent = () => {
                     description: descriptionParts.length ? descriptionParts.join('\n') : undefined,
                     budgetMax: reqData.budgetMax ? Number(reqData.budgetMax) : undefined,
                     yearMin: reqData.yearMin ? Number(reqData.yearMin) : undefined,
-                    phone: reqPhone || undefined,
                     comment: reqComment || undefined,
                     carListingId: listingId || undefined,
                     carListingIds: selectedListingIds.length ? selectedListingIds : undefined,
@@ -1538,6 +1785,7 @@ const MiniAppContent = () => {
                         mileage: reqMileage || undefined,
                         fuel: reqFuel || undefined,
                         companyName: reqCompany || undefined,
+                        criteria,
                         selectedCars: selectedTitles.length ? selectedTitles : undefined
                     },
                     tracking: { ...trackingMeta, submitId, requestType },
@@ -1578,8 +1826,6 @@ const MiniAppContent = () => {
             setReqFuel={setReqFuel}
             reqCompany={reqCompany}
             setReqCompany={setReqCompany}
-            reqPhone={reqPhone}
-            setReqPhone={setReqPhone}
             reqComment={reqComment}
             setReqComment={setReqComment}
             selectedCarsCount={selectedRequestCarIds.length}
@@ -1589,7 +1835,7 @@ const MiniAppContent = () => {
             primaryColor={primaryColor}
             surfaceMode={surfaceMode}
             requestType={requestType}
-            showInlineAction
+            showInlineAction={true}
             actionLabel={isRequestSubmitting ? 'Надсилання...' : (reqStep >= 4 ? 'Надіслати' : 'Далі')}
             actionDisabled={isRequestSubmitting}
             onNextStep={handleNextStep}
@@ -1620,11 +1866,11 @@ const MiniAppContent = () => {
                     </div>
                     <div className="flex gap-2">
                         <button
-                            onClick={openRequestForSelectedCars}
+                            onClick={surfaceMode === 'B2B' ? openRequestForSelectedCars : submitSelectedCarsInterest}
                             className="flex-1 py-2.5 rounded-xl font-bold text-black text-sm"
-                            style={{ backgroundColor: primaryColor }}
+                            style={premiumCtaStyle}
                         >
-                            Надіслати запит
+                            {surfaceMode === 'B2B' ? 'Створити запит' : 'Дізнатись умови'}
                         </button>
                         <button
                             onClick={clearRequestSelection}
@@ -1652,6 +1898,8 @@ const MiniAppContent = () => {
             case 'Phone':
             case 'Телефон':
                 return <Phone {...props} />;
+            case 'Globe': return <Globe {...props} />;
+            case 'Instagram': return <Instagram {...props} />;
             case 'Heart': return <Heart {...props} />;
             case 'Star': return <Star {...props} />;
             case 'ClipboardList': return <ClipboardList {...props} />;
@@ -1703,6 +1951,7 @@ const MiniAppContent = () => {
                 {view === 'STATUS' && renderStatus()}
                 {view === 'PROFILE' && renderProfile()}
                 {view === 'SUPPORT' && renderSupport()}
+                {view === 'CONTACTS' && renderContacts()}
                 {renderSelectionBar()}
 
                 {lightboxCar && (

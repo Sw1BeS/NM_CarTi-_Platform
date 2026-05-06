@@ -1,37 +1,31 @@
 import React from 'react';
-import { ArrowRight, CheckCircle, Search, ChevronLeft } from 'lucide-react';
+import { ArrowRight, CheckCircle, ChevronLeft, Search } from 'lucide-react';
 
 type MiniAppSurfaceMode = 'LEAD' | 'B2B';
 type RequestType = 'BUY' | 'SELL';
 
+export type RequestFormData = {
+  brand: string;
+  model: string;
+  budgetMin: string;
+  budgetMax: string;
+  yearMin: string;
+  yearMax: string;
+  city: string;
+  brandSearch: string;
+  bodyType: string;
+};
+
 type RequestViewProps = {
   reqStep: number;
-  reqData: {
-    brand: string;
-    budgetMin: string;
-    budgetMax: string;
-    yearMin: string;
-    yearMax: string;
-    city: string;
-    brandSearch: string;
-  };
-  setReqData: (next: {
-    brand: string;
-    budgetMin: string;
-    budgetMax: string;
-    yearMin: string;
-    yearMax: string;
-    city: string;
-    brandSearch: string;
-  }) => void;
+  reqData: RequestFormData;
+  setReqData: (next: RequestFormData) => void;
   reqMileage: string;
   setReqMileage: (value: string) => void;
   reqFuel: string;
   setReqFuel: (value: string) => void;
   reqCompany: string;
   setReqCompany: (value: string) => void;
-  reqPhone: string;
-  setReqPhone: (value: string) => void;
   reqComment: string;
   setReqComment: (value: string) => void;
   selectedCarsCount: number;
@@ -47,8 +41,62 @@ type RequestViewProps = {
   onNextStep: () => void;
   onBackStep: () => void;
   onHome: () => void;
-  tgUser?: any;
 };
+
+const carCatalog = [
+  { brand: 'BMW', models: ['X3', 'X5', 'X6', '3 Series', '5 Series', '7 Series', 'iX'] },
+  { brand: 'Mercedes-Benz', models: ['C-Class', 'E-Class', 'S-Class', 'GLC', 'GLE', 'GLS', 'EQE'] },
+  { brand: 'Audi', models: ['A4', 'A6', 'A8', 'Q5', 'Q7', 'Q8', 'e-tron'] },
+  { brand: 'Toyota', models: ['Camry', 'RAV4', 'Land Cruiser', 'Highlander', 'Corolla', 'Prius'] },
+  { brand: 'Lexus', models: ['RX', 'NX', 'LX', 'GX', 'ES', 'LS'] },
+  { brand: 'Porsche', models: ['Cayenne', 'Macan', 'Panamera', '911', 'Taycan'] },
+  { brand: 'Volkswagen', models: ['Touareg', 'Tiguan', 'Passat', 'Golf', 'ID.4'] },
+  { brand: 'Tesla', models: ['Model 3', 'Model Y', 'Model S', 'Model X'] },
+  { brand: 'Land Rover', models: ['Range Rover', 'Range Rover Sport', 'Defender', 'Discovery'] },
+  { brand: 'Volvo', models: ['XC60', 'XC90', 'S90', 'V60'] },
+  { brand: 'Hyundai', models: ['Tucson', 'Santa Fe', 'Palisade', 'IONIQ 5'] },
+  { brand: 'Kia', models: ['Sportage', 'Sorento', 'Telluride', 'EV6'] },
+  { brand: 'Інше', models: ['Порадьте модель'] }
+];
+
+const bodyTypes = ['SUV', 'Седан', 'Універсал', 'Купе', 'Хетчбек', 'Пікап'];
+const fuelTypes = ['Бензин', 'Дизель', 'Гібрид', 'Електро', 'Газ'];
+const mileageOptions = ['до 50 000 км', 'до 100 000 км', 'до 150 000 км', 'не важливо'];
+const cities = ['Київ', 'Львів', 'Одеса', 'Дніпро', 'Харків', 'Вся Україна'];
+
+const metallicStyle: React.CSSProperties = {
+  background: 'linear-gradient(135deg, #f6f7f9 0%, #d9dde2 34%, #aab0b8 68%, #f2f4f7 100%)',
+  color: '#101216',
+  boxShadow: '0 10px 24px rgba(210, 216, 224, 0.18), inset 0 1px 0 rgba(255,255,255,0.85)'
+};
+
+const Field = ({ label, children }: { label: string; children: React.ReactNode }) => (
+  <div>
+    <label className="text-[10px] font-bold text-white/50 uppercase mb-2 block">{label}</label>
+    {children}
+  </div>
+);
+
+const Chip = ({
+  selected,
+  children,
+  onClick
+}: {
+  selected: boolean;
+  children: React.ReactNode;
+  onClick: () => void;
+}) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className={`min-h-[42px] px-3 py-2 rounded-xl border text-sm font-semibold transition-all active:scale-95 ${
+      selected ? 'border-white/55 text-black' : 'border-white/10 bg-[#181a1d] text-white/76'
+    }`}
+    style={selected ? metallicStyle : undefined}
+  >
+    {children}
+  </button>
+);
 
 export const RequestView = ({
   reqStep,
@@ -60,8 +108,6 @@ export const RequestView = ({
   setReqFuel,
   reqCompany,
   setReqCompany,
-  reqPhone,
-  setReqPhone,
   reqComment,
   setReqComment,
   selectedCarsCount,
@@ -76,331 +122,210 @@ export const RequestView = ({
   actionDisabled,
   onNextStep,
   onBackStep,
-  onHome,
-  tgUser
+  onHome
 }: RequestViewProps) => {
-  // Popular brands data
-  const popularBrands = [
-    { id: 'toyota', name: 'Toyota', name_uk: 'Тойота' },
-    { id: 'bmw', name: 'BMW', name_uk: 'BMW' },
-    { id: 'mercedes', name: 'Mercedes', name_uk: 'Мерседес' },
-    { id: 'audi', name: 'Audi', name_uk: 'Ауді' },
-    { id: 'volkswagen', name: 'Volkswagen', name_uk: 'Фольксваген' },
-    { id: 'ford', name: 'Ford', name_uk: 'Форд' },
-    { id: 'honda', name: 'Honda', name_uk: 'Хонда' },
-    { id: 'nissan', name: 'Nissan', name_uk: 'Ніссан' },
-    { id: 'hyundai', name: 'Hyundai', name_uk: 'Хюндай' },
-    { id: 'kia', name: 'Kia', name_uk: 'Кіа' },
-    { id: 'other', name: 'Other', name_uk: 'Інше' }
-  ];
-
-  // Year ranges
-  const yearRanges = [
-    { id: '2022+', label: '2022+', label_uk: '2022+' },
-    { id: '2020+', label: '2020+', label_uk: '2020+' },
-    { id: '2018+', label: '2018+', label_uk: '2018+' },
-    { id: '2015+', label: '2015+', label_uk: '2015+' },
-    { id: '2010+', label: '2010+', label_uk: '2010+' },
-    { id: 'any', label: 'Any', label_uk: 'Будь-який' }
-  ];
-
-  // Budget ranges
-  const budgetRanges = [
-    { id: '5k-10k', min: 5000, max: 10000, label: '$5k - $10k', label_uk: '$5k - $10k' },
-    { id: '10k-15k', min: 10000, max: 15000, label: '$10k - $15k', label_uk: '$10k - $15k' },
-    { id: '15k-20k', min: 15000, max: 20000, label: '$15k - $20k', label_uk: '$15k - $20k' },
-    { id: '20k-30k', min: 20000, max: 30000, label: '$20k - $30k', label_uk: '$20k - $30k' },
-    { id: '30k-50k', min: 30000, max: 50000, label: '$30k - $50k', label_uk: '$30k - $50k' },
-    { id: '50k+', min: 50000, max: 999999, label: '$50k+', label_uk: '$50k+' }
-  ];
-
-  // Popular cities
-  const cities = [
-    { id: 'kiev', name: 'Київ', name_en: 'Kyiv' },
-    { id: 'kharkiv', name: 'Харків', name_en: 'Kharkiv' },
-    { id: 'odesa', name: 'Одеса', name_en: 'Odesa' },
-    { id: 'dnipro', name: 'Дніпро', name_en: 'Dnipro' },
-    { id: 'lviv', name: 'Львів', name_en: 'Lviv' },
-    { id: 'all', name: 'Вся Україна', name_en: 'All Ukraine' }
-  ];
-
-  const getLabel = (item: any) => {
-    const lang = tgUser?.language_code || 'en';
-    if (lang === 'uk' && item.name_uk) return item.name_uk;
-    if (lang === 'uk' && item.label_uk) return item.label_uk;
-    return item.label || item.name;
-  };
-
-  const filteredBrands = popularBrands.filter(brand =>
-    brand.name.toLowerCase().includes(reqData.brandSearch.toLowerCase()) ||
-    brand.name_uk.toLowerCase().includes(reqData.brandSearch.toLowerCase())
+  const filteredBrands = carCatalog.filter(item =>
+    item.brand.toLowerCase().includes(reqData.brandSearch.toLowerCase())
   );
+  const selectedBrand = carCatalog.find(item => item.brand === reqData.brand);
+  const title = surfaceMode === 'B2B'
+    ? 'Створити B2B запит'
+    : (requestType === 'SELL' ? 'Продаж авто' : 'Підбір авто');
 
   return (
-    <div className="animate-fade-in pb-24 p-6 h-full overflow-y-auto flex flex-col justify-start bg-black">
+    <div className="animate-fade-in pb-24 p-5 h-full overflow-y-auto flex flex-col justify-start bg-black">
       {reqStep === 5 ? (
         <div className="text-center animate-slide-up">
-          <div className="w-24 h-24 rounded-full bg-green-500/20 text-green-500 flex items-center justify-center mx-auto mb-6 shadow-[0_0_30px_rgba(34,197,94,0.3)]">
-            <CheckCircle size={48} />
+          <div className="w-20 h-20 rounded-full bg-white/10 text-white flex items-center justify-center mx-auto mb-6 border border-white/15">
+            <CheckCircle size={42} />
           </div>
-          <h2 className="text-2xl font-bold text-white mb-2">Запит відправлено!</h2>
-          <p className="text-white/50 mb-8">Ми отримали ваш запит. Менеджер перевірить ринок і скоро зв'яжеться з вами.</p>
-          <button onClick={onHome} className="btn-primary w-full py-4 rounded-xl font-bold text-lg" style={{ backgroundColor: primaryColor, color: '#000' }}>
+          <h2 className="text-2xl font-bold text-white mb-2">Запит відправлено</h2>
+          <p className="text-white/56 mb-8">Mini App можна закрити. Бот попросить контакт у Telegram-чаті.</p>
+          <button onClick={onHome} className="w-full py-4 rounded-xl font-bold text-lg" style={metallicStyle}>
             На головну
           </button>
         </div>
       ) : (
         <>
-          {/* Progress Indicator */}
-          <div className="mb-6">
-            <div className="flex justify-between items-center mb-2">
-              <h2 className="text-2xl font-bold text-white">
-                {surfaceMode === 'B2B' ? 'Створити B2B запит' : (requestType === 'SELL' ? 'Продати авто' : 'Підібрати авто за 1 хвилину')}
-              </h2>
+          <div className="mb-5">
+            <div className="flex justify-between items-start gap-3 mb-3">
+              <div>
+                <h2 className="text-2xl font-bold text-white">{title}</h2>
+                <p className="text-xs text-white/45 mt-1">
+                  Контакт не вводиться вручну. Після заявки бот попросить нативний контакт Telegram.
+                </p>
+              </div>
               <span className="text-sm font-bold" style={{ color: primaryColor }}>{reqStep}/4</span>
             </div>
             <div className="flex gap-2">
               {[1, 2, 3, 4].map(step => (
                 <div
                   key={step}
-                  className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${
-                    step <= reqStep ? 'opacity-100' : 'opacity-30'
-                  }`}
-                  style={{ backgroundColor: step <= reqStep ? primaryColor : '#333' }}
+                  className="h-1.5 flex-1 rounded-full transition-all duration-300"
+                  style={step <= reqStep ? metallicStyle : { background: '#2b2d31', opacity: 0.65 }}
                 />
               ))}
             </div>
           </div>
 
-          {/* Step 1: Brand Selection */}
+          {selectedCarsCount > 0 && (
+            <div className="mb-4 bg-[#15171a] border border-white/10 rounded-xl p-3 text-xs text-white/80 space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <span>{selectedCarsCount > 1 ? `Запит по ${selectedCarsCount} авто` : 'Запит по конкретному авто'}</span>
+                <button onClick={onClearSelectedCars} className="text-white/60 underline">Очистити</button>
+              </div>
+              {selectedCarsPreview.length > 0 && (
+                <div className="text-white/50 truncate">{selectedCarsPreview.join(', ')}</div>
+              )}
+            </div>
+          )}
+
           {reqStep === 1 && (
             <div className="space-y-4 animate-slide-up">
-              {selectedCarsCount > 0 && (
-                <div className="bg-[#1c1c1e] border border-white/10 rounded-xl p-3 text-xs text-white/80 space-y-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <span>{selectedCarsCount > 1 ? `Запит по ${selectedCarsCount} авто` : 'Запит по конкретному авто'}</span>
-                    <button onClick={onClearSelectedCars} className="text-white/60 underline">Очистити</button>
-                  </div>
-                  {selectedCarsPreview.length > 0 && (
-                    <div className="text-white/50 mt-1 truncate">{selectedCarsPreview.join(', ')}</div>
-                  )}
-                </div>
-              )}
-              <div>
-                <label className="text-xs font-bold text-white/70 uppercase mb-3 block">Оберіть марку</label>
-                <div className="relative mb-4">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={18}/>
+              <Field label="Марка">
+                <div className="relative mb-3">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-white/35" size={18} />
                   <input
-                    className="w-full bg-[#1c1c1e] text-white pl-10 pr-4 py-3 rounded-xl outline-none placeholder-gray-600 border border-white/5 focus:border-yellow-500/50 transition-colors"
-                    placeholder="Пошук марки..."
+                    className="w-full bg-[#15171a] text-white pl-10 pr-4 py-3 rounded-xl outline-none placeholder-white/30 border border-white/10 focus:border-white/30 transition-colors"
+                    placeholder="Пошук марки"
                     value={reqData.brandSearch}
-                    onChange={e => setReqData({...reqData, brandSearch: e.target.value})}
+                    onChange={e => setReqData({ ...reqData, brandSearch: e.target.value })}
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  {filteredBrands.map(brand => (
-                    <button
-                      key={brand.id}
-                      onClick={() => setReqData({...reqData, brand: brand.name, brandSearch: ''})}
-                      className={`p-4 rounded-xl border-2 transition-all duration-200 active:scale-95 ${
-                        reqData.brand === brand.name
-                          ? 'border-yellow-500 bg-yellow-500/10'
-                          : 'border-white/10 bg-[#1c1c1e] hover:border-white/20'
-                      }`}
+                <div className="grid grid-cols-2 gap-2">
+                  {filteredBrands.map(item => (
+                    <Chip
+                      key={item.brand}
+                      selected={reqData.brand === item.brand}
+                      onClick={() => setReqData({ ...reqData, brand: item.brand, model: '', brandSearch: '' })}
                     >
-                      <div className="text-sm font-bold text-white">{getLabel(brand)}</div>
-                    </button>
+                      {item.brand}
+                    </Chip>
                   ))}
                 </div>
-              </div>
+              </Field>
+              <Field label="Модель">
+                <div className="grid grid-cols-2 gap-2">
+                  {(selectedBrand?.models || ['Спочатку оберіть марку']).map(model => (
+                    <Chip
+                      key={model}
+                      selected={reqData.model === model}
+                      onClick={() => setReqData({ ...reqData, model })}
+                    >
+                      {model}
+                    </Chip>
+                  ))}
+                </div>
+              </Field>
             </div>
           )}
 
-          {/* Step 2: Year Selection */}
           {reqStep === 2 && (
             <div className="space-y-4 animate-slide-up">
-              <div>
-                <label className="text-xs font-bold text-white/70 uppercase mb-3 block">Оберіть рік</label>
-                <div className="grid grid-cols-2 gap-3">
-                  {yearRanges.map(range => (
-                    <button
-                      key={range.id}
-                      onClick={() => {
-                        const year = parseInt(range.label.replace('+', ''));
-                        setReqData({
-                          ...reqData,
-                          yearMin: range.id === 'any' ? '' : year.toString(),
-                          yearMax: ''
-                        });
-                      }}
-                      className={`p-4 rounded-xl border-2 transition-all duration-200 active:scale-95 ${
-                        reqData.yearMin === range.label.replace('+', '') || (range.id === 'any' && reqData.yearMin === '')
-                          ? 'border-yellow-500 bg-yellow-500/10'
-                          : 'border-white/10 bg-[#1c1c1e] hover:border-white/20'
-                      }`}
-                    >
-                      <div className="text-sm font-bold text-white">{getLabel(range)}</div>
-                    </button>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Рік від">
+                  <input className="w-full bg-[#15171a] text-white p-3 rounded-xl outline-none border border-white/10" placeholder="2018" value={reqData.yearMin} onChange={e => setReqData({ ...reqData, yearMin: e.target.value })} />
+                </Field>
+                <Field label="Рік до">
+                  <input className="w-full bg-[#15171a] text-white p-3 rounded-xl outline-none border border-white/10" placeholder="2024" value={reqData.yearMax} onChange={e => setReqData({ ...reqData, yearMax: e.target.value })} />
+                </Field>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Бюджет від, $">
+                  <input className="w-full bg-[#15171a] text-white p-3 rounded-xl outline-none border border-white/10" placeholder="20000" value={reqData.budgetMin} onChange={e => setReqData({ ...reqData, budgetMin: e.target.value })} />
+                </Field>
+                <Field label="Бюджет до, $">
+                  <input className="w-full bg-[#15171a] text-white p-3 rounded-xl outline-none border border-white/10" placeholder="60000" value={reqData.budgetMax} onChange={e => setReqData({ ...reqData, budgetMax: e.target.value })} />
+                </Field>
+              </div>
+              <Field label="Тип кузова">
+                <div className="grid grid-cols-2 gap-2">
+                  {bodyTypes.map(type => (
+                    <Chip key={type} selected={reqData.bodyType === type} onClick={() => setReqData({ ...reqData, bodyType: type })}>{type}</Chip>
                   ))}
                 </div>
-              </div>
+              </Field>
             </div>
           )}
 
-          {/* Step 3: Budget Selection */}
           {reqStep === 3 && (
             <div className="space-y-4 animate-slide-up">
-              <div>
-                <label className="text-xs font-bold text-white/70 uppercase mb-3 block">Оберіть бюджет</label>
-                <div className="grid grid-cols-2 gap-3">
-                  {budgetRanges.map(range => (
-                    <button
-                      key={range.id}
-                      onClick={() => setReqData({
-                        ...reqData,
-                        budgetMin: range.min.toString(),
-                        budgetMax: range.max.toString()
-                      })}
-                      className={`p-4 rounded-xl border-2 transition-all duration-200 active:scale-95 ${
-                        reqData.budgetMin === range.min.toString() && reqData.budgetMax === range.max.toString()
-                          ? 'border-yellow-500 bg-yellow-500/10'
-                          : 'border-white/10 bg-[#1c1c1e] hover:border-white/20'
-                      }`}
-                    >
-                      <div className="text-sm font-bold text-white">{getLabel(range)}</div>
-                    </button>
+              <Field label="Пальне / двигун">
+                <div className="grid grid-cols-2 gap-2">
+                  {fuelTypes.map(type => (
+                    <Chip key={type} selected={reqFuel === type} onClick={() => setReqFuel(type)}>{type}</Chip>
                   ))}
                 </div>
-              </div>
+              </Field>
+              <Field label="Пробіг">
+                <div className="grid grid-cols-2 gap-2">
+                  {mileageOptions.map(option => (
+                    <Chip key={option} selected={reqMileage === option} onClick={() => setReqMileage(option)}>{option}</Chip>
+                  ))}
+                </div>
+              </Field>
+              <Field label="Місто">
+                <div className="grid grid-cols-2 gap-2">
+                  {cities.map(city => (
+                    <Chip key={city} selected={reqData.city === city} onClick={() => setReqData({ ...reqData, city })}>{city}</Chip>
+                  ))}
+                </div>
+              </Field>
             </div>
           )}
 
-          {/* Step 4: Location & Summary */}
           {reqStep === 4 && (
             <div className="space-y-4 animate-slide-up">
-              <div>
-                <label className="text-xs font-bold text-white/70 uppercase mb-3 block">Оберіть локацію</label>
-                <div className="grid grid-cols-2 gap-3">
-                  {cities.map(city => (
-                    <button
-                      key={city.id}
-                      onClick={() => setReqData({...reqData, city: city.name})}
-                      className={`p-4 rounded-xl border-2 transition-all duration-200 active:scale-95 ${
-                        reqData.city === city.name
-                          ? 'border-yellow-500 bg-yellow-500/10'
-                          : 'border-white/10 bg-[#1c1c1e] hover:border-white/20'
-                      }`}
-                    >
-                      <div className="text-sm font-bold text-white">{city.name}</div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                {surfaceMode === 'B2B' && (
-                  <div>
-                    <label className="text-xs font-bold text-white/70 uppercase mb-2 block">Компанія</label>
-                    <input
-                      className="w-full bg-[#1c1c1e] text-white p-4 rounded-xl outline-none border border-white/10 placeholder-white/30"
-                      placeholder="Назва компанії"
-                      value={reqCompany}
-                      onChange={e => setReqCompany(e.target.value)}
-                    />
-                  </div>
-                )}
-
-                {requestType === 'SELL' && (
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-xs font-bold text-white/70 uppercase mb-2 block">Пробіг</label>
-                      <input
-                        className="w-full bg-[#1c1c1e] text-white p-4 rounded-xl outline-none border border-white/10 placeholder-white/30"
-                        placeholder="120000"
-                        value={reqMileage}
-                        onChange={e => setReqMileage(e.target.value)}
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs font-bold text-white/70 uppercase mb-2 block">Пальне</label>
-                      <input
-                        className="w-full bg-[#1c1c1e] text-white p-4 rounded-xl outline-none border border-white/10 placeholder-white/30"
-                        placeholder="Дизель"
-                        value={reqFuel}
-                        onChange={e => setReqFuel(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                )}
-
-                <div>
-                  <label className="text-xs font-bold text-white/70 uppercase mb-2 block">Контакт</label>
+              {surfaceMode === 'B2B' && (
+                <Field label="Компанія">
                   <input
-                    className="w-full bg-[#1c1c1e] text-white p-4 rounded-xl outline-none border border-white/10 placeholder-white/30"
-                    placeholder="+380 67 123 45 67"
-                    value={reqPhone}
-                    onChange={e => setReqPhone(e.target.value)}
+                    className="w-full bg-[#15171a] text-white p-4 rounded-xl outline-none border border-white/10 placeholder-white/30"
+                    placeholder="Назва компанії"
+                    value={reqCompany}
+                    onChange={e => setReqCompany(e.target.value)}
                   />
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-white/70 uppercase mb-2 block">Коментар</label>
-                  <textarea
-                    className="w-full min-h-[96px] bg-[#1c1c1e] text-white p-4 rounded-xl outline-none border border-white/10 placeholder-white/30 resize-none"
-                    placeholder="Побажання, зручний час для зв'язку або додаткові деталі"
-                    value={reqComment}
-                    onChange={e => setReqComment(e.target.value)}
-                  />
-                </div>
-              </div>
+                </Field>
+              )}
+              <Field label="Коментар">
+                <textarea
+                  className="w-full min-h-[112px] bg-[#15171a] text-white p-4 rounded-xl outline-none border border-white/10 placeholder-white/30 resize-none"
+                  placeholder="Побажання щодо комплектації, кольору, строків або умов"
+                  value={reqComment}
+                  onChange={e => setReqComment(e.target.value)}
+                />
+              </Field>
 
-              {/* Summary */}
-              <div className="bg-[#1c1c1e] p-5 rounded-xl border border-white/10 text-white/80 text-sm space-y-3 mt-6">
-                <p className="font-bold text-white mb-4 text-lg border-b border-white/10 pb-2">Підсумок</p>
-                <div className="flex justify-between items-center">
-                  <span className="text-white/60">Марка:</span>
-                  <span className="font-bold text-white">{reqData.brand || 'Не обрано'}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-white/60">Рік:</span>
-                  <span className="font-bold text-white">{reqData.yearMin ? reqData.yearMin + '+' : 'Будь-який'}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-white/60">Бюджет:</span>
-                  <span className="font-bold text-white" style={{color: primaryColor}}>
-                    {reqData.budgetMin && reqData.budgetMax
-                      ? `$${parseInt(reqData.budgetMin).toLocaleString()} - $${parseInt(reqData.budgetMax).toLocaleString()}`
-                      : 'Не обрано'}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-white/60">Локація:</span>
-                  <span className="font-bold text-white">{reqData.city || 'Не обрано'}</span>
-                </div>
-                {selectedCarsCount > 0 && (
-                  <div className="flex justify-between items-center">
-                    <span className="text-white/60">Обрані авто:</span>
-                    <span className="font-bold text-white">{selectedCarsCount}</span>
+              <div className="bg-[#15171a] p-5 rounded-xl border border-white/10 text-white/80 text-sm space-y-3">
+                <p className="font-bold text-white text-lg border-b border-white/10 pb-2">Підсумок</p>
+                {[
+                  ['Авто', [reqData.brand, reqData.model].filter(Boolean).join(' ') || 'Не обрано'],
+                  ['Роки', `${reqData.yearMin || 'будь-який'} - ${reqData.yearMax || 'будь-який'}`],
+                  ['Бюджет', reqData.budgetMin || reqData.budgetMax ? `$${reqData.budgetMin || '0'} - $${reqData.budgetMax || '∞'}` : 'Не обрано'],
+                  ['Кузов', reqData.bodyType || 'Не обрано'],
+                  ['Пальне', reqFuel || 'Не обрано'],
+                  ['Пробіг', reqMileage || 'Не обрано'],
+                  ['Локація', reqData.city || 'Не обрано']
+                ].map(([label, value]) => (
+                  <div key={label} className="flex justify-between items-center gap-3">
+                    <span className="text-white/52">{label}:</span>
+                    <span className="font-semibold text-white text-right">{value}</span>
                   </div>
-                )}
+                ))}
               </div>
-              <p className="text-xs text-white/50 text-center px-4">
-                Після надсилання менеджер зв'яжеться з вами у цьому чаті.
-              </p>
               {!hasTelegramInit && (
-                <div className="text-xs text-yellow-300 bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-3 text-center">
-                  Відкрийте цю сторінку з Telegram, щоб надіслати запит.
+                <div className="text-xs text-yellow-200 bg-yellow-500/10 border border-yellow-500/25 rounded-xl p-3 text-center">
+                  Відкрийте Mini App з Telegram-бота, щоб надіслати запит.
                 </div>
               )}
             </div>
           )}
 
-          {/* Navigation Buttons */}
           {showInlineAction && (
             <div className="pt-6 flex gap-3">
               {reqStep > 1 && (
                 <button
                   onClick={onBackStep}
-                  className="flex-1 py-4 rounded-xl font-bold text-white flex items-center justify-center gap-2 active:scale-95 transition-transform bg-[#1c1c1e] border border-white/10"
+                  className="flex-1 py-4 rounded-xl font-bold text-white flex items-center justify-center gap-2 active:scale-95 transition-transform bg-[#15171a] border border-white/10"
                 >
                   <ChevronLeft size={18} />
                   Назад
@@ -409,8 +334,8 @@ export const RequestView = ({
               <button
                 onClick={onNextStep}
                 disabled={Boolean(actionDisabled)}
-                className="flex-1 py-4 rounded-xl font-bold text-black flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-50 disabled:scale-100 shadow-lg"
-                style={{ backgroundColor: primaryColor }}
+                className="flex-1 py-4 rounded-xl font-bold flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-50 disabled:scale-100"
+                style={metallicStyle}
               >
                 {actionLabel} <ArrowRight size={18} />
               </button>

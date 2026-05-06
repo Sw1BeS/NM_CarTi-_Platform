@@ -48,6 +48,23 @@ export type MiniAppRequestPayload = {
   payload?: Record<string, unknown>;
 };
 
+export type MiniAppLeadIntentPayload = {
+  slug: string;
+  initData: string;
+  kind: 'PICK' | 'PRICE_TERMS';
+  carListingId?: string;
+  carListingIds?: string[];
+  criteria?: Record<string, unknown>;
+  comment?: string;
+  tracking?: MiniAppTrackingMeta;
+};
+
+export type MiniAppBotFlowPayload = {
+  slug: string;
+  initData: string;
+  flow: 'SELL' | 'SUPPORT';
+};
+
 export type MiniAppEventPayload = {
   slug: string;
   eventType: string;
@@ -82,6 +99,32 @@ export async function toggleMiniAppFavorite(carListingId: string, payload: { slu
 
 export async function createMiniAppRequest(payload: MiniAppRequestPayload): Promise<{ request: B2BRequest }> {
   return await apiFetch('/miniapp/requests', {
+    method: 'POST',
+    skipAuth: true,
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function createMiniAppLeadIntent(payload: MiniAppLeadIntentPayload): Promise<{
+  ok: boolean;
+  contactRequested: boolean;
+  closeMiniApp: boolean;
+  duplicate?: boolean;
+  intent?: { kind?: string; type?: string; title?: string };
+}> {
+  return await apiFetch('/miniapp/lead-intents', {
+    method: 'POST',
+    skipAuth: true,
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function startMiniAppBotFlow(payload: MiniAppBotFlowPayload): Promise<{
+  ok: boolean;
+  flow: 'SELL' | 'SUPPORT';
+  closeMiniApp: boolean;
+}> {
+  return await apiFetch('/miniapp/bot-flows', {
     method: 'POST',
     skipAuth: true,
     body: JSON.stringify(payload)

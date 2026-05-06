@@ -97,11 +97,18 @@ describe('templatePreset.service', () => {
     expect(byId.get('btn_stock')?.value).toContain('status=AVAILABLE');
     expect(byId.get('btn_transit')?.value).toContain('entry=inventory');
     expect(byId.get('btn_transit')?.value).toContain('status=PENDING');
-    expect(byId.get('btn_sell')?.type).toBe('WEB_APP');
-    expect(byId.get('btn_sell')?.value).toContain('type=SELL');
+    expect(byId.get('btn_sell')?.type).toBe('SCENARIO');
+    expect(byId.get('btn_sell')?.value).toBe('scenario_sell');
     expect(byId.get('btn_support')?.type).toBe('WEB_APP');
     expect(byId.get('btn_support')?.value).toContain('entry=support');
     expect(byId.has('btn_status')).toBe(false);
+    expect(result.config.miniAppConfig?.navItems?.map(item => item.value)).toEqual([
+      'HOME',
+      'INVENTORY',
+      'REQUEST',
+      'CONTACTS',
+      'PROFILE'
+    ]);
     expect(prisma.scenario.updateMany).toHaveBeenCalled();
   });
 });

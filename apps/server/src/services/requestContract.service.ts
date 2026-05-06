@@ -117,6 +117,11 @@ const extractRequestContact = (request: any) => {
     || toOptionalString(nested.phone);
 };
 
+const readSubmitId = (tracking: unknown) => {
+  if (!isRecord(tracking)) return undefined;
+  return toOptionalString(tracking.submitId) || toOptionalString(tracking.submit_id);
+};
+
 class RequestContractService {
   private buildPendingIntentFromLegacyDraft(draft: Record<string, unknown>, fallbackSlug: string): MiniAppPendingIntent | null {
     const title = toOptionalString(draft.title) || 'Авто з Mini App';
@@ -288,6 +293,25 @@ class RequestContractService {
         }
       }
     });
+    const submitId = readSubmitId(pendingIntent.tracking);
+    const existingPending = isRecord((existingSession?.variables as Record<string, unknown> | undefined)?.miniappPendingIntent)
+      ? ((existingSession?.variables as Record<string, unknown>).miniappPendingIntent as MiniAppPendingIntent)
+      : null;
+    if (
+      submitId
+      && existingPending
+      && readSubmitId(existingPending.tracking) === submitId
+    ) {
+      return {
+        companyId: context.companyId,
+        botId: context.botId,
+        chatId: tgUserId,
+        title: existingPending.title || title,
+        intentType: existingPending.intentType || input.intentType,
+        carIds: Array.isArray(existingPending.carIds) ? existingPending.carIds : selection.selectedCarIds,
+        isDuplicate: true
+      };
+    }
 
     if (existingSession) {
       await prisma.botSession.update({
@@ -331,7 +355,8 @@ class RequestContractService {
       chatId: tgUserId,
       title,
       intentType: input.intentType,
-      carIds: selection.selectedCarIds
+      carIds: selection.selectedCarIds,
+      isDuplicate: false
     };
   }
 

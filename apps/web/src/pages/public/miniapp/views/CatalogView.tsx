@@ -74,7 +74,6 @@ type CatalogViewProps = {
   getStatusLabel: (car: CarListing) => string;
   isFavorite: (carId: string) => boolean;
   isSelectedForRequest: (carId: string) => boolean;
-  onOpenLightbox: (car: CarListing) => void;
   onToggleFavorite: (car: CarListing) => void;
   onPrimaryAction: (car: CarListing) => void;
   onToggleRequestSelection: (car: CarListing) => void;
@@ -107,7 +106,6 @@ export const CatalogView = ({
   getStatusLabel,
   isFavorite,
   isSelectedForRequest,
-  onOpenLightbox,
   onToggleFavorite,
   onPrimaryAction,
   onToggleRequestSelection,
@@ -115,6 +113,11 @@ export const CatalogView = ({
   onEmptyRequest
 }: CatalogViewProps) => {
   const cardActionLabel = surfaceMode === 'B2B' ? 'Створити B2B запит' : 'Зацікавило це авто';
+  const metallicStyle: React.CSSProperties = {
+    background: 'linear-gradient(135deg, #f7f8fa 0%, #d7dbe1 34%, #a4abb4 68%, #f1f3f6 100%)',
+    color: '#101216',
+    boxShadow: '0 10px 22px rgba(210,216,224,0.16), inset 0 1px 0 rgba(255,255,255,0.85)'
+  };
 
   return (
     <div className="animate-fade-in pb-24 h-full flex flex-col bg-black">
@@ -253,11 +256,13 @@ export const CatalogView = ({
           const cover = images[0];
           const specs = getCarSpecs(car);
           const carId = getCarId(car);
-          const specTiles = buildSpecTiles(specs, car, formatMileage, toNumberSafe);
+          const specTiles = car.presentation?.detailRows?.length
+            ? car.presentation.detailRows.slice(0, 6)
+            : buildSpecTiles(specs, car, formatMileage, toNumberSafe);
 
           return (
             <div key={carId || `inventory_${car.title}_${car.year}`} className={`bg-[#1c1c1e] rounded-2xl overflow-hidden border flex flex-col shadow-lg ${isSelectedForRequest(carId) ? 'border-yellow-400/60' : 'border-white/5'}`}>
-              <div className="aspect-[4/3] bg-gray-800 relative cursor-pointer" onClick={() => onOpenLightbox(car)}>
+              <div className="aspect-[4/3] bg-gray-800 relative cursor-pointer" onClick={() => onOpenListing(car)}>
                 {cover ? (
                   <img src={cover} className="w-full h-full object-cover" />
                 ) : (
@@ -266,9 +271,9 @@ export const CatalogView = ({
                   </div>
                 )}
                 <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-4 pt-12">
-                  <h3 className="text-lg font-bold text-white">{car.title}</h3>
+                  <h3 className="text-lg font-bold text-white">{car.presentation?.title || car.title}</h3>
                   <p className="text-[11px] text-white/70 mt-1">
-                    {formatBrandModel(car)}
+                    {car.presentation?.subtitle || formatBrandModel(car)}
                   </p>
                 </div>
                 {images.length > 1 && (
@@ -288,7 +293,7 @@ export const CatalogView = ({
               </div>
               <div className="p-4">
                 <div className="flex justify-between items-center mb-4">
-                  <div className="text-xl font-bold" style={{ color: primaryColor }}>{formatPrice(car.price)}</div>
+                  <div className="text-xl font-bold text-[#E4E7EC]">{car.presentation?.priceLabel || formatPrice(car.price)}</div>
                   <div className="text-xs text-white/50 bg-white/5 px-2 py-1 rounded">{toNumberSafe(car.year) || '—'}</div>
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-xs text-white/70 mb-4">
@@ -302,7 +307,7 @@ export const CatalogView = ({
                 <button
                   onClick={() => onPrimaryAction(car)}
                   className="w-full py-3 rounded-xl font-bold text-black flex items-center justify-center gap-2 active:scale-95 transition-transform"
-                  style={{ backgroundColor: primaryColor }}
+                  style={metallicStyle}
                 >
                   <MessageSquare size={18} /> {cardActionLabel}
                 </button>
@@ -331,7 +336,7 @@ export const CatalogView = ({
             <button
               onClick={onEmptyRequest}
               className="w-full py-3 rounded-xl font-bold text-black"
-              style={{ backgroundColor: primaryColor }}
+              style={metallicStyle}
             >
               Підібрати авто
             </button>

@@ -74,6 +74,14 @@ export interface MiniAppConfig {
         actionType: 'SCENARIO' | 'LINK' | 'VIEW';
         value: string;
     }[];
+    contacts?: {
+        telegramChannel?: string;
+        telegramBot?: string;
+        instagram?: string;
+        website?: string;
+        phone?: string;
+        links?: Array<{ label: string; url: string }>;
+    };
     url?: string;
     showcaseSlug?: string;
     homeBlocks?: any[];

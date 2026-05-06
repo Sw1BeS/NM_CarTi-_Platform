@@ -55,6 +55,19 @@ export interface CarCard {
     description?: string;
     status: 'AVAILABLE' | 'RESERVED' | 'SOLD' | 'PENDING' | 'HIDDEN';
     postedAt: string;
+    presentation?: VehiclePresentation;
+}
+
+export interface VehiclePresentation {
+    title: string;
+    subtitle: string;
+    priceLabel: string;
+    mileageLabel: string;
+    statusLabel: string;
+    specChips: string[];
+    detailRows: Array<{ label: string; value: string }>;
+    badges: string[];
+    mediaUrls: string[];
 }
 
 export interface Variant extends Omit<CarCard, 'status'> {

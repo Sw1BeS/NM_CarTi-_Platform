@@ -2,6 +2,7 @@ import { LeadStatus as DbLeadStatus, RequestStatus as DbRequestStatus, VariantSt
 import { NormalizationService } from './normalization.service.js';
 import { parseCarData } from './enhanced-parsing.utils.js';
 import { collectNormalizedMediaUrls, normalizeMediaUrl } from './mediaUrl.service.js';
+import { buildVehiclePresentation, normalizeVehicleSpecLabel } from './vehiclePresentation.js';
 
 const DEFAULT_CURRENCY = 'USD';
 
@@ -27,40 +28,6 @@ const extractRequestContact = (request: any) => {
     || toString(payload.phone)
     || toString(nested.contact)
     || toString(nested.phone);
-};
-
-const normalizeSpecLabel = (key: 'fuel' | 'transmission' | 'drive' | 'condition', value: any) => {
-  const raw = toString(value);
-  if (!raw) return undefined;
-  const norm = raw.toLowerCase();
-
-  if (key === 'fuel') {
-    if (/diesel|дизел/.test(norm)) return 'Дизель';
-    if (/petrol|gasoline|бензин/.test(norm)) return 'Бензин';
-    if (/hybrid|гібрид|гибрид/.test(norm)) return 'Гібрид';
-    if (/electric|elektro|electro|ev|електро|электро/.test(norm)) return 'Електро';
-    if (/lpg|газ/.test(norm)) return 'Газ';
-  }
-
-  if (key === 'transmission') {
-    if (/automat|автомат|at\b/.test(norm)) return 'Автомат';
-    if (/manual|механ|mt\b/.test(norm)) return 'Механіка';
-    if (/cvt|варіатор/.test(norm)) return 'Варіатор';
-    if (/robot|робот/.test(norm)) return 'Робот';
-  }
-
-  if (key === 'drive') {
-    if (/awd|4wd|quattro|повн/.test(norm)) return 'Повний';
-    if (/fwd|front|передн/.test(norm)) return 'Передній';
-    if (/rwd|rear|задн/.test(norm)) return 'Задній';
-  }
-
-  if (key === 'condition') {
-    if (/in[\s-_]?transit|дороз|в\s+дороз/.test(norm)) return 'В дорозі';
-    if (/available|наяв|в\s+наяв/.test(norm)) return 'В наявності';
-  }
-
-  return raw;
 };
 
 const LEAD_STATUS_TO_DB: Record<string, DbLeadStatus> = {
@@ -575,8 +542,8 @@ export const mapInventoryInput = (input: Record<string, unknown>): InventoryInpu
   return data;
 };
 
-export const mapInventoryOutput = (car: Record<string, unknown>) => ({
-  ...(() => {
+export const mapInventoryOutput = (car: Record<string, unknown>) => {
+  const normalized = (() => {
     const description = toString(car.description) || '';
     const parsed = description ? parseCarData(description) : {};
     const rawSpecs = car.specs;
@@ -600,10 +567,16 @@ export const mapInventoryOutput = (car: Record<string, unknown>) => ({
       }
     }
 
-    if (mergedSpecs.fuel) mergedSpecs.fuel = normalizeSpecLabel('fuel', mergedSpecs.fuel);
-    if (mergedSpecs.transmission) mergedSpecs.transmission = normalizeSpecLabel('transmission', mergedSpecs.transmission);
-    if (mergedSpecs.drive) mergedSpecs.drive = normalizeSpecLabel('drive', mergedSpecs.drive);
-    if (mergedSpecs.condition) mergedSpecs.condition = normalizeSpecLabel('condition', mergedSpecs.condition);
+    if (mergedSpecs.fuel) {
+      const normalizedFuel = normalizeVehicleSpecLabel('fuel', mergedSpecs.fuel);
+      if (normalizedFuel) mergedSpecs.fuel = normalizedFuel;
+      else delete mergedSpecs.fuel;
+    }
+    if (mergedSpecs.transmission) mergedSpecs.transmission = normalizeVehicleSpecLabel('transmission', mergedSpecs.transmission);
+    if (mergedSpecs.drive) mergedSpecs.drive = normalizeVehicleSpecLabel('drive', mergedSpecs.drive);
+    if (mergedSpecs.condition) mergedSpecs.condition = normalizeVehicleSpecLabel('condition', mergedSpecs.condition);
+    if (mergedSpecs.damage) mergedSpecs.damage = normalizeVehicleSpecLabel('damage', mergedSpecs.damage);
+    if (mergedSpecs.bodyType) mergedSpecs.bodyType = normalizeVehicleSpecLabel('bodyType', mergedSpecs.bodyType);
 
     const mediaItems = Array.isArray(car.mediaItems)
       ? (car.mediaItems as unknown[])
@@ -653,10 +626,19 @@ export const mapInventoryOutput = (car: Record<string, unknown>) => ({
       specs: mergedSpecs,
       description
     };
-  })(),
-  canonicalId: car.id,
-  price: {
-    amount: toNumber(car.price) ?? 0,
-    currency: car.currency || DEFAULT_CURRENCY
-  }
-});
+  })();
+
+  const output = {
+    ...normalized,
+    canonicalId: car.id,
+    price: {
+      amount: toNumber(car.price) ?? 0,
+      currency: car.currency || DEFAULT_CURRENCY
+    }
+  };
+
+  return {
+    ...output,
+    presentation: buildVehiclePresentation(output)
+  };
+};
