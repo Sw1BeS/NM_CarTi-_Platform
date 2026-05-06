@@ -36,7 +36,6 @@ export const MiniAppImage = ({
       src={current}
       alt={alt}
       className={className}
-      loading="lazy"
       onError={() => setIndex(prev => prev + 1)}
     />
   ) : (
