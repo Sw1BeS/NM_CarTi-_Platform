@@ -3,7 +3,6 @@ import { ArrowRight, CheckCircle, Search, ChevronLeft } from 'lucide-react';
 
 type MiniAppSurfaceMode = 'LEAD' | 'B2B';
 type RequestType = 'BUY' | 'SELL';
-type RequestSubtype = 'GENERAL' | 'SPECIFIC' | 'MULTI_SELECT';
 
 type RequestViewProps = {
   reqStep: number;
@@ -35,7 +34,6 @@ type RequestViewProps = {
   setReqPhone: (value: string) => void;
   reqComment: string;
   setReqComment: (value: string) => void;
-  manualContactMode: boolean;
   selectedCarsCount: number;
   selectedCarsPreview: string[];
   onClearSelectedCars: () => void;
@@ -43,8 +41,6 @@ type RequestViewProps = {
   primaryColor: string;
   surfaceMode: MiniAppSurfaceMode;
   requestType: RequestType;
-  requestSubtype: RequestSubtype;
-  onRequestSubtypeChange: (value: RequestSubtype) => void;
   showInlineAction: boolean;
   actionLabel: string;
   actionDisabled?: boolean;
@@ -68,7 +64,6 @@ export const RequestView = ({
   setReqPhone,
   reqComment,
   setReqComment,
-  manualContactMode,
   selectedCarsCount,
   selectedCarsPreview,
   onClearSelectedCars,
@@ -76,8 +71,6 @@ export const RequestView = ({
   primaryColor,
   surfaceMode,
   requestType,
-  requestSubtype,
-  onRequestSubtypeChange,
   showInlineAction,
   actionLabel,
   actionDisabled,
@@ -144,7 +137,7 @@ export const RequestView = ({
   );
 
   return (
-    <div className="animate-fade-in pb-24 p-6 h-full overflow-y-auto flex flex-col justify-center bg-black">
+    <div className="animate-fade-in pb-24 p-6 h-full overflow-y-auto flex flex-col justify-start bg-black">
       {reqStep === 5 ? (
         <div className="text-center animate-slide-up">
           <div className="w-24 h-24 rounded-full bg-green-500/20 text-green-500 flex items-center justify-center mx-auto mb-6 shadow-[0_0_30px_rgba(34,197,94,0.3)]">
@@ -185,28 +178,12 @@ export const RequestView = ({
               {selectedCarsCount > 0 && (
                 <div className="bg-[#1c1c1e] border border-white/10 rounded-xl p-3 text-xs text-white/80 space-y-3">
                   <div className="flex items-center justify-between gap-2">
-                    <span>Мультивибір: {selectedCarsCount} авто</span>
+                    <span>{selectedCarsCount > 1 ? `Запит по ${selectedCarsCount} авто` : 'Запит по конкретному авто'}</span>
                     <button onClick={onClearSelectedCars} className="text-white/60 underline">Очистити</button>
                   </div>
                   {selectedCarsPreview.length > 0 && (
                     <div className="text-white/50 mt-1 truncate">{selectedCarsPreview.join(', ')}</div>
                   )}
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => onRequestSubtypeChange(selectedCarsCount > 1 ? 'MULTI_SELECT' : 'SPECIFIC')}
-                      className={`rounded-lg border px-3 py-2 font-bold ${requestSubtype !== 'GENERAL' ? 'border-yellow-500 bg-yellow-500/10 text-white' : 'border-white/10 text-white/60'}`}
-                    >
-                      По обраних авто
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onRequestSubtypeChange('GENERAL')}
-                      className={`rounded-lg border px-3 py-2 font-bold ${requestSubtype === 'GENERAL' ? 'border-yellow-500 bg-yellow-500/10 text-white' : 'border-white/10 text-white/60'}`}
-                    >
-                      Загальний підбір
-                    </button>
-                  </div>
                 </div>
               )}
               <div>
@@ -317,6 +294,62 @@ export const RequestView = ({
                       <div className="text-sm font-bold text-white">{city.name}</div>
                     </button>
                   ))}
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {surfaceMode === 'B2B' && (
+                  <div>
+                    <label className="text-xs font-bold text-white/70 uppercase mb-2 block">Компанія</label>
+                    <input
+                      className="w-full bg-[#1c1c1e] text-white p-4 rounded-xl outline-none border border-white/10 placeholder-white/30"
+                      placeholder="Назва компанії"
+                      value={reqCompany}
+                      onChange={e => setReqCompany(e.target.value)}
+                    />
+                  </div>
+                )}
+
+                {requestType === 'SELL' && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-bold text-white/70 uppercase mb-2 block">Пробіг</label>
+                      <input
+                        className="w-full bg-[#1c1c1e] text-white p-4 rounded-xl outline-none border border-white/10 placeholder-white/30"
+                        placeholder="120000"
+                        value={reqMileage}
+                        onChange={e => setReqMileage(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-white/70 uppercase mb-2 block">Пальне</label>
+                      <input
+                        className="w-full bg-[#1c1c1e] text-white p-4 rounded-xl outline-none border border-white/10 placeholder-white/30"
+                        placeholder="Дизель"
+                        value={reqFuel}
+                        onChange={e => setReqFuel(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <label className="text-xs font-bold text-white/70 uppercase mb-2 block">Контакт</label>
+                  <input
+                    className="w-full bg-[#1c1c1e] text-white p-4 rounded-xl outline-none border border-white/10 placeholder-white/30"
+                    placeholder="+380 67 123 45 67"
+                    value={reqPhone}
+                    onChange={e => setReqPhone(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-white/70 uppercase mb-2 block">Коментар</label>
+                  <textarea
+                    className="w-full min-h-[96px] bg-[#1c1c1e] text-white p-4 rounded-xl outline-none border border-white/10 placeholder-white/30 resize-none"
+                    placeholder="Побажання, зручний час для зв'язку або додаткові деталі"
+                    value={reqComment}
+                    onChange={e => setReqComment(e.target.value)}
+                  />
                 </div>
               </div>
 

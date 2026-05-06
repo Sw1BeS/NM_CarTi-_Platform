@@ -117,18 +117,20 @@ export const resolvePublicSlug = async (slug: string, options: ResolvePublicSlug
   const matched = bots.find(bot => {
     const config = (bot.config || {}) as any;
     const showcaseSlug = normalizeBotSlug(String(config.defaultShowcaseSlug || ''));
+    const miniShowcaseSlug = normalizeBotSlug(String(config.miniAppConfig?.showcaseSlug || ''));
     const username = normalizeBotSlug(String(config.botUsername || config.username || bot.name || ''));
-    return showcaseSlug === normalizedLower || username === normalizedLower;
+    return showcaseSlug === normalizedLower || miniShowcaseSlug === normalizedLower || username === normalizedLower;
   });
 
   if (matched?.companyId) {
     const config = (matched.config || {}) as any;
-    const showcaseSlug = String(config.defaultShowcaseSlug || '').toLowerCase();
+    const showcaseSlug = normalizeBotSlug(String(config.defaultShowcaseSlug || ''));
+    const miniShowcaseSlug = normalizeBotSlug(String(config.miniAppConfig?.showcaseSlug || ''));
     return {
       slug: normalized,
       companyId: matched.companyId,
       botId: matched.id,
-      source: showcaseSlug === normalizedLower ? 'bot_default' : 'bot_username'
+      source: showcaseSlug === normalizedLower || miniShowcaseSlug === normalizedLower ? 'bot_default' : 'bot_username'
     };
   }
 

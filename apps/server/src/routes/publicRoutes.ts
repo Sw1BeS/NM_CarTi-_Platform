@@ -52,6 +52,7 @@ router.get('/:slug/inventory', async (req, res) => {
         const maxPrice = req.query.maxPrice ? Number(req.query.maxPrice) : undefined;
         const minYear = req.query.minYear ? Number(req.query.minYear) : undefined;
         const maxYear = req.query.maxYear ? Number(req.query.maxYear) : undefined;
+        const status = typeof req.query.status === 'string' ? req.query.status : undefined;
 
         const { showcase, items, total } = await showcaseService.getInventoryForShowcase(resolved.slug || slug, {
             page,
@@ -60,7 +61,8 @@ router.get('/:slug/inventory', async (req, res) => {
             minPrice,
             maxPrice,
             minYear,
-            maxYear
+            maxYear,
+            status
         });
 
         if (!showcase.isPublic) {
@@ -93,10 +95,12 @@ router.get('/:slug/inventory', async (req, res) => {
     const maxYear = Number(req.query.maxYear);
     const minPrice = Number(req.query.minPrice);
     const maxPrice = Number(req.query.maxPrice);
+    const requestedStatus = String(req.query.status || '').trim().toUpperCase();
+    const publicStatus = ['AVAILABLE', 'PENDING', 'RESERVED', 'SOLD'].includes(requestedStatus) ? requestedStatus : 'AVAILABLE';
 
     const where: any = {
       companyId: resolved.companyId,
-      status: 'AVAILABLE'
+      status: publicStatus
     };
 
     if (search) {
@@ -121,18 +125,7 @@ router.get('/:slug/inventory', async (req, res) => {
       orderBy: { postedAt: 'desc' }
     });
 
-    const publicCars = cars.map((c: any) => ({
-      id: c.id,
-      canonicalId: c.id,
-      title: c.title,
-      price: { amount: c.price, currency: c.currency },
-      year: c.year,
-      mileage: c.mileage,
-      thumbnail: c.thumbnail,
-      mediaUrls: c.mediaUrls,
-      specs: c.specs,
-      source: c.source
-    }));
+    const publicCars = cars.map(mapInventoryOutput);
 
     res.json({ items: publicCars });
   } catch (e) {

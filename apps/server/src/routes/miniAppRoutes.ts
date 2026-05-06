@@ -247,7 +247,13 @@ router.post('/cars/:carId/share', async (req, res) => {
       showcaseSlug: slug || undefined
     });
 
-    const photos = [car.thumbnail, ...(Array.isArray(car.mediaUrls) ? car.mediaUrls : [])]
+    const mediaItemPhotos = Array.isArray((car as any).mediaItems)
+      ? ((car as any).mediaItems as any[]).flatMap(item => {
+        if (!item || typeof item !== 'object') return [];
+        return [item.url, item.previewUrl, item.tgFileId, item.fileId, item.media];
+      })
+      : [];
+    const photos = [car.thumbnail, ...(Array.isArray(car.mediaUrls) ? car.mediaUrls : []), ...mediaItemPhotos]
       .map(v => String(v || '').trim())
       .filter(Boolean);
     const deduped = Array.from(new Set(photos)).slice(0, 10);
@@ -612,14 +618,25 @@ router.post('/favorites/:carListingId', async (req, res) => {
     });
 
     if (!tgUserId && !visitorId) return errorResponse(res, 400, 'tgUserId or visitorId is required');
+    let favoriteIdentity = { tgUserId, visitorId };
     if (initData) {
       const initCheck = await requireInitData(initData, companyId, botId);
-      if (!initCheck.ok) return errorResponse(res, 401, initCheck.message || 'Unauthorized');
+      if (!initCheck.ok) {
+        if (!visitorId) return errorResponse(res, 401, initCheck.message || 'Unauthorized');
+        logger.warn('[MiniApp] favorite initData invalid, falling back to visitorId', {
+          requestId,
+          slug: slug || null,
+          carListingId,
+          companyId,
+          botId: botId || null
+        });
+        favoriteIdentity = { tgUserId: undefined, visitorId };
+      }
     } else if (!visitorId) {
       return errorResponse(res, 401, 'initData or visitorId is required');
     }
 
-    const result = await miniAppService.toggleFavorite(carListingId, { tgUserId, visitorId }, slug);
+    const result = await miniAppService.toggleFavorite(carListingId, favoriteIdentity, slug);
     res.json({ ok: true, ...result });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : 'Failed to toggle favorite';

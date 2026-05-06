@@ -145,13 +145,25 @@ const parseEntryIntent = (params: URLSearchParams, startParam?: string): MiniApp
 
     if (!entry && start) {
         const aliases: Record<string, MiniAppEntryIntent> = {
+            app: { view: 'HOME' },
+            miniapp: { view: 'HOME' },
+            main: { view: 'HOME' },
+            home: { view: 'HOME' },
             view_inventory: { view: 'INVENTORY', tab: 'IN_STOCK' },
+            inventory: { view: 'INVENTORY' },
+            stock: { view: 'INVENTORY', tab: 'IN_STOCK' },
             view_stock: { view: 'INVENTORY', tab: 'IN_STOCK' },
             view_transit: { view: 'INVENTORY', tab: 'IN_TRANSIT' },
+            transit: { view: 'INVENTORY', tab: 'IN_TRANSIT' },
             view_request: { view: 'REQUEST', requestType: 'BUY' },
+            request: { view: 'REQUEST', requestType: 'BUY' },
             view_favorites: { view: 'FAVORITES' },
+            favorites: { view: 'FAVORITES' },
+            favourites: { view: 'FAVORITES' },
             view_status: { view: 'STATUS' },
+            status: { view: 'STATUS' },
             sell_car: { view: 'REQUEST', requestType: 'SELL' },
+            sell: { view: 'REQUEST', requestType: 'SELL' },
             support: { view: 'SUPPORT' },
             about: { view: 'SUPPORT' }
         };
@@ -164,6 +176,19 @@ const parseEntryIntent = (params: URLSearchParams, startParam?: string): MiniApp
     }
 
     return intent;
+};
+
+const deriveRequestSubtype = (ids: string[]): RequestSubtype => {
+    const count = Array.from(new Set(ids.filter(Boolean))).length;
+    if (count > 1) return 'MULTI_SELECT';
+    if (count === 1) return 'SPECIFIC';
+    return 'GENERAL';
+};
+
+const isBrowserImageUrl = (value: unknown): value is string => {
+    if (typeof value !== 'string') return false;
+    const src = value.trim();
+    return /^(https?:\/\/|\/|data:image\/)/i.test(src);
 };
 
 const resolveMiniAppWriteError = (error: unknown, fallback = 'Не вдалося виконати дію.') => {
@@ -194,6 +219,13 @@ const readTelegramLaunchValue = (key: string): string => {
         }
     }
     return '';
+};
+
+const readRuntimeTelegramInitData = (): string => {
+    const bridgeInitData = typeof (window as any).Telegram?.WebApp?.initData === 'string'
+        ? String((window as any).Telegram.WebApp.initData).trim()
+        : '';
+    return bridgeInitData || readTelegramLaunchValue('tgWebAppData');
 };
 
 const parseTelegramUserFromInitData = (rawInitData?: string): TgUser | null => {
@@ -269,11 +301,12 @@ const resolveTelegramBootstrapContext = async (): Promise<TelegramBootstrapConte
     const tg = (window as any).Telegram?.WebApp;
     const bridgeInitData = typeof tg?.initData === 'string' ? tg.initData.trim() : '';
     const resolvedInitData = bridgeInitData || launchInitData;
+    const resolvedUser = (tg?.initDataUnsafe?.user as TgUser | undefined) || parseTelegramUserFromInitData(resolvedInitData);
     return {
         tg,
         initData: resolvedInitData || undefined,
         startParam: launchStartParam || undefined,
-        user: parseTelegramUserFromInitData(resolvedInitData),
+        user: resolvedUser,
         isTelegramContext: Boolean(resolvedInitData || tg || hasTelegramUserAgent() || launchStartParam || launchPlatform || launchVersion || launchTheme || hasTelegramReferrer() || hasTelegramBridgeProxy())
     };
 };
@@ -337,14 +370,14 @@ const MiniAppContent = () => {
     const [reqCompany, setReqCompany] = useState('');
     const [reqPhone, setReqPhone] = useState('');
     const [requestType, setRequestType] = useState<RequestType>('BUY');
-    const [requestSubtype, setRequestSubtype] = useState<RequestSubtype>('GENERAL');
     const [isRequestSubmitting, setIsRequestSubmitting] = useState(false);
     const [statusQuery, setStatusQuery] = useState({ publicId: '', phone: '' });
     const [statusResult, setStatusResult] = useState<any>(null);
     const [trackingMeta, setTrackingMeta] = useState<MiniAppTrackingMeta>({});
     const [reqComment, setReqComment] = useState('');
     const { toasts, pushToast, dismissToast } = useToasts();
-    const hasTelegramInit = Boolean(initData);
+    const currentInitData = initData || readRuntimeTelegramInitData();
+    const hasTelegramInit = Boolean(currentInitData);
     const viewHistoryRef = useRef<MiniAppView[]>(['HOME']);
     const suppressHistoryPushRef = useRef(false);
     const requestSubmitIdRef = useRef<string | null>(null);
@@ -372,6 +405,29 @@ const MiniAppContent = () => {
         setLightboxImageError(false);
     }, [lightboxCar, lightboxImageIndex]);
 
+    useEffect(() => {
+        if (initData) return;
+
+        const syncRuntimeInitData = () => {
+            const nextInitData = readRuntimeTelegramInitData();
+            if (!nextInitData) return false;
+            setInitData(nextInitData);
+            const nextUser = parseTelegramUserFromInitData(nextInitData);
+            if (nextUser) setTgUser(nextUser);
+            setConfigWarning(prev => prev === 'Telegram відкрито без initData. Для дій відкрийте Mini App повторно через кнопку меню бота.' ? null : prev);
+            return true;
+        };
+
+        if (syncRuntimeInitData()) return;
+
+        const intervalId = window.setInterval(syncRuntimeInitData, 500);
+        const timeoutId = window.setTimeout(() => window.clearInterval(intervalId), 10000);
+        return () => {
+            window.clearInterval(intervalId);
+            window.clearTimeout(timeoutId);
+        };
+    }, [initData]);
+
     const normalizeSlug = (value?: string | null) => {
         if (!value) return '';
         let s = String(value).trim();
@@ -385,11 +441,11 @@ const MiniAppContent = () => {
 
     const getCarImages = (car: CarListing) => {
         const itemUrls = (car.mediaItems || [])
-            .map(item => item.url || item.previewUrl)
-            .filter(Boolean) as string[];
-        const baseUrls = itemUrls.length ? itemUrls : (car.mediaUrls || []);
-        const combined = car.thumbnail ? [car.thumbnail, ...baseUrls] : baseUrls;
-        return Array.from(new Set(combined.filter(Boolean)));
+            .flatMap(item => [item.url, item.previewUrl])
+            .filter(isBrowserImageUrl);
+        const urlList = (car.mediaUrls || []).filter(isBrowserImageUrl);
+        const combined = car.thumbnail ? [car.thumbnail, ...itemUrls, ...urlList] : [...itemUrls, ...urlList];
+        return Array.from(new Set(combined.filter(isBrowserImageUrl)));
     };
 
     const moveLightbox = useCallback((direction: -1 | 1) => {
@@ -443,21 +499,17 @@ const MiniAppContent = () => {
         const carId = getCarId(car);
         if (!carId) return;
         setSelectedRequestCarIds(prev => {
-            const next = prev.includes(carId) ? prev.filter(id => id !== carId) : [...prev, carId];
-            setRequestSubtype(next.length > 1 ? 'MULTI_SELECT' : (next.length === 1 ? 'SPECIFIC' : 'GENERAL'));
-            return next;
+            return prev.includes(carId) ? prev.filter(id => id !== carId) : [...prev, carId];
         });
     };
 
     const clearRequestSelection = () => {
         setSelectedRequestCarIds([]);
-        setRequestSubtype('GENERAL');
     };
 
-    const openRequest = (type: RequestType = 'BUY') => {
+    const openRequest = (type: RequestType = 'BUY', options: { selectedIds?: string[]; startStep?: number } = {}) => {
         setRequestType(type);
-        setRequestSubtype(selectedRequestCarIds.length > 1 ? 'MULTI_SELECT' : (selectedRequestCarIds.length === 1 ? 'SPECIFIC' : 'GENERAL'));
-        setReqStep(1);
+        setReqStep(options.startStep || 1);
         setView('REQUEST');
     };
 
@@ -481,10 +533,11 @@ const MiniAppContent = () => {
 
     const trackEvent = useCallback((eventType: string, payload: Record<string, unknown> = {}) => {
         const slugValue = targetSlug || slug || 'system';
+        const eventInitData = initData || readRuntimeTelegramInitData();
         trackMiniAppEvent({
             slug: slugValue,
             eventType,
-            initData,
+            initData: eventInitData || undefined,
             visitorId,
             tgUserId: tgUser?.id ? String(tgUser.id) : undefined,
             carListingId: typeof payload.carListingId === 'string' ? payload.carListingId : undefined,
@@ -502,12 +555,14 @@ const MiniAppContent = () => {
     const toggleFavorite = async (car: CarListing) => {
         const id = getCarId(car);
         if (!id) return;
+        const favoriteInitData = initData || readRuntimeTelegramInitData();
+        if (!initData && favoriteInitData) setInitData(favoriteInitData);
         const identity = {
             tgUserId: tgUser?.id ? String(tgUser.id) : undefined,
             visitorId
         };
         try {
-            const res = await toggleMiniAppFavorite(id, { ...identity, slug: targetSlug || 'system', initData });
+            const res = await toggleMiniAppFavorite(id, { ...identity, slug: targetSlug || 'system', initData: favoriteInitData || undefined });
             if (res.action === 'removed') {
                 setFavorites(prev => prev.filter(x => x !== id));
                 setFavoriteItems(prev => prev.filter(item => getCarId(item) !== id));
@@ -533,6 +588,7 @@ const MiniAppContent = () => {
     const prefillRequestFromCar = (car: CarListing) => {
         const carId = getCarId(car);
         const specs = getCarSpecs(car);
+        setSelectedCar(car);
         setReqData({
             brand: car.title || '',
             budgetMin: '',
@@ -548,7 +604,7 @@ const MiniAppContent = () => {
         if (carId) {
             setSelectedRequestCarIds([carId]);
         }
-        openRequest('BUY');
+        openRequest('BUY', { selectedIds: carId ? [carId] : [], startStep: carId ? 4 : 1 });
     };
 
     const openRequestForSelectedCars = () => {
@@ -565,7 +621,7 @@ const MiniAppContent = () => {
                 brandSearch: ''
             });
         }
-        openRequest('BUY');
+        openRequest('BUY', { selectedIds: selectedRequestCarIds, startStep: selectedRequestCarIds.length ? 4 : 1 });
     };
 
     const buildFallbackConfig = (target: string, mode: MiniAppSurfaceMode = 'LEAD'): MiniAppConfig => {
@@ -1044,7 +1100,14 @@ const MiniAppContent = () => {
     const renderHome = () => (
         <div className="animate-fade-in pb-24 h-full overflow-y-auto">
             {/* Header */}
-            <div className="pt-8 pb-8 px-6 rounded-b-[40px] shadow-lg relative overflow-hidden" style={{ background: `linear-gradient(135deg, ${primaryColor}30 0%, #000000 100%)` }}>
+            <div
+                className="pt-8 pb-8 px-6 rounded-b-[40px] shadow-lg relative overflow-hidden"
+                style={{
+                    background: config.headerImageUrl
+                        ? `linear-gradient(135deg, rgba(0,0,0,0.68), rgba(0,0,0,0.92)), url(${config.headerImageUrl}) center/cover`
+                        : `linear-gradient(135deg, ${primaryColor}30 0%, #000000 100%)`
+                }}
+            >
                 <div className="relative z-10">
                     <div className="flex items-center gap-3 mb-2">
                         {config.logoUrl && (
@@ -1404,14 +1467,6 @@ const MiniAppContent = () => {
                     setConfigWarning('Для B2B запиту вкажіть марку та модель.');
                     return;
                 }
-                if (!reqCompany.trim()) {
-                    setConfigWarning('Для B2B запиту вкажіть назву компанії.');
-                    return;
-                }
-                if (!reqPhone.trim()) {
-                    setConfigWarning('Для B2B запиту додайте контакт.');
-                    return;
-                }
             }
             setReqStep(2);
             return;
@@ -1422,10 +1477,14 @@ const MiniAppContent = () => {
         }
 
         {
-            const tg = (window as any).Telegram?.WebApp;
-
-            if (!hasTelegramInit) {
+            const submitInitData = initData || readRuntimeTelegramInitData();
+            if (!submitInitData) {
                 setConfigWarning('Надсилання запиту доступне лише в Telegram Mini App.');
+                return;
+            }
+            if (!initData) setInitData(submitInitData);
+            if (isB2BMode && (!reqCompany.trim() || !reqPhone.trim())) {
+                setConfigWarning('Для B2B запиту вкажіть компанію та контакт.');
                 return;
             }
 
@@ -1436,6 +1495,7 @@ const MiniAppContent = () => {
                 const selectedListingIds = selectedRequestCarIds.length
                     ? selectedRequestCarIds
                     : (fallbackListingId ? [fallbackListingId] : []);
+                const effectiveRequestSubtype = deriveRequestSubtype(selectedListingIds);
                 const selectedTitles = selectedRequestCars.map(car => car.title).filter(Boolean);
                 const listingId = selectedListingIds[0] || undefined;
                 const submitId = requestSubmitIdRef.current
@@ -1456,9 +1516,9 @@ const MiniAppContent = () => {
 
                 const requestPayload = {
                     slug,
-                    initData,
+                    initData: submitInitData,
                     requestType,
-                    requestSubtype,
+                    requestSubtype: effectiveRequestSubtype,
                     title: selectedTitles.length > 1
                         ? `${isB2BMode ? 'B2B запит' : (requestType === 'SELL' ? 'Продаж' : 'Запит')}: ${selectedTitles.length} авто`
                         : (listingId && selectedCar?.title
@@ -1474,7 +1534,7 @@ const MiniAppContent = () => {
                     payload: {
                         mode: isB2BMode ? 'B2B' : 'LEAD',
                         requestType,
-                        requestSubtype,
+                        requestSubtype: effectiveRequestSubtype,
                         mileage: reqMileage || undefined,
                         fuel: reqFuel || undefined,
                         companyName: reqCompany || undefined,
@@ -1491,7 +1551,7 @@ const MiniAppContent = () => {
                 await createMiniAppRequest(requestPayload);
                 trackEvent('request_submitted', {
                     requestType,
-                    requestSubtype,
+                    requestSubtype: effectiveRequestSubtype,
                     selectedCarsCount: selectedListingIds.length
                 });
                 clearRequestSelection();
@@ -1529,9 +1589,6 @@ const MiniAppContent = () => {
             primaryColor={primaryColor}
             surfaceMode={surfaceMode}
             requestType={requestType}
-            requestSubtype={requestSubtype}
-            onRequestSubtypeChange={setRequestSubtype}
-            manualContactMode={false}
             showInlineAction
             actionLabel={isRequestSubmitting ? 'Надсилання...' : (reqStep >= 4 ? 'Надіслати' : 'Далі')}
             actionDisabled={isRequestSubmitting}

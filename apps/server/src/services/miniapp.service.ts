@@ -95,6 +95,7 @@ const resolveBotForSlug = async (slug: string, companyId?: string | null, resolv
       ...(companyId ? { companyId } : {}),
       OR: [
         { config: { path: ['defaultShowcaseSlug'], equals: trimmed } },
+        { config: { path: ['miniAppConfig', 'showcaseSlug'], equals: trimmed } },
         { config: { path: ['botUsername'], equals: trimmed } },
         { config: { path: ['username'], equals: trimmed } }
       ]
@@ -102,11 +103,13 @@ const resolveBotForSlug = async (slug: string, companyId?: string | null, resolv
   });
   if (botFromConfig) return { botId: botFromConfig.id, companyId: botFromConfig.companyId };
 
-  const fallback = await prisma.botConfig.findFirst({
+  const fallbackBots = await prisma.botConfig.findMany({
     where: { ...(companyId ? { companyId } : {}), isEnabled: true },
-    orderBy: { createdAt: 'asc' }
+    orderBy: { createdAt: 'asc' },
+    take: 2
   });
-  return { botId: fallback?.id, companyId: fallback?.companyId || companyId };
+  const singleFallback = fallbackBots.length === 1 ? fallbackBots[0] : null;
+  return { botId: singleFallback?.id, companyId: singleFallback?.companyId || companyId };
 };
 
 export class MiniAppService {
@@ -118,8 +121,10 @@ export class MiniAppService {
     const { tgUserId, visitorId } = normalized;
     if (!tgUserId && !visitorId) throw new Error('Identity is required');
 
-    const where: Record<string, unknown> = { companyId };
-    if (tgUserId) {
+    const where: Prisma.MiniAppFavoriteWhereInput = { companyId };
+    if (tgUserId && visitorId) {
+      where.OR = [{ tgUserId }, { visitorId }];
+    } else if (tgUserId) {
       where.tgUserId = tgUserId;
     } else if (visitorId) {
       where.visitorId = visitorId;
@@ -163,8 +168,10 @@ export class MiniAppService {
     }
     if (!companyId) throw new Error('Company not found');
 
-    const where: Record<string, unknown> = { companyId, carListingId };
-    if (tgUserId) {
+    const where: Prisma.MiniAppFavoriteWhereInput = { companyId, carListingId };
+    if (tgUserId && visitorId) {
+      where.OR = [{ tgUserId }, { visitorId }];
+    } else if (tgUserId) {
       where.tgUserId = tgUserId;
     } else if (visitorId) {
       where.visitorId = visitorId;
@@ -259,9 +266,10 @@ export class MiniAppService {
       || toOptionalString((payloadFromInput as Record<string, unknown>).requestSubtype)
       || ''
     ).toUpperCase();
-    const requestSubtype = ['GENERAL', 'SPECIFIC', 'MULTI_SELECT'].includes(rawSubtype)
-      ? rawSubtype
-      : (selectedCarIds.length > 1 ? 'MULTI_SELECT' : (selectedCarIds.length === 1 ? 'SPECIFIC' : 'GENERAL'));
+    const derivedSubtype = selectedCarIds.length > 1 ? 'MULTI_SELECT' : (selectedCarIds.length === 1 ? 'SPECIFIC' : 'GENERAL');
+    const requestSubtype = selectedCarIds.length
+      ? derivedSubtype
+      : (['GENERAL', 'SPECIFIC', 'MULTI_SELECT'].includes(rawSubtype) ? rawSubtype : derivedSubtype);
     const submitId = toOptionalString((tracking as Record<string, unknown>).submitId)
       || toOptionalString((payloadFromInput as Record<string, unknown>).submitId);
 

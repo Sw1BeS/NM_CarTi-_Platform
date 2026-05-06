@@ -14,6 +14,40 @@ export const isPrivateChatId = (chatId?: string | null) => {
   return !!value && !value.startsWith('-');
 };
 
+const resolveStartParamFromMiniAppUrl = (rawUrl?: string | null) => {
+  const fallback = 'home';
+  const value = String(rawUrl || '').trim();
+  if (!value) return fallback;
+
+  try {
+    const url = new URL(value);
+    const explicitStart = url.searchParams.get('startapp') || url.searchParams.get('tgWebAppStartParam');
+    if (explicitStart) return explicitStart;
+
+    const entry = String(url.searchParams.get('entry') || '').trim().toLowerCase();
+    const status = String(url.searchParams.get('status') || '').trim().toUpperCase();
+    const type = String(url.searchParams.get('type') || url.searchParams.get('requestType') || '').trim().toUpperCase();
+
+    if (entry === 'request' && type === 'SELL') return 'sell_car';
+    if (entry === 'request') return 'view_request';
+    if (entry === 'inventory' && status === 'PENDING') return 'view_transit';
+    if (entry === 'inventory') return 'view_inventory';
+    if (entry === 'favorites' || entry === 'favourites') return 'view_favorites';
+    if (entry === 'support') return 'support';
+    if (entry === 'status') return 'view_status';
+    if (entry === 'profile') return 'profile';
+  } catch {
+    return fallback;
+  }
+
+  return fallback;
+};
+
+const buildTelegramMiniAppDirectLink = (username: string, miniAppUrl?: string | null) => {
+  const startParam = resolveStartParamFromMiniAppUrl(miniAppUrl).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 64) || 'home';
+  return `https://t.me/${username}/app?startapp=${encodeURIComponent(startParam)}`;
+};
+
 export const resolveChatTypeFromUpdate = (update: any): TelegramChatType => {
   const chatType = update?.message?.chat?.type
     || update?.callback_query?.message?.chat?.type
@@ -44,7 +78,7 @@ export const buildOpenBotAndMiniAppKeyboard = (
     if (opts.preferWebAppButton) {
       rows.push([{ text: 'Відкрити MiniApp', web_app: { url: miniAppUrl } }]);
     } else {
-      const deepLink = username ? `https://t.me/${username}?startapp=app` : miniAppUrl;
+      const deepLink = username ? buildTelegramMiniAppDirectLink(username, miniAppUrl) : miniAppUrl;
       rows.push([{ text: 'Відкрити MiniApp', url: deepLink }]);
     }
   }
@@ -61,8 +95,8 @@ const hasReplyKeyboard = (replyMarkup: any) => {
 const resolveMiniAppDeepLink = (bot: BotLike, fallbackUrl?: string) => {
   const cfg = (bot?.config || {}) as Record<string, any>;
   const username = sanitizeTelegramUsername(String(cfg.botUsername || cfg.username || ''));
-  if (username) return `https://t.me/${username}?startapp=app`;
   const miniAppUrl = buildMiniAppUrl(bot as any, {});
+  if (username) return buildTelegramMiniAppDirectLink(username, fallbackUrl || miniAppUrl);
   return miniAppUrl || fallbackUrl;
 };
 

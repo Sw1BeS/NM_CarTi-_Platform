@@ -49,21 +49,17 @@ export const buildMiniAppUrl = (bot: BotConfig, filters: MiniAppFilters = {}) =>
     return '';
   }
 
-  const slug = config?.defaultShowcaseSlug || config?.miniAppConfig?.showcaseSlug || 'system';
+  const slug = String(config?.defaultShowcaseSlug || config?.miniAppConfig?.showcaseSlug || 'system').trim() || 'system';
 
-  // If the path already includes /p/app/{slug}, keep it; otherwise, ensure exactly one /p/app/{slug}
+  // Ensure exactly one /p/app/{configuredSlug}; stale persisted URLs must not launch another bot/showcase.
   const path = stripTrailingSlash(url.pathname || '');
-  const match = path.match(/\/p\/app\/([^/]+)$/);
+  const appPathMatch = path.match(/^(.*\/p\/app)(?:\/([^/]+))?$/);
 
-  if (!/\/p\/app\//.test(path)) {
+  if (!/\/p\/app(?:\/|$)/.test(path)) {
     url.pathname = `${stripTrailingSlash(path || '')}/p/app/${slug}`.replace(/\/+/g, '/');
-  } else if (!match) {
-    // has /p/app but no slug -> append slug
-    url.pathname = `${path}/p/app/${slug}`.replace(/\/+/g, '/');
-  } else if (match[1] && match[1] !== slug) {
-    // different slug present: respect existing one
-    url.pathname = path;
-  } // else: already correct
+  } else if (appPathMatch) {
+    url.pathname = `${appPathMatch[1]}/${slug}`.replace(/\/+/g, '/');
+  }
 
   Object.entries(filters || {}).forEach(([key, value]) => {
     if (value === undefined || value === null || value === '') return;

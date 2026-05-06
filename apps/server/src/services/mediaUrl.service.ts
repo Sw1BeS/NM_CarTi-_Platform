@@ -4,6 +4,10 @@ const clean = (value: unknown): string => {
   return typeof value === 'string' ? value.trim() : '';
 };
 
+const isLoadableMediaUrl = (value: string): boolean => {
+  return /^(https?:\/\/|\/|data:image\/)/i.test(value);
+};
+
 const publicBase = (override?: string): string => {
   return String(override || process.env.PUBLIC_BASE_URL || process.env.MINIAPP_URL || DEFAULT_PUBLIC_BASE_URL).replace(/\/+$/, '');
 };
@@ -39,8 +43,9 @@ const readMediaItem = (item: unknown): string[] => {
   if (typeof item === 'string') return [item];
   if (typeof item !== 'object' || Array.isArray(item)) return [];
   const raw = item as Record<string, unknown>;
-  return [raw.url, raw.previewUrl, raw.tgFileId, raw.fileId, raw.media]
+  return [raw.url, raw.previewUrl, raw.media]
     .map(value => normalizeMediaUrl(value))
+    .filter(isLoadableMediaUrl)
     .filter(Boolean);
 };
 

@@ -58,4 +58,20 @@ describe('miniappUrl', () => {
       }
     }
   });
+
+  it('replaces stale path slugs with the configured showcase slug', () => {
+    const url = new URL(buildMiniAppUrl({
+      config: {
+        miniAppConfig: { url: 'https://example.com/p/app/cardealer_lviv_bot?entry=favorites' },
+        defaultShowcaseSlug: 'cartie'
+      }
+    } as any, {
+      entry: 'request',
+      type: 'BUY'
+    }));
+
+    expect(url.pathname).toBe('/p/app/cartie');
+    expect(url.searchParams.get('entry')).toBe('request');
+    expect(url.searchParams.get('type')).toBe('BUY');
+  });
 });

@@ -148,7 +148,7 @@ class BotInstance {
     }
 
     private async syncChatMenuButton() {
-        const miniAppUrl = buildMiniAppUrl(this.config as any, { entry: 'inventory', status: 'AVAILABLE' });
+        const miniAppUrl = buildMiniAppUrl(this.config as any, {});
         if (!miniAppUrl) return;
         const menuText = String((this.config.config as any)?.menuButtonText || 'Каталог авто').trim() || 'Каталог авто';
         await axios.post(`https://api.telegram.org/bot${this.config.token}/setChatMenuButton`, {

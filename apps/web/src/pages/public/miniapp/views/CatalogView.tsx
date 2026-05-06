@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, SlidersHorizontal, MessageSquare, Star, Image as ImageIcon } from 'lucide-react';
+import { Car, Search, SlidersHorizontal, MessageSquare, Star, Image as ImageIcon, Truck } from 'lucide-react';
 import { CarListing } from '../../../../types';
 
 type MiniAppSurfaceMode = 'LEAD' | 'B2B';
@@ -124,23 +124,25 @@ export const CatalogView = ({
         <div className="flex gap-2">
           <button
             onClick={() => onTabChange('IN_STOCK')}
-            className={`flex-1 py-2.5 px-4 rounded-lg font-bold text-sm transition-all ${tab === 'IN_STOCK'
+            className={`flex-1 py-2.5 px-3 rounded-lg font-bold text-sm transition-all flex items-center justify-center gap-2 ${tab === 'IN_STOCK'
               ? 'text-black shadow-lg'
               : 'bg-[#1c1c1e] text-white/50'
               }`}
             style={tab === 'IN_STOCK' ? { backgroundColor: primaryColor } : {}}
           >
-            ✅ В наявності
+            <Car size={16} />
+            В наявності
           </button>
           <button
             onClick={() => onTabChange('IN_TRANSIT')}
-            className={`flex-1 py-2.5 px-4 rounded-lg font-bold text-sm transition-all ${tab === 'IN_TRANSIT'
+            className={`flex-1 py-2.5 px-3 rounded-lg font-bold text-sm transition-all flex items-center justify-center gap-2 ${tab === 'IN_TRANSIT'
               ? 'text-black shadow-lg'
               : 'bg-[#1c1c1e] text-white/50'
               }`}
             style={tab === 'IN_TRANSIT' ? { backgroundColor: primaryColor } : {}}
           >
-            📦 В дорозі
+            <Truck size={16} />
+            В дорозі
           </button>
         </div>
 
@@ -255,7 +257,7 @@ export const CatalogView = ({
 
           return (
             <div key={carId || `inventory_${car.title}_${car.year}`} className={`bg-[#1c1c1e] rounded-2xl overflow-hidden border flex flex-col shadow-lg ${isSelectedForRequest(carId) ? 'border-yellow-400/60' : 'border-white/5'}`}>
-              <div className="h-48 bg-gray-800 relative cursor-pointer" onClick={() => onOpenLightbox(car)}>
+              <div className="aspect-[4/3] bg-gray-800 relative cursor-pointer" onClick={() => onOpenLightbox(car)}>
                 {cover ? (
                   <img src={cover} className="w-full h-full object-cover" />
                 ) : (
@@ -293,7 +295,7 @@ export const CatalogView = ({
                   {specTiles.map(tile => (
                     <div key={`${carId}_${tile.label}`} className="bg-black/30 p-2 rounded border border-white/5 min-h-[48px]">
                       <div className="text-[9px] uppercase tracking-wide text-white/35 mb-1">{tile.label}</div>
-                      <div className="font-semibold text-white/80 truncate">{tile.value}</div>
+                      <div className="font-semibold text-white/80 leading-snug line-clamp-2">{tile.value}</div>
                     </div>
                   ))}
                 </div>
@@ -304,18 +306,20 @@ export const CatalogView = ({
                 >
                   <MessageSquare size={18} /> {cardActionLabel}
                 </button>
-                <button
-                  onClick={() => onToggleRequestSelection(car)}
-                  className="w-full mt-2 py-2 rounded-xl font-bold text-xs border border-white/10 text-white/80"
-                >
-                  {isSelectedForRequest(carId) ? '✅ У виборі для запиту' : '➕ Додати до мультивибору'}
-                </button>
-                <button
-                  onClick={() => onOpenListing(car)}
-                  className="w-full mt-2 py-2 rounded-xl font-bold text-white/70 border border-white/10"
-                >
-                  Деталі
-                </button>
+                <div className="mt-2 grid grid-cols-[1fr_auto] gap-2">
+                  <button
+                    onClick={() => onToggleRequestSelection(car)}
+                    className="min-w-0 py-2 rounded-xl font-bold text-xs border border-white/10 text-white/80"
+                  >
+                    {isSelectedForRequest(carId) ? 'У виборі' : 'До запиту'}
+                  </button>
+                  <button
+                    onClick={() => onOpenListing(car)}
+                    className="px-4 py-2 rounded-xl font-bold text-xs text-white/70 border border-white/10"
+                  >
+                    Деталі
+                  </button>
+                </div>
               </div>
             </div>
           );
