@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { renderCarCardV2 } from './carCardRenderer.v2.js';
 import { DEFAULT_V2_CARD_SETTINGS } from './cardSettings.resolver.js';
+import { renderCarCardV2 } from './carCardRenderer.v2.js';
 
 describe('carCardRenderer.v2', () => {
   it('renders strict public template without contacts by default', () => {
@@ -51,5 +51,24 @@ describe('carCardRenderer.v2', () => {
 
     expect(text).toContain('☎️ Зв’язатись з нами:');
     expect(text).toContain('+380111111111 - Іван');
+  });
+
+  it('renders PENDING cars as in transit', () => {
+    const text = renderCarCardV2({
+      title: 'BMW 535i',
+      status: 'PENDING',
+      year: 2021,
+      mileage: 42000,
+      price: 25000,
+      specs: { brand: 'BMW', model: '535i' }
+    }, DEFAULT_V2_CARD_SETTINGS);
+
+    expect(text).toContain('#вдорозі');
+    expect(text).toContain('В дорозі');
+  });
+
+  it('does not use fake placeholder manager phones in default settings', () => {
+    expect(DEFAULT_V2_CARD_SETTINGS.manager1Phone).not.toContain('+380000000001');
+    expect(DEFAULT_V2_CARD_SETTINGS.manager2Phone).not.toContain('+380000000002');
   });
 });

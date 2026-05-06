@@ -3,12 +3,12 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Bot, MiniAppConfig, CarListing } from '../../types';
 import { getPublicInventory } from '../../services/publicApi';
-import { createMiniAppRequest, getMiniAppConfig, getMiniAppFavorites, getMiniAppRequestStatus, getMiniAppShowcaseInventory, toggleMiniAppFavorite, type MiniAppTrackingMeta } from '../../services/miniappApi';
+import { createMiniAppRequest, getMiniAppConfig, getMiniAppFavorites, getMiniAppRequestStatus, getMiniAppShowcaseInventory, toggleMiniAppFavorite, trackMiniAppEvent, type MiniAppRequestSubtype, type MiniAppTrackingMeta } from '../../services/miniappApi';
 import {
     Search, LayoutGrid, User, Plus, Filter, DollarSign,
     MessageSquare, Zap, List as ListIcon, Star, Phone, Home, Heart, ClipboardList,
     ChevronRight, MapPin, Calendar, CheckCircle, SlidersHorizontal,
-    X, ChevronLeft, ChevronRight as ChevronRightIcon, Image as ImageIcon
+    X, ChevronLeft, ChevronRight as ChevronRightIcon, Image as ImageIcon, Loader2, Share2
 } from 'lucide-react';
 import { initTelegramViewport } from './miniapp/telegramViewport';
 import { popViewHistory, pushViewHistory } from './miniapp/navigation';
@@ -102,6 +102,7 @@ type TelegramBootstrapContext = {
 type MiniAppSurfaceMode = 'LEAD' | 'B2B';
 type MiniAppView = 'HOME' | 'INVENTORY' | 'LISTING' | 'FAVORITES' | 'REQUEST' | 'STATUS' | 'PROFILE' | 'SUPPORT';
 type RequestType = 'BUY' | 'SELL';
+type RequestSubtype = MiniAppRequestSubtype;
 
 type MiniAppEntryIntent = {
     view?: MiniAppView;
@@ -324,6 +325,9 @@ const MiniAppContent = () => {
     // Gallery State
     const [lightboxCar, setLightboxCar] = useState<CarListing | null>(null);
     const [lightboxImageIndex, setLightboxImageIndex] = useState(0);
+    const [lightboxImageLoaded, setLightboxImageLoaded] = useState(false);
+    const [lightboxImageError, setLightboxImageError] = useState(false);
+    const lightboxTouchStartRef = useRef<{ x: number; y: number } | null>(null);
 
     // Request Form State
     const [reqStep, setReqStep] = useState(1);
@@ -333,6 +337,7 @@ const MiniAppContent = () => {
     const [reqCompany, setReqCompany] = useState('');
     const [reqPhone, setReqPhone] = useState('');
     const [requestType, setRequestType] = useState<RequestType>('BUY');
+    const [requestSubtype, setRequestSubtype] = useState<RequestSubtype>('GENERAL');
     const [isRequestSubmitting, setIsRequestSubmitting] = useState(false);
     const [statusQuery, setStatusQuery] = useState({ publicId: '', phone: '' });
     const [statusResult, setStatusResult] = useState<any>(null);
@@ -362,6 +367,11 @@ const MiniAppContent = () => {
         }
     }, [lightboxCar, reqStep, view]);
 
+    useEffect(() => {
+        setLightboxImageLoaded(false);
+        setLightboxImageError(false);
+    }, [lightboxCar, lightboxImageIndex]);
+
     const normalizeSlug = (value?: string | null) => {
         if (!value) return '';
         let s = String(value).trim();
@@ -382,6 +392,48 @@ const MiniAppContent = () => {
         return Array.from(new Set(combined.filter(Boolean)));
     };
 
+    const moveLightbox = useCallback((direction: -1 | 1) => {
+        if (!lightboxCar) return;
+        const images = getCarImages(lightboxCar);
+        if (images.length < 2) return;
+        setLightboxImageIndex(prev => Math.min(images.length - 1, Math.max(0, prev + direction)));
+    }, [lightboxCar]);
+
+    useEffect(() => {
+        if (!lightboxCar) return;
+        const images = getCarImages(lightboxCar);
+        const next = images[lightboxImageIndex + 1];
+        const prev = images[lightboxImageIndex - 1];
+        [next, prev].filter(Boolean).forEach((src) => {
+            const image = new Image();
+            image.src = src as string;
+        });
+    }, [lightboxCar, lightboxImageIndex]);
+
+    const shareLightboxCar = async () => {
+        if (!lightboxCar) return;
+        const carId = getCarId(lightboxCar);
+        const shareUrl = `${window.location.origin}${window.location.pathname}?entry=inventory${carId ? `&carId=${encodeURIComponent(carId)}` : ''}`;
+        try {
+            if (navigator.share) {
+                await navigator.share({
+                    title: lightboxCar.title,
+                    text: lightboxCar.title,
+                    url: shareUrl
+                });
+            } else {
+                await navigator.clipboard?.writeText(shareUrl);
+                pushToast('Посилання скопійовано.', 'success');
+            }
+            trackEvent('car_shared', { carListingId: carId });
+        } catch (error) {
+            emitMiniAppEvent('warn', 'Share failed or cancelled', {
+                error: error instanceof Error ? error.message : String(error),
+                carId
+            });
+        }
+    };
+
     const getCarId = (car?: CarListing | null) => car?.canonicalId || car?.id || '';
 
     const isFavorite = (carId: string) => favorites.includes(carId);
@@ -390,13 +442,21 @@ const MiniAppContent = () => {
     const toggleRequestSelection = (car: CarListing) => {
         const carId = getCarId(car);
         if (!carId) return;
-        setSelectedRequestCarIds(prev => prev.includes(carId) ? prev.filter(id => id !== carId) : [...prev, carId]);
+        setSelectedRequestCarIds(prev => {
+            const next = prev.includes(carId) ? prev.filter(id => id !== carId) : [...prev, carId];
+            setRequestSubtype(next.length > 1 ? 'MULTI_SELECT' : (next.length === 1 ? 'SPECIFIC' : 'GENERAL'));
+            return next;
+        });
     };
 
-    const clearRequestSelection = () => setSelectedRequestCarIds([]);
+    const clearRequestSelection = () => {
+        setSelectedRequestCarIds([]);
+        setRequestSubtype('GENERAL');
+    };
 
     const openRequest = (type: RequestType = 'BUY') => {
         setRequestType(type);
+        setRequestSubtype(selectedRequestCarIds.length > 1 ? 'MULTI_SELECT' : (selectedRequestCarIds.length === 1 ? 'SPECIFIC' : 'GENERAL'));
         setReqStep(1);
         setView('REQUEST');
     };
@@ -419,13 +479,29 @@ const MiniAppContent = () => {
         }
     };
 
+    const trackEvent = useCallback((eventType: string, payload: Record<string, unknown> = {}) => {
+        const slugValue = targetSlug || slug || 'system';
+        trackMiniAppEvent({
+            slug: slugValue,
+            eventType,
+            initData,
+            visitorId,
+            tgUserId: tgUser?.id ? String(tgUser.id) : undefined,
+            carListingId: typeof payload.carListingId === 'string' ? payload.carListingId : undefined,
+            view,
+            payload,
+            tracking: trackingMeta
+        }).catch((error) => {
+            emitMiniAppEvent('warn', 'Failed to track MiniApp event', {
+                eventType,
+                error: error instanceof Error ? error.message : String(error)
+            });
+        });
+    }, [initData, slug, targetSlug, tgUser?.id, trackingMeta, view, visitorId]);
+
     const toggleFavorite = async (car: CarListing) => {
         const id = getCarId(car);
         if (!id) return;
-        if (!hasTelegramInit) {
-            setConfigWarning('Обране доступне лише всередині Telegram Mini App.');
-            return;
-        }
         const identity = {
             tgUserId: tgUser?.id ? String(tgUser.id) : undefined,
             visitorId
@@ -442,6 +518,7 @@ const MiniAppContent = () => {
                     return exists ? prev : [car, ...prev];
                 });
             }
+            trackEvent(res.action === 'removed' ? 'favorite_removed' : 'favorite_added', { carListingId: id });
         } catch (e) {
             emitMiniAppEvent('warn', 'Failed to toggle favorite', { error: e instanceof Error ? e.message : String(e), carId: id });
             pushToast('Не вдалося оновити обране. Спробуйте ще раз.', 'error');
@@ -696,6 +773,11 @@ const MiniAppContent = () => {
         }
         pushViewHistory(viewHistoryRef.current, view);
     }, [view]);
+
+    useEffect(() => {
+        if (isConfigLoading) return;
+        trackEvent('view_opened', { view });
+    }, [isConfigLoading, trackEvent, view]);
 
     useEffect(() => {
         const tg = (window as any).Telegram?.WebApp;
@@ -1376,6 +1458,7 @@ const MiniAppContent = () => {
                     slug,
                     initData,
                     requestType,
+                    requestSubtype,
                     title: selectedTitles.length > 1
                         ? `${isB2BMode ? 'B2B запит' : (requestType === 'SELL' ? 'Продаж' : 'Запит')}: ${selectedTitles.length} авто`
                         : (listingId && selectedCar?.title
@@ -1391,6 +1474,7 @@ const MiniAppContent = () => {
                     payload: {
                         mode: isB2BMode ? 'B2B' : 'LEAD',
                         requestType,
+                        requestSubtype,
                         mileage: reqMileage || undefined,
                         fuel: reqFuel || undefined,
                         companyName: reqCompany || undefined,
@@ -1405,6 +1489,11 @@ const MiniAppContent = () => {
                 };
 
                 await createMiniAppRequest(requestPayload);
+                trackEvent('request_submitted', {
+                    requestType,
+                    requestSubtype,
+                    selectedCarsCount: selectedListingIds.length
+                });
                 clearRequestSelection();
                 requestSubmitIdRef.current = null;
                 setReqStep(5);
@@ -1440,6 +1529,8 @@ const MiniAppContent = () => {
             primaryColor={primaryColor}
             surfaceMode={surfaceMode}
             requestType={requestType}
+            requestSubtype={requestSubtype}
+            onRequestSubtypeChange={setRequestSubtype}
             manualContactMode={false}
             showInlineAction
             actionLabel={isRequestSubmitting ? 'Надсилання...' : (reqStep >= 4 ? 'Надіслати' : 'Далі')}
@@ -1566,23 +1657,65 @@ const MiniAppContent = () => {
                                 <>
                                     <div className="p-4 flex justify-between items-center">
                                         <h3 className="text-white font-bold truncate">{lightboxCar.title}</h3>
-                                        <button
-                                            onClick={() => setLightboxCar(null)}
-                                            className="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center"
-                                        >
-                                            <X size={20} className="text-white" />
-                                        </button>
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                onClick={shareLightboxCar}
+                                                className="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center"
+                                                aria-label="Поділитися"
+                                            >
+                                                <Share2 size={18} className="text-white" />
+                                            </button>
+                                            <button
+                                                onClick={() => setLightboxCar(null)}
+                                                className="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center"
+                                                aria-label="Закрити"
+                                            >
+                                                <X size={20} className="text-white" />
+                                            </button>
+                                        </div>
                                     </div>
-                                    <div className="flex-1 relative flex items-center justify-center">
+                                    <div
+                                        className="flex-1 relative flex items-center justify-center touch-pan-y"
+                                        onTouchStart={(event) => {
+                                            const touch = event.touches[0];
+                                            lightboxTouchStartRef.current = touch ? { x: touch.clientX, y: touch.clientY } : null;
+                                        }}
+                                        onTouchEnd={(event) => {
+                                            const start = lightboxTouchStartRef.current;
+                                            const touch = event.changedTouches[0];
+                                            lightboxTouchStartRef.current = null;
+                                            if (!start || !touch) return;
+                                            const dx = touch.clientX - start.x;
+                                            const dy = touch.clientY - start.y;
+                                            if (Math.abs(dx) < 40 || Math.abs(dx) < Math.abs(dy)) return;
+                                            moveLightbox(dx < 0 ? 1 : -1);
+                                        }}
+                                    >
+                                        {!lightboxImageLoaded && !lightboxImageError && (
+                                            <div className="absolute inset-0 flex items-center justify-center text-white/70">
+                                                <Loader2 size={28} className="animate-spin" />
+                                            </div>
+                                        )}
                                         <img
                                             src={lightboxImages[lightboxImageIndex] || lightboxCar.thumbnail || PLACEHOLDER_IMAGE}
-                                            className="max-w-full max-h-full object-contain"
+                                            className={`max-w-full max-h-full object-contain transition-opacity ${lightboxImageLoaded ? 'opacity-100' : 'opacity-0'}`}
+                                            onLoad={() => setLightboxImageLoaded(true)}
+                                            onError={() => {
+                                                setLightboxImageError(true);
+                                                setLightboxImageLoaded(true);
+                                            }}
                                         />
+                                        {lightboxImageError && (
+                                            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-white/50">
+                                                <ImageIcon size={42} />
+                                                <div className="text-sm">Фото недоступне</div>
+                                            </div>
+                                        )}
                                         {hasMultiple && (
                                             <>
                                                 {lightboxImageIndex > 0 && (
                                                     <button
-                                                        onClick={() => setLightboxImageIndex(lightboxImageIndex - 1)}
+                                                        onClick={() => moveLightbox(-1)}
                                                         className="absolute left-4 w-12 h-12 bg-black/50 backdrop-blur rounded-full flex items-center justify-center"
                                                     >
                                                         <ChevronLeft size={24} className="text-white" />
@@ -1590,7 +1723,7 @@ const MiniAppContent = () => {
                                                 )}
                                                 {lightboxImageIndex < lightboxImages.length - 1 && (
                                                     <button
-                                                        onClick={() => setLightboxImageIndex(lightboxImageIndex + 1)}
+                                                        onClick={() => moveLightbox(1)}
                                                         className="absolute right-4 w-12 h-12 bg-black/50 backdrop-blur rounded-full flex items-center justify-center"
                                                     >
                                                         <ChevronRightIcon size={24} className="text-white" />

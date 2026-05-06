@@ -29,15 +29,15 @@ const DEFAULT_CARD_SETTINGS: CarCardSettings = {
   city: 'Львові',
   priceNote: 'Актуальну ціну уточнюйте у менеджера.',
   safetyLine: 'Airbag, ABS, ESP',
-  driveLineFallback: 'Передній привід',
-  damageLineFallback: 'без критичних пошкоджень',
+  driveLineFallback: 'Привід уточнюйте у менеджера',
+  damageLineFallback: 'стан уточнюйте у менеджера',
   address: 'м. Львів, Україна',
-  mapLinkLine: '',
-  manager1Phone: '+380000000001',
-  manager1Name: 'Менеджер 1',
-  manager2Phone: '+380000000002',
-  manager2Name: 'Менеджер 2',
-  socialLinksLine: 'Instagram | Telegram | Facebook',
+  mapLinkLine: 'https://cartie.sendpulse.online/',
+  manager1Phone: '@Car_Tie',
+  manager1Name: 'CarTié',
+  manager2Phone: '@CarTie_Showroom',
+  manager2Name: 'Showroom',
+  socialLinksLine: 'Telegram: https://t.me/CarTie_Showroom | Контакт: https://t.me/Car_Tie',
   statusMap: {
     AVAILABLE: {
       statusTag: 'внаявності',
@@ -45,6 +45,11 @@ const DEFAULT_CARD_SETTINGS: CarCardSettings = {
       startStatus: 'В наявності'
     },
     IN_TRANSIT: {
+      statusTag: 'вдорозі',
+      statusText: 'авто в дорозі',
+      startStatus: 'В дорозі'
+    },
+    PENDING: {
       statusTag: 'вдорозі',
       statusText: 'авто в дорозі',
       startStatus: 'В дорозі'

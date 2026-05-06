@@ -10,6 +10,7 @@ import { mapInventoryOutput } from '../services/dto.js';
 import { renderCarCardForBot } from '../services/carCardRenderer.v2.js';
 import { telegramOutbox } from '../modules/Communication/telegram/messaging/outbox/telegramOutbox.js';
 import { getEnvInt } from '../services/featureFlags.js';
+import { emitPlatformEvent } from '../modules/Communication/telegram/core/events/eventEmitter.js';
 
 const router = Router();
 const showcaseService = new ShowcaseService();
@@ -610,10 +611,13 @@ router.post('/favorites/:carListingId', async (req, res) => {
       botId: botId || null
     });
 
-    const initCheck = await requireInitData(initData, companyId, botId);
-    if (!initCheck.ok) return errorResponse(res, 401, initCheck.message || 'Unauthorized');
-
     if (!tgUserId && !visitorId) return errorResponse(res, 400, 'tgUserId or visitorId is required');
+    if (initData) {
+      const initCheck = await requireInitData(initData, companyId, botId);
+      if (!initCheck.ok) return errorResponse(res, 401, initCheck.message || 'Unauthorized');
+    } else if (!visitorId) {
+      return errorResponse(res, 401, 'initData or visitorId is required');
+    }
 
     const result = await miniAppService.toggleFavorite(carListingId, { tgUserId, visitorId }, slug);
     res.json({ ok: true, ...result });
@@ -658,6 +662,7 @@ router.post('/requests', async (req, res) => {
     const request = await miniAppService.createRequest({
       slug,
       requestType: readString(body.requestType) || readString(body.type),
+      requestSubtype: readString(body.requestSubtype),
       title: readString(body.title),
       description: readString(body.description),
       budgetMax: readNumber(body.budgetMax),
@@ -676,6 +681,53 @@ router.post('/requests', async (req, res) => {
     res.json({ ok: true, request });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : 'Failed to create request';
+    errorResponse(res, 500, message);
+  }
+});
+
+router.post('/events', async (req, res) => {
+  try {
+    const body = (req.body || {}) as Record<string, unknown>;
+    const slug = readString(body.slug);
+    const eventType = readString(body.eventType);
+    const initData = readString(body.initData);
+    const visitorId = readString(body.visitorId);
+    const tgUserId = readString(body.tgUserId) || readString(body.telegramUserId) || readString(body.userId);
+
+    if (!slug) return errorResponse(res, 400, 'slug is required');
+    if (!eventType) return errorResponse(res, 400, 'eventType is required');
+
+    let config;
+    try {
+      config = await miniAppService.getConfig(slug);
+    } catch {
+      config = null;
+    }
+
+    if (initData && config) {
+      const initCheck = await requireInitData(initData, config.companyId, config.botId);
+      if (!initCheck.ok) return errorResponse(res, 401, initCheck.message || 'Unauthorized');
+    }
+
+    await emitPlatformEvent({
+      companyId: config?.companyId || null,
+      botId: config?.botId || null,
+      eventType: `miniapp.${eventType}`,
+      userId: tgUserId || visitorId || null,
+      payload: {
+        slug,
+        visitorId,
+        tgUserId,
+        view: readString(body.view),
+        carListingId: readString(body.carListingId),
+        payload: body.payload && typeof body.payload === 'object' ? body.payload as Record<string, unknown> : undefined,
+        tracking: body.tracking && typeof body.tracking === 'object' ? body.tracking as Record<string, unknown> : undefined
+      }
+    });
+
+    res.json({ ok: true });
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'Failed to track event';
     errorResponse(res, 500, message);
   }
 });

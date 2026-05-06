@@ -1,6 +1,7 @@
 import { LeadStatus as DbLeadStatus, RequestStatus as DbRequestStatus, VariantStatus as DbVariantStatus, Prisma } from '@prisma/client';
 import { NormalizationService } from './normalization.service.js';
 import { parseCarData } from './enhanced-parsing.utils.js';
+import { collectNormalizedMediaUrls, normalizeMediaUrl } from './mediaUrl.service.js';
 
 const DEFAULT_CURRENCY = 'USD';
 
@@ -604,19 +605,24 @@ export const mapInventoryOutput = (car: Record<string, unknown>) => ({
     if (mergedSpecs.drive) mergedSpecs.drive = normalizeSpecLabel('drive', mergedSpecs.drive);
     if (mergedSpecs.condition) mergedSpecs.condition = normalizeSpecLabel('condition', mergedSpecs.condition);
 
-    const mediaUrls = Array.isArray(car.mediaUrls)
-      ? Array.from(new Set((car.mediaUrls as unknown[])
-        .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
-        .map(value => value.trim())))
-      : [];
     const mediaItems = Array.isArray(car.mediaItems)
       ? (car.mediaItems as unknown[])
+        .map((item) => {
+          if (!item || typeof item !== 'object' || Array.isArray(item)) return item;
+          const raw = item as Record<string, unknown>;
+          return {
+            ...raw,
+            url: normalizeMediaUrl(raw.url),
+            previewUrl: normalizeMediaUrl(raw.previewUrl)
+          };
+        })
       : [];
-    const thumbnail = toString(car.thumbnail)
-      || toString((mediaItems[0] as any)?.url)
-      || toString((mediaItems[0] as any)?.previewUrl)
-      || mediaUrls[0]
-      || '';
+    const mediaUrls = collectNormalizedMediaUrls({
+      thumbnail: car.thumbnail,
+      mediaUrls: Array.isArray(car.mediaUrls) ? car.mediaUrls : [],
+      mediaItems
+    }, { limit: 30 });
+    const thumbnail = normalizeMediaUrl(car.thumbnail) || mediaUrls[0] || '';
     const year = toNumber(car.year) ?? toNumber(parsed.year) ?? 0;
     const mileage = toNumber(car.mileage) ?? toNumber(parsed.mileage) ?? 0;
     const location = toString(car.location) || toString(parsed.location) || '';

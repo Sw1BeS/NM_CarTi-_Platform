@@ -3,6 +3,7 @@ import { ArrowRight, CheckCircle, Search, ChevronLeft } from 'lucide-react';
 
 type MiniAppSurfaceMode = 'LEAD' | 'B2B';
 type RequestType = 'BUY' | 'SELL';
+type RequestSubtype = 'GENERAL' | 'SPECIFIC' | 'MULTI_SELECT';
 
 type RequestViewProps = {
   reqStep: number;
@@ -42,6 +43,8 @@ type RequestViewProps = {
   primaryColor: string;
   surfaceMode: MiniAppSurfaceMode;
   requestType: RequestType;
+  requestSubtype: RequestSubtype;
+  onRequestSubtypeChange: (value: RequestSubtype) => void;
   showInlineAction: boolean;
   actionLabel: string;
   actionDisabled?: boolean;
@@ -73,6 +76,8 @@ export const RequestView = ({
   primaryColor,
   surfaceMode,
   requestType,
+  requestSubtype,
+  onRequestSubtypeChange,
   showInlineAction,
   actionLabel,
   actionDisabled,
@@ -178,7 +183,7 @@ export const RequestView = ({
           {reqStep === 1 && (
             <div className="space-y-4 animate-slide-up">
               {selectedCarsCount > 0 && (
-                <div className="bg-[#1c1c1e] border border-white/10 rounded-xl p-3 text-xs text-white/80">
+                <div className="bg-[#1c1c1e] border border-white/10 rounded-xl p-3 text-xs text-white/80 space-y-3">
                   <div className="flex items-center justify-between gap-2">
                     <span>Мультивибір: {selectedCarsCount} авто</span>
                     <button onClick={onClearSelectedCars} className="text-white/60 underline">Очистити</button>
@@ -186,6 +191,22 @@ export const RequestView = ({
                   {selectedCarsPreview.length > 0 && (
                     <div className="text-white/50 mt-1 truncate">{selectedCarsPreview.join(', ')}</div>
                   )}
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => onRequestSubtypeChange(selectedCarsCount > 1 ? 'MULTI_SELECT' : 'SPECIFIC')}
+                      className={`rounded-lg border px-3 py-2 font-bold ${requestSubtype !== 'GENERAL' ? 'border-yellow-500 bg-yellow-500/10 text-white' : 'border-white/10 text-white/60'}`}
+                    >
+                      По обраних авто
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onRequestSubtypeChange('GENERAL')}
+                      className={`rounded-lg border px-3 py-2 font-bold ${requestSubtype === 'GENERAL' ? 'border-yellow-500 bg-yellow-500/10 text-white' : 'border-white/10 text-white/60'}`}
+                    >
+                      Загальний підбір
+                    </button>
+                  </div>
                 </div>
               )}
               <div>

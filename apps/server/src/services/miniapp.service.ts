@@ -22,6 +22,7 @@ export type MiniAppTelegram = {
 export type MiniAppRequestInput = {
   slug: string;
   requestType?: string;
+  requestSubtype?: string;
   title?: string;
   description?: string;
   budgetMax?: number | string;
@@ -172,6 +173,12 @@ export class MiniAppService {
     const existing = await prisma.miniAppFavorite.findFirst({ where });
     if (existing) {
       await prisma.miniAppFavorite.delete({ where: { id: existing.id } });
+      platformEvents.emit(EVENTS.MINIAPP_FAVORITE_REMOVED, {
+        companyId,
+        carListingId,
+        tgUserId,
+        visitorId
+      });
       return { action: 'removed', favoriteId: existing.id } as const;
     }
 
@@ -182,6 +189,13 @@ export class MiniAppService {
         tgUserId: tgUserId || null,
         visitorId: visitorId || null
       }
+    });
+
+    platformEvents.emit(EVENTS.MINIAPP_FAVORITE_ADDED, {
+      companyId,
+      carListingId,
+      tgUserId,
+      visitorId
     });
 
     return { action: 'added', favoriteId: created.id } as const;
@@ -240,21 +254,32 @@ export class MiniAppService {
       || toOptionalString((tracking as Record<string, unknown>).requestType)
       || 'BUY'
     ).toUpperCase() === 'SELL' ? 'SELL' : 'BUY';
+    const rawSubtype = String(
+      toOptionalString(input.requestSubtype)
+      || toOptionalString((payloadFromInput as Record<string, unknown>).requestSubtype)
+      || ''
+    ).toUpperCase();
+    const requestSubtype = ['GENERAL', 'SPECIFIC', 'MULTI_SELECT'].includes(rawSubtype)
+      ? rawSubtype
+      : (selectedCarIds.length > 1 ? 'MULTI_SELECT' : (selectedCarIds.length === 1 ? 'SPECIFIC' : 'GENERAL'));
     const submitId = toOptionalString((tracking as Record<string, unknown>).submitId)
       || toOptionalString((payloadFromInput as Record<string, unknown>).submitId);
 
     const payload = {
       ...payloadFromInput,
       source: 'miniapp',
+      slug: input.slug,
       phone: phone || undefined,
       tracking,
       telegram,
       requestType,
+      requestSubtype,
       request: {
         carListingId: carListingId || undefined,
         carListingIds: selectedCarIds.length ? selectedCarIds : undefined,
         phone: phone || undefined,
-        comment: comment || undefined
+        comment: comment || undefined,
+        subtype: requestSubtype
       }
     };
 

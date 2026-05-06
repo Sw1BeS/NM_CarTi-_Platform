@@ -24,10 +24,13 @@ export type MiniAppTrackingMeta = {
   requestType?: 'BUY' | 'SELL';
 };
 
+export type MiniAppRequestSubtype = 'GENERAL' | 'SPECIFIC' | 'MULTI_SELECT';
+
 export type MiniAppRequestPayload = {
   slug: string;
   initData?: string;
   requestType?: 'BUY' | 'SELL';
+  requestSubtype?: MiniAppRequestSubtype;
   title?: string;
   description?: string;
   budgetMax?: number;
@@ -43,6 +46,18 @@ export type MiniAppRequestPayload = {
     name?: string;
   };
   payload?: Record<string, unknown>;
+};
+
+export type MiniAppEventPayload = {
+  slug: string;
+  eventType: string;
+  initData?: string;
+  visitorId?: string;
+  tgUserId?: string;
+  carListingId?: string;
+  view?: string;
+  payload?: Record<string, unknown>;
+  tracking?: MiniAppTrackingMeta;
 };
 
 export async function getMiniAppFavorites(params: { slug: string; tgUserId?: string; visitorId?: string }): Promise<MiniAppFavoritesResponse> {
@@ -67,6 +82,14 @@ export async function toggleMiniAppFavorite(carListingId: string, payload: { slu
 
 export async function createMiniAppRequest(payload: MiniAppRequestPayload): Promise<{ request: B2BRequest }> {
   return await apiFetch('/miniapp/requests', {
+    method: 'POST',
+    skipAuth: true,
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function trackMiniAppEvent(payload: MiniAppEventPayload): Promise<{ ok: boolean }> {
+  return await apiFetch('/miniapp/events', {
     method: 'POST',
     skipAuth: true,
     body: JSON.stringify(payload)

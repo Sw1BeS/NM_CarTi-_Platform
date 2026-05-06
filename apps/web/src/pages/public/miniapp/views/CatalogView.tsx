@@ -26,6 +26,29 @@ type CarSpecs = {
   condition: string;
 };
 
+const buildSpecTiles = (
+  specs: CarSpecs,
+  car: CarListing,
+  formatMileage: (value: unknown) => string,
+  toNumberSafe: (value: unknown) => number
+) => {
+  const year = toNumberSafe(car.year);
+  const items = [
+    { label: 'Рік', value: year ? String(year) : '' },
+    { label: 'Пробіг', value: formatMileage(car.mileage) },
+    { label: 'Двигун', value: specs.engine },
+    { label: 'Пальне', value: specs.fuel },
+    { label: 'КПП', value: specs.transmission },
+    { label: 'Привід', value: specs.drive },
+    { label: 'Стан', value: specs.condition },
+    { label: 'Колір', value: specs.color },
+    { label: 'VIN', value: specs.vin ? `${specs.vin.slice(0, 8)}...` : '' }
+  ];
+
+  const visible = items.filter(item => item.value && item.value !== '—').slice(0, 6);
+  return visible.length ? visible : items.slice(0, 4).map(item => ({ ...item, value: item.value || '—' }));
+};
+
 type CatalogViewProps = {
   surfaceMode: MiniAppSurfaceMode;
   primaryColor: string;
@@ -228,6 +251,7 @@ export const CatalogView = ({
           const cover = images[0];
           const specs = getCarSpecs(car);
           const carId = getCarId(car);
+          const specTiles = buildSpecTiles(specs, car, formatMileage, toNumberSafe);
 
           return (
             <div key={carId || `inventory_${car.title}_${car.year}`} className={`bg-[#1c1c1e] rounded-2xl overflow-hidden border flex flex-col shadow-lg ${isSelectedForRequest(carId) ? 'border-yellow-400/60' : 'border-white/5'}`}>
@@ -266,10 +290,12 @@ export const CatalogView = ({
                   <div className="text-xs text-white/50 bg-white/5 px-2 py-1 rounded">{toNumberSafe(car.year) || '—'}</div>
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-xs text-white/70 mb-4">
-                  <div className="bg-black/30 p-2 rounded text-center border border-white/5">{specs.engine || '—'}</div>
-                  <div className="bg-black/30 p-2 rounded text-center border border-white/5">{formatMileage(car.mileage)}</div>
-                  <div className="bg-black/30 p-2 rounded text-center border border-white/5">{specs.fuel || '—'}</div>
-                  <div className="bg-black/30 p-2 rounded text-center border border-white/5">{specs.condition || '—'}</div>
+                  {specTiles.map(tile => (
+                    <div key={`${carId}_${tile.label}`} className="bg-black/30 p-2 rounded border border-white/5 min-h-[48px]">
+                      <div className="text-[9px] uppercase tracking-wide text-white/35 mb-1">{tile.label}</div>
+                      <div className="font-semibold text-white/80 truncate">{tile.value}</div>
+                    </div>
+                  ))}
                 </div>
                 <button
                   onClick={() => onPrimaryAction(car)}
