@@ -5,7 +5,7 @@ import fs from 'node:fs';
 type BotTemplate = 'CLIENT_LEAD' | 'B2B' | 'CATALOG' | string;
 export type PresetStatus = 'ready' | 'partial' | 'missing';
 
-export const TEMPLATE_PRESET_VERSION = '2026.02.18-r8';
+export const TEMPLATE_PRESET_VERSION = '2026.02.18-r9';
 
 const LEGACY_LEAD_WELCOME_EN = '👋 Welcome to CarTié! Choose an option below:';
 const LEGACY_B2B_WELCOME_EN = '🤝 CarDealer Lviv B2B\n\nCreate a structured request and get offers from partner dealers.';
@@ -49,26 +49,6 @@ const coalesceText = (value: unknown, fallback: string) => {
   return text || fallback;
 };
 
-const mergeMiniAppItems = <T extends { id: string; value: string }>(fallback: T[], source?: T[]): T[] => {
-  const existing = Array.isArray(source)
-    ? source.filter((item): item is T => Boolean(item && typeof item === 'object'))
-    : [];
-  if (!existing.length) return fallback;
-
-  const seen = new Set(existing.map((item) => `${item.id}:${item.value}`));
-  const values = new Set(existing.map((item) => String(item.value || '').toUpperCase()));
-  const merged = [...existing];
-  for (const item of fallback) {
-    const signature = `${item.id}:${item.value}`;
-    const value = String(item.value || '').toUpperCase();
-    if (seen.has(signature) || values.has(value)) continue;
-    merged.push(item);
-    seen.add(signature);
-    values.add(value);
-  }
-  return merged;
-};
-
 const mergeMiniAppConfig = (fallback: MiniAppConfig, existing: Partial<MiniAppConfig> | undefined): MiniAppConfig => {
   const source = (existing && typeof existing === 'object') ? existing : {};
   const layout = source.layout === 'LIST' || source.layout === 'GRID' ? source.layout : fallback.layout;
@@ -85,8 +65,8 @@ const mergeMiniAppConfig = (fallback: MiniAppConfig, existing: Partial<MiniAppCo
     welcomeText: coalesceText(source.welcomeText, fallback.welcomeText),
     primaryColor: coalesceText(source.primaryColor, fallback.primaryColor),
     accentColor: coalesceText(source.accentColor, fallback.accentColor || '#111111'),
-    actions: mergeMiniAppItems(fallback.actions, source.actions),
-    navItems: mergeMiniAppItems(fallback.navItems || [], source.navItems)
+    actions: fallback.actions,
+    navItems: fallback.navItems || []
   };
 };
 

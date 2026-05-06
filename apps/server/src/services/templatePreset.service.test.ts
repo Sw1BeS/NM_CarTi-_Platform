@@ -111,4 +111,55 @@ describe('templatePreset.service', () => {
     ]);
     expect(prisma.scenario.updateMany).toHaveBeenCalled();
   });
+
+  it('replaces legacy CLIENT_LEAD MiniApp nav/actions instead of accumulating old items', async () => {
+    const result = await applyTemplatePreset({
+      template: 'CLIENT_LEAD',
+      companyId: 'company_test',
+      botId: 'bot_test',
+      defaultShowcaseSlug: 'cartie',
+      config: {
+        publicBaseUrl: 'https://example.com',
+        menuConfig: {
+          welcomeMessage: 'Custom welcome',
+          buttons: []
+        },
+        miniAppConfig: {
+          isEnabled: true,
+          title: 'Existing',
+          welcomeText: 'Existing',
+          primaryColor: '#111111',
+          layout: 'GRID',
+          actions: [
+            { id: 'act_request_old', label: 'Підбір', icon: 'Sparkles', actionType: 'VIEW', value: 'REQUEST' },
+            { id: 'act_transit_old', label: 'Авто в дорозі', icon: 'Truck', actionType: 'VIEW', value: 'INVENTORY_TRANSIT' },
+            { id: 'act_support_old', label: 'Підтримка', icon: 'MessageCircle', actionType: 'VIEW', value: 'SUPPORT' }
+          ],
+          navItems: [
+            { id: 'nav_home', label: 'Головна', icon: 'Home', actionType: 'VIEW', value: 'HOME' },
+            { id: 'nav_inventory', label: 'Каталог', icon: 'Car', actionType: 'VIEW', value: 'INVENTORY' },
+            { id: 'nav_request_old', label: 'Підбір', icon: 'Search', actionType: 'VIEW', value: 'REQUEST' },
+            { id: 'nav_favorites_old', label: 'Обране', icon: 'Heart', actionType: 'VIEW', value: 'FAVORITES' },
+            { id: 'nav_support_old', label: 'Підтримка', icon: 'MessageCircle', actionType: 'VIEW', value: 'SUPPORT' }
+          ],
+          url: 'https://old.example/p/app/cartie',
+          showcaseSlug: 'cartie'
+        }
+      } as any
+    });
+
+    expect(result.config.miniAppConfig?.actions.map(item => item.id)).toEqual([
+      'act_stock',
+      'act_pick',
+      'act_transit',
+      'act_contacts'
+    ]);
+    expect(result.config.miniAppConfig?.navItems?.map(item => item.value)).toEqual([
+      'HOME',
+      'INVENTORY',
+      'REQUEST',
+      'CONTACTS',
+      'PROFILE'
+    ]);
+  });
 });
