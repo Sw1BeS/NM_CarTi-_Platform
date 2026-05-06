@@ -1,3 +1,5 @@
+import { isPublicMediaUrl, normalizeMediaUrl } from './mediaUrl.service.js';
+
 export type VehiclePresentation = {
   title: string;
   subtitle: string;
@@ -131,7 +133,9 @@ export const buildVehiclePresentation = (car: any): VehiclePresentation => {
     ...(Array.isArray(car?.mediaItems)
       ? car.mediaItems.flatMap((item: any) => [item?.url, item?.previewUrl, item?.tgFileId, item?.fileId])
       : [])
-  ]);
+  ]
+    .map((value) => normalizeMediaUrl(value))
+    .filter(isPublicMediaUrl));
 
   const detailRows = [
     { label: 'Рік', value: year ? String(year) : 'Не вказано' },

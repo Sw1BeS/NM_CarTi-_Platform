@@ -8,6 +8,22 @@ const isLoadableMediaUrl = (value: string): boolean => {
   return /^(https?:\/\/|\/|data:image\/)/i.test(value);
 };
 
+export const isProtectedProxyMediaUrl = (value: unknown): boolean => {
+  const raw = clean(value);
+  if (!raw) return false;
+  try {
+    const parsed = new URL(raw, 'https://cartie2.umanoff-analytics.space');
+    return parsed.pathname.startsWith('/api/proxy/mtproto/');
+  } catch {
+    return raw.startsWith('/api/proxy/mtproto/');
+  }
+};
+
+export const isPublicMediaUrl = (value: unknown): value is string => {
+  const url = clean(value);
+  return Boolean(url && isLoadableMediaUrl(url) && !isProtectedProxyMediaUrl(url));
+};
+
 const publicBase = (override?: string): string => {
   return String(override || process.env.PUBLIC_BASE_URL || process.env.MINIAPP_URL || DEFAULT_PUBLIC_BASE_URL).replace(/\/+$/, '');
 };
@@ -51,7 +67,7 @@ const readMediaItem = (item: unknown): string[] => {
 
 export const collectNormalizedMediaUrls = (
   car: Record<string, unknown>,
-  options: { limit?: number; absolute?: boolean; publicBaseUrl?: string } = {}
+  options: { limit?: number; absolute?: boolean; publicBaseUrl?: string; includeProtectedProxy?: boolean } = {}
 ): string[] => {
   const limit = Math.max(1, Number(options.limit || 1000));
   const candidates = [
@@ -65,6 +81,7 @@ export const collectNormalizedMediaUrls = (
   for (const candidate of candidates) {
     const url = normalizeMediaUrl(candidate, options);
     if (!url || seen.has(url)) continue;
+    if (!options.includeProtectedProxy && isProtectedProxyMediaUrl(url)) continue;
     seen.add(url);
     result.push(url);
     if (result.length >= limit) break;

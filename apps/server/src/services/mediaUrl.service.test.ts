@@ -25,4 +25,23 @@ describe('mediaUrl.service', () => {
 
     expect(media).toEqual(['/api/proxy/a', '/api/proxy/b', '/api/proxy/c']);
   });
+
+  it('filters legacy protected mtproto proxy URLs from public MiniApp media output', () => {
+    const media = collectNormalizedMediaUrls({
+      thumbnail: 'http://localhost:3000/api/proxy/mtproto/bot/chat/1',
+      mediaUrls: [
+        '/api/proxy/mtproto/bot/chat/1',
+        '/media/company/chat/message/photo.jpg'
+      ],
+      mediaItems: [
+        { url: '/api/proxy/mtproto/bot/chat/2' },
+        { previewUrl: '/media/company/chat/message/preview.jpg' }
+      ]
+    });
+
+    expect(media).toEqual([
+      '/media/company/chat/message/photo.jpg',
+      '/media/company/chat/message/preview.jpg'
+    ]);
+  });
 });

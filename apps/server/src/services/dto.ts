@@ -1,7 +1,7 @@
 import { LeadStatus as DbLeadStatus, RequestStatus as DbRequestStatus, VariantStatus as DbVariantStatus, Prisma } from '@prisma/client';
 import { NormalizationService } from './normalization.service.js';
 import { parseCarData } from './enhanced-parsing.utils.js';
-import { collectNormalizedMediaUrls, normalizeMediaUrl } from './mediaUrl.service.js';
+import { collectNormalizedMediaUrls, isPublicMediaUrl, normalizeMediaUrl } from './mediaUrl.service.js';
 import { buildVehiclePresentation, normalizeVehicleSpecLabel } from './vehiclePresentation.js';
 
 const DEFAULT_CURRENCY = 'USD';
@@ -595,7 +595,8 @@ export const mapInventoryOutput = (car: Record<string, unknown>) => {
       mediaUrls: Array.isArray(car.mediaUrls) ? car.mediaUrls : [],
       mediaItems
     }, { limit: 30 });
-    const thumbnail = normalizeMediaUrl(car.thumbnail) || mediaUrls[0] || '';
+    const normalizedThumbnail = normalizeMediaUrl(car.thumbnail);
+    const thumbnail = isPublicMediaUrl(normalizedThumbnail) ? normalizedThumbnail : mediaUrls[0] || '';
     const year = toNumber(car.year) ?? toNumber(parsed.year) ?? 0;
     const mileage = toNumber(car.mileage) ?? toNumber(parsed.mileage) ?? 0;
     const location = toString(car.location) || toString(parsed.location) || '';

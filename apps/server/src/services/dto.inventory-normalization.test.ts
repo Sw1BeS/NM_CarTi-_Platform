@@ -60,4 +60,27 @@ describe('mapInventoryOutput normalization', () => {
     expect(mapped.presentation.statusLabel).toBe('В дорозі');
     expect(mapped.presentation.specChips).toEqual(expect.arrayContaining(['Автомат', 'Повний', 'Без пошкоджень']));
   });
+
+  it('does not expose protected mtproto proxy thumbnails when public media exists', () => {
+    const mapped = mapInventoryOutput({
+      id: 'car_3',
+      title: 'Hyundai Tucson 2020',
+      thumbnail: '/api/proxy/mtproto/bot/chat/3097',
+      mediaUrls: [
+        '/api/proxy/mtproto/bot/chat/3097',
+        '/media/company/chat/3097/cover.jpg'
+      ],
+      mediaItems: [
+        { url: '/api/proxy/mtproto/bot/chat/3098' },
+        { previewUrl: '/media/company/chat/3097/preview.jpg' }
+      ]
+    } as any);
+
+    expect(mapped.thumbnail).toBe('/media/company/chat/3097/cover.jpg');
+    expect(mapped.mediaUrls).toEqual([
+      '/media/company/chat/3097/cover.jpg',
+      '/media/company/chat/3097/preview.jpg'
+    ]);
+    expect(mapped.presentation.mediaUrls).toEqual(mapped.mediaUrls);
+  });
 });
