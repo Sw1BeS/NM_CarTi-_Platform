@@ -2,6 +2,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
+import './index.css';
 
 // Handle Telegram WebApp hash URLs (/#/p/...) for BrowserRouter deployments.
 const hash = window.location.hash || '';
