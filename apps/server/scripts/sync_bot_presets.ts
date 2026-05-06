@@ -128,15 +128,17 @@ async function main() {
       console.log(`[preset-sync] updated config for bot ${bot.id} (${bot.name || 'unnamed'})`);
     }
 
+    const syncedBot = { ...bot, config: applied.config };
+
     try {
-      await syncTelegramCommands(bot);
+      await syncTelegramCommands(syncedBot);
       console.log(`[preset-sync] commands synced for bot ${bot.id}`);
     } catch (err: any) {
       console.warn(`[preset-sync] setMyCommands failed for bot ${bot.id}: ${err?.message || err}`);
     }
 
     try {
-      await syncTelegramMenuButton(bot);
+      await syncTelegramMenuButton(syncedBot);
       console.log(`[preset-sync] chat menu synced for bot ${bot.id}`);
     } catch (err: any) {
       console.warn(`[preset-sync] setChatMenuButton failed for bot ${bot.id}: ${err?.message || err}`);
