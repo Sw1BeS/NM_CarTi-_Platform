@@ -110,7 +110,8 @@ describe('MiniApp Lead handoff routes', () => {
     miniAppServiceMock.getConfig.mockResolvedValue({
       companyId: 'company_1',
       botId: 'bot_1',
-      publicSlug: 'cartie'
+      publicSlug: 'cartie',
+      template: 'CLIENT_LEAD'
     });
     verifyInitDataMock.mockResolvedValue({ ok: true, verifiedBotId: 'bot_1', matchedBy: 'bot' });
     parseTelegramUserMock.mockReturnValue({
@@ -224,6 +225,53 @@ describe('MiniApp Lead handoff routes', () => {
       code: 'TELEGRAM_INITDATA_REQUIRED'
     });
     expect(requestContractServiceMock.createPendingLeadIntent).not.toHaveBeenCalled();
+  });
+
+  it('rejects Lead intent submission for B2B MiniApp config', async () => {
+    miniAppServiceMock.getConfig.mockResolvedValueOnce({
+      companyId: 'company_1',
+      botId: 'bot_1',
+      publicSlug: 'cardealer_lviv_bot',
+      template: 'B2B'
+    });
+    const app = await buildApp();
+
+    const res = await request(app)
+      .post('/api/miniapp/lead-intents')
+      .send({
+        slug: 'cardealer_lviv_bot',
+        initData: 'signed-init-data',
+        kind: 'PICK'
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({
+      code: 'BOT_FLOW_UNAVAILABLE'
+    });
+    expect(requestContractServiceMock.createPendingLeadIntent).not.toHaveBeenCalled();
+    expect(telegramOutboxMock.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it('resolves contact handoff bot inside the MiniApp company scope', async () => {
+    const app = await buildApp();
+
+    const res = await request(app)
+      .post('/api/miniapp/lead-intents')
+      .send({
+        slug: 'cartie',
+        initData: 'signed-init-data',
+        kind: 'PICK',
+        tracking: { submitId: 'submit_scope' }
+      });
+
+    expect(res.status).toBe(200);
+    expect(prismaMock.botConfig.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        id: 'bot_1',
+        companyId: 'company_1',
+        isEnabled: true
+      })
+    }));
   });
 
   it('starts the LeadBot sell wizard from bot-flows without creating a MiniApp request', async () => {

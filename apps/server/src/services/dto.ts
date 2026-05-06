@@ -594,7 +594,7 @@ export const mapInventoryOutput = (car: Record<string, unknown>) => {
       thumbnail: car.thumbnail,
       mediaUrls: Array.isArray(car.mediaUrls) ? car.mediaUrls : [],
       mediaItems
-    }, { limit: 30 });
+    }, { limit: 30 }).filter(isPublicMediaUrl);
     const normalizedThumbnail = normalizeMediaUrl(car.thumbnail);
     const thumbnail = isPublicMediaUrl(normalizedThumbnail) ? normalizedThumbnail : mediaUrls[0] || '';
     const year = toNumber(car.year) ?? toNumber(parsed.year) ?? 0;

@@ -18,6 +18,7 @@ import { CatalogView } from './miniapp/views/CatalogView';
 import { FavoritesView } from './miniapp/views/FavoritesView';
 import { ProfileView } from './miniapp/views/ProfileView';
 import { RequestView, type RequestFormData } from './miniapp/views/RequestView';
+import { MiniAppImage } from './miniapp/components/MiniAppImage';
 
 const emitMiniAppEvent = (level: 'info' | 'warn' | 'error', message: string, meta?: Record<string, unknown>) => {
     try {
@@ -391,7 +392,19 @@ const MiniAppContent = () => {
 
     // Request Form State
     const [reqStep, setReqStep] = useState(1);
-    const [reqData, setReqData] = useState<RequestFormData>({ brand: '', model: '', budgetMin: '', budgetMax: '', yearMin: '', yearMax: '', city: '', brandSearch: '', bodyType: '' });
+    const [reqData, setReqData] = useState<RequestFormData>({
+        brand: '',
+        model: '',
+        budgetMin: '',
+        budgetMax: '',
+        yearMin: '',
+        yearMax: '',
+        city: '',
+        brandSearch: '',
+        bodyType: '',
+        brandCustom: '',
+        modelCustom: ''
+    });
     const [reqMileage, setReqMileage] = useState('');
     const [reqFuel, setReqFuel] = useState('');
     const [reqCompany, setReqCompany] = useState('');
@@ -625,7 +638,9 @@ const MiniAppContent = () => {
             yearMax: '',
             city: '',
             brandSearch: '',
-            bodyType: ''
+            bodyType: '',
+            brandCustom: '',
+            modelCustom: ''
         });
         setReqMileage(String(toNumberSafe(car.mileage) || ''));
         setReqFuel(specs.fuel || '');
@@ -649,7 +664,9 @@ const MiniAppContent = () => {
                 yearMax: '',
                 city: '',
                 brandSearch: '',
-                bodyType: ''
+                bodyType: '',
+                brandCustom: '',
+                modelCustom: ''
             });
         }
         openRequest('BUY', { selectedIds: selectedRequestCarIds, startStep: selectedRequestCarIds.length ? 4 : 1 });
@@ -1305,13 +1322,12 @@ const MiniAppContent = () => {
                         return (
                             <div key={getCarId(car) || `home_${car.title}_${car.year}`} className="min-w-[230px] bg-[#1c1c1e] rounded-xl overflow-hidden border border-white/5 shadow-lg">
                                 <div className="h-36 bg-gray-800 relative cursor-pointer" onClick={() => openListing(car)}>
-                                    {cover ? (
-                                        <img src={cover} className="w-full h-full object-cover opacity-90" />
-                                    ) : (
-                                        <div className="w-full h-full flex items-center justify-center bg-[#2c2c2e] text-white/20">
-                                            <ImageIcon size={32} />
-                                        </div>
-                                    )}
+                                    <MiniAppImage
+                                        src={cover}
+                                        sources={images}
+                                        alt={presentation?.title || car.title || 'Авто'}
+                                        className="w-full h-full object-cover opacity-90"
+                                    />
                                     <button
                                         onClick={(e) => { e.stopPropagation(); toggleFavorite(car); }}
                                         className="absolute top-2 left-2 w-8 h-8 rounded-full bg-black/60 flex items-center justify-center"
@@ -1432,21 +1448,21 @@ const MiniAppContent = () => {
                 </div>
                 <div className="p-4 space-y-4">
                     <div className="h-60 bg-gray-800 rounded-2xl overflow-hidden relative cursor-pointer" onClick={() => { setLightboxCar(selectedCar); setLightboxImageIndex(0); }}>
-                        {cover ? (
-                            <img src={cover} className="w-full h-full object-cover" />
-                        ) : (
-                            <div className="w-full h-full flex items-center justify-center bg-[#2c2c2e] text-white/20">
-                                <ImageIcon size={48} />
-                            </div>
-                        )}
+                        <MiniAppImage
+                            src={cover}
+                            sources={images}
+                            alt={presentation?.title || selectedCar.title || 'Авто'}
+                        />
                     </div>
                     {images.length > 1 && (
                         <div className="flex gap-2 overflow-x-auto">
                             {images.map((url, idx) => (
-                                <img
+                                <MiniAppImage
                                     key={`listing-thumb-${idx}`}
                                     src={url}
                                     className="w-20 h-16 object-cover rounded-lg border border-white/10"
+                                    fallbackClassName="w-20 h-16 flex items-center justify-center rounded-lg border border-white/10 bg-[#202226] text-white/25"
+                                    alt={`${presentation?.title || selectedCar.title || 'Авто'} фото ${idx + 1}`}
                                     onClick={() => { setLightboxCar(selectedCar); setLightboxImageIndex(idx); }}
                                 />
                             ))}
@@ -1714,9 +1730,11 @@ const MiniAppContent = () => {
                 const submitId = requestSubmitIdRef.current
                     || (window.crypto?.randomUUID ? window.crypto.randomUUID() : `submit_${Date.now()}_${Math.random().toString(16).slice(2)}`);
                 requestSubmitIdRef.current = submitId;
+                const effectiveBrand = reqData.brand === 'Інша марка' ? reqData.brandCustom.trim() : reqData.brand.trim();
+                const effectiveModel = reqData.model === 'Інша модель' ? reqData.modelCustom.trim() : reqData.model.trim();
                 const criteria = {
-                    brand: reqData.brand || undefined,
-                    model: reqData.model || undefined,
+                    brand: effectiveBrand || undefined,
+                    model: effectiveModel || undefined,
                     yearFrom: reqData.yearMin || undefined,
                     yearTo: reqData.yearMax || undefined,
                     budgetMin: reqData.budgetMin || undefined,
@@ -1751,7 +1769,7 @@ const MiniAppContent = () => {
 
                 const descriptionParts = [
                     requestType === 'SELL' ? 'Тип: продаж авто' : 'Тип: підбір авто',
-                    [reqData.brand, reqData.model].filter(Boolean).length ? `Марка/модель: ${[reqData.brand, reqData.model].filter(Boolean).join(' ')}` : null,
+                    [effectiveBrand, effectiveModel].filter(Boolean).length ? `Марка/модель: ${[effectiveBrand, effectiveModel].filter(Boolean).join(' ')}` : null,
                     reqData.yearMin || reqData.yearMax ? `Рік: ${reqData.yearMin || 'будь-який'} - ${reqData.yearMax || 'будь-який'}` : null,
                     reqData.budgetMin || reqData.budgetMax ? `Бюджет: ${reqData.budgetMin || '0'} - ${reqData.budgetMax || '∞'}` : null,
                     reqData.bodyType ? `Кузов: ${reqData.bodyType}` : null,
@@ -1771,7 +1789,7 @@ const MiniAppContent = () => {
                         ? `${isB2BMode ? 'B2B запит' : (requestType === 'SELL' ? 'Продаж' : 'Запит')}: ${selectedTitles.length} авто`
                         : (listingId && selectedCar?.title
                             ? `${isB2BMode ? 'B2B запит' : (requestType === 'SELL' ? 'Продаж' : 'Запит')}: ${selectedCar.title}`
-                            : `${isB2BMode ? 'B2B запит' : (requestType === 'SELL' ? 'Продаж' : 'Запит')}: ${reqData.brand || 'Авто'} ${reqData.yearMin || ''}`.trim()),
+                            : `${isB2BMode ? 'B2B запит' : (requestType === 'SELL' ? 'Продаж' : 'Запит')}: ${effectiveBrand || 'Авто'} ${reqData.yearMin || ''}`.trim()),
                     description: descriptionParts.length ? descriptionParts.join('\n') : undefined,
                     budgetMax: reqData.budgetMax ? Number(reqData.budgetMax) : undefined,
                     yearMin: reqData.yearMin ? Number(reqData.yearMin) : undefined,
@@ -1841,7 +1859,6 @@ const MiniAppContent = () => {
             onNextStep={handleNextStep}
             onBackStep={() => setReqStep(prev => Math.max(1, prev - 1))}
             onHome={() => { setReqStep(1); setView('HOME'); }}
-            tgUser={tgUser}
         />
     );
 

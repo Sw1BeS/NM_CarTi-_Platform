@@ -10,6 +10,8 @@ export type VehiclePresentation = {
   detailRows: Array<{ label: string; value: string }>;
   badges: string[];
   mediaUrls: string[];
+  hasImages: boolean;
+  imageCount: number;
 };
 
 const DEFAULT_CURRENCY = 'USD';
@@ -168,6 +170,8 @@ export const buildVehiclePresentation = (car: any): VehiclePresentation => {
     specChips: unique([fuel, transmission, drive, bodyType, damage]).slice(0, 6),
     detailRows,
     badges,
-    mediaUrls
+    mediaUrls,
+    hasImages: mediaUrls.length > 0,
+    imageCount: mediaUrls.length
   };
 };

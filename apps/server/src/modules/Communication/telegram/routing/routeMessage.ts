@@ -6,7 +6,7 @@ import { normalizeBrand } from '../../../Inventory/normalization/normalizeBrand.
 import { normalizeModel } from '../../../Inventory/normalization/normalizeModel.js';
 import { normalizeCity } from '../../../Inventory/normalization/normalizeCity.js';
 import { normalizePhone } from '../../../Inventory/normalization/normalizePhone.js';
-import { createOrMergeLead } from '../core/leadService.js';
+import { createOrMergeLead, recordIncomingLeadMessage } from '../core/leadService.js';
 import { renderCarCardForBot } from '../../../../services/carCardRenderer.v2.js';
 import { renderLeadCard, renderRequestCard } from '../../../../services/cardRenderer.js';
 import { generateRequestLink } from '../../../../utils/deeplink.utils.js';
@@ -576,7 +576,31 @@ const handleClientLead = async (ctx: PipelineContext, text: string) => {
   }
 
   if (state === 'CL_MENU' && !isLeaveRequest && !isSellRequest && !isSupport && !isCatalog && !isStockCatalog && !isTransitCatalog && !isContacts && !isInfo) {
-    await showMenu(ctx, lang, 'CLIENT_LEAD', t(lang, 'fallback'));
+    const from = message?.from || {};
+    const telegramName = [from.first_name, from.last_name].filter(Boolean).join(' ').trim() || undefined;
+    try {
+      await recordIncomingLeadMessage({
+        botId: ctx.bot.id,
+        companyId: ctx.companyId || ctx.bot.companyId,
+        chatId: ctx.chatId,
+        userId: from.id ? String(from.id) : ctx.userId,
+        text,
+        telegramUsername: from.username ? String(from.username) : undefined,
+        telegramName,
+        messageId: message?.message_id,
+        payload: {
+          state,
+          sourceState: 'CL_MENU'
+        }
+      });
+    } catch (error) {
+      logger.warn('[LeadBot] failed to record free-text lead message', {
+        botId: ctx.bot.id,
+        chatId: ctx.chatId,
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+    await showMenu(ctx, lang, 'CLIENT_LEAD', '✅ Повідомлення отримано. Менеджер побачить його в історії звернень. Нижче залишаю швидкі дії.');
     return true;
   }
 

@@ -32,7 +32,9 @@ describe('mapInventoryOutput normalization', () => {
       title: 'BMW X5 2020',
       priceLabel: '$55,000',
       mileageLabel: '90 000 км',
-      statusLabel: 'В наявності'
+      statusLabel: 'В наявності',
+      hasImages: true,
+      imageCount: 2
     });
     expect(mapped.presentation.specChips).toEqual(expect.arrayContaining(['Дизель', 'Автомат', 'Повний']));
   });
@@ -82,5 +84,26 @@ describe('mapInventoryOutput normalization', () => {
       '/media/company/chat/3097/preview.jpg'
     ]);
     expect(mapped.presentation.mediaUrls).toEqual(mapped.mediaUrls);
+    expect(mapped.presentation.hasImages).toBe(true);
+    expect(mapped.presentation.imageCount).toBe(2);
+  });
+
+  it('does not expose Telegram file ids as public media', () => {
+    const mapped = mapInventoryOutput({
+      id: 'car_4',
+      title: 'B2B uploaded car',
+      thumbnail: 'AgACAgIAAxkBAAIB_file_id',
+      mediaUrls: ['AgACAgIAAxkBAAIB_file_id'],
+      mediaItems: [
+        { tgFileId: 'AgACAgIAAxkBAAIB_file_id', source: 'TELEGRAM_BOT' },
+        { fileId: 'BQACAgIAAxkBAAI_doc_file_id', source: 'TELEGRAM_BOT' }
+      ]
+    } as any);
+
+    expect(mapped.thumbnail).toBe('');
+    expect(mapped.mediaUrls).toEqual([]);
+    expect(mapped.presentation.mediaUrls).toEqual([]);
+    expect(mapped.presentation.hasImages).toBe(false);
+    expect(mapped.presentation.imageCount).toBe(0);
   });
 });

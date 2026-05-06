@@ -7,6 +7,11 @@ type BotLike = {
   config?: any;
 };
 
+type MiniAppDirectLinkIntent = {
+  startParam: string;
+  writeFlow?: 'request' | 'sell' | 'support';
+};
+
 export const isPrivateChatType = (chatType?: string | null) => String(chatType || '') === 'private';
 
 export const isPrivateChatId = (chatId?: string | null) => {
@@ -14,37 +19,56 @@ export const isPrivateChatId = (chatId?: string | null) => {
   return !!value && !value.startsWith('-');
 };
 
-const resolveStartParamFromMiniAppUrl = (rawUrl?: string | null) => {
+const resolveIntentFromMiniAppUrl = (rawUrl?: string | null): MiniAppDirectLinkIntent => {
   const fallback = 'home';
   const value = String(rawUrl || '').trim();
-  if (!value) return fallback;
+  if (!value) return { startParam: fallback };
 
   try {
     const url = new URL(value);
     const explicitStart = url.searchParams.get('startapp') || url.searchParams.get('tgWebAppStartParam');
-    if (explicitStart) return explicitStart;
+    if (explicitStart) {
+      const normalizedStart = explicitStart.toLowerCase();
+      if (normalizedStart === 'sell_car' || normalizedStart === 'sell') {
+        return { startParam: explicitStart, writeFlow: 'sell' };
+      }
+      if (normalizedStart === 'view_request' || normalizedStart === 'request') {
+        return { startParam: explicitStart, writeFlow: 'request' };
+      }
+      if (normalizedStart === 'support') {
+        return { startParam: explicitStart, writeFlow: 'support' };
+      }
+      return { startParam: explicitStart };
+    }
 
     const entry = String(url.searchParams.get('entry') || '').trim().toLowerCase();
     const status = String(url.searchParams.get('status') || '').trim().toUpperCase();
     const type = String(url.searchParams.get('type') || url.searchParams.get('requestType') || '').trim().toUpperCase();
 
-    if (entry === 'request' && type === 'SELL') return 'sell_car';
-    if (entry === 'request') return 'view_request';
-    if (entry === 'inventory' && status === 'PENDING') return 'view_transit';
-    if (entry === 'inventory') return 'view_inventory';
-    if (entry === 'favorites' || entry === 'favourites') return 'view_favorites';
-    if (entry === 'support') return 'support';
-    if (entry === 'status') return 'view_status';
-    if (entry === 'profile') return 'profile';
+    if (entry === 'request' && type === 'SELL') return { startParam: 'sell_car', writeFlow: 'sell' };
+    if (entry === 'request') return { startParam: 'view_request', writeFlow: 'request' };
+    if (entry === 'inventory' && status === 'PENDING') return { startParam: 'view_transit' };
+    if (entry === 'inventory') return { startParam: 'view_inventory' };
+    if (entry === 'favorites' || entry === 'favourites') return { startParam: 'view_favorites' };
+    if (entry === 'support') return { startParam: 'support', writeFlow: 'support' };
+    if (entry === 'status') return { startParam: 'view_status' };
+    if (entry === 'profile') return { startParam: 'profile' };
   } catch {
-    return fallback;
+    return { startParam: fallback };
   }
 
-  return fallback;
+  return { startParam: fallback };
+};
+
+const buildPrivateBotLink = (username: string, writeFlow?: MiniAppDirectLinkIntent['writeFlow']) => {
+  if (writeFlow === 'sell') return `https://t.me/${username}?start=sell`;
+  return `https://t.me/${username}`;
 };
 
 const buildTelegramMiniAppDirectLink = (username: string, miniAppUrl?: string | null) => {
-  const startParam = resolveStartParamFromMiniAppUrl(miniAppUrl).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 64) || 'home';
+  const intent = resolveIntentFromMiniAppUrl(miniAppUrl);
+  if (intent.writeFlow) return buildPrivateBotLink(username, intent.writeFlow);
+  const startParam = intent.startParam.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 64) || 'home';
   return `https://t.me/${username}/app?startapp=${encodeURIComponent(startParam)}`;
 };
 

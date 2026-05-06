@@ -13,7 +13,6 @@ const webAppButton = (text: string, url: string): TelegramKeyboardButton => {
 
 export const buildClientLeadMiniAppKeyboard = (bot: BotConfig, lang: Lang): TelegramKeyboardButton[][] => {
   const pickUrl = buildMiniAppUrl(bot, { entry: 'request', type: 'BUY' });
-  const sellUrl = buildMiniAppUrl(bot, { entry: 'request', type: 'SELL' });
   const stockUrl = buildMiniAppUrl(bot, { entry: 'inventory', status: 'AVAILABLE' });
   const transitUrl = buildMiniAppUrl(bot, { entry: 'inventory', status: 'PENDING' });
   const favoritesUrl = buildMiniAppUrl(bot, { entry: 'favorites' });
@@ -22,7 +21,7 @@ export const buildClientLeadMiniAppKeyboard = (bot: BotConfig, lang: Lang): Tele
   return [
     [
       webAppButton(button(lang, 'leadMenu.buy'), pickUrl),
-      webAppButton(button(lang, 'leadMenu.sell'), sellUrl)
+      { text: button(lang, 'leadMenu.sell') }
     ],
     [
       webAppButton(button(lang, 'leadMenu.stock'), stockUrl),

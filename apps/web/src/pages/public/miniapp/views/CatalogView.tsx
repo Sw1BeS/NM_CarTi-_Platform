@@ -1,6 +1,7 @@
 import React from 'react';
-import { Car, Search, SlidersHorizontal, MessageSquare, Star, Image as ImageIcon, Truck } from 'lucide-react';
+import { Car, Search, SlidersHorizontal, MessageSquare, Star, Truck } from 'lucide-react';
 import { CarListing } from '../../../../types';
+import { MiniAppImage } from '../components/MiniAppImage';
 
 type MiniAppSurfaceMode = 'LEAD' | 'B2B';
 type InventoryTab = 'IN_STOCK' | 'IN_TRANSIT';
@@ -263,13 +264,7 @@ export const CatalogView = ({
           return (
             <div key={carId || `inventory_${car.title}_${car.year}`} className={`bg-[#1c1c1e] rounded-2xl overflow-hidden border flex flex-col shadow-lg ${isSelectedForRequest(carId) ? 'border-yellow-400/60' : 'border-white/5'}`}>
               <div className="aspect-[4/3] bg-gray-800 relative cursor-pointer" onClick={() => onOpenListing(car)}>
-                {cover ? (
-                  <img src={cover} className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-[#2c2c2e] text-white/20">
-                    <ImageIcon size={48} />
-                  </div>
-                )}
+                <MiniAppImage src={cover} sources={images} alt={car.presentation?.title || car.title || 'Авто'} />
                 <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-4 pt-12">
                   <h3 className="text-lg font-bold text-white">{car.presentation?.title || car.title}</h3>
                   <p className="text-[11px] text-white/70 mt-1">

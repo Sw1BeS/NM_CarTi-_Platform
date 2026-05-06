@@ -57,7 +57,7 @@ vi.mock('../../../Integrations/sendpulse/sendpulse.service.js', () => ({
   SendPulseService: { getInstance: () => ({ syncContact: vi.fn(async () => undefined) }) }
 }));
 
-import { createOrMergeLead } from './leadService.js';
+import { createOrMergeLead, recordIncomingLeadMessage } from './leadService.js';
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -100,6 +100,51 @@ describe('createOrMergeLead', () => {
         name: 'John Doe'
       })
     }));
+  });
+
+  it('records incoming free-text Telegram messages against lead history', async () => {
+    const createdLead = { id: 'lead_msg', payload: {}, clientName: 'Ivan Client' };
+    findDuplicateMock.mockResolvedValueOnce(null);
+    createLeadMock.mockResolvedValueOnce(createdLead);
+
+    const result = await recordIncomingLeadMessage({
+      botId: 'bot_1',
+      companyId: 'comp_1',
+      chatId: '1001',
+      userId: '1001',
+      text: 'Хочу уточнити по Mercedes GLE',
+      telegramUsername: 'ivan_client',
+      telegramName: 'Ivan Client'
+    });
+
+    expect(result.lead.id).toBe('lead_msg');
+    expect(createLeadMock).toHaveBeenCalledWith(expect.objectContaining({
+      companyId: 'comp_1',
+      clientName: 'Ivan Client',
+      source: 'TELEGRAM_CHAT',
+      request: 'Хочу уточнити по Mercedes GLE',
+      userTgId: '1001',
+      payload: expect.objectContaining({
+        leadType: 'MESSAGE',
+        telegramChatId: '1001',
+        telegramUserId: '1001',
+        telegramUsername: 'ivan_client',
+        telegramName: 'Ivan Client'
+      })
+    }));
+    expect(leadActivityCreateMock).toHaveBeenCalledWith({
+      data: {
+        leadId: 'lead_msg',
+        type: 'INCOMING_MESSAGE',
+        payload: expect.objectContaining({
+          botId: 'bot_1',
+          chatId: '1001',
+          userId: '1001',
+          text: 'Хочу уточнити по Mercedes GLE',
+          source: 'TELEGRAM_CHAT'
+        })
+      }
+    });
   });
 
   it('enriches duplicate lead when clientName is generic/empty', async () => {

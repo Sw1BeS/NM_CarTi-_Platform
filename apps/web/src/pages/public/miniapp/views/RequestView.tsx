@@ -1,5 +1,14 @@
 import React from 'react';
 import { ArrowRight, CheckCircle, ChevronLeft, Search } from 'lucide-react';
+import {
+  BODY_TYPES,
+  CITY_OPTIONS,
+  FUEL_TYPES,
+  MILEAGE_OPTIONS,
+  OTHER_BRAND,
+  OTHER_MODEL,
+  VEHICLE_BRANDS
+} from '../vehicleOptions';
 
 type MiniAppSurfaceMode = 'LEAD' | 'B2B';
 type RequestType = 'BUY' | 'SELL';
@@ -14,6 +23,8 @@ export type RequestFormData = {
   city: string;
   brandSearch: string;
   bodyType: string;
+  brandCustom: string;
+  modelCustom: string;
 };
 
 type RequestViewProps = {
@@ -42,27 +53,6 @@ type RequestViewProps = {
   onBackStep: () => void;
   onHome: () => void;
 };
-
-const carCatalog = [
-  { brand: 'BMW', models: ['X3', 'X5', 'X6', '3 Series', '5 Series', '7 Series', 'iX'] },
-  { brand: 'Mercedes-Benz', models: ['C-Class', 'E-Class', 'S-Class', 'GLC', 'GLE', 'GLS', 'EQE'] },
-  { brand: 'Audi', models: ['A4', 'A6', 'A8', 'Q5', 'Q7', 'Q8', 'e-tron'] },
-  { brand: 'Toyota', models: ['Camry', 'RAV4', 'Land Cruiser', 'Highlander', 'Corolla', 'Prius'] },
-  { brand: 'Lexus', models: ['RX', 'NX', 'LX', 'GX', 'ES', 'LS'] },
-  { brand: 'Porsche', models: ['Cayenne', 'Macan', 'Panamera', '911', 'Taycan'] },
-  { brand: 'Volkswagen', models: ['Touareg', 'Tiguan', 'Passat', 'Golf', 'ID.4'] },
-  { brand: 'Tesla', models: ['Model 3', 'Model Y', 'Model S', 'Model X'] },
-  { brand: 'Land Rover', models: ['Range Rover', 'Range Rover Sport', 'Defender', 'Discovery'] },
-  { brand: 'Volvo', models: ['XC60', 'XC90', 'S90', 'V60'] },
-  { brand: 'Hyundai', models: ['Tucson', 'Santa Fe', 'Palisade', 'IONIQ 5'] },
-  { brand: 'Kia', models: ['Sportage', 'Sorento', 'Telluride', 'EV6'] },
-  { brand: 'Інше', models: ['Порадьте модель'] }
-];
-
-const bodyTypes = ['SUV', 'Седан', 'Універсал', 'Купе', 'Хетчбек', 'Пікап'];
-const fuelTypes = ['Бензин', 'Дизель', 'Гібрид', 'Електро', 'Газ'];
-const mileageOptions = ['до 50 000 км', 'до 100 000 км', 'до 150 000 км', 'не важливо'];
-const cities = ['Київ', 'Львів', 'Одеса', 'Дніпро', 'Харків', 'Вся Україна'];
 
 const metallicStyle: React.CSSProperties = {
   background: 'linear-gradient(135deg, #f6f7f9 0%, #d9dde2 34%, #aab0b8 68%, #f2f4f7 100%)',
@@ -124,10 +114,13 @@ export const RequestView = ({
   onBackStep,
   onHome
 }: RequestViewProps) => {
-  const filteredBrands = carCatalog.filter(item =>
+  const filteredBrands = VEHICLE_BRANDS.filter(item =>
     item.brand.toLowerCase().includes(reqData.brandSearch.toLowerCase())
   );
-  const selectedBrand = carCatalog.find(item => item.brand === reqData.brand);
+  const selectedBrand = VEHICLE_BRANDS.find(item => item.brand === reqData.brand);
+  const modelOptions = selectedBrand?.models?.length ? [...selectedBrand.models, ...(selectedBrand.brand === OTHER_BRAND ? [] : [OTHER_MODEL])] : [];
+  const displayBrand = reqData.brand === OTHER_BRAND ? reqData.brandCustom : reqData.brand;
+  const displayModel = reqData.model === OTHER_MODEL ? reqData.modelCustom : reqData.model;
   const title = surfaceMode === 'B2B'
     ? 'Створити B2B запит'
     : (requestType === 'SELL' ? 'Продаж авто' : 'Підбір авто');
@@ -197,16 +190,31 @@ export const RequestView = ({
                     <Chip
                       key={item.brand}
                       selected={reqData.brand === item.brand}
-                      onClick={() => setReqData({ ...reqData, brand: item.brand, model: '', brandSearch: '' })}
+                      onClick={() => setReqData({
+                        ...reqData,
+                        brand: item.brand,
+                        model: item.brand === OTHER_BRAND ? OTHER_MODEL : '',
+                        brandSearch: '',
+                        brandCustom: item.brand === OTHER_BRAND ? reqData.brandCustom : '',
+                        modelCustom: ''
+                      })}
                     >
                       {item.brand}
                     </Chip>
                   ))}
                 </div>
+                {reqData.brand === OTHER_BRAND && (
+                  <input
+                    className="mt-3 w-full bg-[#15171a] text-white p-3 rounded-xl outline-none placeholder-white/30 border border-white/10 focus:border-white/30"
+                    placeholder="Введіть марку"
+                    value={reqData.brandCustom}
+                    onChange={e => setReqData({ ...reqData, brandCustom: e.target.value })}
+                  />
+                )}
               </Field>
               <Field label="Модель">
                 <div className="grid grid-cols-2 gap-2">
-                  {(selectedBrand?.models || ['Спочатку оберіть марку']).map(model => (
+                  {(modelOptions.length ? modelOptions : ['Спочатку оберіть марку']).map(model => (
                     <Chip
                       key={model}
                       selected={reqData.model === model}
@@ -216,6 +224,14 @@ export const RequestView = ({
                     </Chip>
                   ))}
                 </div>
+                {reqData.model === OTHER_MODEL && (
+                  <input
+                    className="mt-3 w-full bg-[#15171a] text-white p-3 rounded-xl outline-none placeholder-white/30 border border-white/10 focus:border-white/30"
+                    placeholder="Введіть модель"
+                    value={reqData.modelCustom}
+                    onChange={e => setReqData({ ...reqData, modelCustom: e.target.value })}
+                  />
+                )}
               </Field>
             </div>
           )}
@@ -240,7 +256,7 @@ export const RequestView = ({
               </div>
               <Field label="Тип кузова">
                 <div className="grid grid-cols-2 gap-2">
-                  {bodyTypes.map(type => (
+                  {BODY_TYPES.map(type => (
                     <Chip key={type} selected={reqData.bodyType === type} onClick={() => setReqData({ ...reqData, bodyType: type })}>{type}</Chip>
                   ))}
                 </div>
@@ -252,21 +268,21 @@ export const RequestView = ({
             <div className="space-y-4 animate-slide-up">
               <Field label="Пальне / двигун">
                 <div className="grid grid-cols-2 gap-2">
-                  {fuelTypes.map(type => (
+                  {FUEL_TYPES.map(type => (
                     <Chip key={type} selected={reqFuel === type} onClick={() => setReqFuel(type)}>{type}</Chip>
                   ))}
                 </div>
               </Field>
               <Field label="Пробіг">
                 <div className="grid grid-cols-2 gap-2">
-                  {mileageOptions.map(option => (
+                  {MILEAGE_OPTIONS.map(option => (
                     <Chip key={option} selected={reqMileage === option} onClick={() => setReqMileage(option)}>{option}</Chip>
                   ))}
                 </div>
               </Field>
               <Field label="Місто">
                 <div className="grid grid-cols-2 gap-2">
-                  {cities.map(city => (
+                  {CITY_OPTIONS.map(city => (
                     <Chip key={city} selected={reqData.city === city} onClick={() => setReqData({ ...reqData, city })}>{city}</Chip>
                   ))}
                 </div>
@@ -298,7 +314,7 @@ export const RequestView = ({
               <div className="bg-[#15171a] p-5 rounded-xl border border-white/10 text-white/80 text-sm space-y-3">
                 <p className="font-bold text-white text-lg border-b border-white/10 pb-2">Підсумок</p>
                 {[
-                  ['Авто', [reqData.brand, reqData.model].filter(Boolean).join(' ') || 'Не обрано'],
+                  ['Авто', [displayBrand, displayModel].filter(Boolean).join(' ') || 'Не обрано'],
                   ['Роки', `${reqData.yearMin || 'будь-який'} - ${reqData.yearMax || 'будь-який'}`],
                   ['Бюджет', reqData.budgetMin || reqData.budgetMax ? `$${reqData.budgetMin || '0'} - $${reqData.budgetMax || '∞'}` : 'Не обрано'],
                   ['Кузов', reqData.bodyType || 'Не обрано'],

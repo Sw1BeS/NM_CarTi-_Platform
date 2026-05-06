@@ -1,6 +1,7 @@
 import React from 'react';
-import { Star, Image as ImageIcon } from 'lucide-react';
+import { Star } from 'lucide-react';
 import { CarListing } from '../../../../types';
+import { MiniAppImage } from '../components/MiniAppImage';
 
 type FavoritesViewProps = {
   cars: CarListing[];
@@ -51,13 +52,7 @@ export const FavoritesView = ({
           return (
             <div key={carId || `fav_${car.title}_${car.year}`} className={`bg-[#1c1c1e] rounded-2xl overflow-hidden border flex flex-col shadow-lg ${isSelectedForRequest(carId) ? 'border-yellow-400/60' : 'border-white/5'}`}>
               <div className="h-40 bg-gray-800 relative cursor-pointer" onClick={() => onOpenListing(car)}>
-                {cover ? (
-                  <img src={cover} className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-[#2c2c2e] text-white/20">
-                    <ImageIcon size={32} />
-                  </div>
-                )}
+                <MiniAppImage src={cover} sources={images} alt={car.presentation?.title || car.title || 'Авто'} />
                 <button
                   onClick={(e) => { e.stopPropagation(); onToggleFavorite(car); }}
                   className="absolute top-2 right-2 w-9 h-9 rounded-full bg-black/60 flex items-center justify-center"
@@ -66,10 +61,10 @@ export const FavoritesView = ({
                 </button>
               </div>
               <div className="p-4">
-                <h3 className="text-base font-bold text-white truncate">{car.title}</h3>
-                <div className="text-sm text-white/60 mt-1">{toNumberSafe(car.year) || '—'} • {formatMileage(car.mileage)}</div>
-                <div className="mt-2 font-bold" style={{ color: primaryColor }}>
-                  {formatPrice(car.price)}
+                <h3 className="text-base font-bold text-white truncate">{car.presentation?.title || car.title}</h3>
+                <div className="text-sm text-white/60 mt-1">{car.presentation?.subtitle || `${toNumberSafe(car.year) || '—'} • ${formatMileage(car.mileage)}`}</div>
+                <div className="mt-2 font-bold text-[#E4E7EC]">
+                  {car.presentation?.priceLabel || formatPrice(car.price)}
                 </div>
                 <button
                   onClick={() => onToggleRequestSelection(car)}

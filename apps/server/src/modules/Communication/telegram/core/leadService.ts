@@ -41,6 +41,18 @@ export type LeadCreateInput = {
   };
 };
 
+export type IncomingLeadMessageInput = {
+  botId: string;
+  companyId?: string | null;
+  chatId?: string | null;
+  userId?: string | null;
+  text: string;
+  telegramUsername?: string | null;
+  telegramName?: string | null;
+  messageId?: number | null;
+  payload?: Record<string, any> | null;
+};
+
 const getDedupWindowDays = (botConfig?: any) => {
   const configValue = botConfig?.dedupWindowDays || botConfig?.leadDedupDays;
   const envValue = process.env.LEAD_DEDUP_DAYS;
@@ -271,4 +283,58 @@ export const createOrMergeLead = async (input: LeadCreateInput, botConfig?: any)
   }
 
   return { lead, isDuplicate: false, request: createdRequest };
+};
+
+export const recordIncomingLeadMessage = async (input: IncomingLeadMessageInput) => {
+  const text = String(input.text || '').trim();
+  if (!text) throw new Error('text is required');
+
+  const displayName = input.telegramName
+    || (input.telegramUsername ? `@${String(input.telegramUsername).replace(/^@/, '')}` : undefined)
+    || 'Telegram client';
+
+  const result = await createOrMergeLead({
+    botId: input.botId,
+    companyId: input.companyId,
+    chatId: input.chatId,
+    userId: input.userId,
+    name: displayName,
+    telegramUsername: input.telegramUsername || undefined,
+    telegramName: input.telegramName || undefined,
+    request: text,
+    source: 'TELEGRAM_CHAT',
+    leadType: 'MESSAGE',
+    createRequest: false,
+    payload: {
+      ...(input.payload || {}),
+      leadType: 'MESSAGE',
+      lastMessageText: text,
+      lastMessageAt: new Date().toISOString()
+    }
+  });
+
+  await prisma.leadActivity.create({
+    data: {
+      leadId: result.lead.id,
+      type: 'INCOMING_MESSAGE',
+      payload: {
+        source: 'TELEGRAM_CHAT',
+        botId: input.botId,
+        chatId: input.chatId || undefined,
+        userId: input.userId || undefined,
+        messageId: input.messageId || undefined,
+        text,
+        telegramUsername: input.telegramUsername || undefined,
+        telegramName: input.telegramName || undefined
+      }
+    }
+  }).catch((error) => {
+    logger.warn('[LeadService] failed to record incoming lead activity', {
+      botId: input.botId,
+      chatId: input.chatId,
+      error: error instanceof Error ? error.message : String(error)
+    });
+  });
+
+  return result;
 };

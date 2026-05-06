@@ -26,6 +26,12 @@ const MINIAPP_ERROR_CODES = {
   CONTACT_REQUEST_SEND_FAILED: 'CONTACT_REQUEST_SEND_FAILED'
 } as const;
 
+const isB2BMiniAppConfig = (config: Record<string, any> | null | undefined) => {
+  const template = String(config?.template || '').trim().toUpperCase();
+  const surfaceMode = String(config?.miniapp?.surfaceMode || config?.miniapp?.mode || '').trim().toUpperCase();
+  return template === 'B2B' || surfaceMode === 'B2B';
+};
+
 const readString = (value: unknown): string | undefined => {
   if (typeof value === 'string') {
     const trimmed = value.trim();
@@ -80,7 +86,7 @@ const parseMiniAppTelegramIdentity = (initData: string) => {
 const getMiniAppBotForSend = async (botId?: string | null, companyId?: string | null) => {
   if (botId) {
     const bot = await prisma.botConfig.findFirst({
-      where: { id: botId, isEnabled: true },
+      where: { id: botId, ...(companyId ? { companyId } : {}), isEnabled: true },
       select: { id: true, token: true, companyId: true, config: true, template: true, name: true }
     });
     if (bot) return bot;
@@ -748,6 +754,9 @@ router.post('/lead-intents', async (req, res) => {
 
     const config = await miniAppService.getConfig(slug).catch(() => null);
     if (!config?.companyId) return errorResponse(res, 404, 'Company not found');
+    if (isB2BMiniAppConfig(config as Record<string, any>)) {
+      return errorResponse(res, 400, 'Lead intents are not available for B2B MiniApp', MINIAPP_ERROR_CODES.BOT_FLOW_UNAVAILABLE);
+    }
 
     const initCheck = await requireInitData(initData, config.companyId, config.botId);
     if (!initCheck.ok) {

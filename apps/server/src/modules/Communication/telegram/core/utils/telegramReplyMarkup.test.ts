@@ -43,7 +43,7 @@ describe('telegramReplyMarkup', () => {
     expect(markup.inline_keyboard[1][0].url).toBe('https://t.me/Cartie_Client_Bot/app?startapp=home');
   });
 
-  it('preserves MiniApp intent when downgrading group web_app buttons to direct links', () => {
+  it('preserves read-only MiniApp intent but sends write actions to the private bot', () => {
     const markup = resolveReplyMarkupForChat({
       bot,
       chatType: 'supergroup',
@@ -56,13 +56,18 @@ describe('telegramReplyMarkup', () => {
           {
             text: 'Продати авто',
             web_app: { url: 'https://example.com/p/app/cartie?entry=request&type=SELL' }
+          },
+          {
+            text: 'Підібрати авто',
+            web_app: { url: 'https://example.com/p/app/cartie?entry=request&type=BUY' }
           }
         ]]
       }
     });
 
     expect(markup.inline_keyboard[0][0].url).toBe('https://t.me/Cartie_Client_Bot/app?startapp=view_transit');
-    expect(markup.inline_keyboard[0][1].url).toBe('https://t.me/Cartie_Client_Bot/app?startapp=sell_car');
+    expect(markup.inline_keyboard[0][1].url).toBe('https://t.me/Cartie_Client_Bot?start=sell');
+    expect(markup.inline_keyboard[0][2].url).toBe('https://t.me/Cartie_Client_Bot');
   });
 
   it('detects private vs group by chat id when type missing', () => {
