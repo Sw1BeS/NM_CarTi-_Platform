@@ -21,9 +21,11 @@ export const verifyTelegramInitData = (initData: string, botToken: string, maxAg
     .map(([key, value]) => `${key}=${value}`)
     .join('\n');
 
-  const secretKey = crypto.createHash('sha256').update(botToken).digest();
+  const secretKey = crypto.createHmac('sha256', 'WebAppData').update(botToken).digest();
   const computedHash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
-  return computedHash === hash;
+  const receivedHash = Buffer.from(hash, 'hex');
+  const expectedHash = Buffer.from(computedHash, 'hex');
+  return receivedHash.length === expectedHash.length && crypto.timingSafeEqual(receivedHash, expectedHash);
 };
 
 export const parseTelegramUser = (initData: string) => {

@@ -83,6 +83,27 @@ const parseMiniAppTelegramIdentity = (initData: string) => {
   };
 };
 
+const buildInitDataDiagnostics = (initData?: string) => {
+  if (!initData) return { hasInitData: false };
+  const params = new URLSearchParams(initData);
+  const authDateRaw = params.get('auth_date');
+  const authTimestamp = authDateRaw ? Number(authDateRaw) : undefined;
+  const authAgeSeconds = authTimestamp && Number.isFinite(authTimestamp)
+    ? Math.max(0, Math.floor(Date.now() / 1000) - authTimestamp)
+    : undefined;
+  const user = parseTelegramUser(initData) as any;
+
+  return {
+    hasInitData: true,
+    initDataLength: initData.length,
+    hasHash: Boolean(params.get('hash')),
+    hasSignature: Boolean(params.get('signature')),
+    authAgeSeconds,
+    fieldNames: Array.from(new Set(Array.from(params.keys()))).sort(),
+    telegramUserId: user?.id ? String(user.id) : undefined
+  };
+};
+
 const getMiniAppBotForSend = async (botId?: string | null, companyId?: string | null) => {
   if (botId) {
     const bot = await prisma.botConfig.findFirst({
@@ -717,7 +738,9 @@ router.post('/favorites/:carListingId', async (req, res) => {
           slug: slug || null,
           carListingId,
           companyId,
-          botId: botId || null
+          botId: botId || null,
+          reason: initCheck.message,
+          diagnostics: buildInitDataDiagnostics(initData)
         });
         favoriteIdentity = { tgUserId: undefined, visitorId };
       }
@@ -760,6 +783,14 @@ router.post('/lead-intents', async (req, res) => {
 
     const initCheck = await requireInitData(initData, config.companyId, config.botId);
     if (!initCheck.ok) {
+      logger.warn('[MiniApp] lead intent initData invalid', {
+        requestId,
+        slug,
+        companyId: config.companyId,
+        botId: config.botId || null,
+        reason: initCheck.message,
+        diagnostics: buildInitDataDiagnostics(initData)
+      });
       return errorResponse(res, 401, initCheck.message || 'Invalid Telegram init data', MINIAPP_ERROR_CODES.INITDATA_INVALID);
     }
 
@@ -859,6 +890,14 @@ router.post('/bot-flows', async (req, res) => {
 
     const initCheck = await requireInitData(initData, config.companyId, config.botId);
     if (!initCheck.ok) {
+      logger.warn('[MiniApp] bot flow initData invalid', {
+        slug,
+        companyId: config.companyId,
+        botId: config.botId || null,
+        flow,
+        reason: initCheck.message,
+        diagnostics: buildInitDataDiagnostics(initData)
+      });
       return errorResponse(res, 401, initCheck.message || 'Invalid Telegram init data', MINIAPP_ERROR_CODES.INITDATA_INVALID);
     }
 
@@ -1016,7 +1055,17 @@ router.post('/events', async (req, res) => {
 
     if (initData && config) {
       const initCheck = await requireInitData(initData, config.companyId, config.botId);
-      if (!initCheck.ok) return errorResponse(res, 401, initCheck.message || 'Unauthorized');
+      if (!initCheck.ok) {
+        logger.debug?.('[MiniApp] event initData invalid', {
+          slug,
+          eventType,
+          companyId: config.companyId,
+          botId: config.botId || null,
+          reason: initCheck.message,
+          diagnostics: buildInitDataDiagnostics(initData)
+        });
+        return errorResponse(res, 401, initCheck.message || 'Unauthorized');
+      }
     }
 
     await emitPlatformEvent({

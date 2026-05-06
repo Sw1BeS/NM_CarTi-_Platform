@@ -22,7 +22,7 @@ const signInitData = (botToken: string, userId = 123456) => {
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([key, value]) => `${key}=${value}`)
     .join('\n');
-  const secret = crypto.createHash('sha256').update(botToken).digest();
+  const secret = crypto.createHmac('sha256', 'WebAppData').update(botToken).digest();
   params.set('hash', crypto.createHmac('sha256', secret).update(dataCheckString).digest('hex'));
   return params.toString();
 };
