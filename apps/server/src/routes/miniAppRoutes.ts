@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { miniAppService } from '../services/miniapp.service.js';
 import { errorResponse } from '../utils/errorResponse.js';
-import { parseTelegramUser, verifyTelegramInitData } from '../modules/Communication/telegram/core/telegramAuth.js';
+import { parseTelegramUser } from '../modules/Communication/telegram/core/telegramAuth.js';
 import { resolvePublicSlug } from '../services/publicSlug.service.js';
 import { prisma } from '../services/prisma.js';
 import { logger } from '../utils/logger.js';
@@ -9,8 +9,8 @@ import { ShowcaseService } from '../modules/Marketing/showcase/showcase.service.
 import { mapInventoryOutput } from '../services/dto.js';
 import { renderCarCardForBot } from '../services/carCardRenderer.v2.js';
 import { telegramOutbox } from '../modules/Communication/telegram/messaging/outbox/telegramOutbox.js';
-import { getEnvInt } from '../services/featureFlags.js';
 import { emitPlatformEvent } from '../modules/Communication/telegram/core/events/eventEmitter.js';
+import { verifyMiniAppInitDataForScope } from '../services/miniAppAuth.service.js';
 
 const router = Router();
 const showcaseService = new ShowcaseService();
@@ -39,34 +39,7 @@ const resolveCompanyIdBySlug = async (slug?: string | null) => {
 };
 
 const requireInitData = async (initData: string | undefined, companyId?: string | null, botId?: string | null) => {
-  if (!initData) return { ok: false, message: 'initData is required' };
-  const init = initData;
-  const maxAgeSeconds = Math.max(60, getEnvInt('TELEGRAM_INITDATA_MAX_AGE_SECONDS', 900));
-
-  if (botId) {
-    const bot = await prisma.botConfig.findFirst({
-      where: { id: botId, isEnabled: true },
-      select: { token: true }
-    });
-    if (bot) {
-      if (verifyTelegramInitData(init, bot.token, maxAgeSeconds)) return { ok: true };
-      return { ok: false, message: 'Invalid Telegram init data' };
-    }
-    // If specific bot not found/disabled, fail or fall back?
-    // Fail secure.
-    return { ok: false, message: 'Bot not found or disabled' };
-  }
-
-  const bots = await prisma.botConfig.findMany({
-    where: {
-      isEnabled: true,
-      ...(companyId ? { companyId } : {})
-    },
-    select: { token: true }
-  });
-  const verified = bots.some(bot => verifyTelegramInitData(init, bot.token, maxAgeSeconds));
-  if (!verified) return { ok: false, message: 'Invalid Telegram init data' };
-  return { ok: true };
+  return verifyMiniAppInitDataForScope(initData, { companyId, botId });
 };
 
 const isMiniAppAdmin = async (companyId: string, tgUserId: string, botId?: string | null) => {
