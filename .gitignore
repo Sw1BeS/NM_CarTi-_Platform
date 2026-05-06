@@ -1,35 +1,52 @@
-```markdown
-# Logs and temp files
+# Logs
+logs
 *.log
-*.tmp
-*.swp
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
 
 # Environment
 .env
 .env.local
 .env.*
+*.local
 
 # Dependencies
-node_modules/
+node_modules
 .venv/
 venv/
 __pycache__/
 .mypy_cache/
 .pytest_cache/
+
+# Build output
 dist/
+dist-ssr/
+**/dist/
 build/
 target/
 .gradle/
+apps/web/node_modules/
+apps/server/node_modules/
+apps/web/.env*
 
 # Editors
-.vscode/
+.vscode/*
+!.vscode/extensions.json
 .idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
 
 # System files
 .DS_Store
 Thumbs.db
 
-# Compiled files
+# Compiled/native files
 *.pyc
 *.class
 *.o
@@ -45,7 +62,8 @@ coverage/
 htmlcov/
 .coverage
 
-# Compressed files
+# Archives/packages
+apps/*.tgz
 *.zip
 *.gz
 *.tar
@@ -68,4 +86,29 @@ htmlcov/
 *.tar.bz2
 *.tar.xz
 *.tar.zst
-```
+
+# Local/ops backups and generated state
+infra/*.bak.*
+.gitignore.bak.*
+*.bak.*
+**/*.bak.*
+infra.bak.*
+**/infra.bak.*
+**/backups/
+**/backup/
+**/*_backup*
+**/*.backup
+**/tmp/
+**/dumps/
+
+_backup_root/
+_backups/
+_archive/
+_codex_release_backup_*/
+_logs/
+.deploy/
+.agent/.shared/ui-ux-pro-max/data/
+apps/cartie2_repo/
+apps/server/src/data/
+data/
+env/storage/

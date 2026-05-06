@@ -24,10 +24,11 @@ export type MiniAppEntryType =
   | 'profile';       // Профіль
 
 export interface MiniAppFilters {
-  entry?: MiniAppEntryType;
-  status?: 'AVAILABLE' | 'PENDING' | 'SOLD';
+  entry?: MiniAppEntryType | 'status' | string;
+  status?: 'AVAILABLE' | 'PENDING' | 'SOLD' | string;
+  type?: 'BUY' | 'SELL' | string;
   carId?: string;
-  [key: string]: string | undefined;
+  [key: string]: string | number | boolean | undefined | null;
 }
 
 export const buildMiniAppUrl = (bot: BotConfig, filters: MiniAppFilters = {}) => {
@@ -64,24 +65,8 @@ export const buildMiniAppUrl = (bot: BotConfig, filters: MiniAppFilters = {}) =>
     url.pathname = path;
   } // else: already correct
 
-  // Add entry point parameter for direct navigation
-  if (filters.entry) {
-    url.searchParams.set('entry', filters.entry);
-    
-    // Add status filter for inventory views
-    if (filters.entry === 'inventory' && filters.status) {
-      url.searchParams.set('status', filters.status);
-    }
-    
-    // Add specific car ID for detail views
-    if (filters.carId) {
-      url.searchParams.set('carId', filters.carId);
-    }
-  }
-
-  // Add remaining filters
   Object.entries(filters || {}).forEach(([key, value]) => {
-    if (value === undefined || value === null || value === '' || key === 'entry' || key === 'status' || key === 'carId') return;
+    if (value === undefined || value === null || value === '') return;
     url.searchParams.set(key, String(value));
   });
 
@@ -109,7 +94,12 @@ export const buildMiniAppEntryUrl = (
       filters.status = 'AVAILABLE';
       break;
     case 'in_transit':
+      filters.entry = 'inventory';
       filters.status = 'PENDING';
+      break;
+    case 'sell':
+      filters.entry = 'request';
+      filters.type = 'SELL';
       break;
     case 'request':
       filters.entry = 'request';
