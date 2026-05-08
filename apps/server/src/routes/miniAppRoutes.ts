@@ -26,6 +26,8 @@ const MINIAPP_ERROR_CODES = {
   CONTACT_REQUEST_SEND_FAILED: 'CONTACT_REQUEST_SEND_FAILED'
 } as const;
 
+const LEAD_WRONG_ENDPOINT = 'LEAD_WRONG_ENDPOINT';
+
 const isB2BMiniAppConfig = (config: Record<string, any> | null | undefined) => {
   const template = String(config?.template || '').trim().toUpperCase();
   const surfaceMode = String(config?.miniapp?.surfaceMode || config?.miniapp?.mode || '').trim().toUpperCase();
@@ -108,7 +110,7 @@ const getMiniAppBotForSend = async (botId?: string | null, companyId?: string | 
   if (botId) {
     const bot = await prisma.botConfig.findFirst({
       where: { id: botId, ...(companyId ? { companyId } : {}), isEnabled: true },
-      select: { id: true, token: true, companyId: true, config: true, template: true, name: true }
+      select: { id: true, token: true, companyId: true, config: true, template: true, name: true, adminChatId: true }
     });
     if (bot) return bot;
   }
@@ -116,7 +118,7 @@ const getMiniAppBotForSend = async (botId?: string | null, companyId?: string | 
   return prisma.botConfig.findFirst({
     where: { ...(companyId ? { companyId } : {}), isEnabled: true },
     orderBy: { createdAt: 'asc' },
-    select: { id: true, token: true, companyId: true, config: true, template: true, name: true }
+    select: { id: true, token: true, companyId: true, config: true, template: true, name: true, adminChatId: true }
   });
 };
 
@@ -831,6 +833,100 @@ router.post('/lead-intents', async (req, res) => {
     const bot = await getMiniAppBotForSend(pending.botId || config.botId, config.companyId);
     if (!bot?.token) return errorResponse(res, 400, 'Bot not found', MINIAPP_ERROR_CODES.BOT_FLOW_UNAVAILABLE);
 
+    const knownContact = await requestContractService.findKnownLeadContact({
+      companyId: config.companyId,
+      botId: pending.botId || config.botId,
+      telegramUserId: telegram.userId
+    });
+
+    if (knownContact?.phone) {
+      const finalized = await requestContractService.finalizePendingLeadIntent({
+        botId: bot.id,
+        companyId: config.companyId,
+        telegramUserId: telegram.userId,
+        phone: knownContact.phone,
+        displayName: telegram.name || (telegram.username ? `@${telegram.username}` : 'Клієнт'),
+        telegramUsername: telegram.username,
+        telegramName: telegram.name
+      });
+
+      await telegramOutbox.sendMessage({
+        botId: bot.id,
+        token: bot.token,
+        chatId: pending.chatId || telegram.userId,
+        text: `✅ Запит отримано. Використали збережений контакт ${knownContact.phone}. Менеджер звʼяжеться з вами найближчим часом.`,
+        replyMarkup: { remove_keyboard: true },
+        companyId: config.companyId,
+        userId: telegram.userId
+      }).catch((e: unknown) => {
+        logger.warn('[MiniApp] failed to send known-contact confirmation', {
+          requestId,
+          slug,
+          botId: bot.id,
+          error: e instanceof Error ? e.message : String(e)
+        });
+      });
+
+      if (bot.adminChatId) {
+        await telegramOutbox.sendMessage({
+          botId: bot.id,
+          token: bot.token,
+          chatId: String(bot.adminChatId),
+          text: [
+            '🟢 [LEAD] MiniApp запит',
+            `👤 ${telegram.name || 'Клієнт'}`,
+            `username: ${telegram.username ? `@${telegram.username}` : '—'}`,
+            `tgUserId: ${telegram.userId}`,
+            `Контакт: ${knownContact.phone}`,
+            `Тип: ${finalized.intentType === 'REQUEST' ? 'Підбір авто' : 'Інтерес до авто'}`,
+            `Авто/запит: ${finalized.title}`,
+            finalized.request ? `Request ID: ${finalized.request.publicId || finalized.request.id}` : null
+          ].filter(Boolean).join('\n'),
+          companyId: config.companyId,
+          userId: telegram.userId
+        }).catch((e: unknown) => {
+          logger.warn('[MiniApp] failed to send known-contact admin notification', {
+            requestId,
+            slug,
+            botId: bot.id,
+            error: e instanceof Error ? e.message : String(e)
+          });
+        });
+      }
+
+      return res.json({
+        ok: true,
+        contactRequested: false,
+        contactKnown: true,
+        finalized: true,
+        closeMiniApp: true,
+        duplicate: Boolean((pending as any).isDuplicate || finalized.isDuplicate),
+        intent: {
+          kind: kind.kind,
+          type: finalized.intentType,
+          title: finalized.title
+        },
+        request: finalized.request ? {
+          id: finalized.request.id,
+          publicId: finalized.request.publicId
+        } : undefined
+      });
+    }
+
+    if ((pending as any).isDuplicate) {
+      return res.json({
+        ok: true,
+        contactRequested: false,
+        duplicate: true,
+        closeMiniApp: true,
+        intent: {
+          kind: kind.kind,
+          type: pending.intentType,
+          title: pending.title
+        }
+      });
+    }
+
     try {
       const askText = kind.kind === 'PICK'
         ? '✅ Запит на підбір отримано. Поділіться контактом у чаті, щоб менеджер міг продовжити підбір.'
@@ -994,6 +1090,15 @@ router.post('/requests', async (req, res) => {
 
     const initCheck = await requireInitData(initData, config.companyId, config.botId);
     if (!initCheck.ok) return errorResponse(res, 401, initCheck.message || 'Unauthorized');
+
+    if (!isB2BMiniAppConfig(config)) {
+      return errorResponse(
+        res,
+        400,
+        'Lead MiniApp writes must use /api/miniapp/lead-intents',
+        LEAD_WRONG_ENDPOINT
+      );
+    }
 
     logger.info('[MiniApp] request create', {
       requestId,

@@ -12,10 +12,13 @@ const {
   prismaMock
 } = vi.hoisted(() => ({
   miniAppServiceMock: {
-    getConfig: vi.fn()
+    getConfig: vi.fn(),
+    createRequest: vi.fn()
   },
   requestContractServiceMock: {
     createPendingLeadIntent: vi.fn(),
+    findKnownLeadContact: vi.fn(),
+    finalizePendingLeadIntent: vi.fn(),
     clearPendingLeadIntent: vi.fn()
   },
   telegramOutboxMock: {
@@ -160,6 +163,16 @@ describe('MiniApp Lead handoff routes', () => {
       intentType: 'REQUEST',
       isDuplicate: false
     });
+    requestContractServiceMock.findKnownLeadContact.mockResolvedValue(null);
+    requestContractServiceMock.finalizePendingLeadIntent.mockResolvedValue({
+      intentType: 'REQUEST',
+      title: 'Підбір авто з Mini App',
+      phone: '+380635055252',
+      isDuplicate: false,
+      lead: { id: 'lead_1' },
+      request: { id: 'request_1', publicId: 'REQ-1' },
+      selectedCars: []
+    });
     telegramOutboxMock.sendMessage.mockResolvedValue({ message_id: 10 });
     startLeadSellWizardMock.mockResolvedValue(undefined);
   });
@@ -211,6 +224,76 @@ describe('MiniApp Lead handoff routes', () => {
         one_time_keyboard: true
       })
     }));
+  });
+
+  it('finalizes immediately without another contact request when phone is already known', async () => {
+    requestContractServiceMock.findKnownLeadContact.mockResolvedValueOnce({
+      phone: '+380635055252',
+      leadId: 'lead_existing'
+    });
+    const app = await buildApp();
+
+    const res = await request(app)
+      .post('/api/miniapp/lead-intents')
+      .send({
+        slug: 'cartie',
+        initData: 'signed-init-data',
+        kind: 'PRICE_TERMS',
+        carListingId: 'car_1',
+        tracking: { submitId: 'submit_known_phone' }
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      ok: true,
+      contactRequested: false,
+      contactKnown: true,
+      finalized: true,
+      closeMiniApp: true
+    });
+    expect(requestContractServiceMock.finalizePendingLeadIntent).toHaveBeenCalledWith(expect.objectContaining({
+      botId: 'bot_1',
+      companyId: 'company_1',
+      telegramUserId: '1001',
+      phone: '+380635055252'
+    }));
+    expect(telegramOutboxMock.sendMessage).not.toHaveBeenCalledWith(expect.objectContaining({
+      replyMarkup: expect.objectContaining({
+        keyboard: expect.arrayContaining([
+          expect.arrayContaining([expect.objectContaining({ request_contact: true })])
+        ])
+      })
+    }));
+  });
+
+  it('does not send another native contact request for a duplicate pending submit', async () => {
+    requestContractServiceMock.createPendingLeadIntent.mockResolvedValueOnce({
+      companyId: 'company_1',
+      botId: 'bot_1',
+      chatId: '1001',
+      title: 'Existing request',
+      intentType: 'REQUEST',
+      isDuplicate: true
+    });
+    const app = await buildApp();
+
+    const res = await request(app)
+      .post('/api/miniapp/lead-intents')
+      .send({
+        slug: 'cartie',
+        initData: 'signed-init-data',
+        kind: 'PICK',
+        tracking: { submitId: 'submit_duplicate' }
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      ok: true,
+      duplicate: true,
+      contactRequested: false,
+      closeMiniApp: true
+    });
+    expect(telegramOutboxMock.sendMessage).not.toHaveBeenCalled();
   });
 
   it('returns a stable auth code when initData is missing', async () => {
@@ -299,5 +382,24 @@ describe('MiniApp Lead handoff routes', () => {
       chatType: 'private'
     }));
     expect(requestContractServiceMock.createPendingLeadIntent).not.toHaveBeenCalled();
+  });
+
+  it('rejects legacy MiniApp request writes for Lead configs', async () => {
+    const app = await buildApp();
+
+    const res = await request(app)
+      .post('/api/miniapp/requests')
+      .send({
+        slug: 'cartie',
+        initData: 'signed-init-data',
+        requestType: 'BUY',
+        tracking: { submitId: 'legacy_lead_submit' }
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({
+      code: 'LEAD_WRONG_ENDPOINT'
+    });
+    expect(miniAppServiceMock.createRequest).not.toHaveBeenCalled();
   });
 });

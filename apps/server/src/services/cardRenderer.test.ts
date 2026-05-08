@@ -97,6 +97,10 @@ describe('cardRenderer redaction', () => {
       text: 'Є авто',
       url: 'https://t.me/CarDealer_Lviv_Bot?start=b2bv_CD-123'
     });
+    expect(replyMarkup?.inline_keyboard?.[0]?.[1]).toEqual({
+      text: 'Відкрити в боті',
+      url: 'https://t.me/CarDealer_Lviv_Bot?start=b2bv_CD-123'
+    });
   });
 
   it('sanitizes channel car post damage/description fields', () => {

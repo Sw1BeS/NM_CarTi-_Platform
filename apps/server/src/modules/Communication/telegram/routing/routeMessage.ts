@@ -10,7 +10,7 @@ import { createOrMergeLead, recordIncomingLeadMessage } from '../core/leadServic
 import { renderCarCardForBot } from '../../../../services/carCardRenderer.v2.js';
 import { renderLeadCard, renderRequestCard } from '../../../../services/cardRenderer.js';
 import { generateRequestLink } from '../../../../utils/deeplink.utils.js';
-import { buildMiniAppUrl } from '../core/utils/miniappUrl.js';
+import { buildMiniAppUrl, normalizeMiniAppButtonUrl } from '../core/utils/miniappUrl.js';
 import { buildClientLeadMiniAppKeyboard } from '../core/utils/clientLeadMiniAppMenu.js';
 import { generatePublicId, mapRequestInput } from '../../../../services/dto.js';
 import { ActionTokens, buildCallbackData } from '../core/utils/callbackUtils.js';
@@ -607,6 +607,10 @@ const handleClientLead = async (ctx: PipelineContext, text: string) => {
   if (state === 'CL_MINIAPP_CONTACT') {
     if (isBack || isCancel || isMenu) {
       await showMenu(ctx, lang, 'CLIENT_LEAD', isCancel ? t(lang, 'cancelled') : undefined);
+      return true;
+    }
+    if (message?.contact?.user_id && message?.from?.id && String(message.contact.user_id) !== String(message.from.id)) {
+      await sendMessage(ctx, '⚠️ Поділіться, будь ласка, саме своїм контактом через кнопку Telegram.');
       return true;
     }
     const phoneRaw = message?.contact?.phone_number || text;
@@ -1451,7 +1455,7 @@ export const handleDynamicMenu = async (ctx: PipelineContext, text: string) => {
       const label = btn[`label_${lang}`] || btn.label || 'Button';
 
       if (btn.type === 'WEB_APP') {
-        rows[btn.row].push({ text: label, web_app: { url: btn.value } });
+        rows[btn.row].push({ text: label, web_app: { url: normalizeMiniAppButtonUrl(ctx.bot, btn.value) } });
       } else if (btn.type === 'LINK') {
         // Links are usually inline buttons, but in a keyboard they fail. 
         // We will simple show text for now or maybe this is intended for inline?

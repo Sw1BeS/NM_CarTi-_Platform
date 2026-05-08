@@ -1176,6 +1176,10 @@ export const handleLeadSellText = async (ctx: PipelineContext, text: string): Pr
   }
 
   if (state === 'LS_CONTACT') {
+    if (message?.contact?.user_id && message?.from?.id && String(message.contact.user_id) !== String(message.from.id)) {
+      await sendMessage(ctx, '⚠️ Поділіться, будь ласка, саме своїм контактом через кнопку Telegram.');
+      return true;
+    }
     if (message?.contact?.phone_number) {
       const normalized = normalizePhoneUA(message.contact.phone_number);
       if (!normalized) {

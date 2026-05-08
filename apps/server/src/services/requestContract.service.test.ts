@@ -23,8 +23,12 @@ const {
       create: vi.fn()
     },
     b2bRequest: {
+      findFirst: vi.fn(),
       update: vi.fn(),
       create: vi.fn()
+    },
+    lead: {
+      findFirst: vi.fn()
     },
     requestVariant: {
       findUnique: vi.fn()
@@ -90,6 +94,8 @@ describe('requestContract.service', () => {
       description: 'Інтерес зафіксовано з Mini App.',
       status: 'COLLECTING_VARIANTS'
     });
+    mockPrisma.b2bRequest.findFirst.mockResolvedValue(null);
+    mockPrisma.lead.findFirst.mockResolvedValue(null);
   });
 
   it('stores pending lead intent in bot session', async () => {
@@ -148,6 +154,37 @@ describe('requestContract.service', () => {
     expect(mockPrisma.botSession.create).not.toHaveBeenCalled();
   });
 
+  it('finds the latest known phone for a Telegram lead identity', async () => {
+    mockPrisma.lead.findFirst.mockResolvedValueOnce({
+      id: 'lead_known',
+      phone: '+380635055252',
+      updatedAt: new Date()
+    });
+
+    const result = await requestContractService.findKnownLeadContact({
+      companyId: 'cmp_1',
+      botId: 'bot_1',
+      telegramUserId: '1001'
+    });
+
+    expect(mockPrisma.lead.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        companyId: 'cmp_1',
+        phone: { not: null },
+        OR: expect.arrayContaining([
+          { userTgId: '1001' },
+          { payload: { path: ['telegramUserId'], equals: '1001' } },
+          { payload: { path: ['telegram', 'userId'], equals: '1001' } }
+        ])
+      }),
+      orderBy: { updatedAt: 'desc' }
+    }));
+    expect(result).toEqual({
+      leadId: 'lead_known',
+      phone: '+380635055252'
+    });
+  });
+
   it('finalizes pending lead intent through lead/request creation and clears session state', async () => {
     mockPrisma.botSession.findUnique.mockResolvedValue({
       id: 'sess_1',
@@ -193,6 +230,57 @@ describe('requestContract.service', () => {
       })
     }));
     expect(result.request.publicId).toBe('REQ-1');
+  });
+
+  it('returns an existing finalized MiniApp request for the same submitId instead of creating a duplicate', async () => {
+    mockPrisma.botSession.findUnique.mockResolvedValue({
+      id: 'sess_1',
+      variables: {
+        miniappPendingIntent: {
+          version: 1,
+          intentType: 'REQUEST',
+          slug: 'cartie',
+          title: 'Підбір авто',
+          tracking: { submitId: 'submit_finalized' },
+          createdAt: new Date().toISOString()
+        }
+      }
+    });
+    mockPrisma.b2bRequest.findFirst.mockResolvedValueOnce({
+      id: 'request_existing',
+      publicId: 'REQ-EXISTING',
+      title: 'Підбір авто',
+      payload: {
+        idempotencyKey: 'miniapp-submit:cmp_1:bot_1:1001:submit_finalized',
+        tracking: { submitId: 'submit_finalized' }
+      },
+      description: 'Existing request',
+      status: 'COLLECTING_VARIANTS'
+    });
+
+    const result = await requestContractService.finalizePendingLeadIntent({
+      botId: 'bot_1',
+      companyId: 'cmp_1',
+      telegramUserId: '1001',
+      phone: '+380671234567',
+      displayName: 'Client One',
+      telegramUsername: 'client_one',
+      telegramName: 'Client One'
+    });
+
+    expect(result.isDuplicate).toBe(true);
+    expect(result.request.publicId).toBe('REQ-EXISTING');
+    expect(createOrMergeLeadMock).not.toHaveBeenCalled();
+    expect(mockPrisma.b2bRequest.create).not.toHaveBeenCalled();
+    expect(mockPrisma.botSession.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'sess_1' },
+      data: expect.objectContaining({
+        state: 'CL_MENU',
+        variables: expect.objectContaining({
+          miniappPendingIntent: null
+        })
+      })
+    }));
   });
 
   it('reveals fit queue contacts only through explicit admin action and sets CONTACT_SHARED', async () => {

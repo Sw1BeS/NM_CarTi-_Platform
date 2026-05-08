@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildMiniAppEntryUrl, buildMiniAppUrl } from './miniappUrl.js';
+import { buildMiniAppEntryUrl, buildMiniAppUrl, normalizeMiniAppButtonUrl } from './miniappUrl.js';
 
 const bot = {
   config: {
@@ -73,5 +73,25 @@ describe('miniappUrl', () => {
     expect(url.pathname).toBe('/p/app/cartie');
     expect(url.searchParams.get('entry')).toBe('request');
     expect(url.searchParams.get('type')).toBe('BUY');
+  });
+
+  it('normalizes stale platform button URLs while preserving write params', () => {
+    const url = new URL(normalizeMiniAppButtonUrl(bot, 'https://old.example/p/app/old_slug?entry=request&type=BUY&carId=car_1'));
+
+    expect(url.origin).toBe('https://example.com');
+    expect(url.pathname).toBe('/p/app/cartie');
+    expect(url.searchParams.get('theme')).toBe('dark');
+    expect(url.searchParams.get('entry')).toBe('request');
+    expect(url.searchParams.get('type')).toBe('BUY');
+    expect(url.searchParams.get('carId')).toBe('car_1');
+  });
+
+  it('normalizes Telegram startapp aliases into configured MiniApp URLs', () => {
+    const url = new URL(normalizeMiniAppButtonUrl(bot, 'https://t.me/cartie_bot/app?startapp=view_transit'));
+
+    expect(url.origin).toBe('https://example.com');
+    expect(url.pathname).toBe('/p/app/cartie');
+    expect(url.searchParams.get('entry')).toBe('inventory');
+    expect(url.searchParams.get('status')).toBe('PENDING');
   });
 });

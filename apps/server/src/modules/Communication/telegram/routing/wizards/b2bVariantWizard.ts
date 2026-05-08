@@ -96,6 +96,71 @@ const sendRegisteredMenu = async (ctx: PipelineContext, notice?: string) => {
   });
 };
 
+const readRequestContact = (request: any) => {
+  const payload = (request?.payload || {}) as Record<string, any>;
+  const nested = (payload.request || {}) as Record<string, any>;
+  return toText(request?.contact)
+    || toText(payload.contact)
+    || toText(payload.phone)
+    || toText(nested.contact)
+    || toText(nested.phone);
+};
+
+const handleRequesterVariantDecision = async (
+  ctx: PipelineContext,
+  variantId: string,
+  decision: 'FIT' | 'NOT_FIT'
+) => {
+  const variant = await prisma.requestVariant.findUnique({
+    where: { id: variantId },
+    include: { request: true, sellerPartner: true }
+  });
+  if (!variant?.request) {
+    await sendMessage(ctx, '⚠️ Варіант не знайдено.');
+    return true;
+  }
+
+  const isFit = decision === 'FIT';
+  await prisma.requestVariant.update({
+    where: { id: variant.id },
+    data: {
+      requesterDecision: isFit ? 'FIT' : 'NOT_FIT',
+      requesterDecisionAt: new Date(),
+      status: isFit ? 'APPROVED' : 'REJECTED',
+      fitQueueStatus: isFit ? 'NEW' : null,
+      fitQueuedAt: isFit ? new Date() : null
+    }
+  });
+
+  await sendMessage(ctx, isFit ? '✅ Позначено як «Підходить».' : '❌ Позначено як «Не підходить».');
+
+  if (isFit && ctx.bot?.adminChatId) {
+    const actor = ctx.update?.callback_query?.from || ctx.update?.message?.from;
+    const actorTgUserId = String(actor?.id || ctx.userId || ctx.chatId || '');
+    const actorDisplayName = [actor?.first_name, actor?.last_name].filter(Boolean).join(' ').trim() || 'Користувач';
+    const actorUsername = actor?.username ? `@${actor.username}` : '—';
+    const actorLink = actor?.username ? `https://t.me/${actor.username}` : `tg://user?id=${actorTgUserId}`;
+    const requesterContact = readRequestContact(variant.request);
+    const sellerContact = toText(variant.contact || (variant.sellerPartner as any)?.contact);
+    await sendMessage(ctx, [
+      '🔥 [FIT]',
+      `👤 ${actorDisplayName}`,
+      `username: ${actorUsername}`,
+      `tgUserId: ${actorTgUserId || '—'}`,
+      `🔗 ${actorLink}`,
+      `Запит: #${variant.request.publicId || variant.request.id}`,
+      `Варіант: ${variant.title || '—'}`,
+      `Ціна: ${variant.price ? `${variant.price} USD` : '—'}`,
+      `Компанія продавця: ${variant.sellerPartner?.name || variant.companyName || '—'}`,
+      `Контакт автора: ${requesterContact || '—'}`,
+      `Контакт продавця: ${sellerContact || '—'}`,
+      'Fit queue: NEW'
+    ].join('\n'), undefined, String(ctx.bot.adminChatId));
+  }
+
+  return true;
+};
+
 const readDraft = (ctx: PipelineContext): VariantDraft | null => {
   const vars = (ctx.session?.variables as any) || {};
   const draft = vars.b2bVariantDraft as VariantDraft | undefined;
@@ -510,6 +575,12 @@ export const handleB2BVariantCallback = async (ctx: PipelineContext, action: str
     return true;
   }
 
+  if (action === ActionTokens.BV_FIT || action === ActionTokens.BV_NFIT) {
+    const variantId = toText(payload);
+    if (!variantId) return true;
+    return handleRequesterVariantDecision(ctx, variantId, action === ActionTokens.BV_FIT ? 'FIT' : 'NOT_FIT');
+  }
+
   if (!draft) {
     if (action !== ActionTokens.BV_SEND || !payload) {
       await sendMessage(ctx, '⚠️ Сесія варіанту неактивна. Відкрийте запит і натисніть «Є авто».');
@@ -600,57 +671,6 @@ export const handleB2BVariantCallback = async (ctx: PipelineContext, action: str
 
   if (action === ActionTokens.BV_SEND) {
     await submitVariant(ctx, draft);
-    return true;
-  }
-
-  if (action === ActionTokens.BV_FIT || action === ActionTokens.BV_NFIT) {
-    const variantId = toText(payload);
-    if (!variantId) return true;
-
-    const variant = await prisma.requestVariant.findUnique({
-      where: { id: variantId },
-      include: { request: true, sellerPartner: true }
-    });
-    if (!variant?.request) {
-      await sendMessage(ctx, '⚠️ Варіант не знайдено.');
-      return true;
-    }
-
-    const isFit = action === ActionTokens.BV_FIT;
-    await prisma.requestVariant.update({
-      where: { id: variant.id },
-      data: {
-        requesterDecision: isFit ? 'FIT' : 'NOT_FIT',
-        requesterDecisionAt: new Date(),
-        status: isFit ? 'APPROVED' : 'REJECTED',
-        fitQueueStatus: isFit ? 'NEW' : null,
-        fitQueuedAt: isFit ? new Date() : null
-      }
-    });
-
-    await sendMessage(ctx, isFit ? '✅ Позначено як «Підходить».' : '❌ Позначено як «Не підходить».');
-
-    if (isFit && ctx.bot?.adminChatId) {
-      const actor = ctx.update?.callback_query?.from || ctx.update?.message?.from;
-      const actorTgUserId = String(actor?.id || ctx.userId || ctx.chatId || '');
-      const actorDisplayName = [actor?.first_name, actor?.last_name].filter(Boolean).join(' ').trim() || 'Користувач';
-      const actorUsername = actor?.username ? `@${actor.username}` : '—';
-      const actorLink = actor?.username ? `https://t.me/${actor.username}` : `tg://user?id=${actorTgUserId}`;
-      await sendMessage(ctx, [
-        '🔥 [FIT]',
-        `👤 ${actorDisplayName}`,
-        `username: ${actorUsername}`,
-        `tgUserId: ${actorTgUserId || '—'}`,
-        `🔗 ${actorLink}`,
-        `Запит: #${variant.request.publicId || variant.request.id}`,
-        `Варіант: ${variant.title || '—'}`,
-        `Ціна: ${variant.price ? `${variant.price} USD` : '—'}`,
-        `Компанія продавця: ${variant.sellerPartner?.name || variant.companyName || '—'}`,
-        `Fit queue: NEW`,
-        'Контакти приховано до окремого підтвердження адміністратора.'
-      ].join('\n'), undefined, String(ctx.bot.adminChatId));
-    }
-
     return true;
   }
 
@@ -758,6 +778,10 @@ export const handleB2BVariantText = async (ctx: PipelineContext, text: string): 
   }
 
   if (state === 'BV_CONTACT') {
+    if (message?.contact?.user_id && message?.from?.id && String(message.contact.user_id) !== String(message.from.id)) {
+      await sendMessage(ctx, '⚠️ Поділіться, будь ласка, саме своїм контактом через кнопку Telegram.');
+      return true;
+    }
     const source = message?.contact?.phone_number || text;
     const normalized = normalizePhoneUA(source);
     if (!normalized) {

@@ -324,12 +324,15 @@ const MiniAppContent = () => {
     const [reqData, setReqData] = useState<RequestFormData>({
         brand: '',
         model: '',
+        brands: [],
+        models: [],
         budgetMin: '',
         budgetMax: '',
         yearMin: '',
         yearMax: '',
         city: '',
         brandSearch: '',
+        modelSearch: '',
         bodyType: '',
         brandCustom: '',
         modelCustom: ''
@@ -578,12 +581,15 @@ const MiniAppContent = () => {
         setReqData({
             brand: car.title || '',
             model: '',
+            brands: car.title ? [car.title] : [],
+            models: [],
             budgetMin: '',
             budgetMax: String(car.price?.amount || ''),
             yearMin: String(car.year || ''),
             yearMax: '',
             city: '',
             brandSearch: '',
+            modelSearch: '',
             bodyType: '',
             brandCustom: '',
             modelCustom: ''
@@ -604,12 +610,15 @@ const MiniAppContent = () => {
             setReqData({
                 brand: first.title || '',
                 model: '',
+                brands: first.title ? [first.title] : [],
+                models: [],
                 budgetMin: '',
                 budgetMax: String(first.price?.amount || ''),
                 yearMin: String(first.year || ''),
                 yearMax: '',
                 city: '',
                 brandSearch: '',
+                modelSearch: '',
                 bodyType: '',
                 brandCustom: '',
                 modelCustom: ''
@@ -957,9 +966,11 @@ const MiniAppContent = () => {
             return false;
         }
         if (!initData) setInitData(submitInitData);
-        const submitId = window.crypto?.randomUUID
-            ? window.crypto.randomUUID()
-            : `submit_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+        const submitId = requestSubmitIdRef.current
+            || (window.crypto?.randomUUID
+                ? window.crypto.randomUUID()
+                : `submit_${Date.now()}_${Math.random().toString(16).slice(2)}`);
+        requestSubmitIdRef.current = submitId;
         await createMiniAppLeadIntent({
             slug: targetSlug || 'system',
             initData: submitInitData,
@@ -970,6 +981,7 @@ const MiniAppContent = () => {
             comment: params.comment,
             tracking: { ...trackingMeta, submitId, requestType: 'BUY' }
         });
+        requestSubmitIdRef.current = null;
         return true;
     };
 
@@ -1766,7 +1778,7 @@ const MiniAppContent = () => {
         if (isRequestSubmitting) return;
         if (reqStep === 1) {
             if (isB2BMode) {
-                if (!reqData.brand.trim()) {
+                if (!reqData.brand.trim() && !(reqData.brands || []).length) {
                     setConfigWarning('Для B2B запиту вкажіть марку та модель.');
                     return;
                 }
@@ -1806,9 +1818,17 @@ const MiniAppContent = () => {
                 requestSubmitIdRef.current = submitId;
                 const effectiveBrand = reqData.brand === 'Інша марка' ? reqData.brandCustom.trim() : reqData.brand.trim();
                 const effectiveModel = reqData.model === 'Інша модель' ? reqData.modelCustom.trim() : reqData.model.trim();
+                const effectiveBrands = (reqData.brands?.length ? reqData.brands : (effectiveBrand ? [effectiveBrand] : []))
+                    .map(item => item === 'Інша марка' ? reqData.brandCustom.trim() : item.trim())
+                    .filter(Boolean);
+                const effectiveModels = (reqData.models?.length ? reqData.models : (effectiveModel ? [effectiveModel] : []))
+                    .map(item => item === 'Інша модель' ? reqData.modelCustom.trim() : item.trim())
+                    .filter(Boolean);
                 const criteria = {
-                    brand: effectiveBrand || undefined,
-                    model: effectiveModel || undefined,
+                    brand: effectiveBrands[0] || effectiveBrand || undefined,
+                    model: effectiveModels[0] || effectiveModel || undefined,
+                    brands: effectiveBrands.length ? effectiveBrands : undefined,
+                    models: effectiveModels.length ? effectiveModels : undefined,
                     yearFrom: reqData.yearMin || undefined,
                     yearTo: reqData.yearMax || undefined,
                     budgetMin: reqData.budgetMin || undefined,

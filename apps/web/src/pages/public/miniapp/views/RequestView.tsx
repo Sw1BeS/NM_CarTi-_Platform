@@ -16,12 +16,15 @@ type RequestType = 'BUY' | 'SELL';
 export type RequestFormData = {
   brand: string;
   model: string;
+  brands?: string[];
+  models?: string[];
   budgetMin: string;
   budgetMax: string;
   yearMin: string;
   yearMax: string;
   city: string;
   brandSearch: string;
+  modelSearch?: string;
   bodyType: string;
   brandCustom: string;
   modelCustom: string;
@@ -88,6 +91,93 @@ const Chip = ({
   </button>
 );
 
+const SelectedPill = ({ label, onRemove }: { label: string; onRemove: () => void }) => (
+  <span className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/8 px-3 py-2 text-xs font-semibold text-white">
+    {label}
+    <button type="button" onClick={onRemove} className="text-white/55 hover:text-white" aria-label={`Прибрати ${label}`}>
+      x
+    </button>
+  </span>
+);
+
+const SearchableOptionList = ({
+  inputLabel,
+  placeholder,
+  value,
+  onChange,
+  options,
+  selectedValues,
+  onPick,
+  disabled
+}: {
+  inputLabel: string;
+  placeholder: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: string[];
+  selectedValues: string[];
+  onPick: (value: string) => void;
+  disabled?: boolean;
+}) => {
+  const listboxId = React.useId();
+  const [focused, setFocused] = React.useState(false);
+  const visibleOptions = options
+    .filter(option => option.toLowerCase().includes(value.toLowerCase()))
+    .slice(0, 14);
+  const showList = focused && !disabled;
+
+  return (
+    <div className="relative">
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-white/35" size={18} />
+        <input
+          aria-label={inputLabel}
+          aria-autocomplete="list"
+          aria-controls={listboxId}
+          aria-expanded={showList}
+          role="combobox"
+          disabled={disabled}
+          className="w-full bg-[#15171a] text-white pl-10 pr-4 py-3 rounded-xl outline-none placeholder-white/30 border border-white/10 focus:border-white/35 transition-colors disabled:opacity-50"
+          placeholder={placeholder}
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          onFocus={() => setFocused(true)}
+          onBlur={() => window.setTimeout(() => setFocused(false), 120)}
+        />
+      </div>
+      {showList && (
+        <div
+          id={listboxId}
+          role="listbox"
+          className="absolute z-30 mt-2 max-h-64 w-full overflow-y-auto rounded-xl border border-white/12 bg-[#111316] shadow-2xl shadow-black/50"
+        >
+          {visibleOptions.length ? visibleOptions.map(option => {
+            const selected = selectedValues.includes(option);
+            return (
+              <button
+                key={option}
+                type="button"
+                role="option"
+                aria-selected={selected}
+                onMouseDown={e => e.preventDefault()}
+                onClick={() => onPick(option)}
+                className={`flex w-full items-center justify-between px-4 py-3 text-left text-sm transition-colors ${
+                  selected ? 'bg-white/12 text-white' : 'text-white/78 hover:bg-white/8 hover:text-white'
+                }`}
+              >
+                <span>{option}</span>
+                {selected && <span className="text-xs text-white/55">обрано</span>}
+              </button>
+            );
+          }) : (
+            <div className="px-4 py-3 text-sm text-white/50">Нічого не знайдено</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
 export const RequestView = ({
   reqStep,
   reqData,
@@ -117,13 +207,57 @@ export const RequestView = ({
   const filteredBrands = VEHICLE_BRANDS.filter(item =>
     item.brand.toLowerCase().includes(reqData.brandSearch.toLowerCase())
   );
-  const selectedBrand = VEHICLE_BRANDS.find(item => item.brand === reqData.brand);
-  const modelOptions = selectedBrand?.models?.length ? [...selectedBrand.models, ...(selectedBrand.brand === OTHER_BRAND ? [] : [OTHER_MODEL])] : [];
-  const displayBrand = reqData.brand === OTHER_BRAND ? reqData.brandCustom : reqData.brand;
-  const displayModel = reqData.model === OTHER_MODEL ? reqData.modelCustom : reqData.model;
+  const selectedBrands = (reqData.brands?.length ? reqData.brands : (reqData.brand ? [reqData.brand] : []))
+    .filter(Boolean);
+  const selectedModels = (reqData.models?.length ? reqData.models : (reqData.model ? [reqData.model] : []))
+    .filter(Boolean);
+  const modelOptions = Array.from(new Set(
+    selectedBrands.flatMap(brand => VEHICLE_BRANDS.find(item => item.brand === brand)?.models || [])
+  ))
+    .filter(Boolean)
+    .concat(selectedBrands.length && !selectedBrands.includes(OTHER_BRAND) ? [OTHER_MODEL] : [])
+    .sort((a, b) => a.localeCompare(b));
+  const filteredModels = modelOptions.filter(model =>
+    model.toLowerCase().includes(String(reqData.modelSearch || '').toLowerCase())
+  );
+  const displayBrand = selectedBrands.includes(OTHER_BRAND)
+    ? (reqData.brandCustom || OTHER_BRAND)
+    : selectedBrands.join(', ');
+  const displayModel = selectedModels.includes(OTHER_MODEL)
+    ? (reqData.modelCustom || OTHER_MODEL)
+    : selectedModels.join(', ');
   const title = surfaceMode === 'B2B'
     ? 'Створити B2B запит'
     : (requestType === 'SELL' ? 'Продаж авто' : 'Підбір авто');
+  const allowMultiVehicleChoice = surfaceMode === 'LEAD' && requestType === 'BUY' && selectedCarsCount === 0;
+  const pickBrand = (brand: string) => {
+    const nextBrands = allowMultiVehicleChoice
+      ? (selectedBrands.includes(brand) ? selectedBrands.filter(item => item !== brand) : [...selectedBrands, brand])
+      : [brand];
+    setReqData({
+      ...reqData,
+      brand: nextBrands[0] || '',
+      brands: nextBrands,
+      model: '',
+      models: [],
+      brandSearch: '',
+      modelSearch: '',
+      brandCustom: brand === OTHER_BRAND ? reqData.brandCustom : '',
+      modelCustom: ''
+    });
+  };
+  const pickModel = (model: string) => {
+    const nextModels = allowMultiVehicleChoice
+      ? (selectedModels.includes(model) ? selectedModels.filter(item => item !== model) : [...selectedModels, model])
+      : [model];
+    setReqData({
+      ...reqData,
+      model: nextModels[0] || '',
+      models: nextModels,
+      modelSearch: '',
+      modelCustom: model === OTHER_MODEL ? reqData.modelCustom : ''
+    });
+  };
 
   return (
     <div className="animate-fade-in pb-24 p-5 h-full overflow-y-auto flex flex-col justify-start bg-black">
@@ -176,34 +310,27 @@ export const RequestView = ({
           {reqStep === 1 && (
             <div className="space-y-4 animate-slide-up">
               <Field label="Марка">
-                <div className="relative mb-3">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-white/35" size={18} />
-                  <input
-                    className="w-full bg-[#15171a] text-white pl-10 pr-4 py-3 rounded-xl outline-none placeholder-white/30 border border-white/10 focus:border-white/30 transition-colors"
-                    placeholder="Пошук марки"
-                    value={reqData.brandSearch}
-                    onChange={e => setReqData({ ...reqData, brandSearch: e.target.value })}
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  {filteredBrands.map(item => (
-                    <Chip
-                      key={item.brand}
-                      selected={reqData.brand === item.brand}
-                      onClick={() => setReqData({
-                        ...reqData,
-                        brand: item.brand,
-                        model: item.brand === OTHER_BRAND ? OTHER_MODEL : '',
-                        brandSearch: '',
-                        brandCustom: item.brand === OTHER_BRAND ? reqData.brandCustom : '',
-                        modelCustom: ''
-                      })}
-                    >
-                      {item.brand}
-                    </Chip>
-                  ))}
-                </div>
-                {reqData.brand === OTHER_BRAND && (
+                <SearchableOptionList
+                  inputLabel="Пошук марки"
+                  placeholder={allowMultiVehicleChoice ? 'Почніть вводити марку, можна обрати кілька' : 'Почніть вводити марку'}
+                  value={reqData.brandSearch}
+                  onChange={value => setReqData({ ...reqData, brandSearch: value })}
+                  options={filteredBrands.map(item => item.brand)}
+                  selectedValues={selectedBrands}
+                  onPick={pickBrand}
+                />
+                {selectedBrands.length > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {selectedBrands.map(brand => (
+                      <SelectedPill
+                        key={brand}
+                        label={brand}
+                        onRemove={() => pickBrand(brand)}
+                      />
+                    ))}
+                  </div>
+                )}
+                {selectedBrands.includes(OTHER_BRAND) && (
                   <input
                     className="mt-3 w-full bg-[#15171a] text-white p-3 rounded-xl outline-none placeholder-white/30 border border-white/10 focus:border-white/30"
                     placeholder="Введіть марку"
@@ -213,18 +340,28 @@ export const RequestView = ({
                 )}
               </Field>
               <Field label="Модель">
-                <div className="grid grid-cols-2 gap-2">
-                  {(modelOptions.length ? modelOptions : ['Спочатку оберіть марку']).map(model => (
-                    <Chip
-                      key={model}
-                      selected={reqData.model === model}
-                      onClick={() => setReqData({ ...reqData, model })}
-                    >
-                      {model}
-                    </Chip>
-                  ))}
-                </div>
-                {reqData.model === OTHER_MODEL && (
+                <SearchableOptionList
+                  inputLabel="Пошук моделі"
+                  placeholder={selectedBrands.length ? (allowMultiVehicleChoice ? 'Почніть вводити модель, можна обрати кілька' : 'Почніть вводити модель') : 'Спочатку оберіть марку'}
+                  value={reqData.modelSearch || ''}
+                  onChange={value => setReqData({ ...reqData, modelSearch: value })}
+                  options={filteredModels}
+                  selectedValues={selectedModels}
+                  onPick={pickModel}
+                  disabled={!selectedBrands.length}
+                />
+                {selectedModels.length > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {selectedModels.map(model => (
+                      <SelectedPill
+                        key={model}
+                        label={model}
+                        onRemove={() => pickModel(model)}
+                      />
+                    ))}
+                  </div>
+                )}
+                {selectedModels.includes(OTHER_MODEL) && (
                   <input
                     className="mt-3 w-full bg-[#15171a] text-white p-3 rounded-xl outline-none placeholder-white/30 border border-white/10 focus:border-white/30"
                     placeholder="Введіть модель"

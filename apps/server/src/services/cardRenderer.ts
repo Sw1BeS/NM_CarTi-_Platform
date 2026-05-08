@@ -140,8 +140,11 @@ export const renderB2bChannelPost = (
   const actionButton = responseUrl
     ? { text: 'Є авто', url: responseUrl }
     : { text: 'Є авто', callback_data: buildCallbackData(ActionTokens.BV_SEND, String(request.publicId || request.id).slice(0, 28)) };
+  const openBotButton = responseUrl
+    ? { text: 'Відкрити в боті', url: responseUrl }
+    : null;
   const replyMarkup = {
-    inline_keyboard: [[actionButton]]
+    inline_keyboard: [[actionButton, openBotButton].filter(Boolean)]
   };
   return { text, replyMarkup };
 };

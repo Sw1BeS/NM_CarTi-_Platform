@@ -7,8 +7,10 @@ const {
   createRequestMock,
   prismaLeadUpdateMock,
   leadActivityCreateMock,
+  integrationEventLogCreateMock,
   botConfigFindUniqueMock,
   emitPlatformEventMock,
+  metaCompanyTrackMock,
   metaSendEventMock
 } = vi.hoisted(() => ({
   findDuplicateMock: vi.fn(),
@@ -17,8 +19,10 @@ const {
   createRequestMock: vi.fn(async () => ({ id: 'req_default', publicId: 'REQ-DEFAULT' })),
   prismaLeadUpdateMock: vi.fn(async () => null),
   leadActivityCreateMock: vi.fn(async () => ({ id: 'act_1' })),
+  integrationEventLogCreateMock: vi.fn(async () => ({ id: 'log_1' })),
   botConfigFindUniqueMock: vi.fn(async () => null),
   emitPlatformEventMock: vi.fn(async () => undefined),
+  metaCompanyTrackMock: vi.fn(async () => ({ success: true })),
   metaSendEventMock: vi.fn(async () => undefined)
 }));
 
@@ -39,6 +43,7 @@ vi.mock('../../../../repositories/index.js', () => {
 vi.mock('../../../../services/prisma.js', () => ({
   prisma: {
     leadActivity: { create: leadActivityCreateMock },
+    integrationEventLog: { create: integrationEventLogCreateMock },
     lead: { update: prismaLeadUpdateMock },
     botConfig: { findUnique: botConfigFindUniqueMock },
     systemSettings: { findFirst: vi.fn(async () => null) }
@@ -51,6 +56,12 @@ vi.mock('./events/eventEmitter.js', () => ({
 
 vi.mock('../../../Integrations/meta/meta.service.js', () => ({
   MetaService: { getInstance: () => ({ sendEvent: metaSendEventMock }) }
+}));
+
+vi.mock('../../../Integrations/integration.service.js', () => ({
+  IntegrationService: class {
+    metaPixelTrackEvent = metaCompanyTrackMock;
+  }
 }));
 
 vi.mock('../../../Integrations/sendpulse/sendpulse.service.js', () => ({
@@ -67,6 +78,7 @@ beforeEach(() => {
   updatePayloadMock.mockResolvedValue({ id: 'lead_default', payload: {} } as any);
   createRequestMock.mockResolvedValue({ id: 'req_default', publicId: 'REQ-DEFAULT' } as any);
   botConfigFindUniqueMock.mockResolvedValue(null as any);
+  metaCompanyTrackMock.mockResolvedValue({ success: true });
 });
 
 describe('createOrMergeLead', () => {
@@ -99,6 +111,12 @@ describe('createOrMergeLead', () => {
         telegramName: 'John Doe',
         name: 'John Doe'
       })
+    }));
+    expect(metaCompanyTrackMock).toHaveBeenCalledWith('comp_1', 'Lead', expect.objectContaining({
+      eventId: 'lead:lead_new',
+      externalId: 'telegram:777',
+      phone: undefined,
+      contentIds: ['lead_new']
     }));
   });
 
@@ -207,5 +225,33 @@ describe('createOrMergeLead', () => {
       telegramName: 'Alice Smith',
       name: 'Alice Smith'
     }));
+  });
+
+  it('updates duplicate lead phone when a verified Telegram contact arrives', async () => {
+    const duplicate = { id: 'lead_phone', clientName: 'Ivan Client', phone: null, payload: {} };
+    findDuplicateMock.mockResolvedValueOnce(duplicate);
+    prismaLeadUpdateMock.mockResolvedValueOnce({ ...duplicate, phone: '+380635055252', payload: { phone: '+380635055252' } });
+
+    await createOrMergeLead({
+      botId: 'bot_1',
+      companyId: 'comp_1',
+      chatId: '1001',
+      userId: '1001',
+      name: 'Ivan Client',
+      telegramName: 'Ivan Client',
+      phone: '+38 (063) 505-52-52',
+      source: 'TELEGRAM',
+      createRequest: false
+    });
+
+    expect(prismaLeadUpdateMock).toHaveBeenCalledWith({
+      where: { id: 'lead_phone' },
+      data: expect.objectContaining({
+        phone: '+380635055252',
+        payload: expect.objectContaining({
+          phone: '+380635055252'
+        })
+      })
+    });
   });
 });

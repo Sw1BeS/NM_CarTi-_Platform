@@ -31,6 +31,38 @@ export interface MiniAppFilters {
   [key: string]: string | number | boolean | undefined | null;
 }
 
+const normalizeStartParamFilters = (value?: string | null): MiniAppFilters => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (!normalized) return {};
+  const aliases: Record<string, MiniAppFilters> = {
+    home: { entry: 'home' },
+    app: { entry: 'home' },
+    miniapp: { entry: 'home' },
+    view_inventory: { entry: 'inventory', status: 'AVAILABLE' },
+    inventory: { entry: 'inventory' },
+    stock: { entry: 'inventory', status: 'AVAILABLE' },
+    view_stock: { entry: 'inventory', status: 'AVAILABLE' },
+    view_transit: { entry: 'inventory', status: 'PENDING' },
+    transit: { entry: 'inventory', status: 'PENDING' },
+    pending: { entry: 'inventory', status: 'PENDING' },
+    view_request: { entry: 'request', type: 'BUY' },
+    request: { entry: 'request', type: 'BUY' },
+    buy: { entry: 'request', type: 'BUY' },
+    sell_car: { entry: 'request', type: 'SELL' },
+    sell: { entry: 'request', type: 'SELL' },
+    view_favorites: { entry: 'favorites' },
+    favorites: { entry: 'favorites' },
+    favourites: { entry: 'favorites' },
+    support: { entry: 'support' },
+    contacts: { entry: 'contacts' },
+    contact: { entry: 'contacts' },
+    profile: { entry: 'profile' },
+    status: { entry: 'status' },
+    view_status: { entry: 'status' }
+  };
+  return aliases[normalized] || {};
+};
+
 export const buildMiniAppUrl = (bot: BotConfig, filters: MiniAppFilters = {}) => {
   const config = (bot.config || {}) as any;
 
@@ -72,6 +104,37 @@ export const buildMiniAppUrl = (bot: BotConfig, filters: MiniAppFilters = {}) =>
   }
 
   return url.toString();
+};
+
+export const normalizeMiniAppButtonUrl = (
+  bot: BotConfig,
+  rawValue?: string | null,
+  fallbackFilters: MiniAppFilters = {}
+) => {
+  const raw = String(rawValue || '').trim();
+  const isPlaceholder = raw === '{{MINI_APP_URL}}' || raw === '{MINI_APP_URL}';
+  if (!raw || isPlaceholder) return buildMiniAppUrl(bot, fallbackFilters);
+
+  try {
+    const rawUrl = new URL(raw);
+    const isTelegramMiniAppLink = /(^|\.)t\.me$/i.test(rawUrl.hostname) && /\/app\/?$/i.test(rawUrl.pathname);
+    const isMiniAppPath = /\/p\/app(?:\/|$)/i.test(rawUrl.pathname);
+    const explicitStart = rawUrl.searchParams.get('startapp')
+      || rawUrl.searchParams.get('tgWebAppStartParam')
+      || rawUrl.searchParams.get('start_param');
+
+    if (!isTelegramMiniAppLink && !isMiniAppPath && !explicitStart) return raw;
+
+    const filters: MiniAppFilters = { ...fallbackFilters };
+    rawUrl.searchParams.forEach((value, key) => {
+      if (['startapp', 'tgWebAppStartParam', 'start_param', 'v'].includes(key)) return;
+      filters[key] = value;
+    });
+    Object.assign(filters, normalizeStartParamFilters(explicitStart));
+    return buildMiniAppUrl(bot, filters);
+  } catch {
+    return raw;
+  }
 };
 
 /**

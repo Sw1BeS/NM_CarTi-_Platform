@@ -122,6 +122,19 @@ const readSubmitId = (tracking: unknown) => {
   return toOptionalString(tracking.submitId) || toOptionalString(tracking.submit_id);
 };
 
+export const buildMiniAppSubmitKey = (params: {
+  companyId: string;
+  botId?: string | null;
+  telegramUserId?: string | null;
+  submitId?: string | null;
+}) => [
+  'miniapp-submit',
+  params.companyId,
+  params.botId || 'no-bot',
+  params.telegramUserId || 'anonymous',
+  params.submitId || 'no-submit'
+].join(':');
+
 class RequestContractService {
   private buildPendingIntentFromLegacyDraft(draft: Record<string, unknown>, fallbackSlug: string): MiniAppPendingIntent | null {
     const title = toOptionalString(draft.title) || 'Авто з Mini App';
@@ -392,6 +405,66 @@ class RequestContractService {
     return { cleared: true };
   }
 
+  async findKnownLeadContact(params: {
+    companyId: string;
+    botId?: string | null;
+    telegramUserId?: string | null;
+  }) {
+    const companyId = toOptionalString(params.companyId);
+    const telegramUserId = toOptionalString(params.telegramUserId);
+    if (!companyId || !telegramUserId) return null;
+
+    const lead = await prisma.lead.findFirst({
+      where: {
+        companyId,
+        phone: { not: null },
+        OR: [
+          { userTgId: telegramUserId },
+          { payload: { path: ['telegramUserId'], equals: telegramUserId } },
+          { payload: { path: ['telegram', 'userId'], equals: telegramUserId } },
+          { payload: { path: ['telegram', 'id'], equals: telegramUserId } }
+        ]
+      },
+      orderBy: { updatedAt: 'desc' }
+    });
+
+    const phone = toOptionalString(lead?.phone);
+    if (!lead?.id || !phone) return null;
+    return {
+      leadId: lead.id,
+      phone
+    };
+  }
+
+  private async findExistingMiniAppSubmit(params: {
+    companyId: string;
+    botId?: string | null;
+    telegramUserId?: string | null;
+    submitId?: string | null;
+  }) {
+    const submitId = toOptionalString(params.submitId);
+    const companyId = toOptionalString(params.companyId);
+    if (!companyId || !submitId) return null;
+
+    const idempotencyKey = buildMiniAppSubmitKey({
+      companyId,
+      botId: params.botId,
+      telegramUserId: params.telegramUserId,
+      submitId
+    });
+
+    return prisma.b2bRequest.findFirst({
+      where: {
+        companyId,
+        OR: [
+          { payload: { path: ['idempotencyKey'], equals: idempotencyKey } },
+          { payload: { path: ['tracking', 'submitId'], equals: submitId } }
+        ]
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+  }
+
   async finalizePendingLeadIntent(params: {
     botId: string;
     companyId: string;
@@ -484,6 +557,58 @@ class RequestContractService {
       selectedCars: selectedCarsOrdered,
       payload: pendingIntent.payload || undefined
     } as Record<string, unknown>;
+    const submitId = readSubmitId(pendingIntent.tracking);
+    if (submitId) {
+      requestPayload.idempotencyKey = buildMiniAppSubmitKey({
+        companyId: params.companyId,
+        botId: params.botId,
+        telegramUserId: params.telegramUserId,
+        submitId
+      });
+      const existingRequest = await this.findExistingMiniAppSubmit({
+        companyId: params.companyId,
+        botId: params.botId,
+        telegramUserId: params.telegramUserId,
+        submitId
+      });
+      if (existingRequest) {
+        await prisma.botSession.update({
+          where: { id: session.id },
+          data: {
+            state: 'CL_MENU',
+            variables: {
+              ...vars,
+              miniappPendingIntent: null,
+              miniappInterestDraft: null
+            },
+            lastActive: new Date()
+          }
+        });
+
+        await prisma.integrationEventLog.create({
+          data: {
+            companyId: params.companyId,
+            integration: 'telegram',
+            action: 'miniapp.lead_intent_duplicate',
+            status: 'SUCCESS',
+            entityType: 'request',
+            entityId: String(existingRequest.id),
+            idempotencyKey: `miniapp-duplicate:${requestPayload.idempotencyKey}`,
+            message: `${pendingIntent.intentType} duplicate submit ignored`
+          }
+        }).catch(() => null);
+
+        return {
+          intentType: pendingIntent.intentType,
+          title,
+          phone: params.phone,
+          isDuplicate: true,
+          lead: null,
+          request: existingRequest,
+          selectedCars: selectedCarsOrdered
+        };
+      }
+    }
 
     const leadResult = await createOrMergeLead({
       botId: params.botId,

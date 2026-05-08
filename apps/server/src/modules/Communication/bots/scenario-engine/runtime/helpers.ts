@@ -1,7 +1,7 @@
 import { ulid } from 'ulid';
 import { emitPlatformEvent } from '../../../telegram/core/events/eventEmitter.js';
 import { renderCarListingCard } from '../../../../../services/cardRenderer.js';
-import { buildMiniAppUrl } from '../../../telegram/core/utils/miniappUrl.js';
+import { buildMiniAppUrl, normalizeMiniAppButtonUrl } from '../../../telegram/core/utils/miniappUrl.js';
 import type { BotRuntime, ReplyKeyboardButton } from '../types.js';
 
 export const normalizeTextCommand = (cmd: string) => cmd?.trim().toLowerCase() || '';
@@ -16,7 +16,7 @@ export const resolveMenuLink = (bot: BotRuntime, rawValue?: string) => {
     const url = buildMiniAppUrl(bot as any, {});
     return url || raw;
   }
-  return raw;
+  return normalizeMiniAppButtonUrl(bot as any, raw);
 };
 
 export const isMiniAppLink = (rawValue?: string) => {

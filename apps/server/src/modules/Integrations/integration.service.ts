@@ -7,6 +7,7 @@ import { prisma } from '../../services/prisma.js';
 import axios from 'axios';
 import { telegramOutbox } from '../Communication/telegram/messaging/outbox/telegramOutbox.js';
 import { logger } from '../../utils/logger.js';
+import crypto from 'node:crypto';
 
 const normalizePublicBase = (value?: string | null) => {
     if (!value) return undefined;
@@ -31,6 +32,24 @@ const normalizeMediaUrl = async (url?: string, botId?: string | null) => {
     if (!base) return undefined;
     const path = url.startsWith('/') ? url : `/${url}`;
     return `${base}${path}`;
+};
+
+const sha256 = (value: string) =>
+    crypto.createHash('sha256').update(value.trim().toLowerCase()).digest('hex');
+
+const normalizeMetaEmail = (value?: string | null) => {
+    const email = String(value || '').trim().toLowerCase();
+    return email && email.includes('@') ? email : undefined;
+};
+
+const normalizeMetaPhone = (value?: string | null) => {
+    const digits = String(value || '').replace(/[^\d]/g, '');
+    return digits.length >= 8 ? digits : undefined;
+};
+
+const normalizeMetaArrayHash = (value?: string | null, normalizer?: (value?: string | null) => string | undefined) => {
+    const normalized = normalizer ? normalizer(value) : String(value || '').trim().toLowerCase();
+    return normalized ? [sha256(normalized)] : undefined;
 };
 
 export class IntegrationService {
@@ -187,24 +206,44 @@ export class IntegrationService {
             return { success: false, error: 'Missing configuration' };
         }
 
-        try {
-            const { testMetaConnection } = await import('./meta.service.js');
-            const crypto = await import('crypto');
+        const eventId = String(data?.eventId || data?.event_id || `${eventName}_${Date.now()}`).trim();
+        const idempotencyKey = `meta:${companyId}:${eventName}:${eventId}`;
+        const existingLog = await prisma.integrationEventLog.findUnique({
+            where: { idempotencyKey }
+        }).catch(() => null);
+        if (existingLog?.status === 'SUCCESS') {
+            return { success: true, eventId, duplicate: true };
+        }
 
-            const hash = (str: string) =>
-                crypto.createHash('sha256').update(str.trim().toLowerCase()).digest('hex');
+        try {
+            const userData = {
+                ...(normalizeMetaArrayHash(data?.phone, normalizeMetaPhone) ? { ph: normalizeMetaArrayHash(data?.phone, normalizeMetaPhone) } : {}),
+                ...(normalizeMetaArrayHash(data?.email, normalizeMetaEmail) ? { em: normalizeMetaArrayHash(data?.email, normalizeMetaEmail) } : {}),
+                ...(normalizeMetaArrayHash(data?.name) ? { fn: normalizeMetaArrayHash(data?.name) } : {}),
+                ...(normalizeMetaArrayHash(data?.externalId || data?.external_id) ? { external_id: normalizeMetaArrayHash(data?.externalId || data?.external_id) } : {}),
+                ...(data?.fbp ? { fbp: String(data.fbp) } : {}),
+                ...(data?.fbc ? { fbc: String(data.fbc) } : {}),
+                ...(data?.ip ? { client_ip_address: String(data.ip) } : {}),
+                ...(data?.userAgent ? { client_user_agent: String(data.userAgent) } : {})
+            };
+
+            const customData = {
+                ...(data?.customData && typeof data.customData === 'object' ? data.customData : {}),
+                ...(data?.value !== undefined ? { value: data.value, currency: data.currency || 'USD' } : {}),
+                ...(Array.isArray(data?.contentIds) ? { content_ids: data.contentIds } : {}),
+                ...(data?.contentName ? { content_name: data.contentName } : {}),
+                ...(data?.contentCategory ? { content_category: data.contentCategory } : {})
+            };
 
             const payload = {
                 data: [{
                     event_name: eventName,
+                    event_id: eventId,
                     event_time: Math.floor(Date.now() / 1000),
-                    user_data: {
-                        ...(data?.phone ? { ph: hash(data.phone) } : {}),
-                        ...(data?.email ? { em: hash(data.email) } : {}),
-                        ...(data?.name ? { fn: hash(data.name) } : {})
-                    },
-                    action_source: "website",
-                    ...(data?.value ? { custom_data: { value: data.value, currency: data.currency || 'USD' } } : {})
+                    user_data: userData,
+                    action_source: data?.actionSource || data?.action_source || 'website',
+                    ...(data?.eventSourceUrl || data?.event_source_url ? { event_source_url: String(data.eventSourceUrl || data.event_source_url) } : {}),
+                    ...(Object.keys(customData).length ? { custom_data: customData } : {})
                 }],
                 ...(testCode ? { test_event_code: testCode } : {})
             };
@@ -215,11 +254,46 @@ export class IntegrationService {
                 payload
             );
 
+            await prisma.integrationEventLog.create({
+                data: {
+                    companyId,
+                    integration: 'META_PIXEL',
+                    action: eventName,
+                    status: 'SUCCESS',
+                    entityType: data?.entityType || 'meta_event',
+                    entityId: data?.entityId || eventId,
+                    message: `Meta CAPI event ${eventName} sent`,
+                    idempotencyKey,
+                    meta: {
+                        eventId,
+                        hasPhone: Boolean(data?.phone),
+                        hasEmail: Boolean(data?.email),
+                        hasExternalId: Boolean(data?.externalId || data?.external_id),
+                        hasFbp: Boolean(data?.fbp),
+                        hasFbc: Boolean(data?.fbc)
+                    }
+                }
+            }).catch(() => null);
+
             logger.info(`[Meta Pixel] Event sent: ${eventName}`);
-            return { success: true };
+            return { success: true, eventId };
         } catch (e: any) {
-            logger.error('[Meta Pixel] Error:', e.response?.data?.error?.message || e.message);
-            return { success: false, error: e.response?.data?.error?.message || e.message };
+            const error = e.response?.data?.error?.message || e.message;
+            await prisma.integrationEventLog.create({
+                data: {
+                    companyId,
+                    integration: 'META_PIXEL',
+                    action: eventName,
+                    status: 'ERROR',
+                    entityType: data?.entityType || 'meta_event',
+                    entityId: data?.entityId || eventId,
+                    message: error,
+                    idempotencyKey,
+                    meta: { eventId }
+                }
+            }).catch(() => null);
+            logger.error('[Meta Pixel] Error:', error);
+            return { success: false, eventId, error };
         }
     }
 

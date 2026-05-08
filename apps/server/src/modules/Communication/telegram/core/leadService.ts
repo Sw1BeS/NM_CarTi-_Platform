@@ -5,6 +5,7 @@ import { normalizePhone } from '../../../Inventory/normalization/normalizePhone.
 import { emitPlatformEvent } from './events/eventEmitter.js';
 import { generatePublicId, mapRequestInput } from '../../../../services/dto.js';
 import { MetaService } from '../../../Integrations/meta/meta.service.js';
+import { IntegrationService } from '../../../Integrations/integration.service.js';
 import { logger } from '../../../../utils/logger.js';
 import { logIntegrationEvent } from '../../../../services/integrationEventLog.service.js';
 
@@ -109,9 +110,11 @@ export const createOrMergeLead = async (input: LeadCreateInput, botConfig?: any)
 
   if (dup) {
     const shouldUpdateClientName = !dup.clientName || isGenericName(dup.clientName);
+    const shouldUpdatePhone = Boolean(normalizedPhone && normalizedPhone !== dup.phone);
     const nextPayload = {
       ...(dup.payload as any || {}),
       lastInteractionAt: new Date().toISOString(),
+      phone: normalizedPhone || (dup.payload as any)?.phone,
       telegramChatId: input.chatId || (dup.payload as any)?.telegramChatId,
       telegramUserId: telegramUserId || (dup.payload as any)?.telegramUserId,
       telegramUsername: input.telegramUsername || (dup.payload as any)?.telegramUsername,
@@ -142,6 +145,7 @@ export const createOrMergeLead = async (input: LeadCreateInput, botConfig?: any)
         where: { id: dup.id },
         data: {
           ...(shouldUpdateClientName ? { clientName: normalizedName } : {}),
+          ...(shouldUpdatePhone ? { phone: normalizedPhone } : {}),
           payload: nextPayload
         }
       });
@@ -151,6 +155,12 @@ export const createOrMergeLead = async (input: LeadCreateInput, botConfig?: any)
         await prisma.lead.update({
           where: { id: dup.id },
           data: { clientName: normalizedName }
+        }).catch(() => null);
+      }
+      if (shouldUpdatePhone) {
+        await prisma.lead.update({
+          where: { id: dup.id },
+          data: { phone: normalizedPhone }
         }).catch(() => null);
       }
     }
@@ -246,16 +256,39 @@ export const createOrMergeLead = async (input: LeadCreateInput, botConfig?: any)
     }
   });
 
-  // Meta CAPI Event
-  MetaService.getInstance().sendEvent('Lead', {
-    ph: normalizedPhone, // hashed inside service if needed
-    client_user_agent: 'Telegram Bot' // server-side event
-  }, {
-    content_name: 'Lead ' + (input.name || 'Unknown'),
-    content_category: 'Lead',
-    content_ids: [lead.id],
+  // Meta CAPI Event: prefer company-scoped Integration config; keep env fallback only for legacy installs.
+  new IntegrationService().metaPixelTrackEvent(companyId, 'Lead', {
+    eventId: `lead:${lead.id}`,
+    externalId: telegramUserId ? `telegram:${telegramUserId}` : `lead:${lead.id}`,
+    phone: normalizedPhone || undefined,
+    email: input.email || input.payload?.email || undefined,
+    name: normalizedName,
+    actionSource: 'chat',
+    entityType: 'lead',
+    entityId: lead.id,
+    contentName: `Lead ${normalizedName}`,
+    contentCategory: 'Lead',
+    contentIds: [lead.id],
     value: 0,
-    currency: 'USD'
+    currency: 'USD',
+    customData: {
+      botId: input.botId,
+      source: input.source || 'TELEGRAM',
+      leadType: input.leadType || undefined
+    }
+  }).then((result) => {
+    if (result) return;
+    if (!process.env.META_PIXEL_ID || !process.env.META_ACCESS_TOKEN) return;
+    return MetaService.getInstance().sendEvent('Lead', {
+      ph: normalizedPhone,
+      client_user_agent: 'Telegram Bot'
+    }, {
+      content_name: `Lead ${normalizedName}`,
+      content_category: 'Lead',
+      content_ids: [lead.id],
+      value: 0,
+      currency: 'USD'
+    });
   }).catch(logger.error);
 
   // SendPulse Integration - Add lead to mailing list

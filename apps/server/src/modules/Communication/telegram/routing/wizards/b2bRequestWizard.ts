@@ -15,6 +15,7 @@ import { renderB2bChannelPost } from '../../../../../services/cardRenderer.js';
 import { normalizeBotConfigChatId } from '../../core/utils/telegramChatId.js';
 import { quotaService } from '../../../../../services/quota.service.js';
 import { getEnvInt } from '../../../../../services/featureFlags.js';
+import { publicIdService } from '../../../../../services/publicId.service.js';
 
 type B2BRequestDraft = {
   step: number;
@@ -449,8 +450,10 @@ const publishRequest = async (ctx: PipelineContext, draft: B2BRequestDraft) => {
   }
 
   const title = `${toText(draft.data.brand)} ${toText(draft.data.model)}`.trim() || 'Автозапит';
+  const publicId = await publicIdService.nextB2bRequestId('CD');
   const request = await prisma.b2bRequest.create({
     data: {
+      publicId,
       companyId: ctx.companyId || null,
       botId: ctx.bot.id,
       requesterPartnerId: partnerCtx?.partnerId || null,
@@ -711,6 +714,10 @@ export const handleB2BReqText = async (ctx: PipelineContext, text: string): Prom
   }
 
   if (state === 'BQ_CONTACT') {
+    if (message?.contact?.user_id && message?.from?.id && String(message.contact.user_id) !== String(message.from.id)) {
+      await sendMessage(ctx, '⚠️ Поділіться, будь ласка, саме своїм контактом через кнопку Telegram.');
+      return true;
+    }
     const source = message?.contact?.phone_number || text;
     const normalized = normalizePhoneUA(source);
     if (!normalized) {
