@@ -180,6 +180,11 @@ export const routeCallback = async (ctx: PipelineContext) => {
     }
 
     switch (parsed.action) {
+      case ActionTokens.CL_SELL: {
+        const { startLeadSellWizard } = await import('./wizards/leadSellWizard.js');
+        await startLeadSellWizard(ctx);
+        return true;
+      }
       case ActionTokens.LB_CANCEL:
         await showMenu(
           ctx,

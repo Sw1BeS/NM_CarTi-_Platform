@@ -19,6 +19,9 @@ export const ActionTokens = {
   LB_EDIT_CITY: 'lb_e_ct',
   LB_CANCEL: 'lb_cancel',
 
+  // Lead menu
+  CL_SELL: 'cl_sell',
+
   // Lead SELL
   LS_SAVE: 'ls_save',
   LS_PUB_CARTIE: 'ls_pubc',

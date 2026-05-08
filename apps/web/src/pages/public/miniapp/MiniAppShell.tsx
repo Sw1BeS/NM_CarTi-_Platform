@@ -32,7 +32,7 @@ export const MiniAppShell = ({
   return (
     <div className="telegram-miniapp-shell relative mx-auto flex h-[var(--tg-viewport-height)] min-h-[var(--tg-viewport-height)] w-full max-w-md flex-col overflow-hidden border-x border-[#202226] bg-[#050608] font-sans text-white shadow-2xl">
       {configWarning && (
-        <div className="bg-yellow-500/15 text-yellow-300 text-[10px] uppercase font-bold text-center py-1 border-b border-yellow-500/30">
+        <div className="bg-[#111316]/95 text-[#D9DEE5] text-[11px] font-semibold text-center px-4 py-2 border-b border-white/10 leading-snug">
           {configWarning}
         </div>
       )}

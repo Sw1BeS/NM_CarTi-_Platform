@@ -236,10 +236,8 @@ export const showMenu = async (ctx: PipelineContext, lang: Lang, template: strin
 
     const leadKeyboard = buildClientLeadMiniAppKeyboard(ctx.bot, lang);
 
-    await sendMessage(ctx, t(lang, 'common.welcome_lead', { bot: botName }), {
-      keyboard: leadKeyboard,
-      resize_keyboard: true
-    });
+    await sendMessage(ctx, 'Оновлюю кнопки меню…', { remove_keyboard: true });
+    await sendMessage(ctx, t(lang, 'common.welcome_lead', { bot: botName }), leadKeyboard);
     await updateSession(ctx, 'CL_MENU', {
       ...baseVars,
       leadFlow: {},
