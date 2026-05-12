@@ -135,7 +135,7 @@ describe('b2bRequestWizard', () => {
       chatId: '-100123',
       replyMarkup: expect.objectContaining({
         inline_keyboard: [[
-          expect.objectContaining({ text: 'Є авто', url: 'https://t.me/CarDealer_Lviv_Bot?start=b2bv_CD-2026-000123' }),
+          expect.objectContaining({ text: 'Є авто', callback_data: 'v1:bv_send:CD-2026-000123' }),
           expect.objectContaining({ text: 'Відкрити в боті', url: 'https://t.me/CarDealer_Lviv_Bot?start=b2bv_CD-2026-000123' })
         ]]
       })

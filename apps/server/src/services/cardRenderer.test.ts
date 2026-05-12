@@ -84,7 +84,7 @@ describe('cardRenderer redaction', () => {
     expect(text).not.toContain('t.me/dealer_one');
   });
 
-  it('uses a private deep-link for b2b channel CTA when responseUrl is provided', () => {
+  it('uses callback for the B2B "Є авто" message action and keeps a separate open-bot link', () => {
     const { replyMarkup } = renderB2bChannelPost({
       id: '1',
       publicId: 'CD-123',
@@ -95,7 +95,7 @@ describe('cardRenderer redaction', () => {
 
     expect(replyMarkup?.inline_keyboard?.[0]?.[0]).toEqual({
       text: 'Є авто',
-      url: 'https://t.me/CarDealer_Lviv_Bot?start=b2bv_CD-123'
+      callback_data: 'v1:bv_send:CD-123'
     });
     expect(replyMarkup?.inline_keyboard?.[0]?.[1]).toEqual({
       text: 'Відкрити в боті',

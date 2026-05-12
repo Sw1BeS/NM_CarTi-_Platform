@@ -183,30 +183,26 @@ const sendCarCardToChat = async (
 
 const webAppButton = (text: string, url: string) => ({ text, web_app: { url } });
 
-const buildB2BRegisteredInlineMenu = (ctx: PipelineContext, lang: Lang) => {
-  if (!ctx.bot) return { inline_keyboard: [] };
+const buildB2BRegisteredMenu = (ctx: PipelineContext, lang: Lang) => {
+  if (!ctx.bot) return { keyboard: [], resize_keyboard: true, is_persistent: true };
 
+  const requestUrl = buildMiniAppUrl(ctx.bot, { entry: 'request' });
   const inventoryUrl = buildMiniAppUrl(ctx.bot, { entry: 'inventory' });
-  const variantsUrl = buildMiniAppUrl(ctx.bot, { entry: 'variants' });
   const statusUrl = buildMiniAppUrl(ctx.bot, { entry: 'status' });
   const supportUrl = buildMiniAppUrl(ctx.bot, { entry: 'support' });
   const profileUrl = buildMiniAppUrl(ctx.bot, { entry: 'profile' });
 
   const rows: any[][] = [
-    [
-      { text: button(lang, 'b2bMenu.newRequest'), callback_data: buildCallbackData('b2b_req') },
-      { text: button(lang, 'b2bMenu.sell'), callback_data: buildCallbackData('bs_form') }
-    ]
+    [webAppButton(button(lang, 'b2bMenu.newRequest'), requestUrl), webAppButton('🚙 Склад', inventoryUrl)],
+    [webAppButton('📊 Угоди', statusUrl), webAppButton('🆘 Підтримка', supportUrl)],
+    [webAppButton('👤 Профіль', profileUrl)]
   ];
 
-  const miniAppRows: any[][] = [
-    [webAppButton('🚙 Склад', inventoryUrl), webAppButton('📨 Варіанти', variantsUrl)],
-    [webAppButton('📊 Статуси', statusUrl), webAppButton('👤 Профіль', profileUrl)],
-    [webAppButton('🆘 Підтримка', supportUrl), { text: button(lang, 'common.info'), callback_data: buildCallbackData('cl_info_b2b') }]
-  ];
-
-  rows.push(...miniAppRows.map((row) => row.filter((item) => !item.web_app || item.web_app.url)));
-  return { inline_keyboard: rows.filter((row) => row.length) };
+  return {
+    keyboard: rows.map((row) => row.filter((item) => !item.web_app || item.web_app.url)).filter((row) => row.length),
+    resize_keyboard: true,
+    is_persistent: true
+  };
 };
 
 const updateSession = async (ctx: PipelineContext, state: string, variables: Record<string, any>) => {
@@ -264,7 +260,6 @@ export const showMenu = async (ctx: PipelineContext, lang: Lang, template: strin
 
     const leadKeyboard = buildClientLeadMiniAppKeyboard(ctx.bot, lang);
 
-    await sendMessage(ctx, 'Оновлюю кнопки меню…', { remove_keyboard: true });
     await sendMessage(ctx, t(lang, 'common.welcome_lead', { bot: botName }), leadKeyboard);
     await updateSession(ctx, 'CL_MENU', {
       ...baseVars,
@@ -372,8 +367,7 @@ export const showMenu = async (ctx: PipelineContext, lang: Lang, template: strin
       return;
     }
 
-    await sendMessage(ctx, 'Оновлюю кнопки меню…', { remove_keyboard: true });
-    await sendMessage(ctx, t(lang, 'common.welcome_b2b_registered', { bot: botName }), buildB2BRegisteredInlineMenu(ctx, lang));
+    await sendMessage(ctx, t(lang, 'common.welcome_b2b_registered', { bot: botName }), buildB2BRegisteredMenu(ctx, lang));
     await updateSession(ctx, 'B2B_MENU', { ...enrichedVars, b2bFlow: {} });
   }
 };

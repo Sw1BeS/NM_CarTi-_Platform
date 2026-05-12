@@ -47,7 +47,7 @@ describe('B2B registered menu', () => {
     telegramOutboxMock.sendMessage.mockResolvedValue({ message_id: 10 });
   });
 
-  it('clears stale reply keyboards before sending a registered B2B inline MiniApp menu', async () => {
+  it('sends a registered B2B persistent reply menu whose buttons open MiniApp sections', async () => {
     const { showMenu } = await import('./routeMessage.js');
 
     const ctx: any = {
@@ -88,24 +88,19 @@ describe('B2B registered menu', () => {
     await showMenu(ctx, 'UK', 'B2B');
 
     const calls = telegramOutboxMock.sendMessage.mock.calls.map(([payload]) => payload);
-    expect(calls[0]).toMatchObject({
-      chatId: '1001',
-      replyMarkup: { remove_keyboard: true }
-    });
-    expect(calls[1].replyMarkup).toHaveProperty('inline_keyboard');
-    expect(calls[1].replyMarkup).not.toHaveProperty('keyboard');
-    expect(calls.some((call: any) => call.replyMarkup?.keyboard)).toBe(false);
+    expect(calls).toHaveLength(1);
+    expect(calls[0].chatId).toBe('1001');
+    expect(calls[0].replyMarkup).toHaveProperty('keyboard');
+    expect(calls[0].replyMarkup).not.toHaveProperty('inline_keyboard');
+    expect(calls[0].replyMarkup.resize_keyboard).toBe(true);
+    expect(calls[0].replyMarkup.is_persistent).toBe(true);
 
-    const flatButtons = calls[1].replyMarkup.inline_keyboard.flat();
-    expect(flatButtons).toEqual(expect.arrayContaining([
-      expect.objectContaining({ callback_data: expect.any(String), text: expect.stringContaining('Створити') }),
-      expect.objectContaining({
-        web_app: {
-          url: expect.stringContaining('/p/app/cardealer_lviv_bot')
-        }
-      })
-    ]));
+    const flatButtons = calls[0].replyMarkup.keyboard.flat();
+    expect(flatButtons.every((button: any) => button.web_app?.url?.includes('/p/app/cardealer_lviv_bot'))).toBe(true);
+    expect(flatButtons.some((button: any) => button.web_app?.url?.includes('entry=request'))).toBe(true);
     expect(flatButtons.some((button: any) => button.web_app?.url?.includes('entry=inventory'))).toBe(true);
+    expect(flatButtons.some((button: any) => button.web_app?.url?.includes('entry=status'))).toBe(true);
+    expect(flatButtons.some((button: any) => button.web_app?.url?.includes('entry=support'))).toBe(true);
   }, 10000);
 
   it('also clears stale reply keyboards for unregistered B2B users', async () => {

@@ -1,30 +1,35 @@
 import type { BotConfig } from '@prisma/client';
 import { buildMiniAppUrl } from './miniappUrl.js';
 import { button, type Lang } from './telegramText.js';
-import { ActionTokens, buildCallbackData } from './callbackUtils.js';
 
-type TelegramInlineButton = {
+type TelegramKeyboardButton = {
   text: string;
   web_app?: { url: string };
-  callback_data?: string;
 };
 
-const webAppButton = (text: string, url: string): TelegramInlineButton => {
+type TelegramReplyKeyboard = {
+  keyboard: TelegramKeyboardButton[][];
+  resize_keyboard: true;
+  is_persistent: true;
+};
+
+const webAppButton = (text: string, url: string): TelegramKeyboardButton => {
   return url ? { text, web_app: { url } } : { text };
 };
 
-export const buildClientLeadMiniAppKeyboard = (bot: BotConfig, lang: Lang): { inline_keyboard: TelegramInlineButton[][] } => {
+export const buildClientLeadMiniAppKeyboard = (bot: BotConfig, lang: Lang): TelegramReplyKeyboard => {
   const pickUrl = buildMiniAppUrl(bot, { entry: 'request', type: 'BUY' });
+  const sellUrl = buildMiniAppUrl(bot, { entry: 'request', type: 'SELL' });
   const stockUrl = buildMiniAppUrl(bot, { entry: 'inventory', status: 'AVAILABLE' });
   const transitUrl = buildMiniAppUrl(bot, { entry: 'inventory', status: 'PENDING' });
   const favoritesUrl = buildMiniAppUrl(bot, { entry: 'favorites' });
-  const supportUrl = buildMiniAppUrl(bot, { entry: 'support' });
+  const contactsUrl = buildMiniAppUrl(bot, { entry: 'contacts' });
 
   return {
-    inline_keyboard: [
+    keyboard: [
       [
         webAppButton(button(lang, 'leadMenu.buy'), pickUrl),
-        { text: button(lang, 'leadMenu.sell'), callback_data: buildCallbackData(ActionTokens.CL_SELL) }
+        webAppButton(button(lang, 'leadMenu.sell'), sellUrl)
       ],
       [
         webAppButton(button(lang, 'leadMenu.stock'), stockUrl),
@@ -32,8 +37,10 @@ export const buildClientLeadMiniAppKeyboard = (bot: BotConfig, lang: Lang): { in
       ],
       [
         webAppButton('⭐ Обране', favoritesUrl),
-        webAppButton(button(lang, 'leadMenu.support'), supportUrl)
+        webAppButton('📞 Контакти', contactsUrl)
       ]
-    ]
+    ],
+    resize_keyboard: true,
+    is_persistent: true
   };
 };
