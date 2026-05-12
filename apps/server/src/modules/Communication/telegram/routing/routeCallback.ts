@@ -319,6 +319,35 @@ export const routeCallback = async (ctx: PipelineContext) => {
       case 'bs_form':
         await startB2BSellWizard(ctx);
         return true;
+        case 'b2b_req': {
+          const tgUserId = String(ctx.userId || cb.from?.id || '').trim();
+          const varsPartnerId = String(vars.b2bPartnerId || '').trim();
+          let partnerId = varsPartnerId;
+          if (!partnerId && tgUserId) {
+            const partnerUser = await prisma.partnerUser.findFirst({
+              where: {
+                telegramId: tgUserId,
+                ...(ctx.companyId ? { companyId: ctx.companyId } : {})
+              },
+              select: { partnerId: true, partner: { select: { name: true } } }
+            });
+            partnerId = String(partnerUser?.partnerId || '').trim();
+            if (partnerId) {
+              await updateSession(ctx, ctx.session.state || 'B2B_MENU', {
+                ...vars,
+                b2bPartnerId: partnerId,
+                b2bPartnerName: partnerUser?.partner?.name || vars.b2bPartnerName
+              });
+            }
+          }
+          if (!partnerId) {
+            await showMenu(ctx, lang, 'B2B', '🔒 Спочатку завершіть реєстрацію для доступу до сценаріїв.');
+            return true;
+          }
+          const { startB2BRequestWizard } = await import('./wizards/b2bRequestWizard.js');
+          await startB2BRequestWizard(ctx);
+          return true;
+        }
       case 'b2b_ip':
       case 'b2b_is':
       case 'b2b_pub':

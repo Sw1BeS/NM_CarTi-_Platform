@@ -5,6 +5,8 @@ import { generatePublicId, mapInventoryOutput, mapRequestInput, mapRequestOutput
 import { createOrMergeLead } from '../modules/Communication/telegram/core/leadService.js';
 import { resolvePublicSlug, type PublicSlugResolution } from './publicSlug.service.js';
 import { platformEvents, EVENTS } from './platform-events.js';
+import { buildRequestPresentationSnapshot } from './requestPresentation.js';
+import { buildMiniAppSubmitKey } from './requestContract.service.js';
 
 export type MiniAppIdentity = {
   tgUserId?: string;
@@ -214,6 +216,13 @@ export class MiniAppService {
     if (!companyId) throw new Error('Company not found');
     const botResolution = await resolveBotForSlug(input.slug, companyId, resolved);
     const botId = botResolution.botId;
+    const botConfig = botId
+      ? await prisma.botConfig.findUnique({ where: { id: botId } })
+      : null;
+    const botConfigPayload = isRecord(botConfig?.config) ? botConfig.config as Record<string, unknown> : {};
+    const miniAppConfig = isRecord(botConfigPayload.miniAppConfig) ? botConfigPayload.miniAppConfig as Record<string, unknown> : {};
+    const isB2BMiniApp = String(botConfig?.template || '').toUpperCase() === 'B2B'
+      || String(miniAppConfig.surfaceMode || '').toUpperCase() === 'B2B';
 
     const titleFromInput = toOptionalString(input.title);
     const descriptionFromInput = toOptionalString(input.description);
@@ -227,12 +236,28 @@ export class MiniAppService {
 
     let listingTitle: string | undefined;
     let listingTitles: string[] = [];
+    let selectedCars: any[] = [];
     if (selectedCarIds.length) {
-      const listings = await prisma.carListing.findMany({
-        where: { id: { in: selectedCarIds } },
-        select: { id: true, title: true }
+        const listings = await prisma.carListing.findMany({
+          where: { id: { in: selectedCarIds }, companyId },
+        select: {
+          id: true,
+          title: true,
+          price: true,
+          currency: true,
+          year: true,
+          mileage: true,
+          location: true,
+          thumbnail: true,
+          mediaUrls: true,
+          mediaItems: true,
+          specs: true,
+          status: true
+        }
       });
       const titleMap = new Map(listings.map((item) => [item.id, item.title]));
+      const carMap = new Map(listings.map((item) => [item.id, item]));
+      selectedCars = selectedCarIds.map((id) => carMap.get(id)).filter(Boolean);
       listingTitles = selectedCarIds.map((id) => titleMap.get(id)).filter((item): item is string => Boolean(item));
       listingTitle = listingTitles[0];
     }
@@ -252,8 +277,8 @@ export class MiniAppService {
     if (phone) descriptionParts.push(`Контакт: ${phone}`);
     const description = descriptionFromInput || (descriptionParts.length ? descriptionParts.join('\n') : undefined);
 
-    const tracking = isRecord(input.tracking) ? input.tracking : {};
-    const telegram = isRecord(input.telegram) ? input.telegram : {};
+      const tracking = isRecord(input.tracking) ? input.tracking : {};
+      const telegram = isRecord(input.telegram) ? input.telegram : {};
     const payloadFromInput = isRecord(input.payload) ? input.payload : {};
     const requestType = String(
       toOptionalString(input.requestType)
@@ -272,16 +297,67 @@ export class MiniAppService {
       : (['GENERAL', 'SPECIFIC', 'MULTI_SELECT'].includes(rawSubtype) ? rawSubtype : derivedSubtype);
     const submitId = toOptionalString((tracking as Record<string, unknown>).submitId)
       || toOptionalString((payloadFromInput as Record<string, unknown>).submitId);
-
-    const payload = {
-      ...payloadFromInput,
-      source: 'miniapp',
+    const criteria = isRecord((payloadFromInput as Record<string, unknown>).criteria)
+      ? (payloadFromInput as Record<string, unknown>).criteria as Record<string, unknown>
+      : isRecord((payloadFromInput as Record<string, unknown>).request)
+        ? (((payloadFromInput as Record<string, unknown>).request as Record<string, unknown>).criteria as Record<string, unknown> | undefined)
+        : undefined;
+    const requestPresentation = buildRequestPresentationSnapshot({
+      cars: selectedCars,
       slug: input.slug,
-      phone: phone || undefined,
-      tracking,
-      telegram,
+      customerIntent: requestType === 'SELL' ? 'SELL' : (selectedCarIds.length ? 'PRICE_TERMS' : 'B2B_REQUEST'),
+      sourceView: toOptionalString((payloadFromInput as Record<string, unknown>).sourceView)
+        || toOptionalString((tracking as Record<string, unknown>).sourceView),
+      criteria: isRecord(criteria) ? criteria : undefined,
+      comment
+    });
+
+      const tgUserId = toOptionalString((telegram as Record<string, unknown>)?.userId);
+      const tgUsername = toOptionalString((telegram as Record<string, unknown>)?.username);
+      const tgName = toOptionalString((telegram as Record<string, unknown>)?.name);
+      const leadName = tgName || (tgUsername ? `@${tgUsername.replace(/^@/, '')}` : undefined) || 'Client';
+      let requesterPartnerId: string | undefined;
+      let requesterPartnerName: string | undefined;
+      let requesterPartnerRole: string | undefined;
+
+      if (isB2BMiniApp) {
+        if (!tgUserId) throw new Error('B2B partner access required');
+        const partnerUser = await prisma.partnerUser.findFirst({
+          where: {
+            telegramId: tgUserId,
+            companyId
+          },
+          include: { partner: true }
+        });
+        requesterPartnerId = toOptionalString(partnerUser?.partnerId);
+        requesterPartnerName = toOptionalString(partnerUser?.partner?.name);
+        requesterPartnerRole = toOptionalString(partnerUser?.role);
+        if (!requesterPartnerId) throw new Error('B2B partner access required');
+      }
+
+      const idempotencyKey = submitId
+        ? buildMiniAppSubmitKey({
+          companyId,
+          botId,
+          telegramUserId: tgUserId,
+          submitId
+        })
+        : undefined;
+
+      const payload: Record<string, any> = {
+        ...payloadFromInput,
+        source: 'miniapp',
+        slug: input.slug,
+        phone: phone || undefined,
+        idempotencyKey,
+        tracking,
+        telegram,
       requestType,
       requestSubtype,
+      selectedCars: requestPresentation.selectedCars,
+      vehiclePresentation: requestPresentation.vehiclePresentation,
+      requestSummary: requestPresentation.requestSummary,
+      requestPresentation,
       request: {
         carListingId: carListingId || undefined,
         carListingIds: selectedCarIds.length ? selectedCarIds : undefined,
@@ -291,18 +367,29 @@ export class MiniAppService {
       }
     };
 
-    if (submitId) {
-      const existing = await prisma.b2bRequest.findFirst({
-        where: {
-          companyId,
-          payload: {
-            path: ['tracking', 'submitId'],
-            equals: submitId
-          }
-        },
-        orderBy: { createdAt: 'desc' }
-      });
-      if (existing) return mapRequestOutput(existing);
+      if (requesterPartnerId) {
+        payload.requesterPartner = {
+          id: requesterPartnerId,
+          name: requesterPartnerName,
+          role: requesterPartnerRole
+        };
+      }
+
+      if (submitId) {
+        const existing = await prisma.b2bRequest.findFirst({
+          where: {
+            companyId,
+            ...(botId ? { botId } : {}),
+            ...(isB2BMiniApp ? { requesterPartnerId } : {}),
+            ...(tgUserId && !isB2BMiniApp ? { chatId: tgUserId } : {}),
+            OR: [
+              ...(idempotencyKey ? [{ payload: { path: ['idempotencyKey'], equals: idempotencyKey } }] : []),
+              { payload: { path: ['tracking', 'submitId'], equals: submitId } }
+            ]
+          },
+          orderBy: { createdAt: 'desc' }
+        });
+        if (existing) return mapRequestOutput(existing);
     }
 
     const requestInput = mapRequestInput({
@@ -319,15 +406,13 @@ export class MiniAppService {
     if (!requestInput.publicId) requestInput.publicId = generatePublicId();
     requestInput.companyId = companyId;
 
-    const tgUserId = toOptionalString((telegram as Record<string, unknown>)?.userId);
-    const tgUsername = toOptionalString((telegram as Record<string, unknown>)?.username);
-    const tgName = toOptionalString((telegram as Record<string, unknown>)?.name);
-    const leadName = tgName || (tgUsername ? `@${tgUsername.replace(/^@/, '')}` : undefined) || 'Client';
+      if (isB2BMiniApp) {
+        requestInput.requesterPartnerId = requesterPartnerId;
+      }
 
     let leadId: string | undefined;
-    if (botId) {
+    if (botId && !isB2BMiniApp) {
       try {
-        const botConfig = await prisma.botConfig.findUnique({ where: { id: botId } });
         const leadResult = await createOrMergeLead({
           botId,
           companyId,

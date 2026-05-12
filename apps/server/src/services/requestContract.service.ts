@@ -16,6 +16,7 @@ import {
 import { createOrMergeLead } from '../modules/Communication/telegram/core/leadService.js';
 import { platformEvents, EVENTS } from './platform-events.js';
 import { resolvePublicSlug, type PublicSlugResolution } from './publicSlug.service.js';
+import { buildRequestPresentationSnapshot } from './requestPresentation.js';
 
 type MiniAppTracking = Record<string, unknown>;
 type MiniAppTelegram = {
@@ -199,38 +200,56 @@ class RequestContractService {
     return { botId: fallback?.id, companyId: fallback?.companyId || companyId };
   }
 
-  private async resolveMiniAppCarSelection(input: {
-    carListingId?: string;
-    carListingIds?: string[];
-  }) {
+    private async resolveMiniAppCarSelection(input: {
+      companyId?: string | null;
+      carListingId?: string;
+      carListingIds?: string[];
+    }) {
     const carListingId = toOptionalString(input.carListingId);
     const carListingIds = Array.isArray(input.carListingIds)
       ? input.carListingIds.map((item) => toOptionalString(item)).filter((item): item is string => Boolean(item))
       : [];
     const selectedCarIds = Array.from(new Set([carListingId, ...carListingIds].filter((item): item is string => Boolean(item))));
 
-    if (!selectedCarIds.length) {
+      if (!selectedCarIds.length) {
+        return {
+          carListingId,
+          selectedCarIds,
+          listingTitle: undefined as string | undefined,
+          listingTitles: [] as string[],
+          selectedCars: [] as any[]
+        };
+      }
+
+      const listings = await prisma.carListing.findMany({
+        where: { id: { in: selectedCarIds }, ...(input.companyId ? { companyId: input.companyId } : {}) },
+      select: {
+        id: true,
+        title: true,
+        price: true,
+        currency: true,
+        year: true,
+        mileage: true,
+        location: true,
+        thumbnail: true,
+        mediaUrls: true,
+        mediaItems: true,
+        specs: true,
+        status: true
+      }
+    });
+      const titleMap = new Map(listings.map((item) => [item.id, item.title]));
+      const carMap = new Map(listings.map((item) => [item.id, item]));
+      const listingTitles = selectedCarIds.map((id) => titleMap.get(id)).filter((item): item is string => Boolean(item));
+      const selectedCars = selectedCarIds.map((id) => carMap.get(id)).filter(Boolean);
+
       return {
         carListingId,
         selectedCarIds,
-        listingTitle: undefined as string | undefined,
-        listingTitles: [] as string[]
+        listingTitle: listingTitles[0],
+        listingTitles,
+        selectedCars
       };
-    }
-
-    const listings = await prisma.carListing.findMany({
-      where: { id: { in: selectedCarIds } },
-      select: { id: true, title: true }
-    });
-    const titleMap = new Map(listings.map((item) => [item.id, item.title]));
-    const listingTitles = selectedCarIds.map((id) => titleMap.get(id)).filter((item): item is string => Boolean(item));
-
-    return {
-      carListingId,
-      selectedCarIds,
-      listingTitle: listingTitles[0],
-      listingTitles
-    };
   }
 
   private buildMiniAppIntentTitle(params: {
@@ -262,10 +281,11 @@ class RequestContractService {
     const tgUserId = toOptionalString((telegram as Record<string, unknown>)?.userId);
     if (!tgUserId) throw new Error('Telegram user required');
 
-    const selection = await this.resolveMiniAppCarSelection({
-      carListingId: input.carListingId,
-      carListingIds: input.carListingIds
-    });
+      const selection = await this.resolveMiniAppCarSelection({
+        companyId: context.companyId,
+        carListingId: input.carListingId,
+        carListingIds: input.carListingIds
+      });
     const title = this.buildMiniAppIntentTitle({
       intentType: input.intentType,
       title: input.title,
@@ -273,7 +293,7 @@ class RequestContractService {
       listingTitle: selection.listingTitle
     });
 
-    const pendingIntent: MiniAppPendingIntent = {
+      const pendingIntent: MiniAppPendingIntent = {
       version: 1,
       intentType: input.intentType,
       slug: context.resolved.slug || input.slug,
@@ -285,14 +305,32 @@ class RequestContractService {
       carId: selection.selectedCarIds[0],
       carIds: selection.selectedCarIds.length ? selection.selectedCarIds : undefined,
       tracking: isRecord(input.tracking) ? input.tracking : undefined,
-      payload: isRecord(input.payload) ? input.payload : undefined,
+        payload: isRecord(input.payload) ? input.payload : undefined,
       telegram: {
         userId: tgUserId,
         username: toOptionalString((telegram as Record<string, unknown>)?.username),
         name: toOptionalString((telegram as Record<string, unknown>)?.name)
       },
-      createdAt: new Date().toISOString()
-    };
+        createdAt: new Date().toISOString()
+      };
+      const requestPresentation = buildRequestPresentationSnapshot({
+        cars: selection.selectedCars,
+        slug: context.resolved.slug || input.slug,
+        customerIntent: input.intentType === 'REQUEST' ? 'PICKUP' : 'PRICE_TERMS',
+        sourceView: toOptionalString((pendingIntent.payload as Record<string, unknown> | undefined)?.sourceView)
+          || toOptionalString((pendingIntent.payload as Record<string, unknown> | undefined)?.source),
+        criteria: isRecord((pendingIntent.payload as Record<string, unknown> | undefined)?.criteria)
+          ? (pendingIntent.payload as Record<string, unknown>).criteria as Record<string, unknown>
+          : undefined,
+        comment: pendingIntent.comment
+      });
+      pendingIntent.payload = {
+        ...(pendingIntent.payload || {}),
+        selectedCars: requestPresentation.selectedCars,
+        vehiclePresentation: requestPresentation.vehiclePresentation,
+        requestSummary: requestPresentation.requestSummary,
+        requestPresentation
+      };
     const pendingIntentVariables = JSON.parse(JSON.stringify({
       miniappPendingIntent: pendingIntent,
       miniappInterestDraft: null
@@ -506,16 +544,38 @@ class RequestContractService {
       ? pendingIntent.carIds.map((item) => toOptionalString(item)).filter((item): item is string => Boolean(item))
       : (pendingIntent.carId ? [pendingIntent.carId] : []);
 
-    const selectedCars = selectedCarIds.length
-      ? await prisma.carListing.findMany({
-        where: { id: { in: selectedCarIds } },
-        select: { id: true, title: true, price: true, currency: true, year: true }
+      const pendingPayload = isRecord(pendingIntent.payload) ? pendingIntent.payload as Record<string, unknown> : {};
+      const pendingPresentation = isRecord(pendingPayload.requestPresentation)
+        ? pendingPayload.requestPresentation as Record<string, any>
+        : null;
+      const pendingSelectedCarSnapshots = Array.isArray(pendingPresentation?.selectedCars)
+        ? pendingPresentation.selectedCars
+        : (Array.isArray(pendingPayload.selectedCars) ? pendingPayload.selectedCars : []);
+      const selectedCars = selectedCarIds.length && !pendingSelectedCarSnapshots.length
+        ? await prisma.carListing.findMany({
+          where: { id: { in: selectedCarIds }, companyId: params.companyId },
+        select: {
+          id: true,
+          title: true,
+          price: true,
+          currency: true,
+          year: true,
+          mileage: true,
+          location: true,
+          thumbnail: true,
+          mediaUrls: true,
+          mediaItems: true,
+          specs: true,
+          status: true
+        }
       })
-      : [];
-    const selectedCarsMap = new Map(selectedCars.map((car) => [car.id, car]));
-    const selectedCarsOrdered = selectedCarIds
-      .map((id) => selectedCarsMap.get(id))
-      .filter((item): item is typeof selectedCars[number] => Boolean(item));
+        : [];
+      const selectedCarsMap = new Map(selectedCars.map((car) => [car.id, car]));
+      const selectedCarsOrdered = pendingSelectedCarSnapshots.length
+        ? pendingSelectedCarSnapshots
+        : selectedCarIds
+          .map((id) => selectedCarsMap.get(id))
+          .filter((item): item is typeof selectedCars[number] => Boolean(item));
 
     const title = toOptionalString(pendingIntent.title)
       || selectedCarsOrdered[0]?.title
@@ -531,6 +591,22 @@ class RequestContractService {
         : null
     ].filter((item): item is string => Boolean(item));
     const description = descriptionParts.join('\n');
+      const payloadInput = pendingPayload;
+    const criteria = isRecord((payloadInput as Record<string, unknown>).criteria)
+      ? (payloadInput as Record<string, unknown>).criteria as Record<string, unknown>
+      : isRecord((payloadInput as Record<string, unknown>).request)
+        ? (((payloadInput as Record<string, unknown>).request as Record<string, unknown>).criteria as Record<string, unknown> | undefined)
+        : undefined;
+    const sourceView = toOptionalString((payloadInput as Record<string, unknown>).sourceView)
+      || toOptionalString((payloadInput as Record<string, unknown>).source);
+      const requestPresentation = pendingPresentation || buildRequestPresentationSnapshot({
+        cars: selectedCarsOrdered,
+        slug: pendingIntent.slug,
+        customerIntent: pendingIntent.intentType === 'REQUEST' ? 'PICKUP' : 'PRICE_TERMS',
+        sourceView,
+        criteria: isRecord(criteria) ? criteria : undefined,
+        comment: pendingIntent.comment
+      });
 
     const requestPayload = {
       source: 'miniapp_intent',
@@ -554,7 +630,10 @@ class RequestContractService {
         carListingId: pendingIntent.carId || undefined,
         carListingIds: selectedCarIds.length ? selectedCarIds : undefined
       },
-      selectedCars: selectedCarsOrdered,
+      selectedCars: requestPresentation.selectedCars,
+      vehiclePresentation: requestPresentation.vehiclePresentation,
+      requestSummary: requestPresentation.requestSummary,
+      requestPresentation,
       payload: pendingIntent.payload || undefined
     } as Record<string, unknown>;
     const submitId = readSubmitId(pendingIntent.tracking);
@@ -605,7 +684,8 @@ class RequestContractService {
           isDuplicate: true,
           lead: null,
           request: existingRequest,
-          selectedCars: selectedCarsOrdered
+          selectedCars: requestPresentation.selectedCars,
+          requestPresentation
         };
       }
     }
@@ -707,7 +787,8 @@ class RequestContractService {
       isDuplicate: leadResult.isDuplicate,
       lead: leadResult.lead,
       request,
-      selectedCars: selectedCarsOrdered
+      selectedCars: requestPresentation.selectedCars,
+      requestPresentation
     };
   }
 

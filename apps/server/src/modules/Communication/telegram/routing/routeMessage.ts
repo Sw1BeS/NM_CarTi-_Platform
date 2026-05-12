@@ -181,6 +181,34 @@ const sendCarCardToChat = async (
   await sendMessage(ctx, caption, options.replyMarkup, chatId);
 };
 
+const webAppButton = (text: string, url: string) => ({ text, web_app: { url } });
+
+const buildB2BRegisteredInlineMenu = (ctx: PipelineContext, lang: Lang) => {
+  if (!ctx.bot) return { inline_keyboard: [] };
+
+  const inventoryUrl = buildMiniAppUrl(ctx.bot, { entry: 'inventory' });
+  const variantsUrl = buildMiniAppUrl(ctx.bot, { entry: 'variants' });
+  const statusUrl = buildMiniAppUrl(ctx.bot, { entry: 'status' });
+  const supportUrl = buildMiniAppUrl(ctx.bot, { entry: 'support' });
+  const profileUrl = buildMiniAppUrl(ctx.bot, { entry: 'profile' });
+
+  const rows: any[][] = [
+    [
+      { text: button(lang, 'b2bMenu.newRequest'), callback_data: buildCallbackData('b2b_req') },
+      { text: button(lang, 'b2bMenu.sell'), callback_data: buildCallbackData('bs_form') }
+    ]
+  ];
+
+  const miniAppRows: any[][] = [
+    [webAppButton('🚙 Склад', inventoryUrl), webAppButton('📨 Варіанти', variantsUrl)],
+    [webAppButton('📊 Статуси', statusUrl), webAppButton('👤 Профіль', profileUrl)],
+    [webAppButton('🆘 Підтримка', supportUrl), { text: button(lang, 'common.info'), callback_data: buildCallbackData('cl_info_b2b') }]
+  ];
+
+  rows.push(...miniAppRows.map((row) => row.filter((item) => !item.web_app || item.web_app.url)));
+  return { inline_keyboard: rows.filter((row) => row.length) };
+};
+
 const updateSession = async (ctx: PipelineContext, state: string, variables: Record<string, any>) => {
   if (!ctx.session) return;
   ctx.session = await prisma.botSession.update({
@@ -329,9 +357,10 @@ export const showMenu = async (ctx: PipelineContext, lang: Lang, template: strin
       b2bReqFlow: null
     };
 
-    if (isUnregistered) {
-      await sendMessage(ctx, t(lang, 'common.welcome_b2b_unregistered'), {
-        inline_keyboard: [
+      if (isUnregistered) {
+        await sendMessage(ctx, 'Оновлюю кнопки меню…', { remove_keyboard: true });
+        await sendMessage(ctx, t(lang, 'common.welcome_b2b_unregistered'), {
+          inline_keyboard: [
           [{ text: button(lang, 'b2b.regNewPartner'), callback_data: buildCallbackData('br_new') },
           { text: button(lang, 'b2b.regAgent'), callback_data: buildCallbackData('br_agent') }],
           [{ text: button(lang, 'common.rules'), callback_data: buildCallbackData('cl_rules') },
@@ -343,14 +372,8 @@ export const showMenu = async (ctx: PipelineContext, lang: Lang, template: strin
       return;
     }
 
-    // Registered B2B menu: request / sell / inventory / info.
-    await sendMessage(ctx, t(lang, 'common.welcome_b2b_registered', { bot: botName }), {
-      keyboard: [
-        [{ text: button(lang, 'b2bMenu.newRequest') }, { text: button(lang, 'b2bMenu.sell') }],
-        [{ text: button(lang, 'b2bMenu.myInventory') }, { text: button(lang, 'common.info') }]
-      ],
-      resize_keyboard: true
-    });
+    await sendMessage(ctx, 'Оновлюю кнопки меню…', { remove_keyboard: true });
+    await sendMessage(ctx, t(lang, 'common.welcome_b2b_registered', { bot: botName }), buildB2BRegisteredInlineMenu(ctx, lang));
     await updateSession(ctx, 'B2B_MENU', { ...enrichedVars, b2bFlow: {} });
   }
 };
@@ -651,8 +674,14 @@ const handleClientLead = async (ctx: PipelineContext, text: string) => {
       const userLink = telegramUsername
         ? `https://t.me/${telegramUsername.replace(/^@/, '')}`
         : `tg://user?id=${tgUserId}`;
+      const presentationText = finalized.requestPresentation?.telegramText;
       const selectedCarsText = finalized.selectedCars.length
-        ? finalized.selectedCars.map((car, index) => `${index + 1}. ${car.title}${car.year ? ` ${car.year}` : ''}`).join('\n')
+        ? finalized.selectedCars.map((car: any, index: number) => [
+          `${index + 1}. ${car.title}${car.year ? ` ${car.year}` : ''}`,
+          car.priceLabel,
+          car.statusLabel,
+          car.location
+        ].filter(Boolean).join(' • ')).join('\n')
         : '—';
       const adminLines = [
         '🟢 [LEAD BUY] MiniApp інтерес',
@@ -662,7 +691,7 @@ const handleClientLead = async (ctx: PipelineContext, text: string) => {
         `🔗 ${userLink}`,
         `Контакт: ${phone}`,
         `Тип: ${finalized.intentType === 'REQUEST' ? 'Підбір авто' : 'Інтерес до авто'}`,
-        `Авто: ${finalized.title}`,
+        presentationText ? `\n${presentationText}` : `Авто: ${finalized.title}`,
         `Обрані авто:\n${selectedCarsText}`,
         finalized.request ? `Request ID: ${finalized.request.publicId || finalized.request.id}` : null
       ].filter(Boolean);
@@ -1271,20 +1300,20 @@ const handleB2B = async (ctx: PipelineContext, text: string) => {
           await sendMessage(ctx, `✅ Запит на приєднання до ${company.name} надіслано адміністратору.`);
 
           const accessRequestId = result.accessRequest?.id || '';
-	          if (accessRequestId) {
-	            await b2bRoutingService.notifyQueues({
+            if (accessRequestId) {
+              await b2bRoutingService.notifyQueues({
               companyId: ctx.companyId || null,
               sourceBotId: ctx.bot.id,
               sourceBotToken: ctx.bot.token,
               sourceBotAdminChatId: ctx.bot.adminChatId || null,
-	              text: `🔐 Новий запит по інвайту ${inviteCode}\nКомпанія: ${company.name}\nКористувач: ${identityName || '—'}\nusername: ${message?.from?.username ? `@${message.from.username}` : '—'}`,
-	              replyMarkup: {
-	                inline_keyboard: [[
-	                  { text: '✅ Підтвердити', callback_data: buildCallbackData('ba_ap', accessRequestId) },
-	                  { text: '❌ Відхилити', callback_data: buildCallbackData('ba_rj', accessRequestId) }
-	                ]]
-	              },
-	              includeSourceAdminFallback: true
+                text: `🔐 Новий запит по інвайту ${inviteCode}\nКомпанія: ${company.name}\nКористувач: ${identityName || '—'}\nusername: ${message?.from?.username ? `@${message.from.username}` : '—'}`,
+                replyMarkup: {
+                  inline_keyboard: [[
+                    { text: '✅ Підтвердити', callback_data: buildCallbackData('ba_ap', accessRequestId) },
+                    { text: '❌ Відхилити', callback_data: buildCallbackData('ba_rj', accessRequestId) }
+                  ]]
+                },
+                includeSourceAdminFallback: true
             });
           }
         }

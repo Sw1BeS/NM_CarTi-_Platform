@@ -86,18 +86,179 @@ export const routeWebApp = async (ctx: PipelineContext) => {
   const telegramUsername = String((payload.meta as any)?.username || from?.username || '').trim() || undefined;
   const telegramName = String((payload.meta as any)?.name || [from?.first_name, from?.last_name].filter(Boolean).join(' ') || '').trim() || undefined;
   const botConfig = (ctx.bot.config as Record<string, unknown>) || {};
-  const botSlug = String(
-    botConfig.defaultShowcaseSlug
-    || botConfig.showcaseSlug
-    || botConfig.botUsername
-    || botConfig.username
-    || ''
-  ).trim();
+    const botSlug = String(
+      botConfig.defaultShowcaseSlug
+      || botConfig.showcaseSlug
+      || botConfig.botUsername
+      || botConfig.username
+      || ''
+    ).trim();
+    const template = String(ctx.bot.template || '').toUpperCase();
+    const isClientLeadBot = template === 'CLIENT_LEAD';
+    const isB2BBot = template === 'B2B';
 
-  if (payload.type === 'interest_click') {
-    const selectedCars = payloadCarIds.length
-      ? await prisma.carListing.findMany({
-        where: { id: { in: payloadCarIds } },
+    if (
+      isB2BBot
+      && ['interest_click', 'lead_submit', 'lead_submit_multi', 'multi_request_submit', 'sell_submit'].includes(payload.type)
+    ) {
+      await emitPlatformEvent({
+        companyId: ctx.companyId,
+        botId: ctx.bot.id,
+        eventType: 'miniapp.submitted',
+        userId: ctx.userId,
+        chatId: ctx.chatId,
+        payload: {
+          type: payload.type,
+          rejected: true,
+          reason: 'legacy_web_app_data_not_supported_for_b2b'
+        }
+      });
+      await sendMessage(ctx, '⚠️ Ця стара дія MiniApp більше не підтримується для B2B. Відкрийте кабінет через меню бота та повторіть дію.');
+      return true;
+    }
+
+    if (
+      isClientLeadBot
+      && ['interest_click', 'lead_submit', 'lead_submit_multi', 'multi_request_submit', 'sell_submit'].includes(payload.type)
+    ) {
+      if (payload.type === 'sell_submit') {
+        const { startLeadSellWizard } = await import('./wizards/leadSellWizard.js');
+        await sendMessage(ctx, '✅ Продаж авто продовжимо в чаті бота, щоб стабільно прийняти контакт і фото.');
+        await startLeadSellWizard(ctx);
+        return true;
+      }
+
+      if (!botSlug || !from?.id) {
+        await sendMessage(ctx, '⚠️ Не вдалося звʼязати MiniApp із ботом. Відкрийте MiniApp повторно через меню бота.');
+        return true;
+      }
+
+      const companyId = ctx.companyId || ctx.bot.companyId;
+      const selectedCars = payloadCarIds.length
+        ? await prisma.carListing.findMany({
+          where: { id: { in: payloadCarIds }, ...(companyId ? { companyId } : {}) },
+          select: {
+            id: true,
+            title: true,
+            price: true,
+            currency: true,
+            year: true,
+            mileage: true,
+            location: true,
+            thumbnail: true,
+            mediaUrls: true,
+            mediaItems: true,
+            specs: true,
+            status: true
+          }
+        })
+        : [];
+      const selectedCarsMap = new Map(selectedCars.map((car) => [car.id, car]));
+      const selectedCarsOrdered = payloadCarIds.map((id) => selectedCarsMap.get(id)).filter((item): item is typeof selectedCars[number] => Boolean(item));
+      const requestTitle = String(
+        fields.title
+        || fields.request
+        || [fields.brand, fields.model].filter(Boolean).join(' ')
+        || selectedCarsOrdered[0]?.title
+        || (payloadCarIds.length > 1 ? `Запит по ${payloadCarIds.length} авто` : '')
+        || 'Запит з Mini App'
+      ).trim() || 'Запит з Mini App';
+      const intentType: 'INTEREST' | 'REQUEST' = payload.type === 'interest_click' && (primaryCarId || payloadCarIds.length)
+        ? 'INTEREST'
+        : 'REQUEST';
+      if (!companyId) {
+        await sendMessage(ctx, '⚠️ Не вдалося визначити компанію для звернення.');
+        return true;
+      }
+
+      const pending = await requestContractService.createPendingLeadIntent({
+        slug: botSlug,
+        intentType,
+        title: requestTitle,
+        budgetMax: fields.priceMax || fields.budget || fields.budgetMax,
+        yearMin: fields.yearMin || fields.year,
+        comment: fields.note || fields.comment,
+        carListingId: primaryCarId || undefined,
+        carListingIds: payloadCarIds.length ? payloadCarIds : undefined,
+        tracking: payload.meta || undefined,
+        payload: {
+          source: 'legacy_web_app_data',
+          legacyPayloadType: payload.type,
+          fields,
+          criteria: fields,
+          sourceView: 'legacy_web_app_data'
+        },
+        telegram: {
+          userId: String(from.id),
+          username: telegramUsername,
+          name: telegramName
+        }
+      });
+
+      const knownContact = await requestContractService.findKnownLeadContact({
+        companyId,
+        botId: pending.botId || ctx.bot.id,
+        telegramUserId: String(from.id)
+      });
+
+      if (knownContact?.phone) {
+        const finalized = await requestContractService.finalizePendingLeadIntent({
+          botId: pending.botId || ctx.bot.id,
+          companyId,
+          telegramUserId: String(from.id),
+          phone: knownContact.phone,
+          displayName: telegramName || (telegramUsername ? `@${telegramUsername}` : 'Клієнт'),
+          telegramUsername,
+          telegramName
+        });
+
+        await sendMessage(ctx, `✅ Запит отримано. Використали збережений контакт ${knownContact.phone}.`, { remove_keyboard: true });
+        if (ctx.bot.adminChatId) {
+          await sendMessage(ctx, [
+            '🟢 [LEAD] MiniApp legacy submit',
+            `👤 ${telegramName || 'Клієнт'}`,
+            `username: ${telegramUsername ? `@${telegramUsername}` : '—'}`,
+            `tgUserId: ${from.id}`,
+            `Контакт: ${knownContact.phone}`,
+            finalized.requestPresentation?.telegramText || `Авто/запит: ${finalized.title}`,
+            finalized.request ? `Request ID: ${finalized.request.publicId || finalized.request.id}` : null
+          ].filter(Boolean).join('\n'), undefined, String(ctx.bot.adminChatId));
+        }
+        return true;
+      }
+
+      await emitPlatformEvent({
+        companyId: ctx.companyId,
+        botId: ctx.bot.id,
+        eventType: 'miniapp.submitted',
+        userId: ctx.userId,
+        chatId: ctx.chatId,
+        payload: {
+          type: payload.type,
+          carId: primaryCarId || undefined,
+          carIds: payloadCarIds.length ? payloadCarIds : undefined,
+          meta: payload.meta || undefined,
+          legacyRouted: true
+        }
+      });
+
+      if ((pending as any).isDuplicate) {
+        await sendMessage(ctx, '✅ Запит уже отримано. Якщо бот вже попросив контакт, поділіться ним у чаті.');
+        return true;
+      }
+
+      await sendMessage(ctx, t(lang, 'miniapp.interest.ask_contact', { car: requestTitle }), {
+        keyboard: [[{ text: '📱 Поділитися контактом', request_contact: true }], [{ text: '⬅️ Назад' }]],
+        resize_keyboard: true,
+        one_time_keyboard: true
+      });
+      return true;
+    }
+
+    if (payload.type === 'interest_click') {
+      const selectedCars = payloadCarIds.length
+        ? await prisma.carListing.findMany({
+          where: { id: { in: payloadCarIds }, ...(ctx.companyId || ctx.bot.companyId ? { companyId: ctx.companyId || ctx.bot.companyId } : {}) },
         select: { id: true, title: true }
       })
       : [];
@@ -244,9 +405,9 @@ export const routeWebApp = async (ctx: PipelineContext) => {
   const brand = await normalizeBrand(fields.brand || '', { companyId: ctx.companyId });
   const model = await normalizeModel(fields.model || '', { companyId: ctx.companyId, brand: brand || null });
   const city = await normalizeCity(fields.city || '', { companyId: ctx.companyId });
-  const selectedCars = payloadCarIds.length
-    ? await prisma.carListing.findMany({
-      where: { id: { in: payloadCarIds } },
+    const selectedCars = payloadCarIds.length
+      ? await prisma.carListing.findMany({
+        where: { id: { in: payloadCarIds }, ...(ctx.companyId || ctx.bot.companyId ? { companyId: ctx.companyId || ctx.bot.companyId } : {}) },
       select: { id: true, title: true, price: true, currency: true, year: true }
     })
     : [];
@@ -254,8 +415,10 @@ export const routeWebApp = async (ctx: PipelineContext) => {
   const selectedCarsOrdered = payloadCarIds.map((id) => selectedCarsMap.get(id)).filter((item): item is typeof selectedCars[number] => Boolean(item));
 
   let requestTitle = [brand, model].filter(Boolean).join(' ').trim();
-  if (!requestTitle && primaryCarId) {
-    const car = await prisma.carListing.findUnique({ where: { id: primaryCarId } });
+    if (!requestTitle && primaryCarId) {
+      const car = await prisma.carListing.findFirst({
+        where: { id: primaryCarId, ...(ctx.companyId || ctx.bot.companyId ? { companyId: ctx.companyId || ctx.bot.companyId } : {}) }
+      });
     if (car) requestTitle = car.title || requestTitle;
   }
   if (!requestTitle && selectedCarsOrdered.length === 1) {

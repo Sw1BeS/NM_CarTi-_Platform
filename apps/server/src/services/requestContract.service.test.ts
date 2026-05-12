@@ -100,7 +100,7 @@ describe('requestContract.service', () => {
 
   it('stores pending lead intent in bot session', async () => {
     mockPrisma.botSession.findUnique.mockResolvedValue(null);
-    mockPrisma.carListing.findMany.mockResolvedValue([{ id: 'car_1', title: 'BMW X5' }]);
+    mockPrisma.carListing.findMany.mockResolvedValue([{ id: 'car_1', title: 'BMW X5', price: 50000, currency: 'USD', year: 2022, mediaUrls: [], mediaItems: null, specs: {}, status: 'AVAILABLE' }]);
 
     const result = await requestContractService.createPendingLeadIntent({
       slug: 'cartie',
@@ -117,10 +117,20 @@ describe('requestContract.service', () => {
         state: 'CL_MINIAPP_CONTACT',
         chatId: '1001',
         variables: expect.objectContaining({
-          miniappPendingIntent: expect.objectContaining({
-            intentType: 'INTEREST',
-            title: 'BMW X5'
-          })
+	            miniappPendingIntent: expect.objectContaining({
+	              intentType: 'INTEREST',
+	              title: 'BMW X5',
+	              payload: expect.objectContaining({
+	                selectedCars: [
+	                  expect.objectContaining({
+	                    id: 'car_1',
+	                    title: 'BMW X5',
+	                    priceLabel: '$50,000'
+	                  })
+	                ],
+	                requestSummary: expect.stringContaining('BMW X5')
+	              })
+	            })
         })
       })
     }));
@@ -201,7 +211,20 @@ describe('requestContract.service', () => {
       }
     });
     mockPrisma.carListing.findMany.mockResolvedValue([
-      { id: 'car_1', title: 'BMW X5', year: 2022, price: 55000, currency: 'USD' }
+      {
+        id: 'car_1',
+        title: 'BMW X5 xDrive40i',
+        year: 2022,
+        price: 55000,
+        currency: 'USD',
+        mileage: 41000,
+        location: 'Львів',
+        thumbnail: 'https://cdn.example/car.jpg',
+        mediaUrls: ['https://cdn.example/car.jpg'],
+        mediaItems: null,
+        specs: { fuel: 'diesel', drive: 'awd' },
+        status: 'AVAILABLE'
+      }
     ]);
 
     const result = await requestContractService.finalizePendingLeadIntent({
@@ -218,7 +241,22 @@ describe('requestContract.service', () => {
       botId: 'bot_1',
       companyId: 'cmp_1',
       phone: '+380671234567',
-      createRequest: true
+      createRequest: true,
+      payload: expect.objectContaining({
+        selectedCars: [
+          expect.objectContaining({
+            id: 'car_1',
+            title: 'BMW X5 xDrive40i',
+            priceLabel: '$55,000',
+            statusLabel: 'В наявності',
+            publicUrl: '/p/app/cartie?entry=inventory&carId=car_1'
+          })
+        ],
+        requestSummary: expect.stringContaining('BMW X5 xDrive40i'),
+        requestPresentation: expect.objectContaining({
+          vehicleLines: [expect.stringContaining('BMW X5 xDrive40i')]
+        })
+      })
     }), {});
     expect(mockPrisma.botSession.update).toHaveBeenCalledWith(expect.objectContaining({
       where: { id: 'sess_1' },
@@ -230,6 +268,11 @@ describe('requestContract.service', () => {
       })
     }));
     expect(result.request.publicId).toBe('REQ-1');
+    expect(result.selectedCars[0]).toEqual(expect.objectContaining({
+      id: 'car_1',
+      title: 'BMW X5 xDrive40i',
+      priceLabel: '$55,000'
+    }));
   });
 
   it('returns an existing finalized MiniApp request for the same submitId instead of creating a duplicate', async () => {

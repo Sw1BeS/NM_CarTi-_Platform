@@ -879,7 +879,7 @@ router.post('/lead-intents', async (req, res) => {
             `tgUserId: ${telegram.userId}`,
             `Контакт: ${knownContact.phone}`,
             `Тип: ${finalized.intentType === 'REQUEST' ? 'Підбір авто' : 'Інтерес до авто'}`,
-            `Авто/запит: ${finalized.title}`,
+            finalized.requestPresentation?.telegramText || `Авто/запит: ${finalized.title}`,
             finalized.request ? `Request ID: ${finalized.request.publicId || finalized.request.id}` : null
           ].filter(Boolean).join('\n'),
           companyId: config.companyId,
@@ -981,10 +981,18 @@ router.post('/bot-flows', async (req, res) => {
       return errorResponse(res, 400, 'flow must be SELL or SUPPORT', MINIAPP_ERROR_CODES.BOT_FLOW_UNAVAILABLE);
     }
 
-    const config = await miniAppService.getConfig(slug).catch(() => null);
-    if (!config?.companyId) return errorResponse(res, 404, 'Company not found');
+      const config = await miniAppService.getConfig(slug).catch(() => null);
+      if (!config?.companyId) return errorResponse(res, 404, 'Company not found');
+      if (isB2BMiniAppConfig(config as Record<string, any>)) {
+        return errorResponse(
+          res,
+          400,
+          'Bot flow is not available for B2B MiniApp',
+          MINIAPP_ERROR_CODES.BOT_FLOW_UNAVAILABLE
+        );
+      }
 
-    const initCheck = await requireInitData(initData, config.companyId, config.botId);
+      const initCheck = await requireInitData(initData, config.companyId, config.botId);
     if (!initCheck.ok) {
       logger.warn('[MiniApp] bot flow initData invalid', {
         slug,
@@ -1088,19 +1096,23 @@ router.post('/requests', async (req, res) => {
       return errorResponse(res, 404, 'Company not found');
     }
 
-    const initCheck = await requireInitData(initData, config.companyId, config.botId);
-    if (!initCheck.ok) return errorResponse(res, 401, initCheck.message || 'Unauthorized');
+      const initCheck = await requireInitData(initData, config.companyId, config.botId);
+      if (!initCheck.ok) return errorResponse(res, 401, initCheck.message || 'Unauthorized');
 
-    if (!isB2BMiniAppConfig(config)) {
+      if (!isB2BMiniAppConfig(config)) {
       return errorResponse(
         res,
         400,
         'Lead MiniApp writes must use /api/miniapp/lead-intents',
-        LEAD_WRONG_ENDPOINT
-      );
-    }
+          LEAD_WRONG_ENDPOINT
+        );
+      }
+      const telegram = parseMiniAppTelegramIdentity(initData || '');
+      if (!telegram.userId) {
+        return errorResponse(res, 400, 'Telegram user not found', MINIAPP_ERROR_CODES.INITDATA_INVALID);
+      }
 
-    logger.info('[MiniApp] request create', {
+      logger.info('[MiniApp] request create', {
       requestId,
       slug,
       companyId: config.companyId,
@@ -1124,13 +1136,17 @@ router.post('/requests', async (req, res) => {
       phone: readString(body.phone),
       comment: readString(body.comment),
       carListingId: readString(body.carListingId),
-      carListingIds: Array.isArray(body.carListingIds)
-        ? body.carListingIds.map((item) => readString(item)).filter((item): item is string => Boolean(item))
-        : undefined,
-      tracking: (body.tracking as Record<string, unknown>) || undefined,
-      telegram: (body.telegram as Record<string, unknown>) || undefined,
-      payload: (body.payload as Record<string, unknown>) || undefined
-    });
+        carListingIds: Array.isArray(body.carListingIds)
+          ? body.carListingIds.map((item) => readString(item)).filter((item): item is string => Boolean(item))
+          : undefined,
+        tracking: (body.tracking as Record<string, unknown>) || undefined,
+        telegram: {
+          userId: telegram.userId,
+          username: telegram.username,
+          name: telegram.name
+        },
+        payload: (body.payload as Record<string, unknown>) || undefined
+      });
 
     res.json({ ok: true, request });
   } catch (e: unknown) {

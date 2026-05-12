@@ -384,6 +384,32 @@ describe('MiniApp Lead handoff routes', () => {
     expect(requestContractServiceMock.createPendingLeadIntent).not.toHaveBeenCalled();
   });
 
+  it('rejects Lead-only bot-flows for B2B MiniApp configs', async () => {
+    miniAppServiceMock.getConfig.mockResolvedValueOnce({
+      companyId: 'company_1',
+      botId: 'bot_b2b',
+      publicSlug: 'cardealer_lviv_bot',
+      template: 'B2B',
+      miniapp: { surfaceMode: 'B2B' }
+    });
+    const app = await buildApp();
+
+    const res = await request(app)
+      .post('/api/miniapp/bot-flows')
+      .send({
+        slug: 'cardealer_lviv_bot',
+        initData: 'signed-init-data',
+        flow: 'SELL'
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({
+      code: 'BOT_FLOW_UNAVAILABLE'
+    });
+    expect(startLeadSellWizardMock).not.toHaveBeenCalled();
+    expect(verifyInitDataMock).not.toHaveBeenCalled();
+  });
+
   it('rejects legacy MiniApp request writes for Lead configs', async () => {
     const app = await buildApp();
 
@@ -401,5 +427,43 @@ describe('MiniApp Lead handoff routes', () => {
       code: 'LEAD_WRONG_ENDPOINT'
     });
     expect(miniAppServiceMock.createRequest).not.toHaveBeenCalled();
+  });
+
+  it('uses verified initData Telegram identity for B2B request writes', async () => {
+    miniAppServiceMock.getConfig.mockResolvedValueOnce({
+      companyId: 'company_1',
+      botId: 'bot_b2b',
+      publicSlug: 'cardealer_lviv_bot',
+      template: 'B2B',
+      miniapp: { surfaceMode: 'B2B' }
+    });
+    miniAppServiceMock.createRequest.mockResolvedValueOnce({
+      id: 'request_1',
+      publicId: 'CD-2026-000001',
+      requesterPartnerId: 'partner_1'
+    });
+    const app = await buildApp();
+
+    const res = await request(app)
+      .post('/api/miniapp/requests')
+      .send({
+        slug: 'cardealer_lviv_bot',
+        initData: 'signed-init-data',
+        requestType: 'BUY',
+        telegram: {
+          userId: 'spoofed_user',
+          username: 'spoofed'
+        },
+        tracking: { submitId: 'b2b_submit_1' }
+      });
+
+    expect(res.status).toBe(200);
+    expect(miniAppServiceMock.createRequest).toHaveBeenCalledWith(expect.objectContaining({
+      telegram: {
+        userId: '1001',
+        username: 'client_one',
+        name: 'Ivan Client'
+      }
+    }));
   });
 });
