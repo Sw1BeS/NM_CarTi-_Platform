@@ -122,6 +122,13 @@ const getMiniAppBotForSend = async (botId?: string | null, companyId?: string | 
   });
 };
 
+const buildBotOpenUrl = (bot: { config?: unknown; name?: string | null } | null | undefined) => {
+  const config = isRecord(bot?.config) ? bot.config as Record<string, unknown> : {};
+  const username = readString(config.botUsername) || readString(config.username);
+  if (!username) return undefined;
+  return `https://t.me/${username.replace(/^@+/, '')}`;
+};
+
 const ensureMiniAppBotSession = async (params: {
   botId: string;
   chatId: string;
@@ -948,7 +955,19 @@ router.post('/lead-intents', async (req, res) => {
         botId: bot.id,
         error: message
       });
-      return errorResponse(res, 502, 'Failed to send contact request', MINIAPP_ERROR_CODES.CONTACT_REQUEST_SEND_FAILED);
+      return res.json({
+        ok: true,
+        contactRequested: false,
+        contactRequestFailed: true,
+        closeMiniApp: false,
+        openBotUrl: buildBotOpenUrl(bot),
+        duplicate: Boolean((pending as any).isDuplicate),
+        intent: {
+          kind: kind.kind,
+          type: pending.intentType,
+          title: pending.title
+        }
+      });
     }
 
     res.json({

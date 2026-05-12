@@ -127,7 +127,10 @@ describe('MiniApp Lead handoff routes', () => {
       id: 'bot_1',
       token: 'telegram-token',
       companyId: 'company_1',
-      config: { defaultShowcaseSlug: 'cartie' }
+      config: {
+        defaultShowcaseSlug: 'cartie',
+        botUsername: 'Cartie_Client_Bot'
+      }
     });
     prismaMock.botSession.findUnique.mockResolvedValue({
       id: 'session_1',
@@ -222,6 +225,46 @@ describe('MiniApp Lead handoff routes', () => {
         keyboard: [[expect.objectContaining({ request_contact: true })], [expect.any(Object)]],
         resize_keyboard: true,
         one_time_keyboard: true
+      })
+    }));
+  });
+
+  it('keeps the pending lead intent saved when Telegram contact keyboard send fails', async () => {
+    telegramOutboxMock.sendMessage.mockRejectedValueOnce(new Error('Bad Request: chat not found'));
+    const app = await buildApp();
+
+    const res = await request(app)
+      .post('/api/miniapp/lead-intents')
+      .send({
+        slug: 'cartie',
+        initData: 'signed-init-data',
+        kind: 'PICK',
+        criteria: {
+          brand: 'BMW',
+          model: 'X5',
+          city: 'Львів'
+        },
+        tracking: { submitId: 'submit_contact_send_failed' }
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      ok: true,
+      contactRequested: false,
+      contactRequestFailed: true,
+      closeMiniApp: false,
+      openBotUrl: 'https://t.me/Cartie_Client_Bot'
+    });
+    expect(requestContractServiceMock.createPendingLeadIntent).toHaveBeenCalledWith(expect.objectContaining({
+      slug: 'cartie',
+      intentType: 'REQUEST',
+      tracking: { submitId: 'submit_contact_send_failed' }
+    }));
+    expect(telegramOutboxMock.sendMessage).toHaveBeenCalledWith(expect.objectContaining({
+      botId: 'bot_1',
+      chatId: '1001',
+      replyMarkup: expect.objectContaining({
+        keyboard: [[expect.objectContaining({ request_contact: true })], [expect.any(Object)]]
       })
     }));
   });

@@ -21,6 +21,7 @@ import { ProfileView } from './miniapp/views/ProfileView';
 import { RequestView, type RequestFormData } from './miniapp/views/RequestView';
 import { MiniAppImage } from './miniapp/components/MiniAppImage';
 import { parseMiniAppEntryIntent, type MiniAppEntryIntent } from './miniapp/entryIntent';
+import { resolveLeadIntentOutcome } from './miniapp/leadIntentOutcome';
 
 const emitMiniAppEvent = (level: 'info' | 'warn' | 'error', message: string, meta?: Record<string, unknown>) => {
     try {
@@ -954,6 +955,22 @@ const MiniAppContent = () => {
         setReqStep(5);
     };
 
+    const handleLeadIntentOutcome = (response: Awaited<ReturnType<typeof createMiniAppLeadIntent>>) => {
+        const outcome = resolveLeadIntentOutcome(response);
+        if (outcome.shouldCloseMiniApp) return true;
+
+        const message = outcome.message || 'Запит збережено. Відкрийте чат з ботом для продовження.';
+        setConfigWarning(message);
+        pushToast(message, 'success');
+        if (outcome.openBotUrl) {
+            const tg = (window as any).Telegram?.WebApp;
+            if (tg?.openTelegramLink) {
+                tg.openTelegramLink(outcome.openBotUrl);
+            }
+        }
+        return false;
+    };
+
     const submitLeadIntent = async (params: {
         kind: 'PICK' | 'PRICE_TERMS';
         carListingIds?: string[];
@@ -971,7 +988,7 @@ const MiniAppContent = () => {
                 ? window.crypto.randomUUID()
                 : `submit_${Date.now()}_${Math.random().toString(16).slice(2)}`);
         requestSubmitIdRef.current = submitId;
-        await createMiniAppLeadIntent({
+        const response = await createMiniAppLeadIntent({
             slug: targetSlug || 'system',
             initData: submitInitData,
             kind: params.kind,
@@ -982,7 +999,7 @@ const MiniAppContent = () => {
             tracking: { ...trackingMeta, submitId, requestType: 'BUY' }
         });
         requestSubmitIdRef.current = null;
-        return true;
+        return handleLeadIntentOutcome(response);
     };
 
     const handleCarInterest = async (car: CarListing) => {
@@ -1841,7 +1858,7 @@ const MiniAppContent = () => {
                 };
 
                 if (!isB2BMode) {
-                    await createMiniAppLeadIntent({
+                    const response = await createMiniAppLeadIntent({
                         slug,
                         initData: submitInitData,
                         kind: selectedListingIds.length ? 'PRICE_TERMS' : 'PICK',
@@ -1851,13 +1868,14 @@ const MiniAppContent = () => {
                         comment: reqComment || undefined,
                         tracking: { ...trackingMeta, submitId, requestType: 'BUY' }
                     });
+                    const shouldClose = handleLeadIntentOutcome(response);
                     trackEvent('lead_intent_pick_submitted', {
                         requestSubtype: effectiveRequestSubtype,
                         selectedCarsCount: selectedListingIds.length
                     });
                     clearRequestSelection();
                     requestSubmitIdRef.current = null;
-                    closeMiniAppOrShowSuccess();
+                    if (shouldClose) closeMiniAppOrShowSuccess();
                     return;
                 }
 
