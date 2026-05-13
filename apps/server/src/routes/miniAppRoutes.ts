@@ -14,6 +14,7 @@ import { emitPlatformEvent } from '../modules/Communication/telegram/core/events
 import { verifyMiniAppInitDataForScope } from '../services/miniAppAuth.service.js';
 import { requestContractService } from '../services/requestContract.service.js';
 import { startLeadSellWizard } from '../modules/Communication/telegram/routing/wizards/leadSellWizard.js';
+import { buildLeadAdminActionMarkup, buildLeadAdminNotificationText } from '../services/leadAdminNotification.js';
 
 const router = Router();
 const showcaseService = new ShowcaseService();
@@ -875,20 +876,31 @@ router.post('/lead-intents', async (req, res) => {
       });
 
       if (bot.adminChatId) {
+        const displayName = telegram.name || (telegram.username ? `@${telegram.username}` : 'Клієнт');
+        const adminText = buildLeadAdminNotificationText({
+          header: '🟢 [LEAD] MiniApp запит',
+          displayName,
+          telegramUsername: telegram.username,
+          telegramUserId: telegram.userId,
+          phone: knownContact.phone,
+          intentLabel: finalized.intentType === 'REQUEST' ? 'Підбір авто' : 'Інтерес до авто',
+          requestPresentationText: finalized.requestPresentation?.telegramText,
+          fallbackTitle: finalized.title,
+          request: finalized.request,
+          source: 'miniapp',
+          duplicate: Boolean((pending as any).isDuplicate || finalized.isDuplicate)
+        });
+        const replyMarkup = buildLeadAdminActionMarkup({
+          lead: finalized.lead,
+          request: finalized.request,
+          telegramUserId: telegram.userId
+        });
         await telegramOutbox.sendMessage({
           botId: bot.id,
           token: bot.token,
           chatId: String(bot.adminChatId),
-          text: [
-            '🟢 [LEAD] MiniApp запит',
-            `👤 ${telegram.name || 'Клієнт'}`,
-            `username: ${telegram.username ? `@${telegram.username}` : '—'}`,
-            `tgUserId: ${telegram.userId}`,
-            `Контакт: ${knownContact.phone}`,
-            `Тип: ${finalized.intentType === 'REQUEST' ? 'Підбір авто' : 'Інтерес до авто'}`,
-            finalized.requestPresentation?.telegramText || `Авто/запит: ${finalized.title}`,
-            finalized.request ? `Request ID: ${finalized.request.publicId || finalized.request.id}` : null
-          ].filter(Boolean).join('\n'),
+          text: adminText,
+          replyMarkup,
           companyId: config.companyId,
           userId: telegram.userId
         }).catch((e: unknown) => {

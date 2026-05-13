@@ -46,6 +46,13 @@ describe('callbackUtils', () => {
     expect(parsed.id).toBe('2');
   });
 
+  it('parses B2B variant deep-link payloads as send-variant actions', () => {
+    const parsed = parseCallbackData('b2bv_CD-2026-000123');
+    expect(parsed.ok).toBe(true);
+    expect(parsed.action).toBe(ActionTokens.BV_SEND);
+    expect(parsed.id).toBe('CD-2026-000123');
+  });
+
   it('keeps callback_data compact for long tokens', () => {
     const data = buildCallbackData('lead_sell_super_long_action_name', '1234567890abcdefghijklmnopqrstuvwxyz');
     expect(Buffer.byteLength(data, 'utf8')).toBeLessThanOrEqual(64);

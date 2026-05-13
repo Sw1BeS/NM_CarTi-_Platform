@@ -803,9 +803,9 @@ export const routeCallback = async (ctx: PipelineContext) => {
   }
 
   const parts = data.split('_');
-  if (parts.length === 3 && parts[0] === 'lead') {
+  if (parts.length >= 3 && parts[0] === 'lead') {
     const status = parts[1] as LeadStatus;
-    const id = parts[2];
+    const id = parts.slice(2).join('_');
     if (!Object.values(LeadStatus).includes(status)) return false;
     await prisma.lead.update({ where: { id }, data: { status } });
     if (cb.message?.chat?.id && cb.message?.message_id) {

@@ -5,6 +5,7 @@ const {
   telegramOutboxMock,
   b2bWhitelistServiceMock,
   quotaServiceMock,
+  publicIdServiceMock,
   startB2BVariantWizardMock
 } = vi.hoisted(() => ({
   prismaMock: {
@@ -13,6 +14,26 @@ const {
     },
     partnerUser: {
       findFirst: vi.fn()
+    },
+    b2bRequest: {
+      create: vi.fn(),
+      update: vi.fn()
+    },
+    integrationEventLog: {
+      create: vi.fn()
+    },
+    messageLog: {
+      create: vi.fn()
+    },
+    channelPost: {
+      create: vi.fn()
+    },
+    botConfig: {
+      findUnique: vi.fn(),
+      update: vi.fn()
+    },
+    partnerCompany: {
+      findUnique: vi.fn()
     }
   },
   telegramOutboxMock: {
@@ -24,6 +45,9 @@ const {
   },
   quotaServiceMock: {
     consume: vi.fn()
+  },
+  publicIdServiceMock: {
+    nextB2bRequestId: vi.fn()
   },
   startB2BVariantWizardMock: vi.fn()
 }));
@@ -44,6 +68,10 @@ vi.mock('../../../../services/quota.service.js', () => ({
   quotaService: quotaServiceMock
 }));
 
+vi.mock('../../../../services/publicId.service.js', () => ({
+  publicIdService: publicIdServiceMock
+}));
+
 vi.mock('./wizards/b2bVariantWizard.js', () => ({
   startB2BVariantWizard: startB2BVariantWizardMock
 }));
@@ -60,6 +88,36 @@ describe('B2B registered menu', () => {
       lastActive: data.lastActive
     }));
     telegramOutboxMock.sendMessage.mockResolvedValue({ message_id: 10 });
+    publicIdServiceMock.nextB2bRequestId.mockResolvedValue('CD-2026-000777');
+    prismaMock.b2bRequest.create.mockImplementation(async ({ data }: any) => ({
+      id: 'request_1',
+      publicId: data.publicId,
+      title: data.title,
+      yearMin: data.yearMin,
+      yearMax: data.yearMax,
+      budgetMin: data.budgetMin,
+      budgetMax: data.budgetMax,
+      description: data.description,
+      payload: data.payload
+    }));
+    prismaMock.b2bRequest.update.mockResolvedValue({});
+    prismaMock.integrationEventLog.create.mockResolvedValue({});
+    prismaMock.messageLog.create.mockResolvedValue({});
+    prismaMock.channelPost.create.mockResolvedValue({});
+    prismaMock.partnerCompany.findUnique.mockResolvedValue(null);
+    prismaMock.botConfig.findUnique.mockImplementation(async ({ where }: any) => {
+      if (where?.id === 'bot_b2b') {
+        return {
+          id: 'bot_b2b',
+          token: 'token',
+          companyId: 'company_1',
+          isEnabled: true,
+          config: { username: 'CarDealer_Lviv_Bot' }
+        };
+      }
+      return null;
+    });
+    prismaMock.botConfig.update.mockResolvedValue({});
   });
 
   it('sends a registered B2B persistent reply menu whose buttons open MiniApp sections', async () => {
@@ -202,5 +260,104 @@ describe('B2B registered menu', () => {
 
     expect(handled).toBe(true);
     expect(startB2BVariantWizardMock).toHaveBeenCalledWith(ctx, 'REQ-MMU49LAQRWD9');
+  }, 10000);
+
+  it('routes b2bv_PUBLIC_ID channel deep links to the B2B variant wizard', async () => {
+    const { routeMessage } = await import('./routeMessage.js');
+
+    const ctx: any = {
+      bot: {
+        id: 'bot_b2b',
+        token: 'token',
+        name: 'CarDealer Lviv',
+        template: 'B2B',
+        config: {
+          publicBaseUrl: 'https://cartie.test',
+          defaultShowcaseSlug: 'cardealer_lviv_bot',
+          miniAppConfig: { showcaseSlug: 'cardealer_lviv_bot' }
+        }
+      },
+      companyId: 'company_1',
+      chatId: '1001',
+      userId: '1001',
+      chatType: 'private',
+      update: {
+        message: {
+          text: '/start b2bv_CD-2026-000123',
+          chat: { id: 1001, type: 'private' },
+          from: { id: 1001, first_name: 'Dealer' }
+        }
+      },
+      session: {
+        id: 'session_1',
+        state: 'B2B_MENU',
+        variables: {
+          b2bPartnerId: 'partner_1',
+          b2bPartnerName: 'Dealer One'
+        }
+      }
+    };
+
+    const handled = await routeMessage(ctx);
+
+    expect(handled).toBe(true);
+    expect(startB2BVariantWizardMock).toHaveBeenCalledWith(ctx, 'CD-2026-000123');
+  }, 10000);
+
+  it('publishes legacy finalized B2B requests with the Є авто deep-link action', async () => {
+    const { finalizeB2BRequest } = await import('./routeMessage.js');
+
+    const ctx: any = {
+      bot: {
+        id: 'bot_b2b',
+        token: 'token',
+        name: 'CarDealer Lviv',
+        template: 'B2B',
+        channelId: '-100123',
+        config: {
+          username: 'CarDealer_Lviv_Bot',
+          publicBaseUrl: 'https://cartie.test',
+          defaultShowcaseSlug: 'cardealer_lviv_bot',
+          miniAppConfig: { showcaseSlug: 'cardealer_lviv_bot' }
+        }
+      },
+      companyId: 'company_1',
+      chatId: '1001',
+      userId: '1001',
+      chatType: 'private',
+      update: {
+        message: {
+          chat: { id: 1001, type: 'private' },
+          from: { id: 1001, first_name: 'Dealer' }
+        }
+      },
+      session: {
+        id: 'session_1',
+        state: 'B2B_CREATE',
+        variables: {
+          b2bFlow: {
+            title: 'BMW X5',
+            yearMin: 2020,
+            yearMax: 2024,
+            budgetMax: 70000,
+            mileageMax: 120000,
+            fuel: 'Дизель',
+            description: 'Потрібен доглянутий',
+            contact: '+380635055252',
+            companyName: 'Dealer One'
+          }
+        }
+      }
+    };
+
+    await finalizeB2BRequest(ctx);
+
+    const channelCall = telegramOutboxMock.sendMessage.mock.calls
+      .map(([payload]) => payload)
+      .find((payload: any) => payload.chatId === '-100123');
+    expect(channelCall?.replyMarkup?.inline_keyboard?.[0]?.[0]).toEqual({
+      text: 'Є авто',
+      url: 'https://t.me/CarDealer_Lviv_Bot?start=b2bv_CD-2026-000777'
+    });
   }, 10000);
 });

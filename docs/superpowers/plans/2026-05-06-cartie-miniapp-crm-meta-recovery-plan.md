@@ -36,6 +36,75 @@ Out of scope for this patch unless explicitly scheduled: Prisma schema migration
 
 ---
 
+## 2026-05-13 Current Audit Delta And MVP Slices
+
+Latest explicit decision wins: most Lead/B2B working surfaces should live in MiniApp, while Telegram remains the connector for valid MiniApp launch, native contact sharing, admin callbacks, channel posts, and message delivery. Native Telegram menu button opens the base MiniApp; persistent reply keyboard buttons open concrete MiniApp sections; message inline buttons remain message-specific actions such as B2B `Є авто`, FIT/NOT_FIT, admin claim/status actions.
+
+### Current Code Map Confirmed
+
+- Telegram runtime: `telegram.routes.ts`, `pipeline.ts`, `routeMessage.ts`, `routeCallback.ts`, `routeWebApp.ts`, `routeChannelPost.ts`, `telegramOutbox.ts`, `telegramSender.ts`, `miniappUrl.ts`, `telegramReplyMarkup.ts`, `callbackUtils.ts`.
+- LeadBot: `routeMessage.ts` CLIENT_LEAD branches, `clientLeadMiniAppMenu.ts`, `leadBuyWizard.ts`, `leadSellWizard.ts`, `leadService.ts`, `miniAppRoutes.ts` `/lead-intents` and `/bot-flows`.
+- B2B Bot: `routeMessage.ts` B2B branches, `b2bRegistrationWizard.ts`, `b2bRequestWizard.ts`, `b2bVariantWizard.ts`, `b2bSellWizard.ts`, `b2bRegistration.service.ts`, `b2bRouting.service.ts`, `b2bWhitelist.service.ts`, `b2bV2.routes.ts`.
+- MiniApp: web route `/p/app` and `/p/app/:slug`, `MiniApp.tsx`, `MiniAppShell.tsx`, `CatalogView.tsx`, `RequestView.tsx`, `FavoritesView.tsx`, `ProfileView.tsx`, `miniappApi.ts`, `entryIntent.ts`, `leadIntentOutcome.ts`.
+- CRM/request/contact: Prisma `Lead`, `LeadActivity`, `B2bRequest`, `RequestVariant`, newer `Contact`, `Case`, `Conversation`, plus `lead.repository.ts`, `request.repository.ts`, `requestContract.service.ts`, `miniapp.service.ts`, `legacyLeads.routes.ts`, `requests.routes.ts`.
+- Inventory/showcase: Prisma `CarListing`, `Showcase`, `PartnerCompany`, `MiniAppFavorite`, `ShowcaseService`, `inventory.service.ts`, `mapInventoryOutput`, `vehiclePresentation.ts`, `requestPresentation.ts`, `cardRenderer.ts`, `carCardRenderer.v2.ts`.
+- Admin/channel notifications: `routeMessage.ts`, `routeCallback.ts`, B2B wizards, lead sell wizard, `b2bRouting.service.ts`, `telegramOutbox.ts`, `IntegrationEventLog`.
+- Meta: company-scoped `IntegrationService.metaPixelTrackEvent`, legacy `modules/Integrations/meta.service.ts`, legacy `modules/Integrations/meta/meta.service.ts`, web `MiniApp.tsx` tracking capture and `/miniapp/events`.
+- SalesDrive: no current code/config enum was found for `SalesDrive`/`SALESDRIVE`; add only a read-only connector skeleton later, with env/secret-store credentials and write flags disabled by default.
+
+### Confirmed Product Gaps
+
+- Admin chat is still not a true workbench everywhere: some messages have no CRM/open/status action and do not always include human-readable vehicle context.
+- Lead/B2B identity is not canonical: `Contact` exists, but most flows still operate on legacy `Lead` and JSON payloads.
+- Request status history is fragmented: variants have richer history than requests; request assignment is a string field.
+- B2B MiniApp is still thinner than the backend capabilities; existing API methods for my requests, variants, and fit queue are not fully rendered as a partner portal.
+- Meta tracking exists but is split between company-scoped and legacy paths; MiniApp tracking metadata is not consistently linked to final CRM entities.
+- SalesDrive connector is absent; do not use pasted credentials directly in code, logs, or commits.
+
+### Target Architecture Without Overbuild
+
+- Inventory owns car data.
+- Showcase owns saved views/presets and rendering rules over inventory.
+- CRM owns contact identity, leads, requests, statuses, assignments, timeline, dedupe, and external sync state.
+- Telegram connector owns Bot API, MiniApp launch/auth, chat/menu/buttons, channel posting, and callbacks.
+- Analytics connector owns browser/server event capture, `event_id` dedupe, CAPI dispatch, and logs.
+- SalesDrive connector is a read-only/export-first integration until write sync is explicitly enabled by flags and owner approval.
+
+### MVP Vertical Slices
+
+1. Lead/MiniApp submit -> CRM/admin work item:
+   - Keep `/api/miniapp/lead-intents`.
+   - Reuse known verified phone.
+   - Preserve submit idempotency.
+   - Send admin message with readable vehicle/request context, CRM link, contact action, and user link.
+   - Show persistent MiniApp submit error/recovery state instead of only toast.
+
+2. B2B partner portal:
+   - Keep partner identity on `PartnerCompany` + `PartnerUser`.
+   - Render MiniApp tabs for active requests, received variants, my inventory/showcase, team, and admin fit queue where backend endpoints already exist.
+   - Keep contacts hidden until FIT/admin-approved routing.
+
+3. CRM identity/timeline:
+   - Route all lead creation through `createOrMergeLead` or `LeadRepository`.
+   - Add canonical resolver over Telegram ID + phone + external IDs.
+   - Add append-only timeline/status events before adding destructive merges.
+
+4. Meta and SalesDrive readiness:
+   - Move runtime CAPI calls to company-scoped integration.
+   - Attach MiniApp/UTM/fbp/fbc tracking to final Lead/Request.
+   - Add SalesDrive read-only connector skeleton and dry-run import preview only; no writes without flags.
+
+### Implemented In This Pass
+
+- Added shared `leadAdminNotification` helper for MiniApp/Lead admin messages.
+- Added actionable admin notification buttons for known-contact MiniApp leads and native-contact MiniApp handoff.
+- Made legacy MiniApp web_app_data known-contact notifications use the same admin helper.
+- Made legacy lead status callback parsing tolerate IDs containing underscores.
+- Added persistent MiniApp request submit error panel with retry context and bot-open recovery, while keeping form data intact.
+- Added tests covering actionable admin notifications for `/lead-intents` and native contact handoff.
+
+---
+
 ## Current Dependency Map
 
 ### Telegram And MiniApp Launch

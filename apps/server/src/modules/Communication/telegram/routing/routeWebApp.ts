@@ -12,6 +12,7 @@ import { emitPlatformEvent } from '../core/events/eventEmitter.js';
 import { ScenarioEngine } from '../../bots/scenario.engine.js';
 import { resolveLang, t } from '../core/utils/telegramText.js';
 import { requestContractService } from '../../../../services/requestContract.service.js';
+import { buildLeadAdminActionMarkup, buildLeadAdminNotificationText } from '../../../../services/leadAdminNotification.js';
 
 const shouldBypassScenarioEngine = (ctx: PipelineContext) => {
   const template = String(ctx.bot?.template || '').toUpperCase();
@@ -214,15 +215,29 @@ export const routeWebApp = async (ctx: PipelineContext) => {
 
         await sendMessage(ctx, `✅ Запит отримано. Використали збережений контакт ${knownContact.phone}.`, { remove_keyboard: true });
         if (ctx.bot.adminChatId) {
-          await sendMessage(ctx, [
-            '🟢 [LEAD] MiniApp legacy submit',
-            `👤 ${telegramName || 'Клієнт'}`,
-            `username: ${telegramUsername ? `@${telegramUsername}` : '—'}`,
-            `tgUserId: ${from.id}`,
-            `Контакт: ${knownContact.phone}`,
-            finalized.requestPresentation?.telegramText || `Авто/запит: ${finalized.title}`,
-            finalized.request ? `Request ID: ${finalized.request.publicId || finalized.request.id}` : null
-          ].filter(Boolean).join('\n'), undefined, String(ctx.bot.adminChatId));
+          const adminText = buildLeadAdminNotificationText({
+            header: '🟢 [LEAD] MiniApp legacy submit',
+            displayName: telegramName || (telegramUsername ? `@${telegramUsername}` : 'Клієнт'),
+            telegramUsername,
+            telegramUserId: String(from.id),
+            phone: knownContact.phone,
+            intentLabel: finalized.intentType === 'REQUEST' ? 'Підбір авто' : 'Інтерес до авто',
+            requestPresentationText: finalized.requestPresentation?.telegramText,
+            fallbackTitle: finalized.title,
+            request: finalized.request,
+            source: 'legacy_web_app_data',
+            duplicate: Boolean(finalized.isDuplicate)
+          });
+          await sendMessage(
+            ctx,
+            adminText,
+            buildLeadAdminActionMarkup({
+              lead: finalized.lead,
+              request: finalized.request,
+              telegramUserId: String(from.id)
+            }),
+            String(ctx.bot.adminChatId)
+          );
         }
         return true;
       }

@@ -138,10 +138,12 @@ export const renderB2bChannelPost = (
 
   const publicIdForAction = String(request.publicId || request.id).slice(0, 28);
   const responseUrl = String(options?.responseUrl || '').trim();
-  const actionButton = {
-    text: 'Є авто',
-    callback_data: buildCallbackData(ActionTokens.BV_SEND, publicIdForAction)
-  };
+  const actionButton = responseUrl
+    ? { text: 'Є авто', url: responseUrl }
+    : {
+      text: 'Є авто',
+      callback_data: buildCallbackData(ActionTokens.BV_SEND, publicIdForAction)
+    };
   const openBotButton = responseUrl
     ? { text: 'Відкрити в боті', url: responseUrl }
     : null;

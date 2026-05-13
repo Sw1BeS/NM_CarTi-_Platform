@@ -52,6 +52,10 @@ type RequestViewProps = {
   showInlineAction: boolean;
   actionLabel: string;
   actionDisabled?: boolean;
+  submitError?: { message: string; openBotUrl?: string } | null;
+  openBotUrl?: string;
+  onOpenBot?: (url?: string) => void;
+  onDismissSubmitError?: () => void;
   onNextStep: () => void;
   onBackStep: () => void;
   onHome: () => void;
@@ -200,6 +204,10 @@ export const RequestView = ({
   showInlineAction,
   actionLabel,
   actionDisabled,
+  submitError,
+  openBotUrl,
+  onOpenBot,
+  onDismissSubmitError,
   onNextStep,
   onBackStep,
   onHome
@@ -467,7 +475,45 @@ export const RequestView = ({
               </div>
               {!hasTelegramInit && (
                 <div className="text-xs text-yellow-200 bg-yellow-500/10 border border-yellow-500/25 rounded-xl p-3 text-center">
-                  Відкрийте Mini App з Telegram-бота, щоб надіслати запит.
+                  <div>Відкрийте Mini App з Telegram-бота, щоб надіслати запит.</div>
+                  {(submitError?.openBotUrl || openBotUrl) && (
+                    <button
+                      type="button"
+                      onClick={() => onOpenBot?.(submitError?.openBotUrl || openBotUrl)}
+                      className="mt-3 w-full rounded-lg bg-yellow-100/12 px-3 py-2 font-bold text-yellow-100"
+                    >
+                      Відкрити бота
+                    </button>
+                  )}
+                </div>
+              )}
+              {submitError && (
+                <div className="rounded-xl border border-red-400/25 bg-red-500/10 p-4 text-sm text-red-50">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-bold text-white">Не вдалося надіслати запит</p>
+                      <p className="mt-1 text-red-100/80">{submitError.message}</p>
+                    </div>
+                    {onDismissSubmitError && (
+                      <button
+                        type="button"
+                        onClick={onDismissSubmitError}
+                        className="shrink-0 text-red-100/70 hover:text-white"
+                        aria-label="Закрити помилку"
+                      >
+                        x
+                      </button>
+                    )}
+                  </div>
+                  {submitError.openBotUrl && (
+                    <button
+                      type="button"
+                      onClick={() => onOpenBot?.(submitError.openBotUrl)}
+                      className="mt-3 w-full rounded-lg border border-red-100/20 bg-white/10 px-3 py-2 font-bold text-white"
+                    >
+                      Відкрити чат з ботом
+                    </button>
+                  )}
                 </div>
               )}
             </div>

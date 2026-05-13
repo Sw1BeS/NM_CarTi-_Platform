@@ -124,7 +124,8 @@ const isBrowserImageUrl = (value: unknown): value is string => {
 const resolveMiniAppWriteError = (error: unknown, fallback = 'Не вдалося виконати дію.') => {
     const message = error instanceof Error ? String(error.message || '').trim() : '';
     const code = typeof error === 'object' && error && 'code' in error ? String((error as any).code || '') : '';
-    if (code === 'TELEGRAM_INITDATA_REQUIRED' || code === 'TELEGRAM_INITDATA_INVALID') {
+    const status = typeof error === 'object' && error && 'status' in error ? Number((error as any).status) : undefined;
+    if (code === 'TELEGRAM_INITDATA_REQUIRED' || code === 'TELEGRAM_INITDATA_INVALID' || code === 'TELEGRAM_INITDATA_EXPIRED') {
         return 'Сесія Telegram застаріла. Відкрийте Mini App повторно через кнопку меню бота.';
     }
     if (code === 'VALIDATION_ERROR') {
@@ -132,6 +133,12 @@ const resolveMiniAppWriteError = (error: unknown, fallback = 'Не вдалос�
     }
     if (code === 'CONTACT_REQUEST_SEND_FAILED') {
         return 'Запит збережено, але бот не зміг попросити контакт. Відкрийте чат з ботом і натисніть /start.';
+    }
+    if (code === 'RATE_LIMITED') {
+        return 'Забагато запитів за короткий час. Спробуйте трохи пізніше або напишіть менеджеру в боті.';
+    }
+    if (status === 0) {
+        return 'Не вдалося підключитися до сервера. Перевірте інтернет і повторіть спробу.';
     }
     if (!message) return fallback;
     const lower = message.toLowerCase();
@@ -142,6 +149,9 @@ const resolveMiniAppWriteError = (error: unknown, fallback = 'Не вдалос�
         || lower.includes('init data')
     ) {
         return 'Сесія Telegram застаріла. Відкрийте Mini App повторно через кнопку в боті.';
+    }
+    if (lower.includes('network') || lower.includes('failed to fetch') || lower.includes('aborted')) {
+        return 'Не вдалося підключитися до сервера. Перевірте інтернет і повторіть спробу.';
     }
     return message;
 };
@@ -343,6 +353,7 @@ const MiniAppContent = () => {
     const [reqCompany, setReqCompany] = useState('');
     const [requestType, setRequestType] = useState<RequestType>('BUY');
     const [isRequestSubmitting, setIsRequestSubmitting] = useState(false);
+    const [requestSubmitError, setRequestSubmitError] = useState<{ message: string; openBotUrl?: string } | null>(null);
     const [statusQuery, setStatusQuery] = useState({ publicId: '' });
     const [statusResult, setStatusResult] = useState<any>(null);
     const [trackingMeta, setTrackingMeta] = useState<MiniAppTrackingMeta>({});
@@ -369,6 +380,33 @@ const MiniAppContent = () => {
             version: tg?.version || undefined,
             ...extra
         };
+    };
+
+    const resolveOpenBotUrl = (override?: string) => {
+        if (override) return override;
+        const username = String(
+            (activeBot as any)?.botUsername
+            || activeBot?.username
+            || (config as any)?.botUsername
+            || (config as any)?.username
+            || ''
+        ).replace(/^@+/, '').trim();
+        return username ? `https://t.me/${username}` : undefined;
+    };
+
+    const openBotUrl = (override?: string) => {
+        const link = resolveOpenBotUrl(override);
+        if (!link) return;
+        const tg = (window as any).Telegram?.WebApp;
+        if (/^https:\/\/t\.me\//i.test(link) && tg?.openTelegramLink) {
+            tg.openTelegramLink(link);
+            return;
+        }
+        if (/^https?:\/\//i.test(link) && tg?.openLink) {
+            tg.openLink(link);
+            return;
+        }
+        window.open(link, '_blank');
     };
 
     const goBack = useCallback(() => {
@@ -500,6 +538,7 @@ const MiniAppContent = () => {
     const openRequest = (type: RequestType = 'BUY', options: { selectedIds?: string[]; startStep?: number } = {}) => {
         setRequestType(type);
         setReqStep(options.startStep || 1);
+        setRequestSubmitError(null);
         setView('REQUEST');
     };
 
@@ -979,9 +1018,13 @@ const MiniAppContent = () => {
     }) => {
         const submitInitData = initData || readRuntimeTelegramInitData();
         if (!submitInitData) {
-            setConfigWarning('Надсилання запиту доступне лише всередині Telegram Mini App.');
+            const message = 'Надсилання запиту доступне лише всередині Telegram Mini App.';
+            setConfigWarning(message);
+            setRequestSubmitError({ message, openBotUrl: resolveOpenBotUrl() });
+            trackEvent('write_blocked_missing_initdata', { flow: params.kind, requestType: 'BUY' });
             return false;
         }
+        setRequestSubmitError(null);
         if (!initData) setInitData(submitInitData);
         const submitId = requestSubmitIdRef.current
             || (window.crypto?.randomUUID
@@ -1035,9 +1078,12 @@ const MiniAppContent = () => {
     const startBotFlow = async (flow: 'SELL' | 'SUPPORT') => {
         const submitInitData = initData || readRuntimeTelegramInitData();
         if (!submitInitData) {
-            setConfigWarning('Цей сценарій доступний лише через Telegram Mini App.');
+            const message = 'Цей сценарій доступний лише через Telegram Mini App.';
+            setConfigWarning(message);
+            setRequestSubmitError({ message, openBotUrl: resolveOpenBotUrl() });
             return;
         }
+        setRequestSubmitError(null);
         if (!initData) setInitData(submitInitData);
         try {
             setIsRequestSubmitting(true);
@@ -1794,6 +1840,7 @@ const MiniAppContent = () => {
         const isB2BMode = surfaceMode === 'B2B';
         if (isRequestSubmitting) return;
         if (reqStep === 1) {
+            setRequestSubmitError(null);
             if (isB2BMode) {
                 if (!reqData.brand.trim() && !(reqData.brands || []).length) {
                     setConfigWarning('Для B2B запиту вкажіть марку та модель.');
@@ -1804,6 +1851,7 @@ const MiniAppContent = () => {
             return;
         }
         if (reqStep < 4) {
+            setRequestSubmitError(null);
             setReqStep(prev => Math.min(4, prev + 1));
             return;
         }
@@ -1811,7 +1859,10 @@ const MiniAppContent = () => {
         {
             const submitInitData = initData || readRuntimeTelegramInitData();
             if (!submitInitData) {
-                setConfigWarning('Надсилання запиту доступне лише в Telegram Mini App.');
+                const message = 'Надсилання запиту доступне лише в Telegram Mini App.';
+                setConfigWarning(message);
+                setRequestSubmitError({ message, openBotUrl: resolveOpenBotUrl() });
+                trackEvent('write_blocked_missing_initdata', { view: 'REQUEST', requestType });
                 return;
             }
             if (!initData) setInitData(submitInitData);
@@ -1822,6 +1873,7 @@ const MiniAppContent = () => {
 
             try {
                 setIsRequestSubmitting(true);
+                setRequestSubmitError(null);
                 const slug = targetSlug || 'system';
                 const fallbackListingId = getCarId(selectedCar);
                 const selectedListingIds = selectedRequestCarIds.length
@@ -1942,6 +1994,7 @@ const MiniAppContent = () => {
                     requestType
                 }));
                 const message = resolveMiniAppWriteError(e, 'Не вдалося надіслати запит.');
+                setRequestSubmitError({ message, openBotUrl: resolveOpenBotUrl() });
                 pushToast(message, 'error');
             } finally {
                 setIsRequestSubmitting(false);
@@ -1971,7 +2024,11 @@ const MiniAppContent = () => {
             requestType={requestType}
             showInlineAction={true}
             actionLabel={isRequestSubmitting ? 'Надсилання...' : (reqStep >= 4 ? 'Надіслати' : 'Далі')}
-            actionDisabled={isRequestSubmitting}
+            actionDisabled={isRequestSubmitting || (reqStep >= 4 && !hasTelegramInit)}
+            submitError={requestSubmitError}
+            openBotUrl={resolveOpenBotUrl()}
+            onOpenBot={openBotUrl}
+            onDismissSubmitError={() => setRequestSubmitError(null)}
             onNextStep={handleNextStep}
             onBackStep={() => setReqStep(prev => Math.max(1, prev - 1))}
             onHome={() => { setReqStep(1); setView('HOME'); }}

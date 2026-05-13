@@ -127,6 +127,7 @@ describe('MiniApp Lead handoff routes', () => {
       id: 'bot_1',
       token: 'telegram-token',
       companyId: 'company_1',
+      adminChatId: '-100999',
       config: {
         defaultShowcaseSlug: 'cartie',
         botUsername: 'Cartie_Client_Bot'
@@ -174,7 +175,10 @@ describe('MiniApp Lead handoff routes', () => {
       isDuplicate: false,
       lead: { id: 'lead_1' },
       request: { id: 'request_1', publicId: 'REQ-1' },
-      selectedCars: []
+      selectedCars: [],
+      requestPresentation: {
+        telegramText: '🎯 Ціна / умови: Mercedes-Benz S 500\n🚗 Mercedes-Benz S 500 2021 • $78,900 • В наявності • Львів'
+      }
     });
     telegramOutboxMock.sendMessage.mockResolvedValue({ message_id: 10 });
     startLeadSellWizardMock.mockResolvedValue(undefined);
@@ -306,6 +310,44 @@ describe('MiniApp Lead handoff routes', () => {
           expect.arrayContaining([expect.objectContaining({ request_contact: true })])
         ])
       })
+    }));
+  });
+
+  it('sends an actionable admin notification with readable vehicle context for known-contact MiniApp leads', async () => {
+    requestContractServiceMock.findKnownLeadContact.mockResolvedValueOnce({
+      phone: '+380635055252',
+      leadId: 'lead_existing'
+    });
+    const app = await buildApp();
+
+    const res = await request(app)
+      .post('/api/miniapp/lead-intents')
+      .send({
+        slug: 'cartie',
+        initData: 'signed-init-data',
+        kind: 'PRICE_TERMS',
+        carListingId: 'car_1',
+        tracking: { submitId: 'submit_admin_actions' }
+      });
+
+    expect(res.status).toBe(200);
+    const adminMessage = telegramOutboxMock.sendMessage.mock.calls
+      .map(([arg]) => arg)
+      .find((arg) => arg.chatId === '-100999');
+
+    expect(adminMessage).toEqual(expect.objectContaining({
+      text: expect.stringContaining('Mercedes-Benz S 500')
+    }));
+    expect(adminMessage.text).toContain('Request ID: REQ-1');
+    expect(adminMessage.replyMarkup).toEqual(expect.objectContaining({
+      inline_keyboard: expect.arrayContaining([
+        expect.arrayContaining([
+          expect.objectContaining({ text: expect.stringContaining('CRM'), url: expect.stringContaining('/requests') })
+        ]),
+        expect.arrayContaining([
+          expect.objectContaining({ text: expect.stringContaining('контакт'), callback_data: 'lead_CONTACTED_lead_1' })
+        ])
+      ])
     }));
   });
 

@@ -19,6 +19,7 @@ import { publicIdService } from '../../../../services/publicId.service.js';
 import { b2bWhitelistService } from '../../../../services/b2bWhitelist.service.js';
 import { quotaService } from '../../../../services/quota.service.js';
 import { requestContractService } from '../../../../services/requestContract.service.js';
+import { buildLeadAdminActionMarkup, buildLeadAdminNotificationText } from '../../../../services/leadAdminNotification.js';
 import { getEnvInt, isEnvFlagEnabled } from '../../../../services/featureFlags.js';
 import { logger } from '../../../../utils/logger.js';
 import { buildTelegramChannelPostUrl, normalizeBotConfigChatId } from '../core/utils/telegramChatId.js';
@@ -33,6 +34,13 @@ import { startB2BSellWizard, handleB2BSellText } from './wizards/b2bSellWizard.j
 const shouldBypassScenarioEngine = (ctx: PipelineContext) => {
   const template = String(ctx.bot?.template || '').toUpperCase();
   return template === 'CLIENT_LEAD' || template === 'B2B';
+};
+
+const isMiniAppMenuLink = (rawValue?: string | null) => {
+  const raw = String(rawValue || '').trim();
+  if (!raw) return false;
+  if (raw === '{{MINI_APP_URL}}' || raw === '{MINI_APP_URL}') return true;
+  return /\/p\/app(?:\/|\?|$)|startapp=|tgWebAppStartParam=|\/app(?:\?|$)/i.test(raw);
 };
 
 const parseRange = (input: string) => {
@@ -665,9 +673,6 @@ const handleClientLead = async (ctx: PipelineContext, text: string) => {
     );
 
     if (ctx.bot.adminChatId) {
-      const userLink = telegramUsername
-        ? `https://t.me/${telegramUsername.replace(/^@/, '')}`
-        : `tg://user?id=${tgUserId}`;
       const presentationText = finalized.requestPresentation?.telegramText;
       const selectedCarsText = finalized.selectedCars.length
         ? finalized.selectedCars.map((car: any, index: number) => [
@@ -676,20 +681,27 @@ const handleClientLead = async (ctx: PipelineContext, text: string) => {
           car.statusLabel,
           car.location
         ].filter(Boolean).join(' • ')).join('\n')
-        : '—';
-      const adminLines = [
-        '🟢 [LEAD BUY] MiniApp інтерес',
-        `👤 ${displayName}`,
-        `username: ${telegramUsername ? `@${telegramUsername.replace(/^@/, '')}` : '—'}`,
-        `tgUserId: ${tgUserId}`,
-        `🔗 ${userLink}`,
-        `Контакт: ${phone}`,
-        `Тип: ${finalized.intentType === 'REQUEST' ? 'Підбір авто' : 'Інтерес до авто'}`,
-        presentationText ? `\n${presentationText}` : `Авто: ${finalized.title}`,
-        `Обрані авто:\n${selectedCarsText}`,
-        finalized.request ? `Request ID: ${finalized.request.publicId || finalized.request.id}` : null
-      ].filter(Boolean);
-      await sendMessage(ctx, adminLines.join('\n'), undefined, String(ctx.bot.adminChatId));
+        : undefined;
+      const adminText = buildLeadAdminNotificationText({
+        header: '🟢 [LEAD BUY] MiniApp інтерес',
+        displayName,
+        telegramUsername,
+        telegramUserId: tgUserId,
+        phone,
+        intentLabel: finalized.intentType === 'REQUEST' ? 'Підбір авто' : 'Інтерес до авто',
+        requestPresentationText: presentationText,
+        fallbackTitle: finalized.title,
+        selectedCarsText,
+        request: finalized.request,
+        source: 'miniapp_contact_handoff',
+        duplicate: Boolean(finalized.isDuplicate)
+      });
+      const adminMarkup = buildLeadAdminActionMarkup({
+        lead: finalized.lead,
+        request: finalized.request,
+        telegramUserId: tgUserId
+      });
+      await sendMessage(ctx, adminText, adminMarkup, String(ctx.bot.adminChatId));
     }
 
     await showMenu(ctx, lang, 'CLIENT_LEAD');
@@ -1476,7 +1488,7 @@ export const handleDynamicMenu = async (ctx: PipelineContext, text: string) => {
 
       const label = btn[`label_${lang}`] || btn.label || 'Button';
 
-      if (btn.type === 'WEB_APP') {
+      if (btn.type === 'WEB_APP' || (btn.type === 'LINK' && isMiniAppMenuLink(btn.value))) {
         rows[btn.row].push({ text: label, web_app: { url: normalizeMiniAppButtonUrl(ctx.bot, btn.value) } });
       } else if (btn.type === 'LINK') {
         // Links are usually inline buttons, but in a keyboard they fail. 
@@ -1554,6 +1566,13 @@ export const handleDynamicMenu = async (ctx: PipelineContext, text: string) => {
     }
 
     if (matchedBtn.type === 'LINK') {
+      if (isMiniAppMenuLink(matchedBtn.value)) {
+        const url = normalizeMiniAppButtonUrl(ctx.bot, matchedBtn.value);
+        await sendMessage(ctx, 'Відкрийте MiniApp через кнопку нижче:', {
+          inline_keyboard: [[{ text: matchedBtn.label || 'Відкрити MiniApp', web_app: { url } }]]
+        });
+        return true;
+      }
       await sendMessage(ctx, `🔗 ${matchedBtn.value}`);
       return true;
     }
@@ -1946,7 +1965,7 @@ export const finalizeB2BRequest = async (ctx: PipelineContext) => {
         text: channelMessage,
         replyMarkup: {
           inline_keyboard: [
-            [{ text: 'Є варіант', url: deeplink }]
+            [{ text: 'Є авто', url: deeplink }]
           ]
         },
         companyId: ctx.companyId
