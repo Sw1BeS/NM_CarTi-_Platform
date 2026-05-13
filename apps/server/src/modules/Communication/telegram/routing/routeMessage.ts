@@ -1268,8 +1268,9 @@ const handleB2B = async (ctx: PipelineContext, text: string) => {
 
   if (text.startsWith('/start ')) {
     const startPayload = text.split(' ')[1]?.trim();
-    if (startPayload && startPayload.startsWith('b2bv_')) {
-      const publicId = startPayload.replace('b2bv_', '');
+    const legacyRequestMatch = startPayload?.match(/^request_(.+)$/i);
+    if (startPayload && (startPayload.startsWith('b2bv_') || legacyRequestMatch)) {
+      const publicId = legacyRequestMatch?.[1] || startPayload.replace('b2bv_', '');
       const { startB2BVariantWizard } = await import('./wizards/b2bVariantWizard.js');
       await startB2BVariantWizard(ctx, publicId);
       return true;

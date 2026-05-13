@@ -3,7 +3,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const {
   prismaMock,
   telegramOutboxMock,
-  b2bWhitelistServiceMock
+  b2bWhitelistServiceMock,
+  quotaServiceMock,
+  startB2BVariantWizardMock
 } = vi.hoisted(() => ({
   prismaMock: {
     botSession: {
@@ -19,7 +21,11 @@ const {
   b2bWhitelistServiceMock: {
     isEnforced: vi.fn(),
     resolveParticipant: vi.fn()
-  }
+  },
+  quotaServiceMock: {
+    consume: vi.fn()
+  },
+  startB2BVariantWizardMock: vi.fn()
 }));
 
 vi.mock('../../../../services/prisma.js', () => ({
@@ -34,10 +40,19 @@ vi.mock('../../../../services/b2bWhitelist.service.js', () => ({
   b2bWhitelistService: b2bWhitelistServiceMock
 }));
 
+vi.mock('../../../../services/quota.service.js', () => ({
+  quotaService: quotaServiceMock
+}));
+
+vi.mock('./wizards/b2bVariantWizard.js', () => ({
+  startB2BVariantWizard: startB2BVariantWizardMock
+}));
+
 describe('B2B registered menu', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     b2bWhitelistServiceMock.isEnforced.mockReturnValue(false);
+    quotaServiceMock.consume.mockResolvedValue({ allowed: true });
     prismaMock.botSession.update.mockImplementation(async ({ data }: any) => ({
       id: 'session_1',
       state: data.state,
@@ -145,5 +160,47 @@ describe('B2B registered menu', () => {
     });
     expect(calls[1].replyMarkup).toHaveProperty('inline_keyboard');
     expect(calls.some((call: any) => call.replyMarkup?.keyboard)).toBe(false);
+  }, 10000);
+
+  it('routes legacy channel deep links request_PUBLIC_ID to the B2B variant wizard', async () => {
+    const { routeMessage } = await import('./routeMessage.js');
+
+    const ctx: any = {
+      bot: {
+        id: 'bot_b2b',
+        token: 'token',
+        name: 'CarDealer Lviv',
+        template: 'B2B',
+        config: {
+          publicBaseUrl: 'https://cartie.test',
+          defaultShowcaseSlug: 'cardealer_lviv_bot',
+          miniAppConfig: { showcaseSlug: 'cardealer_lviv_bot' }
+        }
+      },
+      companyId: 'company_1',
+      chatId: '1001',
+      userId: '1001',
+      chatType: 'private',
+      update: {
+        message: {
+          text: '/start request_REQ-MMU49LAQRWD9',
+          chat: { id: 1001, type: 'private' },
+          from: { id: 1001, first_name: 'Dealer' }
+        }
+      },
+      session: {
+        id: 'session_1',
+        state: 'B2B_MENU',
+        variables: {
+          b2bPartnerId: 'partner_1',
+          b2bPartnerName: 'Dealer One'
+        }
+      }
+    };
+
+    const handled = await routeMessage(ctx);
+
+    expect(handled).toBe(true);
+    expect(startB2BVariantWizardMock).toHaveBeenCalledWith(ctx, 'REQ-MMU49LAQRWD9');
   }, 10000);
 });
