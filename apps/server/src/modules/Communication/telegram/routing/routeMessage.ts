@@ -8,7 +8,7 @@ import { normalizeCity } from '../../../Inventory/normalization/normalizeCity.js
 import { normalizePhone } from '../../../Inventory/normalization/normalizePhone.js';
 import { createOrMergeLead, recordIncomingLeadMessage } from '../core/leadService.js';
 import { renderCarCardForBot } from '../../../../services/carCardRenderer.v2.js';
-import { renderLeadCard, renderRequestCard } from '../../../../services/cardRenderer.js';
+import { renderLeadCard, renderRequestCard, sanitizePublicText } from '../../../../services/cardRenderer.js';
 import { generateRequestLink } from '../../../../utils/deeplink.utils.js';
 import { buildMiniAppUrl, normalizeMiniAppButtonUrl } from '../core/utils/miniappUrl.js';
 import { buildClientLeadMiniAppKeyboard } from '../core/utils/clientLeadMiniAppMenu.js';
@@ -422,19 +422,7 @@ const resolveLeadInterest = (value: string) => {
   return null;
 };
 
-const sanitizeChannelField = (value: unknown, maxLen = 220) => {
-  const raw = String(value ?? '').trim();
-  if (!raw) return '';
-  const sanitized = raw
-    .replace(/(?:\+?\d[\d\s()\-]{6,}\d)/g, '[hidden]')
-    .replace(/@[a-zA-Z0-9_]{3,}/g, '@hidden')
-    .replace(/(?:https?:\/\/)?(?:t\.me|wa\.me)\/\S+/gi, '[hidden-link]')
-    .replace(/\b(?:telegram|телеграм|viber|вайбер|whatsapp|ватсап)\b/gi, '[hidden]')
-    .replace(/\s+/g, ' ')
-    .trim();
-  if (!sanitized) return '';
-  return sanitized.length > maxLen ? `${sanitized.slice(0, maxLen)}…` : sanitized;
-};
+const sanitizeChannelField = sanitizePublicText;
 
 const formatB2bRequestChannelCard = (request: any) => {
   const payload = (request?.payload || {}) as Record<string, any>;
@@ -451,7 +439,7 @@ const formatB2bRequestChannelCard = (request: any) => {
   const noteLine = sanitizeChannelField(request.description || reqPayload.comment || '—', 200) || '—';
 
   return [
-    `🔵 <b>Запит #${request.publicId || request.id}</b>`,
+    `🔵 <b>Запит #${request.publicId || '?'}</b>`,
     `🚗 ${sanitizeChannelField(request.title || '—', 100) || '—'}`,
     `📅 Рік: ${yearLine}`,
     `💰 Бюджет: ${budgetLine}`,
@@ -1952,8 +1940,10 @@ export const finalizeB2BRequest = async (ctx: PipelineContext) => {
         throw new Error('Unable to fetch bot username');
       }
 
-      // Generate deep-link with new Telegram-safe format: b2bv_{publicId}
-      const deeplink = `https://t.me/${botUsername}?start=b2bv_${request.publicId || request.id}`;
+      // Generate deep-link with new Telegram-safe format: b2bv_{publicId}.
+      // Never expose the internal database id in channel CTA links.
+      const publicRequestId = String(request.publicId || '').trim();
+      const deeplink = publicRequestId ? `https://t.me/${botUsername}?start=b2bv_${publicRequestId}` : null;
 
       // Build structured message (without contacts)
       const channelMessage = formatB2bRequestChannelCard(request);
@@ -1964,11 +1954,14 @@ export const finalizeB2BRequest = async (ctx: PipelineContext) => {
         token: ctx.bot.token,
         chatId: String(channelId),
         text: channelMessage,
-        replyMarkup: {
+        replyMarkup: deeplink ? {
           inline_keyboard: [
-            [{ text: 'Є авто', url: deeplink }]
+            [
+              { text: 'Є авто', url: deeplink },
+              { text: 'Відкрити в боті', url: deeplink }
+            ]
           ]
-        },
+        } : undefined,
         companyId: ctx.companyId
       });
 
@@ -2071,8 +2064,9 @@ export const finalizeB2BRequest = async (ctx: PipelineContext) => {
     }
   }, { includeContact: true });
   const botUsername = (ctx.bot.config as any)?.botUsername || (ctx.bot.config as any)?.username;
-  const link = botUsername ? generateRequestLink(botUsername, request.publicId || request.id) : '';
-  const header = `🔵 [B2B REQUEST] #${request.publicId || request.id}`;
+  const publicRequestId = String(request.publicId || '').trim();
+  const link = botUsername && publicRequestId ? generateRequestLink(botUsername, publicRequestId) : '';
+  const header = publicRequestId ? `🔵 [B2B REQUEST] #${publicRequestId}` : '🔵 [B2B REQUEST]';
   const partnerMsg = link ? `${header}\n${requestCardPartner}\n\n🔗 ${link}` : `${header}\n${requestCardPartner}`;
   const adminMsg = link ? `${header}\n${requestCardAdmin}\n\n🔗 ${link}` : `${header}\n${requestCardAdmin}`;
   const adminReplyMarkup = link

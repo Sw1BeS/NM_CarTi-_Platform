@@ -6,7 +6,8 @@ const {
   b2bWhitelistServiceMock,
   quotaServiceMock,
   publicIdServiceMock,
-  startB2BVariantWizardMock
+  startB2BVariantWizardMock,
+  b2bRoutingServiceMock
 } = vi.hoisted(() => ({
   prismaMock: {
     botSession: {
@@ -49,7 +50,10 @@ const {
   publicIdServiceMock: {
     nextB2bRequestId: vi.fn()
   },
-  startB2BVariantWizardMock: vi.fn()
+  startB2BVariantWizardMock: vi.fn(),
+  b2bRoutingServiceMock: {
+    notifyQueues: vi.fn()
+  }
 }));
 
 vi.mock('../../../../services/prisma.js', () => ({
@@ -74,6 +78,10 @@ vi.mock('../../../../services/publicId.service.js', () => ({
 
 vi.mock('./wizards/b2bVariantWizard.js', () => ({
   startB2BVariantWizard: startB2BVariantWizardMock
+}));
+
+vi.mock('../../../../services/b2bRouting.service.js', () => ({
+  b2bRoutingService: b2bRoutingServiceMock
 }));
 
 describe('B2B registered menu', () => {
@@ -105,6 +113,7 @@ describe('B2B registered menu', () => {
     prismaMock.messageLog.create.mockResolvedValue({});
     prismaMock.channelPost.create.mockResolvedValue({});
     prismaMock.partnerCompany.findUnique.mockResolvedValue(null);
+    b2bRoutingServiceMock.notifyQueues.mockResolvedValue(undefined);
     prismaMock.botConfig.findUnique.mockImplementation(async ({ where }: any) => {
       if (where?.id === 'bot_b2b') {
         return {
@@ -342,7 +351,7 @@ describe('B2B registered menu', () => {
             budgetMax: 70000,
             mileageMax: 120000,
             fuel: 'Дизель',
-            description: 'Потрібен доглянутий',
+              description: 'Потрібен доглянутий',
             contact: '+380635055252',
             companyName: 'Dealer One'
           }
@@ -359,5 +368,69 @@ describe('B2B registered menu', () => {
       text: 'Є авто',
       url: 'https://t.me/CarDealer_Lviv_Bot?start=b2bv_CD-2026-000777'
     });
+    expect(channelCall?.replyMarkup?.inline_keyboard?.[0]?.[1]).toEqual({
+      text: 'Відкрити в боті',
+      url: 'https://t.me/CarDealer_Lviv_Bot?start=b2bv_CD-2026-000777'
+    });
+  }, 10000);
+
+  it('does not leak internal request ids into legacy B2B channel deep links', async () => {
+    const { finalizeB2BRequest } = await import('./routeMessage.js');
+    publicIdServiceMock.nextB2bRequestId.mockResolvedValueOnce('');
+
+    const ctx: any = {
+      bot: {
+        id: 'bot_b2b',
+        token: 'token',
+        name: 'CarDealer Lviv',
+        template: 'B2B',
+        channelId: '-100123',
+        config: {
+          username: 'CarDealer_Lviv_Bot',
+          publicBaseUrl: 'https://cartie.test',
+          defaultShowcaseSlug: 'cardealer_lviv_bot',
+          miniAppConfig: { showcaseSlug: 'cardealer_lviv_bot' }
+        }
+      },
+      companyId: 'company_1',
+      chatId: '1001',
+      userId: '1001',
+      chatType: 'private',
+      update: {
+        message: {
+          chat: { id: 1001, type: 'private' },
+          from: { id: 1001, first_name: 'Dealer' }
+        }
+      },
+      session: {
+        id: 'session_1',
+        state: 'B2B_CREATE',
+        variables: {
+          b2bFlow: {
+            title: 'BMW X5',
+            yearMin: 2020,
+            budgetMax: 70000,
+            description: 'Потрібен <b>доглянутий</b>, email dealer@example.com',
+            contact: '+380635055252',
+            companyName: 'Dealer One'
+          }
+        }
+      }
+    };
+
+    await finalizeB2BRequest(ctx);
+
+    const channelCall = telegramOutboxMock.sendMessage.mock.calls
+      .map(([payload]) => payload)
+      .find((payload: any) => payload.chatId === '-100123');
+    expect(JSON.stringify(channelCall?.replyMarkup || {})).not.toContain('request_1');
+    expect(channelCall?.replyMarkup).toBeUndefined();
+    expect(channelCall?.text).not.toContain('dealer@example.com');
+    expect(channelCall?.text).not.toContain('<b>доглянутий</b>');
+    expect(channelCall?.text).toContain('&lt;b&gt;доглянутий&lt;/b&gt;');
+
+    const queuePayload = b2bRoutingServiceMock.notifyQueues.mock.calls[0]?.[0];
+    expect(JSON.stringify(queuePayload || {})).not.toContain('request_1');
+    expect(queuePayload?.replyMarkup).toBeUndefined();
   }, 10000);
 });

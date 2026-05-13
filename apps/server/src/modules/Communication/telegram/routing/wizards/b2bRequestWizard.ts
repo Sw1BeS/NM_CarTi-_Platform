@@ -486,8 +486,9 @@ const publishRequest = async (ctx: PipelineContext, draft: B2BRequestDraft) => {
   const channelId = normalizeBotConfigChatId(ctx.bot.channelId);
   if (channelId) {
     const botUsername = await resolveBotUsername(ctx);
-    const responseUrl = botUsername
-      ? `https://t.me/${botUsername}?start=b2bv_${request.publicId || request.id}`
+    const publicRequestId = String(request.publicId || '').trim();
+    const responseUrl = botUsername && publicRequestId
+      ? `https://t.me/${botUsername}?start=b2bv_${publicRequestId}`
       : undefined;
     const { text, replyMarkup } = renderB2bChannelPost({
       ...request,

@@ -3,7 +3,8 @@ import {
   renderB2bChannelPost,
   renderChannelCarPost,
   renderRequestCard,
-  renderVariantCard
+  renderVariantCard,
+  sanitizePublicText
 } from './cardRenderer.js';
 
 describe('cardRenderer redaction', () => {
@@ -35,6 +36,23 @@ describe('cardRenderer redaction', () => {
     expect(text).not.toContain('+380671111111');
     expect(text).not.toContain('@dealer_one');
     expect(text).not.toContain('t.me/dealer_one');
+  });
+
+  it('keeps contacts but escapes HTML in admin request cards', () => {
+    const text = renderRequestCard({
+      title: 'BMW <b>X5</b>',
+      description: 'Контакт +380671111111 <script>x</script>',
+      payload: {
+        companyName: 'Dealer <i>One</i>',
+        contact: '+380671111111'
+      }
+    }, { includeContact: true });
+
+    expect(text).toContain('+380671111111');
+    expect(text).not.toContain('<script>x</script>');
+    expect(text).not.toContain('<i>One</i>');
+    expect(text).toContain('&lt;script&gt;x&lt;/script&gt;');
+    expect(text).toContain('Dealer &lt;i&gt;One&lt;/i&gt;');
   });
 
   it('hides variant contact fields when includeContact=false', () => {
@@ -84,6 +102,15 @@ describe('cardRenderer redaction', () => {
     expect(text).not.toContain('t.me/dealer_one');
   });
 
+  it('redacts emails and escapes HTML in public text fields', () => {
+    const sanitized = sanitizePublicText('Email client@example.com <b>VIP</b> & raw');
+
+    expect(sanitized).not.toContain('client@example.com');
+    expect(sanitized).not.toContain('<b>');
+    expect(sanitized).toContain('&lt;b&gt;VIP&lt;/b&gt;');
+    expect(sanitized).toContain('&amp; raw');
+  });
+
   it('uses a private bot deep link for the B2B "Є авто" channel action', () => {
     const { replyMarkup } = renderB2bChannelPost({
       id: '1',
@@ -101,6 +128,17 @@ describe('cardRenderer redaction', () => {
       text: 'Відкрити в боті',
       url: 'https://t.me/CarDealer_Lviv_Bot?start=b2bv_CD-123'
     });
+  });
+
+  it('does not create B2B channel actions with internal request ids', () => {
+    const { replyMarkup } = renderB2bChannelPost({
+      id: 'request_1',
+      publicId: null,
+      title: 'BMW X5'
+    });
+
+    expect(JSON.stringify(replyMarkup || {})).not.toContain('request_1');
+    expect(replyMarkup).toBeUndefined();
   });
 
   it('sanitizes channel car post damage/description fields', () => {

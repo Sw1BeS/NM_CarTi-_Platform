@@ -15,6 +15,7 @@ import { verifyMiniAppInitDataForScope } from '../services/miniAppAuth.service.j
 import { requestContractService } from '../services/requestContract.service.js';
 import { startLeadSellWizard } from '../modules/Communication/telegram/routing/wizards/leadSellWizard.js';
 import { buildLeadAdminActionMarkup, buildLeadAdminNotificationText } from '../services/leadAdminNotification.js';
+import { isEnvFlagEnabled } from '../services/featureFlags.js';
 
 const router = Router();
 const showcaseService = new ShowcaseService();
@@ -187,6 +188,76 @@ const normalizeLeadIntentKind = (value: unknown) => {
     return { kind: 'PRICE_TERMS' as const, intentType: 'INTEREST' as const };
   }
   return null;
+};
+
+const mapMiniAppEventToMeta = (eventType: string) => {
+  const normalized = String(eventType || '').trim().toLowerCase();
+  if (['leadsubmit', 'lead_submit', 'lead_intent_pick_submitted', 'lead_intent_price_terms_submitted', 'lead_intent_selected_cars_submitted'].includes(normalized)) {
+    return 'Lead';
+  }
+  if (['contactshare', 'contact_share'].includes(normalized)) return 'Contact';
+  if (['viewcar', 'view_car', 'viewinventoryitem', 'view_inventory_item'].includes(normalized)) return 'ViewContent';
+  if (['viewinventory', 'view_inventory', 'viewshowcase', 'view_showcase', 'search'].includes(normalized)) return 'Search';
+  if (['leadformstart', 'lead_form_start'].includes(normalized)) return 'SubmitApplication';
+  return null;
+};
+
+const readTrackingMeta = (tracking: unknown) => {
+  const trackingRecord = isRecord(tracking) ? tracking : {};
+  return isRecord(trackingRecord.meta) ? trackingRecord.meta : {};
+};
+
+const SENSITIVE_EVENT_KEYS = new Set([
+  'phone',
+  'phoneraw',
+  'email',
+  'name',
+  'fullname',
+  'initdata',
+  'token',
+  'accesstoken',
+  'authorization'
+]);
+
+const sanitizeMiniAppEventValue = (value: unknown): unknown => {
+  if (Array.isArray(value)) return value.map(sanitizeMiniAppEventValue).filter(item => item !== undefined);
+  if (isRecord(value)) {
+    const sanitizedRecord: Record<string, unknown> = {};
+    for (const [key, item] of Object.entries(value)) {
+      if (SENSITIVE_EVENT_KEYS.has(key.toLowerCase())) continue;
+      const sanitized = sanitizeMiniAppEventValue(item);
+      if (sanitized !== undefined) sanitizedRecord[key] = sanitized;
+    }
+    return sanitizedRecord;
+  }
+  if (typeof value === 'string') {
+    const sanitized = value
+      .replace(/(?:\+?\d[\d\s()\-]{6,}\d)/g, '[hidden]')
+      .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[hidden-email]')
+      .replace(/@[a-zA-Z0-9_]{3,}/g, '@hidden')
+      .trim();
+    return sanitized || undefined;
+  }
+  if (value === null || value === undefined) return undefined;
+  return value;
+};
+
+const toMetaCustomData = (input: Record<string, unknown>) => {
+  const blocked = new Set(['phone', 'phoneRaw', 'email', 'name', 'initData', 'token', 'accessToken']);
+  const sanitizedInput = sanitizeMiniAppEventValue(input);
+  const record = isRecord(sanitizedInput) ? sanitizedInput : {};
+  return Object.fromEntries(
+    Object.entries(record).filter(([key, value]) => {
+      if (blocked.has(key)) return false;
+      return value !== undefined && value !== null && value !== '';
+    })
+  );
+};
+
+const buildSafeInitDataDiagnostics = (initData: string) => {
+  const diagnostics = buildInitDataDiagnostics(initData) as Record<string, unknown>;
+  delete diagnostics.telegramUserId;
+  return diagnostics;
 };
 
 const isMiniAppAdmin = async (companyId: string, tgUserId: string, botId?: string | null) => {
@@ -1198,6 +1269,9 @@ router.post('/events', async (req, res) => {
 
     if (!slug) return errorResponse(res, 400, 'slug is required');
     if (!eventType) return errorResponse(res, 400, 'eventType is required');
+    if (!initData) {
+      return errorResponse(res, 400, 'initData is required', MINIAPP_ERROR_CODES.INITDATA_REQUIRED);
+    }
 
     let config;
     try {
@@ -1205,37 +1279,105 @@ router.post('/events', async (req, res) => {
     } catch {
       config = null;
     }
+    if (!config?.companyId) return errorResponse(res, 404, 'Company not found');
 
-    if (initData && config) {
-      const initCheck = await requireInitData(initData, config.companyId, config.botId);
-      if (!initCheck.ok) {
-        logger.debug?.('[MiniApp] event initData invalid', {
-          slug,
-          eventType,
-          companyId: config.companyId,
-          botId: config.botId || null,
-          reason: initCheck.message,
-          diagnostics: buildInitDataDiagnostics(initData)
-        });
-        return errorResponse(res, 401, initCheck.message || 'Unauthorized');
-      }
+    let verifiedTelegram: ReturnType<typeof parseMiniAppTelegramIdentity> | undefined;
+    const initCheck = await requireInitData(initData, config.companyId, config.botId);
+    if (!initCheck.ok) {
+      logger.debug?.('[MiniApp] event initData invalid', {
+        slug,
+        eventType,
+        companyId: config.companyId,
+        botId: config.botId || null,
+        reason: initCheck.message,
+        diagnostics: buildSafeInitDataDiagnostics(initData)
+      });
+      return errorResponse(res, 401, initCheck.message || 'Unauthorized', MINIAPP_ERROR_CODES.INITDATA_INVALID);
     }
+    verifiedTelegram = parseMiniAppTelegramIdentity(initData);
+
+    const resolvedUserId = verifiedTelegram?.userId || visitorId || null;
+    const payload = body.payload && typeof body.payload === 'object'
+      ? sanitizeMiniAppEventValue(body.payload) as Record<string, unknown>
+      : undefined;
+    const tracking = body.tracking && typeof body.tracking === 'object'
+      ? sanitizeMiniAppEventValue(body.tracking) as Record<string, unknown>
+      : undefined;
+    const carListingId = readString(body.carListingId);
 
     await emitPlatformEvent({
-      companyId: config?.companyId || null,
-      botId: config?.botId || null,
+      companyId: config.companyId,
+      botId: config.botId || null,
       eventType: `miniapp.${eventType}`,
-      userId: tgUserId || visitorId || null,
+      userId: resolvedUserId,
       payload: {
         slug,
         visitorId,
-        tgUserId,
+        tgUserId: verifiedTelegram?.userId,
         view: readString(body.view),
-        carListingId: readString(body.carListingId),
-        payload: body.payload && typeof body.payload === 'object' ? body.payload as Record<string, unknown> : undefined,
-        tracking: body.tracking && typeof body.tracking === 'object' ? body.tracking as Record<string, unknown> : undefined
+        carListingId,
+        payload,
+        tracking
       }
     });
+
+    const metaEventName = mapMiniAppEventToMeta(eventType);
+    if (metaEventName && isEnvFlagEnabled('META_CAPI_ENABLED', false)) {
+      const trackingMeta = readTrackingMeta(tracking);
+      const eventId = readString(trackingMeta.eventId)
+        || readString(trackingMeta.event_id)
+        || readString(tracking?.eventId)
+        || readString(tracking?.event_id)
+        || readString(tracking?.submitId)
+        || readString(tracking?.submit_id)
+        || `miniapp_${eventType}_${Date.now().toString(36)}`;
+      const externalId = verifiedTelegram?.userId
+        ? `telegram:${verifiedTelegram.userId}`
+        : (visitorId ? `visitor:${visitorId}` : undefined);
+      const customData = toMetaCustomData({
+        ...(payload || {}),
+        source: 'miniapp',
+        slug,
+        miniapp_event: eventType,
+        view: readString(body.view),
+        carListingId,
+        routeSource: readString(tracking?.routeSource),
+        requestType: readString(tracking?.requestType)
+      });
+
+      const { IntegrationService } = await import('../modules/Integrations/integration.service.js');
+      const metaResult = await new IntegrationService().metaPixelTrackEvent(config.companyId, metaEventName, {
+        eventId,
+        externalId,
+        fbp: readString(trackingMeta.fbp),
+        fbc: readString(trackingMeta.fbc),
+        eventSourceUrl: readString(trackingMeta.eventSourceUrl) || readString(trackingMeta.event_source_url),
+        actionSource: readString(trackingMeta.actionSource) || readString(trackingMeta.action_source) || 'website',
+        contentIds: carListingId ? [carListingId] : undefined,
+        customData,
+        entityType: 'miniapp_event',
+        entityId: eventId
+      }).catch((e: unknown) => {
+        logger.warn('[MiniApp] Meta CAPI event failed', {
+          slug,
+          eventType,
+          metaEventName,
+          companyId: config.companyId,
+          error: e instanceof Error ? e.message : String(e)
+        });
+        return null;
+      });
+      if (metaResult && typeof metaResult === 'object' && metaResult.success === false) {
+        logger.warn('[MiniApp] Meta CAPI event rejected', {
+          slug,
+          eventType,
+          metaEventName,
+          companyId: config.companyId,
+          eventId,
+          error: (metaResult as any).error
+        });
+      }
+    }
 
     res.json({ ok: true });
   } catch (e: unknown) {

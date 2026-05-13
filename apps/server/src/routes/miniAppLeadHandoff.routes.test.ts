@@ -9,6 +9,8 @@ const {
   verifyInitDataMock,
   parseTelegramUserMock,
   startLeadSellWizardMock,
+  emitPlatformEventMock,
+  metaPixelTrackEventMock,
   prismaMock
 } = vi.hoisted(() => ({
   miniAppServiceMock: {
@@ -27,6 +29,8 @@ const {
   verifyInitDataMock: vi.fn(),
   parseTelegramUserMock: vi.fn(),
   startLeadSellWizardMock: vi.fn(),
+  emitPlatformEventMock: vi.fn(),
+  metaPixelTrackEventMock: vi.fn(),
   prismaMock: {
     botConfig: {
       findFirst: vi.fn()
@@ -97,6 +101,16 @@ vi.mock('../services/prisma.js', () => ({
 
 vi.mock('../modules/Communication/telegram/routing/wizards/leadSellWizard.js', () => ({
   startLeadSellWizard: startLeadSellWizardMock
+}));
+
+vi.mock('../modules/Communication/telegram/core/events/eventEmitter.js', () => ({
+  emitPlatformEvent: emitPlatformEventMock
+}));
+
+vi.mock('../modules/Integrations/integration.service.js', () => ({
+  IntegrationService: vi.fn().mockImplementation(() => ({
+    metaPixelTrackEvent: metaPixelTrackEventMock
+  }))
 }));
 
 const buildApp = async () => {
@@ -182,6 +196,9 @@ describe('MiniApp Lead handoff routes', () => {
     });
     telegramOutboxMock.sendMessage.mockResolvedValue({ message_id: 10 });
     startLeadSellWizardMock.mockResolvedValue(undefined);
+    emitPlatformEventMock.mockResolvedValue(undefined);
+    metaPixelTrackEventMock.mockResolvedValue({ success: true, eventId: 'event_1' });
+    vi.unstubAllEnvs();
   });
 
   it('creates a pending pick intent and asks for native Telegram contact', async () => {
@@ -575,5 +592,86 @@ describe('MiniApp Lead handoff routes', () => {
         name: 'Ivan Client'
       }
     }));
+  });
+
+  it('dispatches Meta CAPI for enabled MiniApp lead events with stable event id', async () => {
+    vi.stubEnv('META_CAPI_ENABLED', 'true');
+    const app = await buildApp();
+
+    const res = await request(app)
+      .post('/api/miniapp/events')
+      .send({
+        slug: 'cartie',
+        eventType: 'LeadSubmit',
+        initData: 'signed-init-data',
+        tgUserId: 'spoofed_user',
+        carListingId: 'car_1',
+        tracking: {
+          submitId: 'lead_submit_1',
+          meta: {
+            eventId: 'meta_event_1',
+            fbp: 'fb.1.123',
+            fbc: 'fb.1.456',
+            eventSourceUrl: 'https://cartie.test/p/app/cartie'
+          }
+        },
+        payload: {
+          budgetMax: 55000,
+          city: 'Львів',
+          phone: '+380635055252',
+          nested: {
+            email: 'client@example.com',
+            initData: 'raw-init-data'
+          }
+        }
+      });
+
+    expect(res.status).toBe(200);
+    expect(emitPlatformEventMock).toHaveBeenCalledWith(expect.objectContaining({
+      eventType: 'miniapp.LeadSubmit',
+      userId: '1001'
+    }));
+    expect(metaPixelTrackEventMock).toHaveBeenCalledWith('company_1', 'Lead', expect.objectContaining({
+      eventId: 'meta_event_1',
+      externalId: 'telegram:1001',
+      fbp: 'fb.1.123',
+      fbc: 'fb.1.456',
+      eventSourceUrl: 'https://cartie.test/p/app/cartie',
+      contentIds: ['car_1'],
+      customData: expect.objectContaining({
+        source: 'miniapp',
+        slug: 'cartie',
+        miniapp_event: 'LeadSubmit',
+        city: 'Львів',
+        budgetMax: 55000
+      })
+    }));
+    const platformPayload = emitPlatformEventMock.mock.calls[0][0].payload;
+    expect(JSON.stringify(platformPayload)).not.toContain('+380635055252');
+    expect(JSON.stringify(platformPayload)).not.toContain('client@example.com');
+    expect(JSON.stringify(platformPayload)).not.toContain('raw-init-data');
+  });
+
+  it('rejects MiniApp events without initData instead of trusting client-supplied tgUserId', async () => {
+    vi.stubEnv('META_CAPI_ENABLED', 'true');
+    const app = await buildApp();
+
+    const res = await request(app)
+      .post('/api/miniapp/events')
+      .send({
+        slug: 'cartie',
+        eventType: 'LeadSubmit',
+        tgUserId: 'spoofed_user',
+        tracking: {
+          meta: { eventId: 'meta_spoofed' }
+        }
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({
+      code: 'TELEGRAM_INITDATA_REQUIRED'
+    });
+    expect(emitPlatformEventMock).not.toHaveBeenCalled();
+    expect(metaPixelTrackEventMock).not.toHaveBeenCalled();
   });
 });

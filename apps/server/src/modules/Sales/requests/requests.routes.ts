@@ -5,9 +5,8 @@ import { prisma } from '../../../services/prisma.js';
 import { authenticateToken, requireRole } from '../../../middleware/auth.js';
 import { generatePublicId, mapRequestInput, mapRequestOutput, mapVariantInput, mapVariantOutput, mapRequestStatusFilter } from '../../../services/dto.js';
 import { RequestRepository } from '../../../repositories/index.js';
-import { renderRequestCard, managerActionsKeyboard } from '../../../services/cardRenderer.js';
+import { renderRequestCard, managerActionsKeyboard, sanitizePublicText } from '../../../services/cardRenderer.js';
 import { telegramOutbox } from '../../Communication/telegram/messaging/outbox/telegramOutbox.js';
-import { generateRequestLink } from '../../../utils/deeplink.utils.js';
 
 import { validate } from '../../../middleware/validation.js';
 import { createRequestSchema } from '../../../validation/schemas.js';
@@ -321,12 +320,14 @@ const resolveBot = async (companyId: string | null, botId?: string) => {
 
 const buildChannelText = (req: any, template?: string) => {
     const card = renderRequestCard(req);
+    const title = sanitizePublicText(req.title, 160) || 'Запит';
+    const city = sanitizePublicText(req.city, 120);
     if (!template || template === 'RAW') return card;
     if (template === 'IN_STOCK') {
         return [
-            `🚗 <b>${req.title}</b>`,
+            `🚗 <b>${title}</b>`,
             req.budgetMax ? `💰 до ${req.budgetMax.toLocaleString()} USD` : null,
-            req.city ? `📍 ${req.city}` : null,
+            city ? `📍 ${city}` : null,
             req.yearMin ? `📅 ${req.yearMin}+` : null,
             `✅ В наявності`,
             '',
@@ -335,9 +336,9 @@ const buildChannelText = (req: any, template?: string) => {
     }
     if (template === 'IN_TRANSIT') {
         return [
-            `🚢 <b>${req.title}</b>`,
+            `🚢 <b>${title}</b>`,
             req.budgetMax ? `💰 до ${req.budgetMax.toLocaleString()} USD` : null,
-            req.city ? `📍 ${req.city}` : null,
+            city ? `📍 ${city}` : null,
             req.yearMin ? `📅 ${req.yearMin}+` : null,
             `📦 В дорозі`,
             '',
@@ -370,16 +371,22 @@ router.post('/:id/publish-channel', authenticateToken, requireRole(['ADMIN', 'MA
 
         const reqCard = buildChannelText(request, template);
         const botUsername = bot.config ? (bot.config as any).botUsername || (bot.config as any).username : undefined;
-        const dl = botUsername && (request.publicId || request.id)
-            ? generateRequestLink(botUsername, request.publicId || request.id)
+        const dl = botUsername && request.publicId
+            ? `https://t.me/${botUsername}?start=${encodeURIComponent(`b2bv_${request.publicId}`)}`
             : undefined;
-        const keyboard = dl ? { inline_keyboard: [[{ text: '🚗 Є авто', url: dl }]] } : undefined;
+        const keyboard = dl ? {
+            inline_keyboard: [[
+                { text: '🚗 Є авто', url: dl },
+                { text: 'Відкрити в боті', url: dl }
+            ]]
+        } : undefined;
 
+        const publishText = text ? (sanitizePublicText(text, 4000) || reqCard) : reqCard;
         const sent = await telegramOutbox.sendMessage({
             botId: bot.id,
             token: bot.token,
             chatId: destination,
-            text: text || reqCard,
+            text: publishText,
             replyMarkup: keyboard,
             companyId: bot.companyId || null
         });
@@ -391,7 +398,7 @@ router.post('/:id/publish-channel', authenticateToken, requireRole(['ADMIN', 'MA
             channelId: destination,
             messageId,
             status: 'ACTIVE',
-            payload: { text: text || reqCard }
+            payload: { text: publishText }
         });
 
         await requestRepo.logMessage({
@@ -399,7 +406,7 @@ router.post('/:id/publish-channel', authenticateToken, requireRole(['ADMIN', 'MA
             botId: bot.id,
             chatId: destination,
             direction: 'OUTGOING',
-            text: text || reqCard,
+            text: publishText,
             payload: { type: 'CHANNEL_PUBLISH', messageId }
         }).catch((e: any) => {
             logger.error('[CHANNEL_PUBLISH] MessageLog failed:', e.message || e);
@@ -436,7 +443,7 @@ router.put('/:id/channel-post', authenticateToken, requireRole(['ADMIN', 'MANAGE
             : await resolveBot(effectiveCompanyId, undefined);
         if (!bot?.token) return errorResponse(res, 400, 'Bot not found');
         const payload = (cp.payload as any) || {};
-        const nextText = text || payload.text || 'Updated';
+        const nextText = text ? (sanitizePublicText(text, 4000) || payload.text || 'Updated') : (payload.text || 'Updated');
         await telegramOutbox.editMessageText({
             botId: bot.id,
             token: bot.token,

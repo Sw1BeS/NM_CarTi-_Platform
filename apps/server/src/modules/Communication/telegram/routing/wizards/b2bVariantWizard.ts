@@ -434,7 +434,7 @@ const notifyRequesterAboutVariant = async (ctx: PipelineContext, request: any, v
 
   const message = [
     '🟠 [B2B VARIANT]',
-    `Запит #${request.publicId || request.id}`,
+    `Запит #${request.publicId || '—'}`,
     `Рік: ${variant.year || '—'}`,
     `Пробіг: ${variant.mileage ? `${variant.mileage} км` : '—'}`,
     `Ціна: ${variant.price ? `${variant.price} USD` : '—'}`,
@@ -521,7 +521,7 @@ export const startB2BVariantWizard = async (ctx: PipelineContext, requestPublicI
   const draft: VariantDraft = {
     step: 1,
     requestId: request.id,
-    requestPublicId: request.publicId || request.id,
+    requestPublicId: request.publicId || '',
     data: {
       photos: []
     },
@@ -570,8 +570,13 @@ export const handleB2BVariantCallback = async (ctx: PipelineContext, action: str
       }
     });
 
+    if (!request.publicId) {
+      await sendMessage(ctx, '⚠️ Запит не має публічного ID. Попросіть адміністратора перевидати пост у каналі.', undefined, targetChatId).catch(() => null);
+      return true;
+    }
+
     await sendMessage(ctx, 'Перенаправляю у приватний чат для створення варіанту…', undefined, targetChatId).catch(() => null);
-    await startB2BVariantWizard({ ...ctx, chatId: targetChatId, chatType: 'private', session: privateSession }, request.publicId || request.id);
+    await startB2BVariantWizard({ ...ctx, chatId: targetChatId, chatType: 'private', session: privateSession }, request.publicId);
     return true;
   }
 

@@ -141,4 +141,54 @@ describe('b2bRequestWizard', () => {
       })
     }));
   });
+
+  it('does not publish internal request ids in B2B wizard channel actions', async () => {
+    const { handleB2BReqCallback } = await import('./b2bRequestWizard.js');
+    publicIdServiceMock.nextB2bRequestId.mockResolvedValueOnce('');
+    const ctx: any = {
+      bot: {
+        id: 'bot_b2b',
+        token: 'token',
+        channelId: '-100123',
+        config: { botUsername: 'CarDealer_Lviv_Bot' }
+      },
+      companyId: 'company_1',
+      chatId: '1001',
+      userId: '1001',
+      chatType: 'private',
+      update: {
+        callback_query: {
+          from: { id: 1001, first_name: 'Dealer', username: 'dealer_one' }
+        }
+      },
+      session: {
+        id: 'session_1',
+        state: 'BQ_REVIEW',
+        variables: {
+          b2bPartnerId: 'partner_1',
+          b2bPartnerName: 'Dealer One',
+          b2bRequestDraft: {
+            step: 9,
+            data: {
+              brand: 'BMW',
+              model: 'X5',
+              yearMin: 2020,
+              budgetMax: 70000,
+              contact: '+380635055252'
+            },
+            history: []
+          }
+        }
+      }
+    };
+
+    const handled = await handleB2BReqCallback(ctx, ActionTokens.BQ_PUB);
+
+    expect(handled).toBe(true);
+    const channelPayload = telegramOutboxMock.sendMessage.mock.calls
+      .map(([payload]) => payload)
+      .find((payload: any) => payload.chatId === '-100123');
+    expect(JSON.stringify(channelPayload?.replyMarkup || {})).not.toContain('request_1');
+    expect(channelPayload?.replyMarkup).toBeUndefined();
+  });
 });

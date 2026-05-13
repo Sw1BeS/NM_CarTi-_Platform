@@ -7,10 +7,11 @@ import { ActionTokens, buildCallbackData } from '../modules/Communication/telegr
 
 const dash = (v: any) => (v !== null && v !== undefined && String(v).trim() !== '' ? String(v) : '—');
 
-const sanitizePublicText = (value: unknown, maxLen = 220) => {
+export const sanitizePublicText = (value: unknown, maxLen = 220) => {
   const raw = String(value ?? '').trim();
   if (!raw) return '';
   const sanitized = raw
+    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[hidden-email]')
     .replace(/(?:\+?\d[\d\s()\-]{6,}\d)/g, '[hidden]')
     .replace(/@[a-zA-Z0-9_]{3,}/g, '@hidden')
     .replace(/(?:https?:\/\/)?(?:t\.me|wa\.me)\/\S+/gi, '[hidden-link]')
@@ -18,7 +19,11 @@ const sanitizePublicText = (value: unknown, maxLen = 220) => {
     .replace(/\s+/g, ' ')
     .trim();
   if (!sanitized) return '';
-  return sanitized.length > maxLen ? `${sanitized.slice(0, maxLen)}…` : sanitized;
+  const escaped = sanitized
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+  return escaped.length > maxLen ? `${escaped.slice(0, maxLen)}…` : escaped;
 };
 
 /**
@@ -101,7 +106,7 @@ export const renderB2bChannelPost = (
   const reqPayload = (payload.request || {}) as Record<string, any>;
 
   const companyName = sanitizePublicText(reqPayload.companyName || payload.companyName || 'Невідома компанія', 80) || 'Невідома компанія';
-  const publicId = request.publicId || request.id || '?';
+  const publicId = request.publicId || '?';
 
   const titleParts = [request.title || reqPayload.brand || reqPayload.make, reqPayload.model].filter(Boolean);
   const titleLine = sanitizePublicText(titleParts.join(' '), 100) || '—';
@@ -136,20 +141,19 @@ export const renderB2bChannelPost = (
     `🏢 Хто шукає: ${companyName}`
   ].join('\n');
 
-  const publicIdForAction = String(request.publicId || request.id).slice(0, 28);
+  const publicIdForAction = String(request.publicId || '').slice(0, 28);
   const responseUrl = String(options?.responseUrl || '').trim();
   const actionButton = responseUrl
     ? { text: 'Є авто', url: responseUrl }
-    : {
+    : publicIdForAction ? {
       text: 'Є авто',
       callback_data: buildCallbackData(ActionTokens.BV_SEND, publicIdForAction)
-    };
+    } : null;
   const openBotButton = responseUrl
     ? { text: 'Відкрити в боті', url: responseUrl }
     : null;
-  const replyMarkup = {
-    inline_keyboard: [[actionButton, openBotButton].filter(Boolean)]
-  };
+  const buttons = [actionButton, openBotButton].filter(Boolean);
+  const replyMarkup = buttons.length ? { inline_keyboard: [buttons] } : undefined;
   return { text, replyMarkup };
 };
 
@@ -238,6 +242,18 @@ const truncateText = (value?: string, max = 220) => {
   return `${clean.slice(0, max)}…`;
 };
 
+const safePublicField = (value: unknown, max = 160) => sanitizePublicText(value, max);
+
+const escapeTelegramHtmlText = (value: unknown, maxLen = 220) => {
+  const raw = String(value ?? '').replace(/\s+/g, ' ').trim();
+  if (!raw) return '';
+  const escaped = raw
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+  return escaped.length > maxLen ? `${escaped.slice(0, maxLen)}…` : escaped;
+};
+
 const contactLineKeywords = [
   'контакт',
   'contact',
@@ -254,7 +270,8 @@ const contactLineKeywords = [
 const redactSensitiveText = (value?: string, includeContact = false) => {
   if (!value) return '';
   const text = String(value).trim();
-  if (!text || includeContact) return text;
+  if (!text) return text;
+  if (includeContact) return escapeTelegramHtmlText(text, 240);
 
   const redactedLines = text
     .split('\n')
@@ -271,7 +288,7 @@ const redactSensitiveText = (value?: string, includeContact = false) => {
         .replace(/https?:\/\/(?:t\.me|wa\.me)\/\S+/gi, '[hidden-link]')
     );
 
-  return redactedLines.join('\n').trim();
+  return sanitizePublicText(redactedLines.join('\n').trim(), 240);
 };
 
 export const renderVariantCard = (variant: any, opts: { includeContact?: boolean; includeCompany?: boolean } = {}) => {
@@ -289,20 +306,29 @@ export const renderVariantCard = (variant: any, opts: { includeContact?: boolean
   const color = variant.specs?.color;
   const note = truncateText(redactSensitiveText(variant.specs?.note, Boolean(opts.includeContact)));
   const sourceUrl = redactSensitiveText(variant.sourceUrl, Boolean(opts.includeContact));
+  const title = safePublicField(variant.title || 'Варіант', 160) || 'Варіант';
+  const engineLine = safePublicField(engine, 80);
+  const fuelLine = safePublicField(fuel, 80);
+  const transmissionLine = safePublicField(transmission, 80);
+  const driveLine = safePublicField(drive, 80);
+  const colorLine = safePublicField(color, 80);
+  const conditionLine = safePublicField(condition, 120);
+  const locationLine = safePublicField(variant.location, 120);
+  const vinLine = safePublicField(variant.specs?.vin, 80);
   const includeCompany = Boolean(opts.includeCompany || opts.includeContact);
   const parts = [
-    `🚗 <b>${(variant.title || 'Варіант').toUpperCase()}</b>`,
+    `🚗 <b>${title.toUpperCase()}</b>`,
     price ? `💰 ${price.toLocaleString()} ${currency}` : null,
     variant.year ? `📅 ${variant.year}` : null,
     variant.mileage ? `🛣 ${formatMileage(variant.mileage)}` : null,
-    engine ? `⚙️ ${engine}` : null,
-    fuel ? `⛽ ${fuel}` : null,
-    transmission ? `🕹 ${transmission}` : null,
-    drive ? `🛞 ${drive}` : null,
-    color ? `🎨 ${color}` : null,
-    condition ? `🛠 ${condition}` : null,
-    variant.location ? `📍 ${variant.location}` : null,
-    variant.specs?.vin ? `🔑 VIN: ${variant.specs.vin}` : null,
+    engineLine ? `⚙️ ${engineLine}` : null,
+    fuelLine ? `⛽ ${fuelLine}` : null,
+    transmissionLine ? `🕹 ${transmissionLine}` : null,
+    driveLine ? `🛞 ${driveLine}` : null,
+    colorLine ? `🎨 ${colorLine}` : null,
+    conditionLine ? `🛠 ${conditionLine}` : null,
+    locationLine ? `📍 ${locationLine}` : null,
+    vinLine ? `🔑 VIN: ${vinLine}` : null,
     sourceUrl ? `🔗 ${sourceUrl}` : null,
     note ? `📝 ${note}` : null,
     includeCompany && companyName ? `🏢 Компанія: ${companyName}` : null,
@@ -318,15 +344,28 @@ export const renderRequestCard = (req: any, opts: { includeContact?: boolean; in
   const companyName = req?.companyName || payload?.companyName || payloadReq?.companyName;
   const representative = payload?.representative || payloadReq?.representative;
   const contact = req?.contact || payload?.contact || payloadReq?.contact || payloadReq?.phone || payload?.phone;
+  const companyNameLine = opts.includeContact
+    ? (escapeTelegramHtmlText(companyName, 120) || '')
+    : '';
+  const representativeLine = opts.includeContact
+    ? (escapeTelegramHtmlText(representative, 120) || '')
+    : '';
+  const contactLine = opts.includeContact
+    ? (escapeTelegramHtmlText(contact, 120) || '')
+    : '';
 
   const mileageMin = payloadReq?.mileageMin ?? payload?.mileageMin;
   const mileageMax = payloadReq?.mileageMax ?? payload?.mileageMax;
   const mileageText = payloadReq?.mileageText ?? payload?.mileageText;
   const fuel = payloadReq?.fuel ?? payload?.fuel;
   const description = redactSensitiveText(req.description, Boolean(opts.includeContact));
+  const title = safePublicField(req.title || 'Запит', 160) || 'Запит';
+  const fuelLine = safePublicField(fuel, 80);
+  const cityLine = safePublicField(req.city, 120);
+  const mileageTextLine = safePublicField(mileageText, 120);
 
   const mileagePart = mileageText
-    ? `🛣 ${mileageText}`
+    ? `🛣 ${mileageTextLine}`
     : (mileageMin || mileageMax)
       ? `🛣 ${formatMileage(mileageMin || mileageMax)}${mileageMax && mileageMin && mileageMax !== mileageMin ? ` - ${formatMileage(mileageMax)}` : ''}`
       : null;
@@ -336,16 +375,16 @@ export const renderRequestCard = (req: any, opts: { includeContact?: boolean; in
     : null;
   const includeCompany = Boolean(opts.includeCompany || opts.includeContact);
   const parts = [
-    `📄 <b>${req.title || 'Запит'}</b>`,
+    `📄 <b>${title}</b>`,
     budgetPart,
     req.yearMin ? `📅 ${req.yearMin}+` : null,
     mileagePart,
-    fuel ? `⛽ ${fuel}` : null,
-    req.city ? `📍 ${req.city}` : null,
+    fuelLine ? `⛽ ${fuelLine}` : null,
+    cityLine ? `📍 ${cityLine}` : null,
     description ? `📝 ${description}` : null,
-    includeCompany && companyName ? `🏢 Компанія: ${companyName}` : null,
-    includeCompany && representative ? `👤 Представник: ${representative}` : null,
-    opts.includeContact && contact ? `📞 ${contact}` : null,
+    includeCompany && companyNameLine ? `🏢 Компанія: ${companyNameLine}` : null,
+    includeCompany && representativeLine ? `👤 Представник: ${representativeLine}` : null,
+    opts.includeContact && contactLine ? `📞 ${contactLine}` : null,
     req.publicId ? `ID: ${req.publicId}` : null
   ].filter(Boolean);
   return parts.join('\n');
