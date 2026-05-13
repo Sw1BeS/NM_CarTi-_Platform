@@ -9,6 +9,8 @@ const SUPPORTED_TEMPLATES = new Set<BotTemplate>(['CLIENT_LEAD', 'B2B', 'CATALOG
 
 const isValidCommand = (value?: string | null) => /^[a-z0-9_]{1,32}$/.test(String(value || '').trim());
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 const syncTelegramCommands = async (bot: { id: string; token: string; template: BotTemplate; companyId: string }) => {
   const commandMap = new Map<string, string>([
     ['start', 'Головне меню'],
@@ -69,7 +71,18 @@ const syncTelegramCommands = async (bot: { id: string; token: string; template: 
   }
 
   const commands = Array.from(commandMap.entries()).map(([command, description]) => ({ command, description }));
-  await axios.post(`https://api.telegram.org/bot${bot.token}/setMyCommands`, { commands }, { timeout: 10000 });
+  let lastError = '';
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    try {
+      const response = await axios.post(`https://api.telegram.org/bot${bot.token}/setMyCommands`, { commands }, { timeout: 20000 });
+      assertTelegramApiOk('setMyCommands', response.data);
+      return;
+    } catch (err: any) {
+      lastError = err?.response?.data?.description || err?.code || err?.message || String(err);
+    }
+    await sleep([1000, 2500, 5000][attempt] || 0);
+  }
+  throw new Error(lastError || 'setMyCommands failed');
 };
 
 const syncTelegramMenuButton = async (bot: { id: string; token: string; config?: any }) => {
@@ -84,19 +97,31 @@ const syncTelegramMenuButton = async (bot: { id: string; token: string; config?:
     }
   };
 
+  const delaysMs = [1000, 2000, 4000, 8000, 12000, 15000, 20000];
   let lastSeenUrl = '';
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    const setResponse = await axios.post(`https://api.telegram.org/bot${bot.token}/setChatMenuButton`, payload, { timeout: 10000 });
-    assertTelegramApiOk('setChatMenuButton', setResponse.data);
+  let lastError = '';
+  for (let attempt = 0; attempt < delaysMs.length + 1; attempt += 1) {
+    try {
+      const setResponse = await axios.post(`https://api.telegram.org/bot${bot.token}/setChatMenuButton`, payload, { timeout: 20000 });
+      assertTelegramApiOk('setChatMenuButton', setResponse.data);
 
-    const getResponse = await axios.post(`https://api.telegram.org/bot${bot.token}/getChatMenuButton`, {}, { timeout: 10000 });
-    assertTelegramApiOk('getChatMenuButton', getResponse.data);
-    lastSeenUrl = extractChatMenuButtonUrl(getResponse.data);
-    if (lastSeenUrl === miniAppUrl) return;
-    await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)));
+      const getResponse = await axios.post(`https://api.telegram.org/bot${bot.token}/getChatMenuButton`, {}, { timeout: 20000 });
+      assertTelegramApiOk('getChatMenuButton', getResponse.data);
+      lastSeenUrl = extractChatMenuButtonUrl(getResponse.data);
+      if (lastSeenUrl === miniAppUrl) return;
+      lastError = `expected ${miniAppUrl}, got ${lastSeenUrl || '<empty>'}`;
+    } catch (err: any) {
+      lastError = err?.response?.data?.description || err?.code || err?.message || String(err);
+    }
+
+    const delay = delaysMs[attempt];
+    if (delay) {
+      console.warn(`[preset-sync] chat menu verification retry ${attempt + 1}/${delaysMs.length + 1} for bot ${bot.id}: ${lastError}`);
+      await sleep(delay);
+    }
   }
 
-  throw new Error(`setChatMenuButton verification failed: expected ${miniAppUrl}, got ${lastSeenUrl || '<empty>'}`);
+  throw new Error(`setChatMenuButton verification failed: ${lastError || `expected ${miniAppUrl}, got ${lastSeenUrl || '<empty>'}`}`);
 };
 
 async function main() {
@@ -116,6 +141,7 @@ async function main() {
   });
 
   let updated = 0;
+  const syncFailures: string[] = [];
   for (const bot of bots) {
     if (!SUPPORTED_TEMPLATES.has(bot.template)) continue;
     const currentConfig = (bot.config || {}) as Record<string, unknown>;
@@ -156,8 +182,14 @@ async function main() {
       await syncTelegramMenuButton(syncedBot);
       console.log(`[preset-sync] chat menu synced for bot ${bot.id}`);
     } catch (err: any) {
-      console.warn(`[preset-sync] setChatMenuButton failed for bot ${bot.id}: ${err?.message || err}`);
+      const message = `[preset-sync] setChatMenuButton failed for bot ${bot.id}: ${err?.message || err}`;
+      console.error(message);
+      syncFailures.push(message);
     }
+  }
+
+  if (syncFailures.length) {
+    throw new Error(`preset sync completed with ${syncFailures.length} Telegram menu failure(s)`);
   }
 
   console.log(`[preset-sync] completed, bots updated: ${updated}/${bots.length}`);

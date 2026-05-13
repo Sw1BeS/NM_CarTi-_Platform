@@ -31,6 +31,7 @@ bots_json="$(
         \"deliveryMode\"::text AS \"deliveryMode\",
         \"channelId\",
         \"adminChatId\",
+        COALESCE(config#>>'{miniAppConfig,url}', '') AS \"expectedMiniAppUrl\",
         COALESCE(config->>'webhookUrl', '') AS \"configWebhookUrl\"
       FROM \"BotConfig\"
       WHERE \"isEnabled\" = true
@@ -65,13 +66,33 @@ const maskToken = (token) => {
   return `${raw.slice(0, 6)}…${raw.slice(-4)}`;
 };
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 async function tgCall(token, method, payload = {}) {
-  const response = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(payload)
-  });
-  return await response.json();
+  let lastError = '';
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    try {
+      const response = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(payload),
+        signal: controller.signal
+      });
+      const data = await response.json();
+      if (data?.ok || ![429, 500, 502, 503, 504].includes(Number(data?.error_code || 0))) {
+        return data;
+      }
+      lastError = data?.description || `telegram ${method} returned ${data?.error_code}`;
+    } catch (error) {
+      lastError = String(error && error.message || error);
+    } finally {
+      clearTimeout(timeout);
+    }
+    await sleep([1000, 2500, 5000][attempt] || 0);
+  }
+  return { ok: false, description: lastError || `${method} request failed` };
 }
 
 function pushIssue(issues, botId, message) {
@@ -92,6 +113,7 @@ function logBot(bot, line) {
     const deliveryMode = asString(bot.deliveryMode).toUpperCase();
     const channelId = asString(bot.channelId).trim();
     const adminChatId = asString(bot.adminChatId).trim();
+    const expectedMiniAppUrl = asString(bot.expectedMiniAppUrl).trim();
     const configWebhookUrl = asString(bot.configWebhookUrl).trim();
 
     logBot(bot, `template=${bot.template} deliveryMode=${deliveryMode || 'UNKNOWN'} token=${maskToken(token)}`);
@@ -144,6 +166,9 @@ function logBot(bot, line) {
       logBot(bot, `menu type=${menuType || '<empty>'} web_app=${menuUrl || '<empty>'}`);
       if (menuType !== 'web_app' || !menuUrl) {
         pushIssue(issues, botId, 'Menu button is not web_app with URL');
+      }
+      if (expectedMiniAppUrl && menuUrl !== expectedMiniAppUrl) {
+        pushIssue(issues, botId, `Menu URL mismatch: expected=${expectedMiniAppUrl} live=${menuUrl || '<empty>'}`);
       }
     }
 

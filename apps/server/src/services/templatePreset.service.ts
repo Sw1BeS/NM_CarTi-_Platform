@@ -1,6 +1,7 @@
 import { SCENARIO_TEMPLATE_PACK } from '../seeds/scenarioPack.js';
 import { prisma } from './prisma.js';
 import fs from 'node:fs';
+import { execSync } from 'node:child_process';
 
 type BotTemplate = 'CLIENT_LEAD' | 'B2B' | 'CATALOG' | string;
 export type PresetStatus = 'ready' | 'partial' | 'missing';
@@ -87,15 +88,33 @@ type BotConfigShape = Record<string, any> & {
 };
 
 const DEFAULT_PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || 'https://cartie2.umanoff-analytics.space';
-const readBuildMeta = (filePath: string) => {
-  try {
-    return fs.readFileSync(filePath, 'utf8').trim();
-  } catch {
-    return '';
+const readBuildMeta = (fileName: 'BUILD_SHA' | 'BUILD_TIME') => {
+  const candidateFiles = [
+    `/app/server/${fileName}`,
+    `${process.cwd()}/${fileName}`,
+    `${process.cwd()}/apps/server/${fileName}`
+  ];
+  for (const filePath of candidateFiles) {
+    try {
+      const value = fs.readFileSync(filePath, 'utf8').trim();
+      if (value) return value;
+    } catch {
+      // Continue probing. Production deploy runs in-container; manual repair can run from repo root.
+    }
   }
+
+  if (fileName === 'BUILD_SHA') {
+    try {
+      return execSync('git rev-parse HEAD', { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 1000 }).trim();
+    } catch {
+      return '';
+    }
+  }
+
+  return '';
 };
-const BUILD_SHA_RAW = String(process.env.BUILD_SHA || readBuildMeta('/app/server/BUILD_SHA') || '').trim();
-const BUILD_TIME_RAW = String(process.env.BUILD_TIME || readBuildMeta('/app/server/BUILD_TIME') || '').trim();
+const BUILD_SHA_RAW = String(process.env.BUILD_SHA || readBuildMeta('BUILD_SHA') || '').trim();
+const BUILD_TIME_RAW = String(process.env.BUILD_TIME || readBuildMeta('BUILD_TIME') || '').trim();
 const BUILD_TAG_SOURCE = (BUILD_SHA_RAW.includes('-dirty') && BUILD_TIME_RAW)
   ? `${BUILD_SHA_RAW}-${BUILD_TIME_RAW}`
   : (BUILD_SHA_RAW || BUILD_TIME_RAW || '');

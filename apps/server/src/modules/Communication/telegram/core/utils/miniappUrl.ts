@@ -1,13 +1,28 @@
 import type { BotConfig } from '@prisma/client';
 import fs from 'node:fs';
+import { execSync } from 'node:child_process';
 
 const stripTrailingSlash = (s: string) => s.replace(/\/+$/, '');
 const readBuildSha = () => {
   const envSha = String(process.env.BUILD_SHA || '').trim();
   if (envSha) return envSha;
+
+  const candidateFiles = [
+    '/app/server/BUILD_SHA',
+    `${process.cwd()}/BUILD_SHA`,
+    `${process.cwd()}/apps/server/BUILD_SHA`
+  ];
+  for (const file of candidateFiles) {
+    try {
+      const fromFile = fs.readFileSync(file, 'utf8').trim();
+      if (fromFile) return fromFile;
+    } catch {
+      // Keep probing. Host-side production scripts may not run from the container path.
+    }
+  }
+
   try {
-    const fromFile = fs.readFileSync('/app/server/BUILD_SHA', 'utf8').trim();
-    return fromFile;
+    return execSync('git rev-parse HEAD', { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 1000 }).trim();
   } catch {
     return '';
   }

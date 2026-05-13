@@ -262,7 +262,7 @@ sync_bot_presets() {
 
   local api_container="${PROJECT}-api-1"
   docker exec "$api_container" npm run preset:sync \
-    || warn "Preset sync failed (continuing deploy)"
+    || die "Preset sync failed"
 
   log "✅ Preset sync step complete"
 }
