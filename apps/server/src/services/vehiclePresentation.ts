@@ -1,4 +1,5 @@
 import { isPublicMediaUrl, normalizeMediaUrl } from './mediaUrl.service.js';
+import { parseCarData } from './enhanced-parsing.utils.js';
 
 export type VehiclePresentation = {
   title: string;
@@ -30,6 +31,64 @@ const toString = (value: any): string | undefined => {
 
 const unique = (items: Array<string | undefined>) =>
   Array.from(new Set(items.map((item) => toString(item)).filter((item): item is string => Boolean(item))));
+
+const KNOWN_BRANDS = [
+  'Acura', 'Alfa Romeo', 'Aston Martin', 'Audi', 'Bentley', 'BMW', 'BYD', 'Cadillac', 'Chevrolet',
+  'Chery', 'Chrysler', 'Citroen', 'Cupra', 'Dacia', 'Daewoo', 'Dodge', 'Ferrari', 'Fiat', 'Ford',
+  'Geely', 'Genesis', 'GMC', 'Honda', 'Hummer', 'Hyundai', 'Infiniti', 'Jaguar', 'Jeep', 'Kia',
+  'Lamborghini', 'Land Rover', 'Lexus', 'Lincoln', 'Maserati', 'Mazda', 'McLaren', 'Mercedes',
+  'Mercedes-Benz', 'Mini', 'Mitsubishi', 'Nissan', 'Opel', 'Peugeot', 'Porsche', 'Renault',
+  'Rolls-Royce', 'Seat', 'Skoda', 'Smart', 'Subaru', 'Suzuki', 'Tesla', 'Toyota', 'Volkswagen',
+  'Volvo'
+];
+
+const knownBrandPattern = new RegExp(`\\b(${KNOWN_BRANDS.map((brand) => brand.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})\\b`, 'i');
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  !!value && typeof value === 'object' && !Array.isArray(value);
+
+const isNoisyVehicleTitle = (value: unknown) => {
+  const title = toString(value) || '';
+  return /перевірений\s+vin[-\s]?код|verified\s+vin|vin[-\s]?check/i.test(title);
+};
+
+const readRawVehicleText = (car: any, specs: Record<string, any>) => {
+  const originalRaw = isRecord(car?.originalRaw) ? car.originalRaw : {};
+  return [
+    toString(car?.description),
+    toString(specs.rawText),
+    toString(originalRaw.rawText),
+    toString(originalRaw.text)
+  ].filter(Boolean).join(' ');
+};
+
+const parseNumberText = (value: string) => Number(value.replace(/[^\d]/g, ''));
+
+const extractAutoRiaTitleFromRaw = (rawText: string) => {
+  const matches = Array.from(rawText.matchAll(/\b([A-Z][A-Za-z0-9.'-]*(?:\s+[A-Z0-9][A-Za-z0-9.'-]*){0,4})\s+((?:19|20)\d{2})\b/g));
+  const candidates = matches
+    .map(match => `${match[1]} ${match[2]}`.replace(/\s+/g, ' ').trim())
+    .filter(title => !isNoisyVehicleTitle(title));
+  return candidates.find((title) => knownBrandPattern.test(title)) || candidates[0] || undefined;
+};
+
+const extractAutoRiaPriceFromRaw = (rawText: string) => {
+  const match = rawText.match(/(\d{1,3}(?:[\s\u00A0]\d{3})+|\d{4,7})\s*\$/);
+  return match ? parseNumberText(match[1]) : undefined;
+};
+
+const extractAutoRiaMileageFromRaw = (rawText: string) => {
+  const match = rawText.match(/(\d{1,3}(?:[\s\u00A0]\d{3})*|\d+)\s*(тис\.?|тисяч|k)?\s*км/i);
+  if (!match) return undefined;
+  const base = parseNumberText(match[1]);
+  if (!base) return undefined;
+  return match[2] ? base * 1000 : base;
+};
+
+const extractAutoRiaLocationFromRaw = (rawText: string) => {
+  const match = rawText.match(/UA,\s*([^,]+),\s*([^,]+)(?:,\s*\d{4,6})?/i);
+  return toString(match?.[2]);
+};
 
 export const formatVehiclePrice = (amount: any, currency = DEFAULT_CURRENCY) => {
   const value = toNumber(amount);
@@ -81,6 +140,7 @@ export const normalizeVehicleSpecLabel = (
   if (key === 'condition') {
     if (/in transit|дороз|в\s+дороз/.test(norm)) return 'В дорозі';
     if (/available|наяв|в\s+наяв/.test(norm)) return 'В наявності';
+    if (/damaged|після дтп|после дтп|бит|пошкодж|був\s+в\s+дтп/.test(norm)) return 'Після ДТП';
     if (/running|на ходу|робоч/.test(norm)) return 'На ходу';
     if (/new|нов/.test(norm)) return 'Новий';
     if (/used|вжив|б\/у|бу/.test(norm)) return 'Вживаний';
@@ -118,17 +178,32 @@ export const buildVehiclePresentation = (car: any): VehiclePresentation => {
     ? car.specs as Record<string, any>
     : {};
   const price = typeof car?.price === 'object' && car?.price !== null ? car.price : { amount: car?.price, currency: car?.currency };
+  const rawVehicleText = readRawVehicleText(car, specs);
+  const parsed = rawVehicleText ? parseCarData(rawVehicleText) : {};
+  const rawTitle = rawVehicleText ? extractAutoRiaTitleFromRaw(rawVehicleText) : undefined;
+  const rawPrice = rawVehicleText ? extractAutoRiaPriceFromRaw(rawVehicleText) : undefined;
+  const rawMileage = rawVehicleText ? extractAutoRiaMileageFromRaw(rawVehicleText) : undefined;
+  const rawLocation = rawVehicleText ? extractAutoRiaLocationFromRaw(rawVehicleText) : undefined;
   const statusLabel = normalizeVehicleSpecLabel('status', car?.status) || 'В наявності';
-  const fuel = normalizeVehicleSpecLabel('fuel', specs.fuel || specs.engineType);
-  const transmission = normalizeVehicleSpecLabel('transmission', specs.transmission);
-  const drive = normalizeVehicleSpecLabel('drive', specs.drive);
-  const condition = normalizeVehicleSpecLabel('condition', specs.condition);
+  const fuel = normalizeVehicleSpecLabel('fuel', specs.fuel || specs.engineType || parsed.fuel);
+  const transmission = normalizeVehicleSpecLabel('transmission', specs.transmission || parsed.transmission);
+  const drive = normalizeVehicleSpecLabel('drive', specs.drive || parsed.drive);
+  const condition = normalizeVehicleSpecLabel('condition', specs.condition || parsed.condition);
   const damage = normalizeVehicleSpecLabel('damage', specs.damage || specs.damageLine);
   const bodyType = normalizeVehicleSpecLabel('bodyType', specs.bodyType || specs.body);
-  const engine = toString(specs.engine || specs.engineVolume || specs.battery || specs.batteryKwh);
-  const location = toString(car?.location);
-  const year = toNumber(car?.year);
-  const title = toString(car?.title) || [toString(car?.brand || specs.brand || specs.make), toString(car?.model || specs.model), year ? String(year) : undefined].filter(Boolean).join(' ') || 'Авто';
+  const engine = toString(specs.engine || specs.engineVolume || specs.battery || specs.batteryKwh || parsed.engine);
+  const location = toString(car?.location) || toString(parsed.location) || rawLocation;
+  const year = toNumber(car?.year) || toNumber(parsed.year);
+  const sourceTitle = toString(car?.title);
+  const parsedTitle = toString(parsed.title);
+  const title = (sourceTitle && !isNoisyVehicleTitle(sourceTitle) ? sourceTitle : undefined)
+    || rawTitle
+    || (parsedTitle && !isNoisyVehicleTitle(parsedTitle) ? parsedTitle : undefined)
+    || [toString(car?.brand || specs.brand || specs.make || parsed.brand), toString(car?.model || specs.model || parsed.model), year ? String(year) : undefined].filter(Boolean).join(' ')
+    || sourceTitle
+    || 'Авто';
+  const priceAmount = toNumber(price.amount) || rawPrice;
+  const mileageAmount = toNumber(car?.mileage) || toNumber(parsed.mileage) || rawMileage;
   const mediaUrls = unique([
     toString(car?.thumbnail),
     ...(Array.isArray(car?.mediaUrls) ? car.mediaUrls : []),
@@ -141,8 +216,8 @@ export const buildVehiclePresentation = (car: any): VehiclePresentation => {
 
   const detailRows = [
     { label: 'Рік', value: year ? String(year) : 'Не вказано' },
-    { label: 'Ціна', value: formatVehiclePrice(price.amount, price.currency || DEFAULT_CURRENCY) },
-    { label: 'Пробіг', value: formatVehicleMileage(car?.mileage) },
+    { label: 'Ціна', value: formatVehiclePrice(priceAmount, price.currency || DEFAULT_CURRENCY) },
+    { label: 'Пробіг', value: formatVehicleMileage(mileageAmount) },
     fuel ? { label: 'Пальне', value: fuel } : null,
     engine ? { label: 'Двигун / батарея', value: engine } : null,
     transmission ? { label: 'КПП', value: transmission } : null,
@@ -164,8 +239,8 @@ export const buildVehiclePresentation = (car: any): VehiclePresentation => {
   return {
     title,
     subtitle,
-    priceLabel: formatVehiclePrice(price.amount, price.currency || DEFAULT_CURRENCY),
-    mileageLabel: formatVehicleMileage(car?.mileage),
+    priceLabel: formatVehiclePrice(priceAmount, price.currency || DEFAULT_CURRENCY),
+    mileageLabel: formatVehicleMileage(mileageAmount),
     statusLabel,
     specChips: unique([fuel, transmission, drive, bodyType, damage]).slice(0, 6),
     detailRows,

@@ -41,6 +41,9 @@ const toNumber = (value: unknown): number | undefined => {
 const compact = (items: Array<string | undefined | null | false>) =>
   items.filter((item): item is string => Boolean(item && String(item).trim()));
 
+const titleAlreadyHasYear = (title: string, year?: number) =>
+  Boolean(year && new RegExp(`\\b${year}\\b`).test(title));
+
 const intentLabel = (intent: RequestIntent) => {
   if (intent === 'PICKUP') return 'Підбір авто';
   if (intent === 'PRICE_TERMS') return 'Ціна / умови';
@@ -102,8 +105,9 @@ export const buildRequestPresentationSnapshot = (input: RequestPresentationInput
   const managerAction = input.managerAction || defaultManagerAction(input.customerIntent);
   const vehicleLines = selectedCars.length
     ? selectedCars.map((car, index) => compact([
-      `${index + 1}. ${car.title}${car.year ? ` (${car.year})` : ''}`,
+      `${index + 1}. ${car.title}${car.year && !titleAlreadyHasYear(car.title, car.year) ? ` (${car.year})` : ''}`,
       car.priceLabel,
+      car.mileageLabel !== 'Пробіг не вказано' ? car.mileageLabel : undefined,
       car.statusLabel,
       car.location
     ]).join(' • '))
