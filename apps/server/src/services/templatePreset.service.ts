@@ -367,12 +367,12 @@ const baseLeadButtons = (scenarioIds: Record<string, string>, miniAppUrl: string
   { id: 'btn_support', label: '🆘 Підтримка', label_uk: '🆘 Підтримка', label_ru: '🆘 Підтримка', type: 'WEB_APP', value: appendMiniAppQuery(miniAppUrl, { entry: 'support' }), row: 2, col: 1 }
 ];
 
-const baseB2BButtons = (scenarioIds: Record<string, string>, _miniAppUrl: string): MenuButton[] => [
-  { id: 'btn_b2b_inv_my', label: '🚘 Мій інвентар', label_uk: '🚘 Мій інвентар', label_ru: '🚘 Мій інвентар', type: 'SCENARIO', value: scenarioIds.inv_my || 'scn_b2b_inv_my', row: 0, col: 0 },
-  { id: 'btn_b2b_inv_add', label: '➕ Додати авто', label_uk: '➕ Додати авто', label_ru: '➕ Додати авто', type: 'SCENARIO', value: scenarioIds.inv_add || 'scn_b2b_inv_add', row: 0, col: 1 },
-  { id: 'btn_b2b_inv_price', label: '💲 Змінити ціну', label_uk: '💲 Змінити ціну', label_ru: '💲 Змінити ціну', type: 'SCENARIO', value: scenarioIds.inv_price || 'scn_b2b_inv_price', row: 1, col: 0 },
-  { id: 'btn_b2b_inv_sold', label: '✅ Позначити продано', label_uk: '✅ Позначити продано', label_ru: '✅ Позначити продано', type: 'SCENARIO', value: scenarioIds.inv_sold || 'scn_b2b_inv_sold', row: 1, col: 1 },
-  { id: 'btn_b2b_help', label: 'ℹ️ Інформація / Правила', label_uk: 'ℹ️ Інформація / Правила', label_ru: 'ℹ️ Інформація / Правила', type: 'SCENARIO', value: scenarioIds.help || 'scn_b2b_help', row: 2, col: 0 }
+const baseB2BButtons = (_scenarioIds: Record<string, string>, miniAppUrl: string): MenuButton[] => [
+  { id: 'btn_b2b_req', label: '📝 Створити запит', label_uk: '📝 Створити запит', label_ru: '📝 Створити запит', type: 'WEB_APP', value: appendMiniAppQuery(miniAppUrl, { entry: 'request' }), row: 0, col: 0 },
+  { id: 'btn_b2b_inv_my', label: '🚙 Склад', label_uk: '🚙 Склад', label_ru: '🚙 Склад', type: 'WEB_APP', value: appendMiniAppQuery(miniAppUrl, { entry: 'inventory' }), row: 0, col: 1 },
+  { id: 'btn_b2b_app', label: '📊 Угоди', label_uk: '📊 Угоди', label_ru: '📊 Угоди', type: 'WEB_APP', value: appendMiniAppQuery(miniAppUrl, { entry: 'status' }), row: 1, col: 0 },
+  { id: 'btn_b2b_help', label: '🆘 Підтримка', label_uk: '🆘 Підтримка', label_ru: '🆘 Підтримка', type: 'WEB_APP', value: appendMiniAppQuery(miniAppUrl, { entry: 'support' }), row: 1, col: 1 },
+  { id: 'btn_b2b_menu', label: '👤 Профіль', label_uk: '👤 Профіль', label_ru: '👤 Профіль', type: 'WEB_APP', value: appendMiniAppQuery(miniAppUrl, { entry: 'profile' }), row: 2, col: 0 }
 ];
 
 const maybePatchMenuLinks = (buttons: MenuButton[] | undefined, miniAppUrl: string): MenuButton[] => {
@@ -956,14 +956,9 @@ export const getTemplatePresetStatus = async (input: {
   }
 
   if (template === 'B2B') {
-    const values = new Set(menuButtons.map(btn => String(btn.value || '').trim().toLowerCase()));
-    const scenarioButtons = menuButtons.filter(btn => btn.type === 'SCENARIO');
-    const hasInventoryMy = scenarioButtons.some(btn => btn.id === 'btn_b2b_inv_my');
-    const hasInventoryAdd = scenarioButtons.some(btn => btn.id === 'btn_b2b_inv_add');
-    const hasInventoryPrice = scenarioButtons.some(btn => btn.id === 'btn_b2b_inv_price');
-    const hasInventorySold = scenarioButtons.some(btn => btn.id === 'btn_b2b_inv_sold');
-    const hasHelpEntry = scenarioButtons.some(btn => btn.id === 'btn_b2b_help');
-    const hasMenu = hasInventoryMy && hasInventoryAdd && hasInventoryPrice && hasInventorySold && hasHelpEntry;
+    const webAppButtons = menuButtons.filter(btn => btn.type === 'WEB_APP');
+    const hasMenu = ['btn_b2b_req', 'btn_b2b_inv_my', 'btn_b2b_app', 'btn_b2b_help', 'btn_b2b_menu']
+      .every(id => webAppButtons.some(btn => btn.id === id && /\/p\/app\//.test(String(btn.value || ''))));
     const required = ['request', 'offer', 'help', 'inventory_my', 'inventory_add', 'inventory_price', 'inventory_sold'];
     const available = await prisma.scenario.findMany({
       where: {
@@ -1064,7 +1059,10 @@ export const applyTemplatePreset = async (input: {
       baseB2BButtons(scenarioIds, miniAppUrl)
     );
     const existingButtons = Array.isArray(config.menuConfig?.buttons) ? config.menuConfig.buttons : [];
-    if (shouldHardReplacePreset || existingButtons.length === 0) {
+    const hasLegacyScenarioMenu = existingButtons.some(btn =>
+      B2B_BUTTON_IDS.has(String(btn.id || '')) && String(btn.type || '').toUpperCase() === 'SCENARIO'
+    );
+    if (shouldHardReplacePreset || existingButtons.length === 0 || hasLegacyScenarioMenu) {
       config.menuConfig = fallbackMenu;
     } else {
       const existingWelcome = String(config.menuConfig?.welcomeMessage || '').trim();

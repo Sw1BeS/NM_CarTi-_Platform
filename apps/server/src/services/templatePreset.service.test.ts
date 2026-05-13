@@ -201,4 +201,59 @@ describe('templatePreset.service', () => {
       { label: 'Локація', url: 'https://maps.app.goo.gl/n6MACQaVP9cEoNDo7?g_st=ipc' }
     ]));
   });
+
+  it('repairs B2B preset menu buttons to MiniApp section web_app URLs', async () => {
+    const result = await applyTemplatePreset({
+      template: 'B2B',
+      companyId: 'company_test',
+      botId: 'bot_b2b',
+      defaultShowcaseSlug: 'cardealer_lviv_bot',
+      config: {
+        publicBaseUrl: 'https://example.com',
+        menuConfig: {
+          welcomeMessage: 'CarDealer Lviv B2B',
+          buttons: [
+            { id: 'btn_b2b_inv_my', label: '🚘 Мій інвентар', type: 'SCENARIO', value: 'old_inventory', row: 0, col: 0 },
+            { id: 'btn_b2b_inv_add', label: '➕ Додати авто', type: 'SCENARIO', value: 'old_add', row: 0, col: 1 },
+            { id: 'btn_b2b_inv_price', label: '💲 Змінити ціну', type: 'SCENARIO', value: 'old_price', row: 1, col: 0 },
+            { id: 'btn_b2b_inv_sold', label: '✅ Позначити продано', type: 'SCENARIO', value: 'old_sold', row: 1, col: 1 },
+            { id: 'btn_b2b_help', label: 'ℹ️ Інформація / Правила', type: 'SCENARIO', value: 'old_help', row: 2, col: 0 }
+          ]
+        },
+        miniAppConfig: {
+          isEnabled: true,
+          title: 'Existing B2B',
+          welcomeText: 'Existing',
+          primaryColor: '#111111',
+          layout: 'GRID',
+          actions: [],
+          navItems: [],
+          url: 'https://old.example/p/app/cardealer_lviv_bot',
+          showcaseSlug: 'cardealer_lviv_bot'
+        }
+      } as any
+    });
+
+    const buttons = result.config.menuConfig?.buttons || [];
+    expect(buttons.map(button => button.id)).toEqual([
+      'btn_b2b_req',
+      'btn_b2b_inv_my',
+      'btn_b2b_app',
+      'btn_b2b_help',
+      'btn_b2b_menu'
+    ]);
+    expect(buttons.every(button => button.type === 'WEB_APP')).toBe(true);
+    expect(buttons.map(button => new URL(button.value).pathname)).toEqual([
+      '/p/app/cardealer_lviv_bot',
+      '/p/app/cardealer_lviv_bot',
+      '/p/app/cardealer_lviv_bot',
+      '/p/app/cardealer_lviv_bot',
+      '/p/app/cardealer_lviv_bot'
+    ]);
+    expect(buttons.some(button => button.value.includes('entry=request'))).toBe(true);
+    expect(buttons.some(button => button.value.includes('entry=inventory'))).toBe(true);
+    expect(buttons.some(button => button.value.includes('entry=status'))).toBe(true);
+    expect(buttons.some(button => button.value.includes('entry=support'))).toBe(true);
+    expect(buttons.some(button => button.value.includes('entry=profile'))).toBe(true);
+  });
 });
