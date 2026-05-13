@@ -268,7 +268,7 @@ export const RequestView = ({
   };
 
   return (
-    <div className="animate-fade-in pb-24 p-5 h-full overflow-y-auto flex flex-col justify-start bg-black">
+    <div className="animate-fade-in h-full overflow-y-auto bg-black px-5 pb-24 pt-16 flex flex-col justify-start">
       {reqStep === 5 ? (
         <div className="text-center animate-slide-up">
           <div className="w-20 h-20 rounded-full bg-white/10 text-white flex items-center justify-center mx-auto mb-6 border border-white/15">
