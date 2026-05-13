@@ -318,6 +318,25 @@ describe('MiniApp Lead handoff routes', () => {
       phone: '+380635055252',
       leadId: 'lead_existing'
     });
+    requestContractServiceMock.finalizePendingLeadIntent.mockResolvedValueOnce({
+      intentType: 'INTEREST',
+      title: 'Mercedes-Benz S 500',
+      phone: '+380635055252',
+      isDuplicate: false,
+      lead: { id: 'lead_1' },
+      request: { id: 'request_1', publicId: 'REQ-1' },
+      selectedCars: [],
+      requestPresentation: {
+        telegramText: '🎯 Ціна / умови: Mercedes-Benz S 500\n🚗 Mercedes-Benz S 500 2021 • $78,900 • 45 000 км • В наявності • Львів',
+        selectedCars: [
+          {
+            id: 'car_1',
+            title: 'Mercedes-Benz S 500',
+            publicUrl: '/p/app/cartie?entry=inventory&carId=car_1'
+          }
+        ]
+      }
+    });
     const app = await buildApp();
 
     const res = await request(app)
@@ -343,6 +362,12 @@ describe('MiniApp Lead handoff routes', () => {
       inline_keyboard: expect.arrayContaining([
         expect.arrayContaining([
           expect.objectContaining({ text: expect.stringContaining('CRM'), url: expect.stringContaining('/requests') })
+        ]),
+        expect.arrayContaining([
+          expect.objectContaining({
+            text: expect.stringContaining('авто'),
+            url: 'https://cartie2.umanoff-analytics.space/p/app/cartie?entry=inventory&carId=car_1'
+          })
         ]),
         expect.arrayContaining([
           expect.objectContaining({ text: expect.stringContaining('контакт'), callback_data: 'lead_CONTACTED_lead_1' })

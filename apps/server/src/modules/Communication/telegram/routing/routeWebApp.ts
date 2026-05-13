@@ -234,7 +234,8 @@ export const routeWebApp = async (ctx: PipelineContext) => {
             buildLeadAdminActionMarkup({
               lead: finalized.lead,
               request: finalized.request,
-              telegramUserId: String(from.id)
+              telegramUserId: String(from.id),
+              selectedCars: finalized.requestPresentation?.selectedCars
             }),
             String(ctx.bot.adminChatId)
           );

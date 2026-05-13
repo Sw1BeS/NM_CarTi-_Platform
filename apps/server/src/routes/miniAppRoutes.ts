@@ -893,7 +893,8 @@ router.post('/lead-intents', async (req, res) => {
         const replyMarkup = buildLeadAdminActionMarkup({
           lead: finalized.lead,
           request: finalized.request,
-          telegramUserId: telegram.userId
+          telegramUserId: telegram.userId,
+          selectedCars: finalized.requestPresentation?.selectedCars
         });
         await telegramOutbox.sendMessage({
           botId: bot.id,

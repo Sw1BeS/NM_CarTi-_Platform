@@ -699,7 +699,8 @@ const handleClientLead = async (ctx: PipelineContext, text: string) => {
       const adminMarkup = buildLeadAdminActionMarkup({
         lead: finalized.lead,
         request: finalized.request,
-        telegramUserId: tgUserId
+        telegramUserId: tgUserId,
+        selectedCars: finalized.requestPresentation?.selectedCars
       });
       await sendMessage(ctx, adminText, adminMarkup, String(ctx.bot.adminChatId));
     }

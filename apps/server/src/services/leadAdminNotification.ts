@@ -5,6 +5,14 @@ const toText = (value: unknown) => String(value || '').trim();
 const publicBaseUrl = () =>
   String(process.env.PUBLIC_BASE_URL || process.env.MINIAPP_URL || DEFAULT_PUBLIC_BASE_URL).replace(/\/+$/, '');
 
+const absolutePublicUrl = (url?: string | null) => {
+  const value = toText(url);
+  if (!value) return undefined;
+  if (/^https?:\/\//i.test(value)) return value;
+  if (value.startsWith('/')) return `${publicBaseUrl()}${value}`;
+  return `${publicBaseUrl()}/${value.replace(/^\/+/, '')}`;
+};
+
 const leadContactedCallback = (leadId?: string | null) => {
   const id = toText(leadId);
   return id ? `lead_CONTACTED_${id}` : undefined;
@@ -26,11 +34,27 @@ export const buildLeadAdminActionMarkup = (params: {
   lead?: { id?: string | null; leadCode?: string | null } | null;
   request?: { id?: string | null; publicId?: string | null } | null;
   telegramUserId?: string | null;
+  selectedCars?: Array<{ id?: string | null; title?: string | null; publicUrl?: string | null }> | null;
 }) => {
   const rows: any[][] = [];
   const crmUrl = requestSearchUrl(params.request) || leadSearchUrl(params.lead);
   if (crmUrl) {
     rows.push([{ text: 'Відкрити в CRM', url: crmUrl }]);
+  }
+
+  const carButtons = (params.selectedCars || [])
+    .map((car, index) => {
+      const url = absolutePublicUrl(car?.publicUrl);
+      if (!url) return null;
+      return {
+        text: params.selectedCars?.length === 1 ? 'Відкрити авто' : `Авто ${index + 1}`,
+        url
+      };
+    })
+    .filter(Boolean)
+    .slice(0, 4);
+  for (let i = 0; i < carButtons.length; i += 2) {
+    rows.push(carButtons.slice(i, i + 2));
   }
 
   const contacted = leadContactedCallback(params.lead?.id);
