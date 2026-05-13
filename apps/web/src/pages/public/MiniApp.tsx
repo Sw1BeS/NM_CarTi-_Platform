@@ -3,7 +3,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Bot, MiniAppConfig, CarListing } from '../../types';
 import { getPublicInventory } from '../../services/publicApi';
-import { createMiniAppLeadIntent, createMiniAppRequest, getMiniAppConfig, getMiniAppFavorites, getMiniAppRequestStatus, getMiniAppShowcaseInventory, startMiniAppBotFlow, toggleMiniAppFavorite, trackMiniAppEvent, type MiniAppRequestSubtype, type MiniAppTrackingMeta } from '../../services/miniappApi';
+import { createMiniAppLeadIntent, createMiniAppRequest, getMiniAppCar, getMiniAppConfig, getMiniAppFavorites, getMiniAppRequestStatus, getMiniAppShowcaseInventory, startMiniAppBotFlow, toggleMiniAppFavorite, trackMiniAppEvent, type MiniAppRequestSubtype, type MiniAppTrackingMeta } from '../../services/miniappApi';
 import {
     Search, LayoutGrid, User, Plus, Filter, DollarSign,
     MessageSquare, Zap, List as ListIcon, Star, Phone, Home, Heart, ClipboardList,
@@ -20,7 +20,7 @@ import { FavoritesView } from './miniapp/views/FavoritesView';
 import { ProfileView } from './miniapp/views/ProfileView';
 import { RequestView, type RequestFormData } from './miniapp/views/RequestView';
 import { MiniAppImage } from './miniapp/components/MiniAppImage';
-import { parseMiniAppEntryIntent, type MiniAppEntryIntent } from './miniapp/entryIntent';
+import { isMiniAppReadOnlyLaunch, parseMiniAppEntryIntent, type MiniAppEntryIntent } from './miniapp/entryIntent';
 import { resolveLeadIntentOutcome } from './miniapp/leadIntentOutcome';
 
 const emitMiniAppEvent = (level: 'info' | 'warn' | 'error', message: string, meta?: Record<string, unknown>) => {
@@ -361,6 +361,7 @@ const MiniAppContent = () => {
     const { toasts, pushToast, dismissToast } = useToasts();
     const currentInitData = initData || readRuntimeTelegramInitData();
     const hasTelegramInit = Boolean(currentInitData);
+    const readOnlyPreview = !hasTelegramInit && isMiniAppReadOnlyLaunch(new URLSearchParams(window.location.search), trackingMeta.startParam);
     const viewHistoryRef = useRef<MiniAppView[]>(['HOME']);
     const suppressHistoryPushRef = useRef(false);
     const requestSubmitIdRef = useRef<string | null>(null);
@@ -751,8 +752,10 @@ const MiniAppContent = () => {
             cleanupViewport = initTelegramViewport(telegramContext.tg);
             let startParam = telegramContext.startParam || '';
             const resolvedUser = telegramContext.user;
+            const urlParams = new URLSearchParams(window.location.search);
+            const isReadOnlyLaunch = isMiniAppReadOnlyLaunch(urlParams, startParam);
 
-            if (!telegramContext.isTelegramContext) {
+            if (!telegramContext.isTelegramContext && !isReadOnlyLaunch) {
                 emitMiniAppEvent('warn', 'Telegram WebApp context not detected');
                 setRequiresTelegram(true);
                 setInitData(undefined);
@@ -765,7 +768,7 @@ const MiniAppContent = () => {
 
             const platform = telegramContext.tg?.platform || (hasTelegramUserAgent() ? 'telegram-ua' : 'url-fallback');
             const version = telegramContext.tg?.version || 'n/a';
-            const urlParams = new URLSearchParams(window.location.search);
+            const launchCarId = String(urlParams.get('carId') || urlParams.get('carListingId') || '').trim();
             const safeLaunchMeta = {
                 slug: slug || undefined,
                 pathname: window.location.pathname,
@@ -786,7 +789,7 @@ const MiniAppContent = () => {
             });
             setTgUser(resolvedUser);
             setInitData(telegramContext.initData);
-            if (!telegramContext.initData) {
+            if (!telegramContext.initData && !isReadOnlyLaunch) {
                 setConfigWarning('Telegram відкрито без initData. Для дій відкрийте Mini App повторно через кнопку меню бота.');
             }
 
@@ -883,6 +886,20 @@ const MiniAppContent = () => {
                             resolvedSlug
                         });
                         setConfigWarning('Продаж авто відкривається у чаті бота. Відкрийте Mini App через кнопку меню бота.');
+                    }
+                } else if (launchCarId) {
+                    try {
+                        const car = await getMiniAppCar(launchCarId);
+                        setSelectedCar(car);
+                        setView('LISTING');
+                    } catch (e) {
+                        emitMiniAppEvent('warn', 'MiniApp launch car not found', {
+                            ...safeLaunchMeta,
+                            resolvedSlug,
+                            carId: launchCarId,
+                            error: e instanceof Error ? e.message : String(e)
+                        });
+                        applyEntryIntent(entryIntent);
                     }
                 } else {
                     applyEntryIntent(entryIntent);
@@ -1547,85 +1564,161 @@ const MiniAppContent = () => {
                 { label: 'Привід', value: getCarSpecs(selectedCar).drive || '—' },
                 { label: 'Локація', value: pickText(selectedCar.location) || '—' }
             ];
+        const title = presentation?.title || selectedCar.title || 'Авто';
+        const priceLabel = presentation?.priceLabel || formatPrice(selectedCar.price);
+        const statusLabel = presentation?.statusLabel || getStatusLabel(selectedCar);
+        const subtitle = presentation?.subtitle || formatBrandModel(selectedCar);
+        const primaryDetailRows = detailRows.filter(row => row.value && row.value !== '—').slice(0, 8);
+        const onPrimaryListingAction = () => {
+            if (readOnlyPreview) {
+                window.location.href = resolveOpenBotUrl();
+                return;
+            }
+            surfaceMode === 'B2B' ? prefillRequestFromCar(selectedCar) : handleCarInterest(selectedCar);
+        };
 
         return (
-            <div className="animate-fade-in pb-24 h-full overflow-y-auto bg-black">
-                <div className="p-4 flex items-center gap-3 border-b border-white/10 bg-[#000000]/90 backdrop-blur-md">
-                    <button onClick={goBack} className="text-white/70 text-sm">← Назад</button>
-                    <h2 className="text-white font-bold truncate">{presentation?.title || selectedCar.title}</h2>
-                </div>
-                <div className="p-4 space-y-4">
-                    <div className="h-60 bg-gray-800 rounded-2xl overflow-hidden relative cursor-pointer" onClick={() => { setLightboxCar(selectedCar); setLightboxImageIndex(0); }}>
+            <div className="animate-fade-in h-full overflow-y-auto bg-[#050608] text-white">
+                <div className="relative min-h-[430px] overflow-hidden">
+                    <div className="absolute inset-0 bg-[#111418]">
                         <MiniAppImage
                             src={cover}
                             sources={images}
-                            alt={presentation?.title || selectedCar.title || 'Авто'}
+                            alt={title}
+                            className="h-full w-full object-cover"
                         />
+                        <div className="absolute inset-0 bg-gradient-to-t from-[#050608] via-[#050608]/70 to-black/10" />
+                        <div className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-[#050608] to-transparent" />
                     </div>
+
+                    <div className="relative z-10 flex min-h-[430px] flex-col justify-between px-5 pb-6 pt-5">
+                        <div className="flex items-center justify-between gap-3">
+                            <button
+                                onClick={goBack}
+                                className="flex h-10 items-center gap-1 rounded-full border border-white/12 bg-black/42 px-3 text-xs font-bold text-white/88 backdrop-blur-md active:scale-95"
+                            >
+                                <ChevronLeft size={16} />
+                                Назад
+                            </button>
+                            <div className="flex items-center gap-2">
+                                {images.length > 1 && (
+                                    <button
+                                        onClick={() => { setLightboxCar(selectedCar); setLightboxImageIndex(0); }}
+                                        className="flex h-10 items-center gap-1 rounded-full border border-white/12 bg-black/42 px-3 text-xs font-bold text-white/88 backdrop-blur-md"
+                                    >
+                                        <ImageIcon size={15} />
+                                        {images.length}
+                                    </button>
+                                )}
+                                <button
+                                    onClick={() => toggleFavorite(selectedCar)}
+                                    className="flex h-10 w-10 items-center justify-center rounded-full border border-white/12 bg-black/42 text-white/88 backdrop-blur-md"
+                                    aria-label="Обране"
+                                >
+                                    <Star size={18} className={isFavorite(getCarId(selectedCar)) ? 'fill-[#F0D27A] text-[#F0D27A]' : 'text-white/80'} />
+                                </button>
+                            </div>
+                        </div>
+
+                        <button
+                            onClick={() => { setLightboxCar(selectedCar); setLightboxImageIndex(0); }}
+                            className="absolute inset-x-0 top-20 bottom-36"
+                            aria-label="Відкрити галерею"
+                        />
+
+                        <div className="mt-auto">
+                            <div className="mb-3 flex flex-wrap items-center gap-2">
+                                <span className="rounded-full border border-white/12 bg-black/45 px-3 py-1 text-[11px] font-bold text-white/82 backdrop-blur">
+                                    {statusLabel}
+                                </span>
+                                {readOnlyPreview && (
+                                    <span className="rounded-full border border-white/12 bg-white/10 px-3 py-1 text-[11px] font-bold text-white/72 backdrop-blur">
+                                        Preview
+                                    </span>
+                                )}
+                            </div>
+                            <h2 className="text-[28px] font-black leading-[1.05] tracking-[-0.01em] text-white">{title}</h2>
+                            <div className="mt-3 flex items-end justify-between gap-4">
+                                <div>
+                                    <div className="text-[28px] font-black leading-none text-[#F4F6F8]">{priceLabel}</div>
+                                    <div className="mt-2 text-sm leading-relaxed text-white/64">{subtitle}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="px-5 pb-28">
                     {images.length > 1 && (
-                        <div className="flex gap-2 overflow-x-auto">
-                            {images.map((url, idx) => (
-                                <MiniAppImage
+                        <div className="-mt-2 mb-4 flex gap-2 overflow-x-auto pb-1">
+                            {images.slice(0, 8).map((url, idx) => (
+                                <button
                                     key={`listing-thumb-${idx}`}
-                                    src={url}
-                                    className="w-20 h-16 object-cover rounded-lg border border-white/10"
-                                    fallbackClassName="w-20 h-16 flex items-center justify-center rounded-lg border border-white/10 bg-[#202226] text-white/25"
-                                    alt={`${presentation?.title || selectedCar.title || 'Авто'} фото ${idx + 1}`}
                                     onClick={() => { setLightboxCar(selectedCar); setLightboxImageIndex(idx); }}
-                                />
+                                    className="h-16 w-20 shrink-0 overflow-hidden rounded-xl border border-white/12 bg-[#181b1f]"
+                                >
+                                    <MiniAppImage
+                                        src={url}
+                                        className="h-full w-full object-cover"
+                                        fallbackClassName="flex h-full w-full items-center justify-center text-white/25"
+                                        alt={`${title} фото ${idx + 1}`}
+                                    />
+                                </button>
                             ))}
                         </div>
                     )}
 
-                    <div className="bg-[#1c1c1e] rounded-2xl p-4 border border-white/5">
-                        <div className="flex justify-between items-center mb-2">
-                            <div className="text-xl font-bold text-white">{presentation?.priceLabel || formatPrice(selectedCar.price)}</div>
-                            <button
-                                onClick={() => toggleFavorite(selectedCar)}
-                                className="w-10 h-10 rounded-full bg-black/40 flex items-center justify-center"
-                            >
-                                <Star size={18} className={isFavorite(getCarId(selectedCar)) ? 'text-yellow-400 fill-yellow-400' : 'text-white/70'} />
-                            </button>
+                    {readOnlyPreview && (
+                        <div className="mb-4 rounded-2xl border border-white/10 bg-white/[0.055] p-4 text-sm leading-relaxed text-white/68">
+                            Це безпечний перегляд з посилання. Для заявки, обраного або чату відкрийте Mini App через бот.
                         </div>
-                        <div className="text-xs text-white/50 mb-1">{presentation?.statusLabel || getStatusLabel(selectedCar)}</div>
-                        <div className="text-sm text-white/60">{presentation?.subtitle || formatBrandModel(selectedCar)}</div>
-                        <div className="mt-3 flex flex-wrap gap-2">
+                    )}
+
+                    <div className="rounded-[22px] border border-white/10 bg-[#15181c] p-4 shadow-[0_18px_45px_rgba(0,0,0,0.28)]">
+                        <div className="flex flex-wrap gap-2">
                             {(presentation?.specChips || []).slice(0, 6).map(chip => (
-                                <span key={chip} className="text-[11px] px-2 py-1 rounded-lg bg-white/10 border border-white/10 text-white/80">{chip}</span>
+                                <span key={chip} className="rounded-xl border border-white/10 bg-black/24 px-3 py-2 text-[11px] font-bold text-white/78">{chip}</span>
                             ))}
                         </div>
-                        <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-white/70">
-                            {detailRows.slice(0, 8).map(row => (
-                                <div key={row.label} className="bg-black/30 p-2 rounded border border-white/5">
-                                    <div className="text-[9px] uppercase text-white/35 mb-1">{row.label}</div>
-                                    <div className="font-semibold text-white/80">{row.value}</div>
+                        <div className="mt-4 grid grid-cols-2 gap-2">
+                            {primaryDetailRows.map(row => (
+                                <div key={row.label} className="min-h-[64px] rounded-2xl border border-white/7 bg-black/24 p-3">
+                                    <div className="mb-1 text-[9px] font-bold uppercase tracking-[0.12em] text-white/35">{row.label}</div>
+                                    <div className="text-sm font-bold leading-snug text-white/86">{row.value}</div>
                                 </div>
                             ))}
                         </div>
                         {(getCarSpecs(selectedCar).vin || getCarSpecs(selectedCar).condition || selectedCar.description) && (
-                            <div className="mt-3 text-xs text-white/70 space-y-1">
-                                {getCarSpecs(selectedCar).condition && <div>🛠 {getCarSpecs(selectedCar).condition}</div>}
-                                {getCarSpecs(selectedCar).vin && <div>🔑 VIN: {getCarSpecs(selectedCar).vin}</div>}
+                            <div className="mt-4 space-y-2 border-t border-white/10 pt-4 text-sm text-white/68">
+                                {getCarSpecs(selectedCar).condition && <div>Стан: {getCarSpecs(selectedCar).condition}</div>}
+                                {getCarSpecs(selectedCar).vin && <div className="font-mono text-xs text-white/55">VIN: {getCarSpecs(selectedCar).vin}</div>}
                                 {selectedCar.description && (
-                                    <div className="text-white/60 line-clamp-4">{selectedCar.description}</div>
+                                    <div className="line-clamp-5 leading-relaxed text-white/58">{selectedCar.description}</div>
                                 )}
                             </div>
                         )}
                     </div>
+                </div>
 
+                <div className="absolute bottom-0 left-0 right-0 z-40 border-t border-white/10 bg-[#07080a]/94 px-5 pb-5 pt-3 backdrop-blur-xl">
                     <button
-                        onClick={() => surfaceMode === 'B2B' ? prefillRequestFromCar(selectedCar) : handleCarInterest(selectedCar)}
-                        className="w-full py-4 rounded-xl font-bold text-black flex items-center justify-center gap-2"
+                        onClick={onPrimaryListingAction}
+                        className="flex w-full items-center justify-center gap-2 rounded-2xl py-4 text-sm font-black active:scale-[0.99]"
                         style={premiumCtaStyle}
                     >
-                        <MessageSquare size={18} /> {surfaceMode === 'B2B' ? 'Створити B2B запит' : 'Дізнатись ціну та умови'}
+                        <MessageSquare size={18} />
+                        {readOnlyPreview
+                            ? 'Відкрити через бот'
+                            : (surfaceMode === 'B2B' ? 'Створити B2B запит' : 'Дізнатись ціну та умови')}
                     </button>
-                    <button
-                        onClick={() => toggleRequestSelection(selectedCar)}
-                        className="w-full py-2 rounded-xl font-bold text-xs border border-white/10 text-white/80"
-                    >
-                        {isSelectedForRequest(getCarId(selectedCar)) ? '✅ Авто у мультивиборі' : '➕ Додати авто до мультивибору'}
-                    </button>
+                    {!readOnlyPreview && (
+                        <button
+                            onClick={() => toggleRequestSelection(selectedCar)}
+                            className="mt-2 w-full rounded-2xl border border-white/10 py-2.5 text-xs font-bold text-white/78"
+                        >
+                            {isSelectedForRequest(getCarId(selectedCar)) ? 'Авто у мультивиборі' : 'Додати авто до мультивибору'}
+                        </button>
+                    )}
                 </div>
             </div>
         );

@@ -92,3 +92,20 @@ export const parseMiniAppEntryIntent = (
 
   return intent;
 };
+
+export const isMiniAppReadOnlyLaunch = (
+  params: URLSearchParams,
+  startParam?: string
+) => {
+  const entry = String(params.get('entry') || '').trim().toLowerCase();
+  const type = String(params.get('type') || params.get('requestType') || '').trim().toUpperCase();
+  const start = String(startParam || params.get('startapp') || params.get('start_param') || '').trim().toLowerCase();
+  const hasCarId = Boolean(String(params.get('carId') || params.get('carListingId') || '').trim());
+
+  if (type === 'SELL') return false;
+  if (entry === 'request' || entry === 'buy' || entry === 'favorites' || entry === 'status' || entry === 'profile') return false;
+  if (start === 'sell' || start === 'sell_car' || start === 'request' || start === 'view_request') return false;
+  if (hasCarId) return true;
+  return ['home', 'inventory', 'catalog', 'stock', 'contacts', 'contact'].includes(entry)
+    || ['home', 'main', 'app', 'miniapp', 'inventory', 'stock', 'view_inventory', 'view_stock', 'contacts', 'contact'].includes(start);
+};
