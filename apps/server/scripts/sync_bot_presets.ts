@@ -3,6 +3,7 @@ import type { BotTemplate } from '@prisma/client';
 import { prisma } from '../src/services/prisma.js';
 import { applyTemplatePreset } from '../src/services/templatePreset.service.js';
 import { buildMiniAppUrl } from '../src/modules/Communication/telegram/core/utils/miniappUrl.js';
+import { assertTelegramApiOk, extractChatMenuButtonUrl } from '../src/modules/Communication/telegram/core/utils/chatMenuSync.js';
 
 const SUPPORTED_TEMPLATES = new Set<BotTemplate>(['CLIENT_LEAD', 'B2B', 'CATALOG']);
 
@@ -75,13 +76,27 @@ const syncTelegramMenuButton = async (bot: { id: string; token: string; config?:
   const miniAppUrl = buildMiniAppUrl(bot as any, {});
   if (!miniAppUrl) return;
   const menuText = String(bot.config?.menuButtonText || 'Каталог авто').trim() || 'Каталог авто';
-  await axios.post(`https://api.telegram.org/bot${bot.token}/setChatMenuButton`, {
+  const payload = {
     menu_button: {
       type: 'web_app',
       text: menuText.slice(0, 64),
       web_app: { url: miniAppUrl }
     }
-  }, { timeout: 10000 });
+  };
+
+  let lastSeenUrl = '';
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const setResponse = await axios.post(`https://api.telegram.org/bot${bot.token}/setChatMenuButton`, payload, { timeout: 10000 });
+    assertTelegramApiOk('setChatMenuButton', setResponse.data);
+
+    const getResponse = await axios.post(`https://api.telegram.org/bot${bot.token}/getChatMenuButton`, {}, { timeout: 10000 });
+    assertTelegramApiOk('getChatMenuButton', getResponse.data);
+    lastSeenUrl = extractChatMenuButtonUrl(getResponse.data);
+    if (lastSeenUrl === miniAppUrl) return;
+    await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)));
+  }
+
+  throw new Error(`setChatMenuButton verification failed: expected ${miniAppUrl}, got ${lastSeenUrl || '<empty>'}`);
 };
 
 async function main() {
