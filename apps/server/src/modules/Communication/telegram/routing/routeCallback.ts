@@ -87,6 +87,100 @@ const sendMessage = async (ctx: PipelineContext, text: string, replyMarkup?: any
   });
 };
 
+const appendStatusLineOnce = (text: string, status: LeadStatus) => {
+  const statusLine = `✅ ${status}`;
+  const value = String(text || '').trimEnd();
+  if (new RegExp(`(^|\\n)\\s*✅\\s+${status}\\s*$`, 'm').test(value)) return value;
+  return `${value}\n\n${statusLine}`.trim();
+};
+
+const handleLeadStatusCallback = async (ctx: PipelineContext, cb: any, status: LeadStatus, leadId: string) => {
+  const updatedLead = await prisma.lead.update({ where: { id: leadId }, data: { status } });
+  const adminTgUserId = String(cb.from?.id || ctx.userId || '').trim();
+  const adminUsername = String(cb.from?.username || '').trim() || null;
+  const messageId = Number(cb.message?.message_id || 0);
+  const chatId = cb.message?.chat?.id ? String(cb.message.chat.id) : '';
+  const idempotencyKey = [
+    'telegram:lead-status',
+    leadId,
+    status,
+    messageId > 0 ? String(messageId) : cb.id || adminTgUserId || 'manual'
+  ].join(':');
+
+  await prisma.leadActivity.create({
+    data: {
+      leadId,
+      type: 'ADMIN_STATUS_CHANGED',
+      payload: {
+        status,
+        botId: ctx.bot?.id || null,
+        adminTgUserId: adminTgUserId || null,
+        adminUsername,
+        callbackId: cb.id || null,
+        messageId: messageId || null,
+        chatId: chatId || null
+      } as any
+    }
+  }).catch(() => null);
+
+  await prisma.integrationEventLog.upsert({
+    where: { idempotencyKey },
+    create: {
+      companyId: ctx.companyId || (updatedLead as any)?.companyId || null,
+      integration: 'telegram',
+      action: 'lead.status_changed',
+      status: 'SUCCESS',
+      entityType: 'lead',
+      entityId: leadId,
+      idempotencyKey,
+      message: `Lead marked ${status} from Telegram admin action`,
+      meta: {
+        status,
+        botId: ctx.bot?.id || null,
+        adminTgUserId: adminTgUserId || null,
+        adminUsername,
+        callbackId: cb.id || null,
+        messageId: messageId || null,
+        chatId: chatId || null
+      } as any
+    },
+    update: {
+      status: 'SUCCESS',
+      message: `Lead marked ${status} from Telegram admin action`,
+      meta: {
+        status,
+        botId: ctx.bot?.id || null,
+        adminTgUserId: adminTgUserId || null,
+        adminUsername,
+        callbackId: cb.id || null,
+        messageId: messageId || null,
+        chatId: chatId || null,
+        repeatedAt: new Date().toISOString()
+      } as any
+    }
+  }).catch(() => null);
+
+  if (chatId && messageId) {
+    const currentText = cb.message.text || cb.message.caption || '';
+    await telegramOutbox.editMessageText({
+      botId: ctx.bot!.id,
+      token: ctx.bot!.token,
+      chatId,
+      messageId,
+      text: appendStatusLineOnce(currentText, status),
+      replyMarkup: cb.message.reply_markup || undefined,
+      companyId: ctx.companyId,
+      userId: ctx.userId || undefined
+    }).catch(() => null);
+  }
+
+  await telegramOutbox.answerCallback({
+    token: ctx.bot!.token,
+    callbackId: cb.id,
+    text: `✅ ${status}`
+  }).catch(() => null);
+};
+
 export const routeCallback = async (ctx: PipelineContext) => {
   if (!ctx.bot || !ctx.session) return false;
   const cb = ctx.update?.callback_query;
@@ -807,20 +901,7 @@ export const routeCallback = async (ctx: PipelineContext) => {
     const status = parts[1] as LeadStatus;
     const id = parts.slice(2).join('_');
     if (!Object.values(LeadStatus).includes(status)) return false;
-    await prisma.lead.update({ where: { id }, data: { status } });
-    if (cb.message?.chat?.id && cb.message?.message_id) {
-      const currentText = cb.message.text || cb.message.caption || '';
-      await telegramOutbox.editMessageText({
-        botId: ctx.bot.id,
-        token: ctx.bot.token,
-        chatId: String(cb.message.chat.id),
-        messageId: cb.message.message_id,
-        text: `${currentText}\n\n✅ ${status}`,
-        replyMarkup: cb.message.reply_markup || undefined,
-        companyId: ctx.companyId,
-        userId: ctx.userId || undefined
-      }).catch(() => null);
-    }
+    await handleLeadStatusCallback(ctx, cb, status, id);
     return true;
   }
 
