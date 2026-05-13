@@ -219,10 +219,14 @@ export async function getMiniAppShowcaseInventory(params: {
 }
 
 export async function getMiniAppCar(carId: string) {
-  return await apiFetch(`/miniapp/cars/${encodeURIComponent(carId)}`, {
+  const response = await apiFetch(`/miniapp/cars/${encodeURIComponent(carId)}`, {
     method: 'GET',
     skipAuth: true
   });
+  if (response && typeof response === 'object' && 'car' in response && response.car) {
+    return response.car;
+  }
+  return response;
 }
 
 export async function shareMiniAppCar(carId: string, payload: { slug: string; initData: string; chatId?: string; botId?: string }) {
