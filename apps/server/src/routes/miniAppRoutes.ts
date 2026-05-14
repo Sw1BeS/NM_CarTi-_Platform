@@ -221,6 +221,10 @@ const READ_ONLY_PREVIEW_EVENT_TYPES = new Set([
   'search',
   'car_shared',
   'carshared',
+  'favorite_added',
+  'favoriteadded',
+  'favorite_removed',
+  'favoriteremoved',
   'write_blocked_missing_initdata'
 ]);
 

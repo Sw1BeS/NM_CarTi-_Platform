@@ -726,4 +726,33 @@ describe('MiniApp Lead handoff routes', () => {
     expect(JSON.stringify(platformPayload)).not.toContain('spoofed_user');
     expect(JSON.stringify(platformPayload)).not.toContain('+380635055252');
   });
+
+  it('allows visitor favorite telemetry without initData because favorites support visitorId', async () => {
+    vi.stubEnv('META_CAPI_ENABLED', 'true');
+    const app = await buildApp();
+
+    const res = await request(app)
+      .post('/api/miniapp/events')
+      .send({
+        slug: 'cartie',
+        eventType: 'favorite_added',
+        visitorId: 'visitor_fav_1',
+        carListingId: 'car_1',
+        payload: {
+          source: 'preview_favorite'
+        }
+      });
+
+    expect(res.status).toBe(200);
+    expect(emitPlatformEventMock).toHaveBeenCalledWith(expect.objectContaining({
+      eventType: 'miniapp.favorite_added',
+      userId: 'visitor_fav_1',
+      payload: expect.objectContaining({
+        tgUserId: undefined,
+        visitorId: 'visitor_fav_1',
+        carListingId: 'car_1'
+      })
+    }));
+    expect(metaPixelTrackEventMock).not.toHaveBeenCalled();
+  });
 });

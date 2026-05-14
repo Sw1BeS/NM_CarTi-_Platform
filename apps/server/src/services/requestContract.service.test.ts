@@ -295,7 +295,7 @@ describe('requestContract.service', () => {
             title: 'BMW X5 xDrive40i',
             priceLabel: '$55,000',
             statusLabel: 'В наявності',
-            publicUrl: '/p/app/cartie?entry=inventory&carId=car_1'
+            publicUrl: '/p/app/cartie?entry=inventory&carId=car_1&preview=admin_chat'
           })
         ],
         requestSummary: expect.stringContaining('BMW X5 xDrive40i'),
