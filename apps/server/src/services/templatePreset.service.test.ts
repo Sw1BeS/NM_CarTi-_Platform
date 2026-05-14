@@ -112,6 +112,51 @@ describe('templatePreset.service', () => {
     expect(prisma.scenario.updateMany).toHaveBeenCalled();
   });
 
+  it('repairs preset custom MiniApp aliases through the shared normalizer', async () => {
+    const result = await applyTemplatePreset({
+      template: 'CLIENT_LEAD',
+      companyId: 'company_test',
+      botId: 'bot_test',
+      defaultShowcaseSlug: 'cartie',
+      config: {
+        publicBaseUrl: 'https://example.com',
+        menuConfig: {
+          welcomeMessage: 'Custom welcome',
+          buttons: [
+            {
+              id: 'custom_transit',
+              label: 'Transit alias',
+              type: 'WEB_APP',
+              value: 'https://t.me/cartie_bot/app?startapp=view_transit&utm_source=menu',
+              row: 3,
+              col: 0
+            }
+          ]
+        },
+        miniAppConfig: {
+          isEnabled: true,
+          title: 'Existing',
+          welcomeText: 'Existing',
+          primaryColor: '#111111',
+          layout: 'GRID',
+          actions: [],
+          navItems: [],
+          url: 'https://old.example/p/app/old_slug',
+          showcaseSlug: 'old_slug'
+        }
+      } as any
+    });
+
+    const custom = result.config.menuConfig?.buttons.find(button => button.id === 'custom_transit');
+    expect(custom).toBeDefined();
+    const url = new URL(custom?.value || '');
+    expect(url.origin).toBe('https://example.com');
+    expect(url.pathname).toBe('/p/app/cartie');
+    expect(url.searchParams.get('entry')).toBe('inventory');
+    expect(url.searchParams.get('status')).toBe('PENDING');
+    expect(url.searchParams.get('utm_source')).toBe('menu');
+  });
+
   it('replaces legacy CLIENT_LEAD MiniApp nav/actions instead of accumulating old items', async () => {
     const result = await applyTemplatePreset({
       template: 'CLIENT_LEAD',

@@ -1,4 +1,5 @@
 import { SCENARIO_TEMPLATE_PACK } from '../seeds/scenarioPack.js';
+import { normalizeMiniAppButtonUrl } from '../modules/Communication/telegram/core/utils/miniappUrl.js';
 import { prisma } from './prisma.js';
 import fs from 'node:fs';
 import { execSync } from 'node:child_process';
@@ -375,33 +376,27 @@ const baseB2BButtons = (_scenarioIds: Record<string, string>, miniAppUrl: string
   { id: 'btn_b2b_menu', label: '👤 Профіль', label_uk: '👤 Профіль', label_ru: '👤 Профіль', type: 'WEB_APP', value: appendMiniAppQuery(miniAppUrl, { entry: 'profile' }), row: 2, col: 0 }
 ];
 
-const maybePatchMenuLinks = (buttons: MenuButton[] | undefined, miniAppUrl: string): MenuButton[] => {
+const buildPresetMiniAppBot = (config: BotConfigShape, miniAppUrl: string, fallbackSlug: string, baseUrl: string) => ({
+  config: {
+    ...config,
+    publicBaseUrl: baseUrl,
+    defaultShowcaseSlug: fallbackSlug,
+    miniAppConfig: {
+      ...(config.miniAppConfig || {}),
+      url: miniAppUrl,
+      showcaseSlug: fallbackSlug
+    }
+  }
+} as any);
+
+const maybePatchMenuLinks = (buttons: MenuButton[] | undefined, bot: any): MenuButton[] => {
   const list = Array.isArray(buttons) ? buttons : [];
   return list.map(btn => {
     if (btn.type !== 'WEB_APP' && btn.type !== 'LINK') {
       return btn;
     }
 
-    const rawValue = String(btn.value || '').trim();
-    if (!rawValue || rawValue === '{{MINI_APP_URL}}') {
-      return { ...btn, value: miniAppUrl };
-    }
-
-    if (/\/p\/app\//.test(rawValue)) {
-      try {
-        const source = new URL(rawValue);
-        const next = new URL(miniAppUrl);
-        source.searchParams.forEach((value, key) => {
-          if (key === 'v' && next.searchParams.has('v')) return;
-          next.searchParams.set(key, value);
-        });
-        return { ...btn, value: next.toString() };
-      } catch {
-        return { ...btn, value: miniAppUrl };
-      }
-    }
-
-    return btn;
+    return { ...btn, value: normalizeMiniAppButtonUrl(bot, btn.value) };
   });
 };
 
@@ -1015,6 +1010,7 @@ export const applyTemplatePreset = async (input: {
   const fallbackSlug = sanitizeSlug(input.defaultShowcaseSlug) || sanitizeSlug(config.defaultShowcaseSlug) || sanitizeSlug(config.botUsername) || sanitizeSlug(config.username) || sanitizeSlug(input.fallbackName) || 'system';
   const baseUrl = resolveBaseUrl(config.publicBaseUrl);
   const miniAppUrl = buildMiniAppUrl(baseUrl, fallbackSlug);
+  const miniAppBot = buildPresetMiniAppBot(config, miniAppUrl, fallbackSlug, baseUrl);
 
   config.defaultShowcaseSlug = fallbackSlug;
   config.publicBaseUrl = baseUrl;
@@ -1035,7 +1031,7 @@ export const applyTemplatePreset = async (input: {
       const shouldResetWelcome = shouldReplaceLeadWelcome(existingWelcome);
       config.menuConfig = {
         welcomeMessage: shouldResetWelcome ? fallbackMenu.welcomeMessage : existingWelcome,
-        buttons: maybePatchMenuLinks(mergePresetButtons(existingButtons, fallbackMenu.buttons), miniAppUrl)
+        buttons: maybePatchMenuLinks(mergePresetButtons(existingButtons, fallbackMenu.buttons), miniAppBot)
       };
     }
 
@@ -1069,7 +1065,7 @@ export const applyTemplatePreset = async (input: {
       const shouldResetWelcome = shouldReplaceB2BWelcome(existingWelcome);
       config.menuConfig = {
         welcomeMessage: shouldResetWelcome ? fallbackMenu.welcomeMessage : existingWelcome,
-        buttons: maybePatchMenuLinks(mergePresetButtons(existingButtons, fallbackMenu.buttons), miniAppUrl)
+        buttons: maybePatchMenuLinks(mergePresetButtons(existingButtons, fallbackMenu.buttons), miniAppBot)
       };
     }
 
