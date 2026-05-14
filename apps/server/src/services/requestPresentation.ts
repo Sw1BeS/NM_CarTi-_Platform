@@ -68,7 +68,7 @@ export const buildVehicleSnapshot = (car: any, opts: { slug?: string } = {}): Ve
   const title = presentation.title || toOptionalString(car?.title) || 'Авто';
   const thumbnail = presentation.mediaUrls[0] || toOptionalString(car?.thumbnail);
   const publicUrl = id && opts.slug
-    ? `/p/app/${encodeURIComponent(opts.slug)}?entry=inventory&carId=${encodeURIComponent(id)}`
+    ? `/p/app/${encodeURIComponent(opts.slug)}?entry=inventory&carId=${encodeURIComponent(id)}&preview=admin_chat`
     : undefined;
 
   return {

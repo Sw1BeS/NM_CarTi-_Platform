@@ -101,10 +101,12 @@ export const isMiniAppReadOnlyLaunch = (
   const type = String(params.get('type') || params.get('requestType') || '').trim().toUpperCase();
   const start = String(startParam || params.get('startapp') || params.get('start_param') || '').trim().toLowerCase();
   const hasCarId = Boolean(String(params.get('carId') || params.get('carListingId') || '').trim());
+  const previewMode = String(params.get('preview') || params.get('mode') || '').trim().toLowerCase();
 
   if (type === 'SELL') return false;
   if (entry === 'request' || entry === 'buy' || entry === 'favorites' || entry === 'status' || entry === 'profile') return false;
   if (start === 'sell' || start === 'sell_car' || start === 'request' || start === 'view_request') return false;
+  if (['1', 'true', 'readonly', 'read_only', 'admin', 'admin_chat', 'crm'].includes(previewMode)) return true;
   if (hasCarId) return true;
   return ['home', 'inventory', 'catalog', 'stock', 'contacts', 'contact'].includes(entry)
     || ['home', 'main', 'app', 'miniapp', 'inventory', 'stock', 'view_inventory', 'view_stock', 'contacts', 'contact'].includes(start);

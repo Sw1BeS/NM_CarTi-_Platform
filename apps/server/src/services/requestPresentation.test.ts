@@ -32,7 +32,7 @@ describe('requestPresentation', () => {
       priceLabel: '$78,900',
       mileageLabel: '45 000 км',
       statusLabel: 'В наявності',
-      publicUrl: '/p/app/cartie?entry=inventory&carId=car_1'
+      publicUrl: '/p/app/cartie?entry=inventory&carId=car_1&preview=admin_chat'
     }));
     expect(snapshot.telegramText).toContain('Mercedes-Benz S 500 4MATIC');
     expect(snapshot.telegramText).toContain('$78,900');

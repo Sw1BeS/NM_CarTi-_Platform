@@ -43,6 +43,11 @@ describe('MiniApp entry intent parser', () => {
     });
   });
 
+  it('treats explicit admin preview links as read-only even when they only carry preview mode', () => {
+    expect(isMiniAppReadOnlyLaunch(new URLSearchParams('preview=admin_chat'))).toBe(true);
+    expect(isMiniAppReadOnlyLaunch(new URLSearchParams('entry=request&type=BUY&preview=admin_chat'))).toBe(false);
+  });
+
   it('does not treat request/profile/favorites launches as read-only', () => {
     expect(isMiniAppReadOnlyLaunch(new URLSearchParams('entry=request&type=BUY'))).toBe(false);
     expect(isMiniAppReadOnlyLaunch(new URLSearchParams('entry=favorites'))).toBe(false);
