@@ -102,6 +102,7 @@ Latest explicit decision wins: most Lead/B2B working surfaces should live in Min
 - Made legacy lead status callback parsing tolerate IDs containing underscores.
 - Added persistent MiniApp request submit error panel with retry context and bot-open recovery, while keeping form data intact.
 - Added tests covering actionable admin notifications for `/lead-intents` and native contact handoff.
+- Allowed safe read-only MiniApp preview events without `initData` for admin/car links, while still rejecting lead/write events without signed Telegram init data.
 
 ---
 

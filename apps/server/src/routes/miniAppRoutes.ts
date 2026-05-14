@@ -202,6 +202,33 @@ const mapMiniAppEventToMeta = (eventType: string) => {
   return null;
 };
 
+const normalizeMiniAppEventType = (eventType: string) =>
+  String(eventType || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+
+const READ_ONLY_PREVIEW_EVENT_TYPES = new Set([
+  'miniapp_open',
+  'miniappopen',
+  'view_opened',
+  'viewopened',
+  'view_car',
+  'viewcar',
+  'view_inventory_item',
+  'viewinventoryitem',
+  'view_inventory',
+  'viewinventory',
+  'view_showcase',
+  'viewshowcase',
+  'search',
+  'car_shared',
+  'carshared',
+  'write_blocked_missing_initdata'
+]);
+
+const isReadOnlyPreviewMiniAppEvent = (eventType: string) => {
+  const normalized = normalizeMiniAppEventType(eventType);
+  return READ_ONLY_PREVIEW_EVENT_TYPES.has(normalized);
+};
+
 const readTrackingMeta = (tracking: unknown) => {
   const trackingRecord = isRecord(tracking) ? tracking : {};
   return isRecord(trackingRecord.meta) ? trackingRecord.meta : {};
@@ -1265,13 +1292,9 @@ router.post('/events', async (req, res) => {
     const eventType = readString(body.eventType);
     const initData = readString(body.initData);
     const visitorId = readString(body.visitorId);
-    const tgUserId = readString(body.tgUserId) || readString(body.telegramUserId) || readString(body.userId);
 
     if (!slug) return errorResponse(res, 400, 'slug is required');
     if (!eventType) return errorResponse(res, 400, 'eventType is required');
-    if (!initData) {
-      return errorResponse(res, 400, 'initData is required', MINIAPP_ERROR_CODES.INITDATA_REQUIRED);
-    }
 
     let config;
     try {
@@ -1282,19 +1305,31 @@ router.post('/events', async (req, res) => {
     if (!config?.companyId) return errorResponse(res, 404, 'Company not found');
 
     let verifiedTelegram: ReturnType<typeof parseMiniAppTelegramIdentity> | undefined;
-    const initCheck = await requireInitData(initData, config.companyId, config.botId);
-    if (!initCheck.ok) {
-      logger.debug?.('[MiniApp] event initData invalid', {
+    if (initData) {
+      const initCheck = await requireInitData(initData, config.companyId, config.botId);
+      if (!initCheck.ok) {
+        logger.debug?.('[MiniApp] event initData invalid', {
+          slug,
+          eventType,
+          companyId: config.companyId,
+          botId: config.botId || null,
+          reason: initCheck.message,
+          diagnostics: buildSafeInitDataDiagnostics(initData)
+        });
+        return errorResponse(res, 401, initCheck.message || 'Unauthorized', MINIAPP_ERROR_CODES.INITDATA_INVALID);
+      }
+      verifiedTelegram = parseMiniAppTelegramIdentity(initData);
+    } else if (!visitorId || !isReadOnlyPreviewMiniAppEvent(eventType)) {
+      return errorResponse(res, 400, 'initData is required', MINIAPP_ERROR_CODES.INITDATA_REQUIRED);
+    } else {
+      logger.debug?.('[MiniApp] read-only preview event without initData', {
         slug,
         eventType,
         companyId: config.companyId,
         botId: config.botId || null,
-        reason: initCheck.message,
-        diagnostics: buildSafeInitDataDiagnostics(initData)
+        visitorId
       });
-      return errorResponse(res, 401, initCheck.message || 'Unauthorized', MINIAPP_ERROR_CODES.INITDATA_INVALID);
     }
-    verifiedTelegram = parseMiniAppTelegramIdentity(initData);
 
     const resolvedUserId = verifiedTelegram?.userId || visitorId || null;
     const payload = body.payload && typeof body.payload === 'object'

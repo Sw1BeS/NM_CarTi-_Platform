@@ -674,4 +674,56 @@ describe('MiniApp Lead handoff routes', () => {
     expect(emitPlatformEventMock).not.toHaveBeenCalled();
     expect(metaPixelTrackEventMock).not.toHaveBeenCalled();
   });
+
+  it('allows read-only preview view events without initData but never trusts spoofed Telegram user ids', async () => {
+    vi.stubEnv('META_CAPI_ENABLED', 'true');
+    const app = await buildApp();
+
+    const res = await request(app)
+      .post('/api/miniapp/events')
+      .send({
+        slug: 'cartie',
+        eventType: 'ViewCar',
+        visitorId: 'visitor_preview_1',
+        tgUserId: 'spoofed_user',
+        carListingId: 'car_1',
+        tracking: {
+          meta: {
+            eventId: 'view_car_preview_1',
+            fbp: 'fb.1.123',
+            fbc: 'fb.1.456',
+            eventSourceUrl: 'https://cartie.test/p/app/cartie?entry=inventory&carId=car_1'
+          }
+        },
+        payload: {
+          source: 'admin_preview',
+          phone: '+380635055252'
+        }
+      });
+
+    expect(res.status).toBe(200);
+    expect(emitPlatformEventMock).toHaveBeenCalledWith(expect.objectContaining({
+      eventType: 'miniapp.ViewCar',
+      userId: 'visitor_preview_1',
+      payload: expect.objectContaining({
+        tgUserId: undefined,
+        visitorId: 'visitor_preview_1',
+        carListingId: 'car_1'
+      })
+    }));
+    expect(metaPixelTrackEventMock).toHaveBeenCalledWith('company_1', 'ViewContent', expect.objectContaining({
+      eventId: 'view_car_preview_1',
+      externalId: 'visitor:visitor_preview_1',
+      contentIds: ['car_1'],
+      customData: expect.objectContaining({
+        source: 'miniapp',
+        slug: 'cartie',
+        miniapp_event: 'ViewCar',
+        carListingId: 'car_1'
+      })
+    }));
+    const platformPayload = emitPlatformEventMock.mock.calls[0][0].payload;
+    expect(JSON.stringify(platformPayload)).not.toContain('spoofed_user');
+    expect(JSON.stringify(platformPayload)).not.toContain('+380635055252');
+  });
 });
