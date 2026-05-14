@@ -1262,7 +1262,7 @@ const MiniAppContent = () => {
             { id: 'nav_profile', label: 'Профіль', icon: 'User', actionType: 'VIEW', value: 'PROFILE' }
         ];
     const showBottomNav = view !== 'LISTING' && view !== 'REQUEST';
-    const showBackArrow = ((view !== 'HOME' && view !== 'LISTING') || reqStep > 1) && !lightboxCar;
+    const showBackArrow = view === 'REQUEST' && !lightboxCar;
 
     const applyFiltersAndSort = () => {
         let filtered = [...cars];
@@ -1686,7 +1686,6 @@ const MiniAppContent = () => {
         return (
             <CatalogView
                 surfaceMode={surfaceMode}
-                primaryColor={primaryColor}
                 tab={tab}
                 search={search}
                 showFilters={showFilters}
