@@ -1,7 +1,7 @@
 import { ulid } from 'ulid';
 import { emitPlatformEvent } from '../../../telegram/core/events/eventEmitter.js';
 import { renderCarListingCard } from '../../../../../services/cardRenderer.js';
-import { buildMiniAppUrl, normalizeMiniAppButtonUrl } from '../../../telegram/core/utils/miniappUrl.js';
+import { normalizeMiniAppButtonUrl } from '../../../telegram/core/utils/miniappUrl.js';
 import type { BotRuntime, ReplyKeyboardButton } from '../types.js';
 
 export const normalizeTextCommand = (cmd: string) => cmd?.trim().toLowerCase() || '';
@@ -9,14 +9,7 @@ export const generatePublicId = () => ulid();
 export const formatCarCaption = (car: any, lang: string) => renderCarListingCard(car, lang);
 
 export const resolveMenuLink = (bot: BotRuntime, rawValue?: string) => {
-  const raw = String(rawValue || '').trim();
-  const isPlaceholder = raw === '{{MINI_APP_URL}}' || raw === '{MINI_APP_URL}';
-  const isLegacy = raw.includes('t.me/cartie_bot/app');
-  if (!raw || isPlaceholder || isLegacy) {
-    const url = buildMiniAppUrl(bot as any, {});
-    return url || raw;
-  }
-  return normalizeMiniAppButtonUrl(bot as any, raw);
+  return normalizeMiniAppButtonUrl(bot as any, rawValue);
 };
 
 export const isMiniAppLink = (rawValue?: string) => {
