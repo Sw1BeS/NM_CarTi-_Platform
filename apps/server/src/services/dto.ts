@@ -2,7 +2,12 @@ import { LeadStatus as DbLeadStatus, RequestStatus as DbRequestStatus, VariantSt
 import { NormalizationService } from './normalization.service.js';
 import { parseCarData } from './enhanced-parsing.utils.js';
 import { collectNormalizedMediaUrls, isPublicMediaUrl, normalizeMediaUrl } from './mediaUrl.service.js';
-import { buildVehiclePresentation, normalizeVehicleSpecLabel } from './vehiclePresentation.js';
+import {
+  buildVehiclePresentation,
+  extractAutoRiaIdentityFromSourceUrl,
+  hasKnownVehicleBrand,
+  normalizeVehicleSpecLabel
+} from './vehiclePresentation.js';
 
 const DEFAULT_CURRENCY = 'USD';
 
@@ -648,9 +653,13 @@ export const mapInventoryOutput = (car: Record<string, unknown>) => {
     const year = toNumber(car.year) ?? toNumber(parsed.year) ?? 0;
     const mileage = toNumber(car.mileage) || toNumber(parsed.mileage) || rawMileage || 0;
     const location = toString(car.location) || toString(parsed.location) || rawLocation || '';
+    const sourceUrlIdentity = extractAutoRiaIdentityFromSourceUrl((car as any).sourceUrl, year || undefined);
     const sourceTitle = toString(car.title);
     const parsedTitle = toString(parsed.title);
-    const title = (sourceTitle && !isNoisyVehicleTitle(sourceTitle) ? sourceTitle : undefined)
+    const title = (sourceTitle && !isNoisyVehicleTitle(sourceTitle) && hasKnownVehicleBrand(sourceTitle) ? sourceTitle : undefined)
+      || (rawTitle && hasKnownVehicleBrand(rawTitle) ? rawTitle : undefined)
+      || sourceUrlIdentity?.title
+      || (sourceTitle && !isNoisyVehicleTitle(sourceTitle) ? sourceTitle : undefined)
       || rawTitle
       || (parsedTitle && !isNoisyVehicleTitle(parsedTitle) ? parsedTitle : undefined)
       || sourceTitle
@@ -659,12 +668,13 @@ export const mapInventoryOutput = (car: Record<string, unknown>) => {
     const modelFromParsed = toString(parsed.model) || '';
     const modelLooksNoisy = /(?:color|condition|пробіг|пробег|ціна|цена|price|бюджет|грн|usd|eur)/i.test(modelFromSource)
       || modelFromSource.split(/\s+/).length > 5;
-    const model = (modelFromSource && !modelLooksNoisy) ? modelFromSource : (modelFromParsed || modelFromSource);
+    const model = (modelFromSource && !modelLooksNoisy) ? modelFromSource : (modelFromParsed || sourceUrlIdentity?.model || modelFromSource);
     const brand = toString((car as any).brand)
       || toString((car as any).make)
       || toString((mergedSpecs as any).brand)
       || toString((mergedSpecs as any).make)
       || toString(parsed.brand)
+      || sourceUrlIdentity?.brand
       || '';
 
     return {

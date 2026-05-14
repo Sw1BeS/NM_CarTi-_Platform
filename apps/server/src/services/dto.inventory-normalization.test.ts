@@ -138,4 +138,30 @@ describe('mapInventoryOutput normalization', () => {
     expect(mapped.presentation.mileageLabel).toBe('112 000 км');
     expect(mapped.presentation.subtitle).toContain('Одеса');
   });
+
+  it('restores missing AutoRIA brand from source url when raw text is compressed', () => {
+    const rawText = [
+      'AUTO.RIA.comЛегкові з пробігомОдеська областьОдесаTeslaModel XTesla Model X Одеса',
+      'Item 1 of 8Tesla Model X 2017І покоління • 75D 75 kWh Dual Motor (333 к.с.) AWD • Base',
+      '25 000 $',
+      '112 тис. км',
+      'UA, Одеська обл., Одеса, 65000'
+    ].join('');
+
+    const mapped = mapInventoryOutput({
+      id: 'ext_auto_ria_2',
+      sourceProvider: 'AUTO_RIA',
+      sourceUrl: 'https://auto.ria.com/uk/auto_tesla_model_x_37038816.html',
+      title: 'Перевірений VIN-код',
+      price: 0,
+      year: 2017,
+      mileage: 75000,
+      specs: { rawText }
+    } as any);
+
+    expect(mapped.title).toBe('Tesla Model X 2017');
+    expect(mapped.brand).toBe('Tesla');
+    expect(mapped.model).toBe('Model X');
+    expect(mapped.presentation.title).toBe('Tesla Model X 2017');
+  });
 });

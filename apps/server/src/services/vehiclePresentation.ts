@@ -32,7 +32,7 @@ const toString = (value: any): string | undefined => {
 const unique = (items: Array<string | undefined>) =>
   Array.from(new Set(items.map((item) => toString(item)).filter((item): item is string => Boolean(item))));
 
-const KNOWN_BRANDS = [
+export const KNOWN_BRANDS = [
   'Acura', 'Alfa Romeo', 'Aston Martin', 'Audi', 'Bentley', 'BMW', 'BYD', 'Cadillac', 'Chevrolet',
   'Chery', 'Chrysler', 'Citroen', 'Cupra', 'Dacia', 'Daewoo', 'Dodge', 'Ferrari', 'Fiat', 'Ford',
   'Geely', 'Genesis', 'GMC', 'Honda', 'Hummer', 'Hyundai', 'Infiniti', 'Jaguar', 'Jeep', 'Kia',
@@ -43,6 +43,60 @@ const KNOWN_BRANDS = [
 ];
 
 const knownBrandPattern = new RegExp(`\\b(${KNOWN_BRANDS.map((brand) => brand.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})\\b`, 'i');
+const normalizeBrandKey = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, '');
+const knownBrandByKey = new Map(KNOWN_BRANDS.map((brand) => [normalizeBrandKey(brand), brand]));
+
+export const hasKnownVehicleBrand = (value: unknown) => {
+  const title = toString(value) || '';
+  return knownBrandPattern.test(title);
+};
+
+const formatVehicleSlugToken = (token: string) => {
+  const value = token.trim();
+  if (!value) return '';
+  if (/^[a-z]$/i.test(value)) return value.toUpperCase();
+  if (/^[a-z]{2,3}$/i.test(value)) return value.toUpperCase();
+  return value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
+};
+
+export const extractAutoRiaIdentityFromSourceUrl = (sourceUrl: unknown, year?: number) => {
+  const raw = toString(sourceUrl);
+  if (!raw || !/auto\.ria\.com/i.test(raw)) return undefined;
+
+  let fileName = '';
+  try {
+    const url = new URL(raw);
+    fileName = url.pathname.split('/').pop() || '';
+  } catch {
+    fileName = raw.split(/[?#]/)[0].split('/').pop() || '';
+  }
+
+  const slug = fileName.replace(/\.html$/i, '').replace(/^auto_/i, '');
+  const tokens = slug.split('_').map((token) => token.trim().toLowerCase()).filter(Boolean);
+  if (tokens.length < 2) return undefined;
+  if (/^\d{5,}$/.test(tokens[tokens.length - 1])) tokens.pop();
+
+  let brand: string | undefined;
+  let brandTokenCount = 0;
+  for (let count = Math.min(3, tokens.length - 1); count >= 1; count -= 1) {
+    const candidate = tokens.slice(0, count).join('');
+    const known = knownBrandByKey.get(candidate);
+    if (known) {
+      brand = known;
+      brandTokenCount = count;
+      break;
+    }
+  }
+
+  const model = tokens.slice(brandTokenCount).map(formatVehicleSlugToken).join(' ').trim();
+  if (!brand || !model) return undefined;
+
+  return {
+    brand,
+    model,
+    title: [brand, model, year ? String(year) : undefined].filter(Boolean).join(' ')
+  };
+};
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === 'object' && !Array.isArray(value);
@@ -194,9 +248,13 @@ export const buildVehiclePresentation = (car: any): VehiclePresentation => {
   const engine = toString(specs.engine || specs.engineVolume || specs.battery || specs.batteryKwh || parsed.engine);
   const location = toString(car?.location) || toString(parsed.location) || rawLocation;
   const year = toNumber(car?.year) || toNumber(parsed.year);
+  const sourceUrlIdentity = extractAutoRiaIdentityFromSourceUrl(car?.sourceUrl, year);
   const sourceTitle = toString(car?.title);
   const parsedTitle = toString(parsed.title);
-  const title = (sourceTitle && !isNoisyVehicleTitle(sourceTitle) ? sourceTitle : undefined)
+  const title = (sourceTitle && !isNoisyVehicleTitle(sourceTitle) && hasKnownVehicleBrand(sourceTitle) ? sourceTitle : undefined)
+    || (rawTitle && hasKnownVehicleBrand(rawTitle) ? rawTitle : undefined)
+    || sourceUrlIdentity?.title
+    || (sourceTitle && !isNoisyVehicleTitle(sourceTitle) ? sourceTitle : undefined)
     || rawTitle
     || (parsedTitle && !isNoisyVehicleTitle(parsedTitle) ? parsedTitle : undefined)
     || [toString(car?.brand || specs.brand || specs.make || parsed.brand), toString(car?.model || specs.model || parsed.model), year ? String(year) : undefined].filter(Boolean).join(' ')
