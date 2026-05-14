@@ -36,6 +36,25 @@ const shouldBypassScenarioEngine = (ctx: PipelineContext) => {
   return template === 'CLIENT_LEAD' || template === 'B2B';
 };
 
+const normalizePlatformMenuConfig = (ctx: PipelineContext) => {
+  if (!ctx.bot) return;
+  const config = (ctx.bot.config || {}) as any;
+  const buttons = Array.isArray(config?.menuConfig?.buttons) ? config.menuConfig.buttons : [];
+  if (!buttons.length) return;
+
+  config.menuConfig = {
+    ...config.menuConfig,
+    buttons: buttons.map((btn: any) => {
+      if (!btn || typeof btn !== 'object') return btn;
+      const type = String(btn.type || '').toUpperCase();
+      const shouldNormalize = type === 'WEB_APP' || (type === 'LINK' && isMiniAppMenuLink(btn.value));
+      if (!shouldNormalize) return btn;
+      return { ...btn, value: normalizeMiniAppButtonUrl(ctx.bot as any, btn.value) };
+    })
+  };
+  (ctx.bot as any).config = config;
+};
+
 const isMiniAppMenuLink = (rawValue?: string | null) => {
   const raw = String(rawValue || '').trim();
   if (!raw) return false;
@@ -1579,6 +1598,8 @@ export const handleDynamicMenu = async (ctx: PipelineContext, text: string) => {
 
 export const routeMessage = async (ctx: PipelineContext) => {
   if (!ctx.bot || !ctx.session) return false;
+
+  normalizePlatformMenuConfig(ctx);
 
   if (!shouldBypassScenarioEngine(ctx)) {
     const handledScenario = await ScenarioEngine.handleUpdate(ctx.bot as any, ctx.session, ctx.update).catch((error) => {
