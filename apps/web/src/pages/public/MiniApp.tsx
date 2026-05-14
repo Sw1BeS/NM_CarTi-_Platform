@@ -1348,6 +1348,65 @@ const MiniAppContent = () => {
 
     const getStatusLabel = (car: CarListing) => car.presentation?.statusLabel || (isTransitCar(car) ? 'В дорозі' : 'В наявності');
 
+    const renderCompactCarCard = (
+        car: CarListing,
+        options: { variant: 'LEAD' | 'B2B'; compact?: boolean }
+    ) => {
+        const images = getCarImages(car);
+        const cover = images[0];
+        const specs = getCarSpecs(car);
+        const presentation = car.presentation;
+        const carId = getCarId(car);
+        const statusLabel = getStatusLabel(car);
+        const chips = (presentation?.specChips || [])
+            .filter(Boolean)
+            .slice(0, options.compact ? 2 : 3);
+
+        return (
+            <button
+                key={carId || `home_${car.title}_${car.year}`}
+                onClick={() => openListing(car)}
+                className="group flex w-full gap-3 rounded-[18px] border border-white/10 bg-white/[0.055] p-2 text-left shadow-[0_16px_40px_rgba(0,0,0,0.24)] transition-transform active:scale-[0.99]"
+            >
+                <div className="relative size-[104px] shrink-0 overflow-hidden rounded-[14px] bg-[#202226]">
+                    <MiniAppImage
+                        src={cover}
+                        sources={images}
+                        alt={presentation?.title || car.title || 'Авто'}
+                        className="size-full object-cover transition-transform duration-500 group-active:scale-105"
+                    />
+                    <div className="absolute left-2 top-2 rounded-full border border-white/12 bg-black/58 px-2 py-1 text-[9px] font-bold text-white/82 backdrop-blur">
+                        {statusLabel}
+                    </div>
+                </div>
+                <div className="min-w-0 flex-1 py-1">
+                    <div className="flex items-start justify-between gap-2">
+                        <h4 className="line-clamp-2 text-sm font-black leading-snug text-white">
+                            {presentation?.title || car.title || formatBrandModel(car)}
+                        </h4>
+                        {options.variant === 'LEAD' ? (
+                            <Star size={15} className={isFavorite(carId) ? 'shrink-0 fill-[#F0D27A] text-[#F0D27A]' : 'shrink-0 text-white/28'} />
+                        ) : (
+                            <ClipboardList size={15} className="shrink-0 text-white/40" />
+                        )}
+                    </div>
+                    <p className="mt-1 truncate text-[11px] text-white/48">
+                        {chips.length ? chips.join(' • ') : (pickText(specs.engine, specs.fuel, specs.drive) || 'Inventory')}
+                    </p>
+                    <div className="mt-3 flex items-end justify-between gap-2">
+                        <div>
+                            <div className="text-base font-black text-[#F4F5F7]">{presentation?.priceLabel || formatPrice(car.price)}</div>
+                            <div className="mt-0.5 text-[10px] text-white/38">{presentation?.mileageLabel || formatMileage(car.mileage)}</div>
+                        </div>
+                        <span className="rounded-full border border-white/10 px-2 py-1 text-[10px] font-bold text-white/46">
+                            {toNumberSafe(car.year) || '—'}
+                        </span>
+                    </div>
+                </div>
+            </button>
+        );
+    };
+
     const renderHome = () => {
         const featuredCar = cars[0];
         const featuredImages = featuredCar ? getCarImages(featuredCar) : [];
@@ -1359,36 +1418,155 @@ const MiniAppContent = () => {
                 getStatusLabel(featuredCar)
             ].filter(Boolean).slice(0, 3).join(' • ')
             : (surfaceMode === 'B2B' ? 'Угоди, склад і комунікація з партнерами' : 'Підбір, імпорт і супровід авто під ключ');
-        const visibleActions = (config.actions || []).slice(0, 4);
         const greetingName = tgUser?.first_name || (surfaceMode === 'B2B' ? 'партнере' : 'друже');
+        const stockCount = cars.filter(car => !isTransitCar(car)).length;
+        const transitCount = cars.filter(isTransitCar).length;
+        const leadQuickActions = [
+            { id: 'catalog', label: 'Каталог авто', hint: 'Наявність та дорога', icon: 'LayoutGrid', onClick: () => setView('INVENTORY') },
+            { id: 'pick', label: 'Підібрати авто', hint: 'Запит під бюджет', icon: 'Search', onClick: () => openRequest('BUY') },
+            { id: 'sell', label: 'Продати авто', hint: 'Через бот-сценарій', icon: 'DollarSign', onClick: () => startBotFlow('SELL') },
+            { id: 'contacts', label: 'Контакти', hint: 'Канали та менеджер', icon: 'MessageCircle', onClick: () => setView('CONTACTS') }
+        ];
+        const b2bQuickActions = [
+            { id: 'requests', label: 'Запити мережі', hint: 'Статуси та ID', icon: 'ClipboardList', onClick: () => setView('STATUS') },
+            { id: 'create', label: 'Створити запит', hint: 'Пошук для партнера', icon: 'Search', onClick: () => openRequest('BUY') },
+            { id: 'stock', label: 'Склад B2B', hint: 'Inventory партнерів', icon: 'LayoutGrid', onClick: () => setView('INVENTORY') },
+            { id: 'support', label: 'Підтримка', hint: 'Операційний чат', icon: 'MessageCircle', onClick: () => setView('SUPPORT') }
+        ];
+        const quickActions = surfaceMode === 'B2B' ? b2bQuickActions : leadQuickActions;
+        const stats = surfaceMode === 'B2B'
+            ? [
+                ['Активні авто', String(cars.length)],
+                ['Склад', String(stockCount)],
+                ['В дорозі', String(transitCount)],
+                ['У виборі', String(selectedRequestCarIds.length)]
+            ]
+            : [
+                ['В наявності', String(stockCount)],
+                ['В дорозі', String(transitCount)],
+                ['Обрані', String(favoriteItems.length)],
+                ['Запити', selectedRequestCarIds.length ? String(selectedRequestCarIds.length) : '0']
+            ];
+
+        if (surfaceMode === 'B2B') {
+            return (
+                <div className="animate-fade-in h-full overflow-y-auto bg-[#050608] pb-24">
+                    <div className="flex flex-col gap-5 px-5 pb-5 pt-7">
+                        <div className="flex items-center justify-between gap-4">
+                            <div>
+                                <div className="text-[22px] font-black tracking-[0.16em] text-white">CARTIÉ</div>
+                                <div className="mt-0.5 text-xs text-white/45">CarDealer Lviv B2B</div>
+                            </div>
+                            <div className="rounded-full border border-white/12 bg-white/[0.055] px-3 py-2 text-[11px] font-bold text-white/70">
+                                Partner portal
+                            </div>
+                        </div>
+
+                        <section className="relative overflow-hidden rounded-[24px] border border-white/10 bg-[#111417] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.34)]">
+                            <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-[linear-gradient(115deg,rgba(255,255,255,0.16),transparent_62%)]" />
+                            <div className="relative z-10">
+                                <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-white/42">B2B operations</p>
+                                <h1 className="mt-3 text-[26px] font-black leading-tight text-white">
+                                    Привіт, {greetingName}. Керуй запитами, варіантами і складом.
+                                </h1>
+                                <p className="mt-3 text-sm leading-relaxed text-white/58">
+                                    Контакти партнерів захищені до погодженого FIT, а авто рендеряться з єдиного Inventory.
+                                </p>
+                            </div>
+                            <div className="relative z-10 mt-5 grid grid-cols-2 gap-2">
+                                {stats.map(([label, value]) => (
+                                    <div key={label} className="rounded-[16px] border border-white/10 bg-black/22 p-3">
+                                        <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-white/35">{label}</div>
+                                        <div className="mt-1 text-2xl font-black text-white">{value}</div>
+                                    </div>
+                                ))}
+                            </div>
+                        </section>
+
+                        <section className="grid grid-cols-2 gap-3">
+                            {quickActions.map(action => (
+                                <button
+                                    key={action.id}
+                                    onClick={action.onClick}
+                                    className="min-h-[112px] rounded-[18px] border border-white/10 bg-[#171a1d] p-4 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition-transform active:scale-[0.98]"
+                                >
+                                    <div className="mb-3 flex size-11 items-center justify-center rounded-[14px] border border-white/10 bg-black/28 text-white/78">
+                                        {renderIcon(action.icon, 22)}
+                                    </div>
+                                    <div className="text-sm font-black leading-tight text-white">{action.label}</div>
+                                    <div className="mt-1 text-[11px] leading-snug text-white/42">{action.hint}</div>
+                                </button>
+                            ))}
+                        </section>
+
+                        <section className="rounded-[22px] border border-white/10 bg-white/[0.045] p-4">
+                            <div className="flex items-center justify-between gap-3">
+                                <div>
+                                    <h2 className="text-lg font-black text-white">Черга партнера</h2>
+                                    <p className="mt-1 text-xs leading-relaxed text-white/48">Створюй запит, отримуй варіанти без витоку контактів, передавай FIT адміну.</p>
+                                </div>
+                                <button
+                                    onClick={() => openRequest('BUY')}
+                                    className="shrink-0 rounded-[14px] px-4 py-3 text-xs font-black"
+                                    style={premiumCtaStyle}
+                                >
+                                    Новий запит
+                                </button>
+                            </div>
+                            <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+                                {['Запит', 'Варіант', 'FIT'].map((step, index) => (
+                                    <div key={step} className="rounded-[14px] border border-white/10 bg-black/22 px-2 py-3">
+                                        <div className="mx-auto mb-2 flex size-7 items-center justify-center rounded-full border border-white/10 text-xs font-black text-white/70">
+                                            {index + 1}
+                                        </div>
+                                        <div className="text-[11px] font-bold text-white/68">{step}</div>
+                                    </div>
+                                ))}
+                            </div>
+                        </section>
+
+                        <section className="flex flex-col gap-3">
+                            <div className="flex items-center justify-between">
+                                <h2 className="text-lg font-black text-white">Склад мережі</h2>
+                                <button onClick={() => setView('INVENTORY')} className="text-xs font-bold text-white/55">Відкрити</button>
+                            </div>
+                            {cars.slice(0, 4).map(car => renderCompactCarCard(car, { variant: 'B2B', compact: true }))}
+                            {!cars.length && (
+                                <div className="rounded-[18px] border border-white/10 bg-white/[0.045] p-5 text-sm text-white/58">
+                                    Склад порожній. Створи B2B запит або звернись до підтримки.
+                                </div>
+                            )}
+                        </section>
+                    </div>
+                </div>
+            );
+        }
 
         return (
             <div className="animate-fade-in pb-24 h-full overflow-y-auto bg-[#050608]">
-                <div className="px-5 pt-7 pb-5">
-                    <div className="flex items-center justify-between mb-5">
+                <div className="flex flex-col gap-5 px-5 pb-5 pt-7">
+                    <div className="flex items-center justify-between">
                         <div>
                             <div className="text-[24px] font-black tracking-[0.18em] text-white">CARTIÉ</div>
                             <div className="text-xs text-white/45 mt-0.5">
-                                {surfaceMode === 'B2B' ? 'B2B dealer network' : 'Telegram Mini App'}
+                                Lead Mini App
                             </div>
                         </div>
                         {tgUser?.photo_url ? (
-                            <img src={tgUser.photo_url} className="w-10 h-10 rounded-full object-cover border border-white/15 bg-white/10" />
+                            <img src={tgUser.photo_url} className="size-10 rounded-full object-cover border border-white/15 bg-white/10" />
                         ) : (
-                            <div className="w-10 h-10 rounded-full bg-white/10 border border-white/10 flex items-center justify-center text-white/70">
+                            <div className="size-10 rounded-full bg-white/10 border border-white/10 flex items-center justify-center text-white/70">
                                 <User size={19} />
                             </div>
                         )}
                     </div>
 
-                    <div className="mb-4">
+                    <div>
                         <h1 className="text-[25px] font-bold leading-tight text-white">
                             Привіт, {greetingName} 👋
                         </h1>
                         <p className="text-white/62 text-sm mt-1 leading-relaxed">
-                            {surfaceMode === 'B2B'
-                                ? 'Твій фокус — B2B угоди. Склад, заявки і підтримка під рукою.'
-                                : 'Підберемо преміальне авто, покажемо наявність і швидко звʼяжемо з менеджером.'}
+                            Підберемо преміальне авто, покажемо наявність і швидко звʼяжемо з менеджером у Telegram.
                         </p>
                     </div>
 
@@ -1413,7 +1591,7 @@ const MiniAppContent = () => {
                         <div className="relative z-10 flex min-h-[330px] flex-col justify-end p-5">
                             <div className="mb-3 inline-flex w-fit items-center gap-2 rounded-full bg-black/48 border border-white/10 px-3 py-1 text-[11px] font-bold text-white/84 backdrop-blur">
                                 <Star size={13} className="text-white/70" />
-                                {surfaceMode === 'B2B' ? 'Актуальна угода' : 'Рекомендовано'}
+                                Рекомендовано
                             </div>
                             <h2 className="text-2xl font-bold text-white leading-tight">{featuredTitle}</h2>
                             <p className="mt-2 text-sm text-white/66 leading-relaxed">{featuredSubtitle}</p>
@@ -1422,81 +1600,81 @@ const MiniAppContent = () => {
                                     {featuredCar?.presentation?.priceLabel || (featuredCar ? formatPrice(featuredCar.price) : 'Підбір під бюджет')}
                                 </div>
                                 <button
-                                    onClick={() => featuredCar ? (surfaceMode === 'B2B' ? prefillRequestFromCar(featuredCar) : handleCarInterest(featuredCar)) : openRequest('BUY')}
+                                    onClick={() => featuredCar ? handleCarInterest(featuredCar) : openRequest('BUY')}
                                     className="shrink-0 rounded-2xl px-4 py-3 text-sm font-bold active:scale-95 transition-transform"
                                     style={premiumCtaStyle}
                                 >
-                                    {surfaceMode === 'B2B' ? 'В угоду' : 'Дізнатись ціну'}
+                                    Дізнатись ціну
                                 </button>
                             </div>
                         </div>
                     </div>
 
-                    <div className="mt-5">
+                    <div>
+                        <div className="mb-3 grid grid-cols-4 gap-2">
+                            {stats.map(([label, value]) => (
+                                <div key={label} className="rounded-[14px] border border-white/10 bg-white/[0.045] px-2 py-3 text-center">
+                                    <div className="text-lg font-black text-white">{value}</div>
+                                    <div className="mt-0.5 text-[9px] font-bold uppercase tracking-[0.08em] text-white/34">{label}</div>
+                                </div>
+                            ))}
+                        </div>
                         <h3 className="text-sm font-bold text-white/86 mb-3">Швидкі дії</h3>
                         <div className="grid grid-cols-2 gap-3">
-                            {visibleActions.map(act => (
+                            {quickActions.map(act => (
                                 <button
                                     key={act.id}
-                                    onClick={() => handleAction(act)}
+                                    onClick={act.onClick}
                                     className="min-h-[104px] rounded-2xl border border-white/10 bg-[#171a1d] p-4 text-left active:scale-[0.98] transition-transform"
                                     style={{ boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)' }}
                                 >
-                                    <div className="w-11 h-11 rounded-2xl bg-black/32 border border-white/10 flex items-center justify-center text-white/78 mb-3">
+                                    <div className="size-11 rounded-2xl bg-black/32 border border-white/10 flex items-center justify-center text-white/78 mb-3">
                                         {renderIcon(act.icon, 23)}
                                     </div>
                                     <div className="text-sm font-bold text-white leading-tight">{act.label}</div>
+                                    <div className="mt-1 text-[11px] leading-snug text-white/42">{act.hint}</div>
                                 </button>
                             ))}
                         </div>
                     </div>
 
-                    <div className="mt-7">
+                    <div className="rounded-[22px] border border-white/10 bg-white/[0.045] p-4">
+                        <div className="flex items-start justify-between gap-3">
+                            <div>
+                                <h3 className="text-lg font-black text-white">Маршрут заявки</h3>
+                                <p className="mt-1 text-xs leading-relaxed text-white/48">Обери авто або критерії, Mini App створить запит, бот попросить контакт тільки коли він потрібен.</p>
+                            </div>
+                            <button onClick={() => setView('STATUS')} className="shrink-0 rounded-[14px] border border-white/10 px-3 py-2 text-xs font-bold text-white/68">
+                                Мої запити
+                            </button>
+                        </div>
+                        <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+                            {['Каталог', 'Запит', 'Контакт'].map((step, index) => (
+                                <div key={step} className="rounded-[14px] border border-white/10 bg-black/22 px-2 py-3">
+                                    <div className="mx-auto mb-2 flex size-7 items-center justify-center rounded-full border border-white/10 text-xs font-black text-white/70">
+                                        {index + 1}
+                                    </div>
+                                    <div className="text-[11px] font-bold text-white/68">{step}</div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div>
                         <div className="flex justify-between items-center mb-3">
-                            <h3 className="font-bold text-white text-lg">{surfaceMode === 'B2B' ? 'Склад мережі' : 'Featured cars'}</h3>
+                            <h3 className="font-bold text-white text-lg">Рекомендовані авто</h3>
                             <button onClick={() => setView('INVENTORY')} className="text-xs font-bold text-white/62">Дивитись всі</button>
                         </div>
-                        <div className="space-y-3">
-                            {cars.slice(0, 4).map(car => {
-                                const images = getCarImages(car);
-                                const cover = images[0];
-                                const specs = getCarSpecs(car);
-                                const presentation = car.presentation;
-                                const carId = getCarId(car);
-
-                                return (
-                                    <button
-                                        key={carId || `home_${car.title}_${car.year}`}
-                                        onClick={() => openListing(car)}
-                                        className="w-full overflow-hidden rounded-2xl border border-white/10 bg-[#15171a] p-2 text-left flex gap-3 active:scale-[0.99] transition-transform"
-                                    >
-                                        <div className="relative w-[112px] h-[88px] shrink-0 rounded-xl overflow-hidden bg-[#202226]">
-                                            <MiniAppImage
-                                                src={cover}
-                                                sources={images}
-                                                alt={presentation?.title || car.title || 'Авто'}
-                                                className="w-full h-full object-cover"
-                                            />
-                                            <div className="absolute left-2 top-2 rounded-md bg-black/55 px-1.5 py-0.5 text-[9px] font-bold text-white/84">
-                                                {getStatusLabel(car)}
-                                            </div>
-                                        </div>
-                                        <div className="min-w-0 flex-1 py-1">
-                                            <div className="flex items-start justify-between gap-2">
-                                                <h4 className="text-sm font-bold text-white leading-snug line-clamp-2">{presentation?.title || car.title}</h4>
-                                                <Star size={15} className={isFavorite(carId) ? 'text-yellow-400 fill-yellow-400 shrink-0' : 'text-white/35 shrink-0'} />
-                                            </div>
-                                            <p className="text-[11px] text-white/48 mt-1 truncate">
-                                                {(presentation?.specChips || []).slice(0, 2).join(' • ') || pickText(specs.engine, specs.fuel) || '—'} • {presentation?.mileageLabel || formatMileage(car.mileage)}
-                                            </p>
-                                            <div className="mt-2 flex items-center justify-between gap-2">
-                                                <span className="font-black text-[#F4F5F7]">{presentation?.priceLabel || formatPrice(car.price)}</span>
-                                                <span className="text-[10px] text-white/45">{car.year || '—'}</span>
-                                            </div>
-                                        </div>
-                                    </button>
-                                );
-                            })}
+                        <div className="flex flex-col gap-3">
+                            {cars.slice(0, 4).map(car => renderCompactCarCard(car, { variant: 'LEAD', compact: true }))}
+                            {!cars.length && (
+                                <button
+                                    onClick={() => openRequest('BUY')}
+                                    className="rounded-[18px] border border-white/10 bg-white/[0.045] p-5 text-left text-sm text-white/58"
+                                >
+                                    У каталозі поки немає авто. Залиште запит, і менеджер підбере варіанти під бюджет.
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -1742,53 +1920,135 @@ const MiniAppContent = () => {
         );
     };
 
-    const renderStatus = () => (
-        <div className="animate-fade-in pb-24 p-6 h-full overflow-y-auto flex flex-col bg-black">
-            <h2 className="text-2xl font-bold text-white mb-2">Статус запиту</h2>
-            <p className="text-white/50 mb-6">Перевірте запит за ID або за вашим Telegram профілем.</p>
+    const checkRequestStatus = async () => {
+        try {
+            const slug = targetSlug || 'system';
+            const res = await getMiniAppRequestStatus({
+                slug,
+                requestId: statusQuery.publicId || undefined,
+                telegramUserId: tgUser?.id ? String(tgUser.id) : undefined
+            });
+            setStatusResult(res.request || res);
+        } catch (e) {
+            setStatusResult({ error: 'Запит не знайдено' });
+        }
+    };
 
-            <div className="space-y-4">
-                <div>
-                    <label className="text-xs font-bold text-white/70 uppercase mb-2 block">ID запиту</label>
-                    <input className="w-full bg-[#1c1c1e] text-white p-4 rounded-xl outline-none border border-white/10" placeholder="напр. RQ-12345" value={statusQuery.publicId} onChange={e => setStatusQuery({ ...statusQuery, publicId: e.target.value })} />
-                </div>
-                <button
-                    onClick={async () => {
-                        try {
-                            const slug = targetSlug || 'system';
-                            const res = await getMiniAppRequestStatus({
-                                slug,
-                                requestId: statusQuery.publicId || undefined,
-                                telegramUserId: tgUser?.id ? String(tgUser.id) : undefined
-                            });
-                            setStatusResult(res.request || res);
-                        } catch (e) {
-                            setStatusResult({ error: 'Запит не знайдено' });
-                        }
-                    }}
-                    className="w-full py-4 rounded-xl font-bold text-black"
-                    style={premiumCtaStyle}
-                >
-                    Перевірити статус
-                </button>
-            </div>
+    const renderStatus = () => {
+        const isB2BMode = surfaceMode === 'B2B';
+        const headerTitle = isB2BMode ? 'Угоди B2B' : 'Мої заявки';
+        const headerCopy = isB2BMode
+            ? 'Статуси запитів, варіантів і FIT-черги для партнерської мережі.'
+            : 'Перевір статус заявки або створи новий запит по конкретному авто.';
+        const tiles = isB2BMode
+            ? [
+                ['Запити', 'CD-*', 'Публічний ID у каналі'],
+                ['Варіанти', 'No contacts', 'Контакти приховані до FIT'],
+                ['FIT', 'Admin', 'Передача адміну з контактами']
+            ]
+            : [
+                ['Підбір', 'Активний', 'Запит під критерії'],
+                ['Ціна/умови', 'По авто', 'Привʼязка до Inventory'],
+                ['Контакт', 'Telegram', 'Нативний contact request']
+            ];
 
-            {statusResult && (
-                <div className="mt-6 bg-[#1c1c1e] border border-white/10 rounded-xl p-4 text-white">
-                    {statusResult.error ? (
-                        <div className="text-red-400">{statusResult.error}</div>
-                    ) : (
-                        <>
-                            <div className="text-sm text-white/60">ID запиту</div>
-                            <div className="font-bold text-white mb-2">{statusResult.publicId || statusResult.id}</div>
-                            <div className="text-sm text-white/60">Статус</div>
-                            <div className="font-bold text-white">{statusResult.status}</div>
-                        </>
+        return (
+            <div className="animate-fade-in h-full overflow-y-auto bg-[#050608] px-5 pb-24 pt-7">
+                <div className="flex flex-col gap-5">
+                    <section className="relative overflow-hidden rounded-[24px] border border-white/10 bg-[#111417] p-5">
+                        <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-[linear-gradient(120deg,rgba(255,255,255,0.14),transparent_58%)]" />
+                        <div className="relative z-10">
+                            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-white/40">
+                                {isB2BMode ? 'Partner workflow' : 'Lead workflow'}
+                            </p>
+                            <h2 className="mt-2 text-[28px] font-black leading-tight text-white">{headerTitle}</h2>
+                            <p className="mt-2 text-sm leading-relaxed text-white/58">{headerCopy}</p>
+                        </div>
+                        <div className="relative z-10 mt-5 grid grid-cols-3 gap-2">
+                            {tiles.map(([label, value, caption]) => (
+                                <div key={label} className="rounded-[16px] border border-white/10 bg-black/24 p-3">
+                                    <div className="text-[10px] font-bold uppercase tracking-[0.1em] text-white/34">{label}</div>
+                                    <div className="mt-1 text-sm font-black text-white">{value}</div>
+                                    <div className="mt-1 text-[10px] leading-snug text-white/36">{caption}</div>
+                                </div>
+                            ))}
+                        </div>
+                    </section>
+
+                    <section className="rounded-[22px] border border-white/10 bg-white/[0.045] p-4">
+                        <label className="mb-2 block text-[10px] font-bold uppercase tracking-[0.14em] text-white/42">
+                            ID запиту
+                        </label>
+                        <div className="flex gap-2">
+                            <input
+                                className="min-w-0 flex-1 rounded-[16px] border border-white/10 bg-black/28 px-4 py-3 text-white outline-none placeholder-white/28 focus:border-white/30"
+                                placeholder={isB2BMode ? 'CD-2026-000123' : 'RQ-12345'}
+                                value={statusQuery.publicId}
+                                onChange={e => setStatusQuery({ ...statusQuery, publicId: e.target.value })}
+                            />
+                            <button
+                                onClick={checkRequestStatus}
+                                className="shrink-0 rounded-[16px] px-4 py-3 text-sm font-black"
+                                style={premiumCtaStyle}
+                            >
+                                Перевірити
+                            </button>
+                        </div>
+                    </section>
+
+                    {statusResult && (
+                        <section className="rounded-[22px] border border-white/10 bg-[#15181c] p-4 text-white">
+                            {statusResult.error ? (
+                                <div className="rounded-[16px] border border-red-400/20 bg-red-500/10 p-4 text-sm text-red-50">
+                                    {statusResult.error}
+                                </div>
+                            ) : (
+                                <div className="flex flex-col gap-3">
+                                    <div>
+                                        <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-white/38">ID запиту</div>
+                                        <div className="mt-1 text-lg font-black text-white">{statusResult.publicId || statusResult.id}</div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div className="rounded-[16px] border border-white/10 bg-black/22 p-3">
+                                            <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-white/34">Статус</div>
+                                            <div className="mt-1 font-black text-white">{statusResult.status || '—'}</div>
+                                        </div>
+                                        <div className="rounded-[16px] border border-white/10 bg-black/22 p-3">
+                                            <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-white/34">Джерело</div>
+                                            <div className="mt-1 font-black text-white">{statusResult.source || (isB2BMode ? 'B2B Bot' : 'LeadBot')}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </section>
                     )}
+
+                    <section className="grid grid-cols-2 gap-3">
+                        <button
+                            onClick={() => openRequest('BUY')}
+                            className="rounded-[18px] border border-white/10 bg-white/[0.045] p-4 text-left active:scale-[0.98]"
+                        >
+                            <div className="mb-3 flex size-10 items-center justify-center rounded-[14px] border border-white/10 bg-black/28 text-white/72">
+                                <Search size={19} />
+                            </div>
+                            <div className="text-sm font-black text-white">{isB2BMode ? 'Новий B2B запит' : 'Новий запит'}</div>
+                            <div className="mt-1 text-[11px] text-white/42">{isB2BMode ? 'Пошук авто у мережі' : 'Підбір або умови'}</div>
+                        </button>
+                        <button
+                            onClick={() => setView(isB2BMode ? 'SUPPORT' : 'CONTACTS')}
+                            className="rounded-[18px] border border-white/10 bg-white/[0.045] p-4 text-left active:scale-[0.98]"
+                        >
+                            <div className="mb-3 flex size-10 items-center justify-center rounded-[14px] border border-white/10 bg-black/28 text-white/72">
+                                <MessageSquare size={19} />
+                            </div>
+                            <div className="text-sm font-black text-white">{isB2BMode ? 'Підтримка' : 'Менеджер'}</div>
+                            <div className="mt-1 text-[11px] text-white/42">{isB2BMode ? 'Операційні питання' : 'Контакти CarTié'}</div>
+                        </button>
+                    </section>
                 </div>
-            )}
-        </div>
-    );
+            </div>
+        );
+    };
 
     const getContactLinks = () => {
         const contacts = config.contacts || {};
@@ -1862,30 +2122,69 @@ const MiniAppContent = () => {
         openContactUrl(link);
     };
 
-    const renderSupport = () => (
-        <div className="animate-fade-in pb-24 p-6 h-full overflow-y-auto flex flex-col bg-black">
-            <div className="bg-[#1c1c1e] border border-white/10 rounded-2xl p-5">
-                <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center mb-4" style={{ color: primaryColor }}>
-                    <MessageSquare size={24} />
+    const renderSupport = () => {
+        const isB2BMode = surfaceMode === 'B2B';
+        const supportActions = isB2BMode
+            ? [
+                ['Статус угоди', 'Перевірити B2B request або FIT', () => setView('STATUS')],
+                ['Новий запит', 'Створити запит для партнерів', () => openRequest('BUY')],
+                ['Склад мережі', 'Переглянути доступні авто', () => setView('INVENTORY')]
+            ] as const
+            : [
+                ['Підібрати авто', 'Запит під бюджет та критерії', () => openRequest('BUY')],
+                ['Каталог', 'Авто в наявності та дорозі', () => setView('INVENTORY')],
+                ['Контакти', 'Канали, соцмережі, локація', () => setView('CONTACTS')]
+            ] as const;
+
+        return (
+            <div className="animate-fade-in h-full overflow-y-auto bg-[#050608] px-5 pb-24 pt-7">
+                <div className="flex flex-col gap-4">
+                    <section className="relative overflow-hidden rounded-[24px] border border-white/10 bg-[#111417] p-5">
+                        <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-[linear-gradient(120deg,rgba(255,255,255,0.14),transparent_58%)]" />
+                        <div className="relative z-10">
+                            <div className="mb-4 flex size-12 items-center justify-center rounded-[16px] border border-white/10 bg-white/[0.06] text-white/80">
+                                <MessageSquare size={24} />
+                            </div>
+                            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-white/40">
+                                {isB2BMode ? 'Dealer support' : 'Client support'}
+                            </p>
+                            <h2 className="mt-2 text-[28px] font-black leading-tight text-white">
+                                {isB2BMode ? 'Підтримка B2B процесу' : 'Звʼязок з CarTié'}
+                            </h2>
+                            <p className="mt-2 text-sm leading-relaxed text-white/58">
+                                {isB2BMode
+                                    ? 'Допоможемо з партнерським доступом, заявками, варіантами та координацією FIT.'
+                                    : 'Менеджер допоможе з підбором, умовами, продажем або статусом заявки.'}
+                            </p>
+                        </div>
+                        <button
+                            onClick={() => startBotFlow('SUPPORT')}
+                            className="relative z-10 mt-5 w-full rounded-[16px] py-4 font-black"
+                            style={premiumCtaStyle}
+                        >
+                            {isB2BMode ? 'Написати B2B підтримці' : 'Написати менеджеру в боті'}
+                        </button>
+                    </section>
+
+                    <section className="grid grid-cols-1 gap-3">
+                        {supportActions.map(([title, caption, onClick]) => (
+                            <button
+                                key={title}
+                                onClick={onClick}
+                                className="flex min-h-[72px] items-center justify-between gap-3 rounded-[18px] border border-white/10 bg-white/[0.045] px-4 text-left active:scale-[0.99]"
+                            >
+                                <span className="min-w-0">
+                                    <span className="block text-sm font-black text-white">{title}</span>
+                                    <span className="mt-1 block truncate text-xs text-white/42">{caption}</span>
+                                </span>
+                                <ChevronRight size={18} className="shrink-0 text-white/36" />
+                            </button>
+                        ))}
+                    </section>
                 </div>
-                <h2 className="text-2xl font-bold text-white mb-2">Підтримка</h2>
-                <p className="text-white/60 text-sm mb-5">Менеджер допоможе з підбором, продажем або статусом запиту.</p>
-                <button
-                    onClick={() => startBotFlow('SUPPORT')}
-                    className="w-full py-4 rounded-xl font-bold text-black"
-                    style={premiumCtaStyle}
-                >
-                    Написати менеджеру в боті
-                </button>
-                <button
-                    onClick={() => setView('CONTACTS')}
-                    className="w-full mt-3 py-3 rounded-xl font-bold text-white/80 border border-white/10"
-                >
-                    Контакти та соцмережі
-                </button>
             </div>
-        </div>
-    );
+        );
+    };
 
     const renderContacts = () => {
         const links = getContactLinks();

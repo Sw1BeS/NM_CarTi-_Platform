@@ -84,7 +84,6 @@ type CatalogViewProps = {
 
 export const CatalogView = ({
   surfaceMode,
-  primaryColor,
   tab,
   search,
   showFilters,
@@ -113,7 +112,11 @@ export const CatalogView = ({
   onOpenListing,
   onEmptyRequest
 }: CatalogViewProps) => {
-  const cardActionLabel = surfaceMode === 'B2B' ? 'Створити B2B запит' : 'Зацікавило це авто';
+  const cardActionLabel = surfaceMode === 'B2B' ? 'Створити запит по авто' : 'Зацікавило це авто';
+  const title = surfaceMode === 'B2B' ? 'B2B склад' : 'Каталог CarTié';
+  const subtitle = surfaceMode === 'B2B'
+    ? 'Inventory партнерської мережі без дублювання авто'
+    : 'Авто в наявності, в дорозі та під швидкий запит';
   const metallicStyle: React.CSSProperties = {
     background: 'linear-gradient(135deg, #f7f8fa 0%, #d7dbe1 34%, #a4abb4 68%, #f1f3f6 100%)',
     color: '#101216',
@@ -121,29 +124,32 @@ export const CatalogView = ({
   };
 
   return (
-    <div className="animate-fade-in pb-24 h-full flex flex-col bg-black">
-      <div className="p-4 sticky top-0 bg-[#000000]/90 backdrop-blur-md z-20 border-b border-white/10 space-y-3">
-        <h2 className="text-xl font-bold text-white">{surfaceMode === 'B2B' ? 'Інвентар мережі' : 'Інвентар'}</h2>
+    <div className="animate-fade-in flex h-full flex-col bg-[#050608] pb-24">
+      <div className="sticky top-0 z-20 flex flex-col gap-3 border-b border-white/10 bg-[#050608]/92 p-4 backdrop-blur-xl">
+        <div>
+          <h2 className="text-2xl font-black tracking-tight text-white">{title}</h2>
+          <p className="mt-1 text-xs leading-relaxed text-white/44">{subtitle}</p>
+        </div>
 
         <div className="flex gap-2">
           <button
             onClick={() => onTabChange('IN_STOCK')}
-            className={`flex-1 py-2.5 px-3 rounded-lg font-bold text-sm transition-all flex items-center justify-center gap-2 ${tab === 'IN_STOCK'
-              ? 'text-black shadow-lg'
-              : 'bg-[#1c1c1e] text-white/50'
+            className={`flex-1 rounded-[14px] px-3 py-2.5 text-sm font-black transition-all flex items-center justify-center gap-2 ${tab === 'IN_STOCK'
+              ? 'text-black'
+              : 'border border-white/10 bg-white/[0.045] text-white/56'
               }`}
-            style={tab === 'IN_STOCK' ? { backgroundColor: primaryColor } : {}}
+            style={tab === 'IN_STOCK' ? metallicStyle : {}}
           >
             <Car size={16} />
-            В наявності
+            {surfaceMode === 'B2B' ? 'Склад' : 'В наявності'}
           </button>
           <button
             onClick={() => onTabChange('IN_TRANSIT')}
-            className={`flex-1 py-2.5 px-3 rounded-lg font-bold text-sm transition-all flex items-center justify-center gap-2 ${tab === 'IN_TRANSIT'
-              ? 'text-black shadow-lg'
-              : 'bg-[#1c1c1e] text-white/50'
+            className={`flex-1 rounded-[14px] px-3 py-2.5 text-sm font-black transition-all flex items-center justify-center gap-2 ${tab === 'IN_TRANSIT'
+              ? 'text-black'
+              : 'border border-white/10 bg-white/[0.045] text-white/56'
               }`}
-            style={tab === 'IN_TRANSIT' ? { backgroundColor: primaryColor } : {}}
+            style={tab === 'IN_TRANSIT' ? metallicStyle : {}}
           >
             <Truck size={16} />
             В дорозі
@@ -154,28 +160,28 @@ export const CatalogView = ({
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
             <input
-              className="w-full bg-[#1c1c1e] text-white pl-10 pr-4 py-3 rounded-xl outline-none placeholder-gray-600 border border-white/5 focus:border-yellow-500/50 transition-colors"
-              placeholder="Пошук авто..."
+              className="w-full rounded-[16px] border border-white/10 bg-white/[0.055] py-3 pl-10 pr-4 text-white outline-none placeholder-white/28 transition-colors focus:border-white/30"
+              placeholder={surfaceMode === 'B2B' ? 'Пошук по складу, бренду, моделі...' : 'Пошук авто, бренду, моделі...'}
               value={search}
               onChange={e => onSearchChange(e.target.value)}
             />
           </div>
           <button
             onClick={onToggleFilters}
-            className={`w-12 h-12 rounded-xl flex items-center justify-center transition-colors ${showFilters ? 'text-black' : 'bg-[#1c1c1e] text-white'
+            className={`flex size-12 items-center justify-center rounded-[16px] transition-colors ${showFilters ? 'text-black' : 'border border-white/10 bg-white/[0.055] text-white'
               }`}
-            style={showFilters ? { backgroundColor: primaryColor } : {}}
+            style={showFilters ? metallicStyle : {}}
           >
             <SlidersHorizontal size={20} />
           </button>
         </div>
 
         {showFilters && (
-          <div className="bg-[#1c1c1e] rounded-xl p-4 space-y-3 border border-white/5 animate-slide-down">
+          <div className="animate-slide-down flex flex-col gap-3 rounded-[18px] border border-white/10 bg-[#111417] p-4">
             <div>
               <label className="text-[10px] text-white/50 uppercase font-bold block mb-1">Марка</label>
               <input
-                className="w-full bg-black/30 text-white px-3 py-2 rounded-lg text-sm outline-none border border-white/10"
+                className="w-full rounded-[12px] border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none"
                 placeholder="BMW, Mercedes..."
                 value={filters.brand}
                 onChange={e => onFiltersChange({ ...filters, brand: e.target.value })}
@@ -186,7 +192,7 @@ export const CatalogView = ({
                 <label className="text-[10px] text-white/50 uppercase font-bold block mb-1">Рік від</label>
                 <input
                   type="number"
-                  className="w-full bg-black/30 text-white px-3 py-2 rounded-lg text-sm outline-none border border-white/10"
+                  className="w-full rounded-[12px] border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none"
                   placeholder="2018"
                   value={filters.minYear}
                   onChange={e => onFiltersChange({ ...filters, minYear: e.target.value })}
@@ -196,7 +202,7 @@ export const CatalogView = ({
                 <label className="text-[10px] text-white/50 uppercase font-bold block mb-1">Рік до</label>
                 <input
                   type="number"
-                  className="w-full bg-black/30 text-white px-3 py-2 rounded-lg text-sm outline-none border border-white/10"
+                  className="w-full rounded-[12px] border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none"
                   placeholder="2024"
                   value={filters.maxYear}
                   onChange={e => onFiltersChange({ ...filters, maxYear: e.target.value })}
@@ -208,7 +214,7 @@ export const CatalogView = ({
                 <label className="text-[10px] text-white/50 uppercase font-bold block mb-1">Ціна від ($)</label>
                 <input
                   type="number"
-                  className="w-full bg-black/30 text-white px-3 py-2 rounded-lg text-sm outline-none border border-white/10"
+                  className="w-full rounded-[12px] border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none"
                   placeholder="10000"
                   value={filters.minPrice}
                   onChange={e => onFiltersChange({ ...filters, minPrice: e.target.value })}
@@ -218,7 +224,7 @@ export const CatalogView = ({
                 <label className="text-[10px] text-white/50 uppercase font-bold block mb-1">Ціна до ($)</label>
                 <input
                   type="number"
-                  className="w-full bg-black/30 text-white px-3 py-2 rounded-lg text-sm outline-none border border-white/10"
+                  className="w-full rounded-[12px] border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none"
                   placeholder="100000"
                   value={filters.maxPrice}
                   onChange={e => onFiltersChange({ ...filters, maxPrice: e.target.value })}
@@ -228,7 +234,7 @@ export const CatalogView = ({
             <div>
               <label className="text-[10px] text-white/50 uppercase font-bold block mb-1">Сортування</label>
               <select
-                className="w-full bg-black/30 text-white px-3 py-2 rounded-lg text-sm outline-none border border-white/10"
+                className="w-full rounded-[12px] border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none"
                 value={sortBy}
                 onChange={e => onSortChange(e.target.value as SortBy)}
               >
@@ -239,19 +245,19 @@ export const CatalogView = ({
             </div>
             <button
               onClick={onResetFilters}
-              className="w-full py-2 bg-red-500/20 text-red-500 rounded-lg text-xs font-bold"
+              className="w-full rounded-[12px] border border-white/10 bg-white/[0.045] py-2 text-xs font-bold text-white/64"
             >
               Скинути фільтри
             </button>
           </div>
         )}
 
-        <div className="text-[10px] text-white/50">
+        <div className="w-fit rounded-full border border-white/10 bg-white/[0.045] px-3 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-white/44">
           Знайдено: {filteredCars.length}
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-4">
         {filteredCars.map(car => {
           const images = getCarImages(car);
           const cover = images[0];
@@ -262,8 +268,8 @@ export const CatalogView = ({
             : buildSpecTiles(specs, car, formatMileage, toNumberSafe);
 
           return (
-            <div key={carId || `inventory_${car.title}_${car.year}`} className={`bg-[#1c1c1e] rounded-2xl overflow-hidden border flex flex-col shadow-lg ${isSelectedForRequest(carId) ? 'border-yellow-400/60' : 'border-white/5'}`}>
-              <div className="aspect-[4/3] bg-gray-800 relative cursor-pointer" onClick={() => onOpenListing(car)}>
+            <div key={carId || `inventory_${car.title}_${car.year}`} className={`flex flex-col overflow-hidden rounded-[22px] border bg-white/[0.045] shadow-[0_18px_55px_rgba(0,0,0,0.28)] ${isSelectedForRequest(carId) ? 'border-white/42' : 'border-white/10'}`}>
+              <div className="relative aspect-[4/3] cursor-pointer bg-[#1a1d21]" onClick={() => onOpenListing(car)}>
                 <MiniAppImage src={cover} sources={images} alt={car.presentation?.title || car.title || 'Авто'} />
                 <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-4 pt-12">
                   <h3 className="text-lg font-bold text-white">{car.presentation?.title || car.title}</h3>
@@ -281,7 +287,7 @@ export const CatalogView = ({
                 </div>
                 <button
                   onClick={(e) => { e.stopPropagation(); onToggleFavorite(car); }}
-                  className="absolute top-2 right-2 w-9 h-9 rounded-full bg-black/60 flex items-center justify-center"
+                  className="absolute right-2 top-2 flex size-9 items-center justify-center rounded-full bg-black/60"
                 >
                   <Star size={16} className={isFavorite(carId) ? 'text-yellow-400 fill-yellow-400' : 'text-white/70'} />
                 </button>
@@ -325,9 +331,11 @@ export const CatalogView = ({
           );
         })}
         {filteredCars.length === 0 && (
-          <div className="text-center text-white/60 mt-10 bg-[#1c1c1e] border border-white/10 rounded-2xl p-5">
+          <div className="mt-10 rounded-[22px] border border-white/10 bg-white/[0.045] p-5 text-center text-white/60">
             <div className="font-bold text-white mb-2">Авто не знайдено</div>
-            <div className="text-sm mb-4">Спробуйте змінити фільтри або залиште запит на підбір.</div>
+            <div className="text-sm mb-4">
+              {surfaceMode === 'B2B' ? 'Спробуйте змінити фільтри або створіть запит для мережі.' : 'Спробуйте змінити фільтри або залиште запит на підбір.'}
+            </div>
             <button
               onClick={onEmptyRequest}
               className="w-full py-3 rounded-xl font-bold text-black"
