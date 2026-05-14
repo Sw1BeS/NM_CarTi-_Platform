@@ -286,4 +286,56 @@ describe('CLIENT_LEAD bot menu', () => {
       ])
     }));
   }, 10000);
+
+  it('re-prompts with native contact keyboard when shared contact belongs to another Telegram user', async () => {
+    const { routeMessage } = await import('./routeMessage.js');
+
+    const ctx: any = {
+      bot: {
+        id: 'bot_lead',
+        token: 'token',
+        name: 'Cartie Client Bot',
+        template: 'CLIENT_LEAD',
+        companyId: 'company_1',
+        config: {
+          publicBaseUrl: 'https://cartie.test',
+          defaultShowcaseSlug: 'cartie'
+        }
+      },
+      companyId: 'company_1',
+      chatId: '1001',
+      userId: '1001',
+      chatType: 'private',
+      update: {
+        message: {
+          chat: { id: 1001, type: 'private' },
+          from: { id: 1001, first_name: 'Ivan', last_name: 'Client', username: 'client_one' },
+          contact: { user_id: 2002, phone_number: '+380635055252' }
+        }
+      },
+      session: {
+        id: 'session_1',
+        state: 'CL_MINIAPP_CONTACT',
+        variables: {
+          miniappPendingIntent: {
+            title: 'Mercedes-Benz S 500'
+          }
+        }
+      }
+    };
+
+    const handled = await routeMessage(ctx);
+
+    expect(handled).toBe(true);
+    expect(requestContractServiceMock.finalizePendingLeadIntent).not.toHaveBeenCalled();
+    expect(telegramOutboxMock.sendMessage).toHaveBeenCalledWith(expect.objectContaining({
+      chatId: '1001',
+      text: expect.stringContaining('своїм контактом'),
+      replyMarkup: expect.objectContaining({
+        keyboard: [[expect.objectContaining({ request_contact: true })], [expect.any(Object)]],
+        resize_keyboard: true,
+        one_time_keyboard: true
+      })
+    }));
+  }, 10000);
 });

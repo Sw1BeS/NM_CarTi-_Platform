@@ -640,7 +640,11 @@ const handleClientLead = async (ctx: PipelineContext, text: string) => {
       return true;
     }
     if (message?.contact?.user_id && message?.from?.id && String(message.contact.user_id) !== String(message.from.id)) {
-      await sendMessage(ctx, '⚠️ Поділіться, будь ласка, саме своїм контактом через кнопку Telegram.');
+      await sendMessage(ctx, '⚠️ Поділіться, будь ласка, саме своїм контактом через кнопку Telegram.', {
+        keyboard: [[{ text: button(lang, 'common.shareContact'), request_contact: true }], [{ text: button(lang, 'common.back') }]],
+        resize_keyboard: true,
+        one_time_keyboard: true
+      });
       return true;
     }
     const phoneRaw = message?.contact?.phone_number || text;

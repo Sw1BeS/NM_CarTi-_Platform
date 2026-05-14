@@ -434,6 +434,42 @@ describe('MiniApp Lead handoff routes', () => {
     expect(telegramOutboxMock.sendMessage).not.toHaveBeenCalled();
   });
 
+  it('does not finalize or notify again for duplicate pending submit even when contact is known', async () => {
+    requestContractServiceMock.createPendingLeadIntent.mockResolvedValueOnce({
+      companyId: 'company_1',
+      botId: 'bot_1',
+      chatId: '1001',
+      title: 'Existing request',
+      intentType: 'REQUEST',
+      isDuplicate: true
+    });
+    requestContractServiceMock.findKnownLeadContact.mockResolvedValueOnce({
+      phone: '+380635055252',
+      leadId: 'lead_existing'
+    });
+    const app = await buildApp();
+
+    const res = await request(app)
+      .post('/api/miniapp/lead-intents')
+      .send({
+        slug: 'cartie',
+        initData: 'signed-init-data',
+        kind: 'PICK',
+        tracking: { submitId: 'submit_duplicate_known_contact' }
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      ok: true,
+      duplicate: true,
+      contactRequested: false,
+      closeMiniApp: true
+    });
+    expect(requestContractServiceMock.findKnownLeadContact).not.toHaveBeenCalled();
+    expect(requestContractServiceMock.finalizePendingLeadIntent).not.toHaveBeenCalled();
+    expect(telegramOutboxMock.sendMessage).not.toHaveBeenCalled();
+  });
+
   it('returns a stable auth code when initData is missing', async () => {
     const app = await buildApp();
 

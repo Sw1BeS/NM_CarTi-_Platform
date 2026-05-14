@@ -943,6 +943,20 @@ router.post('/lead-intents', async (req, res) => {
     const bot = await getMiniAppBotForSend(pending.botId || config.botId, config.companyId);
     if (!bot?.token) return errorResponse(res, 400, 'Bot not found', MINIAPP_ERROR_CODES.BOT_FLOW_UNAVAILABLE);
 
+    if ((pending as any).isDuplicate) {
+      return res.json({
+        ok: true,
+        contactRequested: false,
+        duplicate: true,
+        closeMiniApp: true,
+        intent: {
+          kind: kind.kind,
+          type: pending.intentType,
+          title: pending.title
+        }
+      });
+    }
+
     const knownContact = await requestContractService.findKnownLeadContact({
       companyId: config.companyId,
       botId: pending.botId || config.botId,
@@ -1032,20 +1046,6 @@ router.post('/lead-intents', async (req, res) => {
           id: finalized.request.id,
           publicId: finalized.request.publicId
         } : undefined
-      });
-    }
-
-    if ((pending as any).isDuplicate) {
-      return res.json({
-        ok: true,
-        contactRequested: false,
-        duplicate: true,
-        closeMiniApp: true,
-        intent: {
-          kind: kind.kind,
-          type: pending.intentType,
-          title: pending.title
-        }
       });
     }
 
