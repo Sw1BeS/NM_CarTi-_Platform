@@ -290,7 +290,13 @@ describe('MiniApp Lead handoff routes', () => {
     }));
   });
 
-  it('finalizes immediately without another contact request when phone is already known', async () => {
+  it('does not send contact request when the same Telegram user already has a phone', async () => {
+    parseTelegramUserMock.mockReturnValueOnce({
+      id: 219480233,
+      username: 'known_client',
+      first_name: 'Known',
+      last_name: 'Client'
+    });
     requestContractServiceMock.findKnownLeadContact.mockResolvedValueOnce({
       phone: '+380635055252',
       leadId: 'lead_existing'
@@ -304,7 +310,7 @@ describe('MiniApp Lead handoff routes', () => {
         initData: 'signed-init-data',
         kind: 'PRICE_TERMS',
         carListingId: 'car_1',
-        tracking: { submitId: 'submit_known_phone' }
+        tracking: { submitId: 'submit_known_phone_219480233' }
       });
 
     expect(res.status).toBe(200);
@@ -315,10 +321,15 @@ describe('MiniApp Lead handoff routes', () => {
       finalized: true,
       closeMiniApp: true
     });
+    expect(requestContractServiceMock.findKnownLeadContact).toHaveBeenCalledWith({
+      companyId: 'company_1',
+      botId: 'bot_1',
+      telegramUserId: '219480233'
+    });
     expect(requestContractServiceMock.finalizePendingLeadIntent).toHaveBeenCalledWith(expect.objectContaining({
       botId: 'bot_1',
       companyId: 'company_1',
-      telegramUserId: '1001',
+      telegramUserId: '219480233',
       phone: '+380635055252'
     }));
     expect(telegramOutboxMock.sendMessage).not.toHaveBeenCalledWith(expect.objectContaining({

@@ -182,9 +182,10 @@ describe('requestContract.service', () => {
     }));
   });
 
-  it('deduplicates pending lead intents by tracking submitId', async () => {
+  it('does not rewrite a pending contact handoff for a duplicate submitId', async () => {
     mockPrisma.botSession.findUnique.mockResolvedValue({
       id: 'sess_1',
+      state: 'CL_MINIAPP_CONTACT',
       variables: {
         miniappPendingIntent: {
           version: 1,
@@ -226,6 +227,7 @@ describe('requestContract.service', () => {
     expect(mockPrisma.lead.findFirst).toHaveBeenCalledWith(expect.objectContaining({
       where: expect.objectContaining({
         companyId: 'cmp_1',
+        botId: 'bot_1',
         phone: { not: null },
         OR: expect.arrayContaining([
           { userTgId: '1001' },

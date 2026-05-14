@@ -452,12 +452,14 @@ class RequestContractService {
     telegramUserId?: string | null;
   }) {
     const companyId = toOptionalString(params.companyId);
+    const botId = toOptionalString(params.botId);
     const telegramUserId = toOptionalString(params.telegramUserId);
     if (!companyId || !telegramUserId) return null;
 
     const lead = await prisma.lead.findFirst({
       where: {
         companyId,
+        ...(botId ? { botId } : {}),
         phone: { not: null },
         OR: [
           { userTgId: telegramUserId },
