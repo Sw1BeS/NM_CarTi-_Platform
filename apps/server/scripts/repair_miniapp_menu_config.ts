@@ -1,8 +1,9 @@
 import { prisma } from '../src/services/prisma.js';
 import {
-  buildMiniAppUrl,
-  normalizeMiniAppButtonUrl
-} from '../src/modules/Communication/telegram/core/utils/miniappUrl.js';
+  errorMessage,
+  readBotConfig,
+  repairMenuButtons
+} from '../src/scripts/repair_miniapp_menu_config.helpers.js';
 
 const modeArg = process.argv.find(arg => arg === '--dry-run' || arg === '--apply');
 const APPLY = modeArg === '--apply';
@@ -11,76 +12,6 @@ if (!modeArg) {
   console.error('[repair-miniapp-menu-config] pass --dry-run or --apply');
   process.exit(1);
 }
-
-const isRecord = (value: unknown): value is Record<string, any> =>
-  Boolean(value && typeof value === 'object' && !Array.isArray(value));
-
-const sanitizeSlug = (value?: string | null) => {
-  const raw = String(value || '').trim().toLowerCase();
-  if (!raw) return '';
-  return raw.replace(/[^a-z0-9_-]/g, '').slice(0, 50);
-};
-
-const buildNormalizationBot = (bot: any, config: Record<string, any>) => {
-  const miniAppConfig = isRecord(config.miniAppConfig) ? config.miniAppConfig : {};
-  const defaultShowcase = isRecord(bot.defaultShowcase) ? bot.defaultShowcase : {};
-  const slug = sanitizeSlug(config.defaultShowcaseSlug)
-    || sanitizeSlug(miniAppConfig.showcaseSlug)
-    || sanitizeSlug(defaultShowcase.slug)
-    || sanitizeSlug(config.botUsername)
-    || sanitizeSlug(config.username)
-    || sanitizeSlug(bot.name)
-    || 'system';
-
-  const configForUrl = { ...config, defaultShowcaseSlug: slug };
-  if (config.publicBaseUrl) {
-    configForUrl.miniAppConfig = { ...miniAppConfig, url: undefined, showcaseSlug: slug };
-  }
-
-  const configuredMiniAppUrl = buildMiniAppUrl({ ...bot, config: configForUrl } as any);
-
-  return {
-    ...bot,
-    config: {
-      ...config,
-      defaultShowcaseSlug: slug,
-      miniAppConfig: {
-        ...miniAppConfig,
-        url: configuredMiniAppUrl || miniAppConfig.url,
-        showcaseSlug: slug
-      }
-    }
-  };
-};
-
-const repairMenuButtons = (bot: any) => {
-  const sourceConfig = isRecord(bot.config) ? bot.config : {};
-  const buttons = Array.isArray(sourceConfig.menuConfig?.buttons)
-    ? sourceConfig.menuConfig.buttons
-    : [];
-  if (buttons.length === 0) return sourceConfig;
-
-  const normalizationBot = buildNormalizationBot(bot, sourceConfig);
-  const nextButtons = buttons.map((button: any) => {
-    if (!isRecord(button)) return button;
-    const type = String(button.type || '').toUpperCase();
-    if (type !== 'WEB_APP' && type !== 'LINK') return button;
-    const value = normalizeMiniAppButtonUrl(normalizationBot as any, button.value);
-    return value === button.value ? button : { ...button, value };
-  });
-  const hasButtonChanges = nextButtons.some((button, index) => button !== buttons[index]);
-
-  if (!hasButtonChanges) return sourceConfig;
-
-  return {
-    ...sourceConfig,
-    defaultShowcaseSlug: normalizationBot.config.defaultShowcaseSlug,
-    menuConfig: {
-      ...(isRecord(sourceConfig.menuConfig) ? sourceConfig.menuConfig : {}),
-      buttons: nextButtons
-    }
-  };
-};
 
 async function main() {
   console.log(`[repair-miniapp-menu-config] mode=${APPLY ? 'APPLY' : 'DRY_RUN'}`);
@@ -97,7 +28,7 @@ async function main() {
 
   let changed = 0;
   for (const bot of bots) {
-    const currentConfig = isRecord(bot.config) ? bot.config : {};
+    const currentConfig = readBotConfig(bot);
     const nextConfig = repairMenuButtons(bot);
     const hasChanges = JSON.stringify(currentConfig) !== JSON.stringify(nextConfig);
 
@@ -122,7 +53,7 @@ async function main() {
 
 main()
   .catch((err) => {
-    console.error('[repair-miniapp-menu-config] failed:', err);
+    console.error(`[repair-miniapp-menu-config] failed: ${errorMessage(err)}`);
     process.exit(1);
   })
   .finally(async () => {
