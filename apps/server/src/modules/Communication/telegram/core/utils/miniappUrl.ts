@@ -3,9 +3,12 @@ import fs from 'node:fs';
 import { execSync } from 'node:child_process';
 
 const stripTrailingSlash = (s: string) => s.replace(/\/+$/, '');
+let cachedFallbackBuildSha: string | undefined;
+
 const readBuildSha = () => {
   const envSha = String(process.env.BUILD_SHA || '').trim();
   if (envSha) return envSha;
+  if (cachedFallbackBuildSha !== undefined) return cachedFallbackBuildSha;
 
   const candidateFiles = [
     '/app/server/BUILD_SHA',
@@ -15,15 +18,20 @@ const readBuildSha = () => {
   for (const file of candidateFiles) {
     try {
       const fromFile = fs.readFileSync(file, 'utf8').trim();
-      if (fromFile) return fromFile;
+      if (fromFile) {
+        cachedFallbackBuildSha = fromFile;
+        return cachedFallbackBuildSha;
+      }
     } catch {
       // Keep probing. Host-side production scripts may not run from the container path.
     }
   }
 
   try {
-    return execSync('git rev-parse HEAD', { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 1000 }).trim();
+    cachedFallbackBuildSha = execSync('git rev-parse HEAD', { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 1000 }).trim();
+    return cachedFallbackBuildSha;
   } catch {
+    cachedFallbackBuildSha = '';
     return '';
   }
 };

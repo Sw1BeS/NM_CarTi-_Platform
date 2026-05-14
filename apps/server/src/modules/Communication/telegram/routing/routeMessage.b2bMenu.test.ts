@@ -185,6 +185,91 @@ describe('B2B registered menu', () => {
     expect(flatButtons.some((button: any) => button.web_app?.url?.includes('entry=support'))).toBe(true);
   }, 10000);
 
+  it('routes B2B /start to the fixed runtime menu while repairing stored MiniApp menu URLs', async () => {
+    const { routeMessage } = await import('./routeMessage.js');
+
+    const ctx: any = {
+      bot: {
+        id: 'bot_b2b',
+        token: 'token',
+        name: 'CarDealer Lviv',
+        template: 'B2B',
+        config: {
+          publicBaseUrl: 'https://cartie.test',
+          defaultShowcaseSlug: 'cardealer_lviv_bot',
+          miniAppConfig: {
+            url: 'https://cartie.test/p/app/cardealer_lviv_bot',
+            showcaseSlug: 'cardealer_lviv_bot'
+          },
+          menuConfig: {
+            welcomeMessage: 'Stored B2B platform menu',
+            buttons: [
+              {
+                id: 'stored_request',
+                label: 'Stored request',
+                type: 'WEB_APP',
+                value: 'https://old.example/p/app/old_slug?entry=request',
+                row: 0,
+                col: 0
+              },
+              {
+                id: 'stored_status',
+                label: 'Stored status',
+                type: 'LINK',
+                value: 'https://t.me/cardealer_bot/app?startapp=view_status&utm_source=menu',
+                row: 0,
+                col: 1
+              }
+            ]
+          }
+        }
+      },
+      companyId: 'company_1',
+      chatId: '1001',
+      userId: '1001',
+      chatType: 'private',
+      update: {
+        message: {
+          text: '/start',
+          chat: { id: 1001, type: 'private' },
+          from: { id: 1001, first_name: 'Dealer' }
+        }
+      },
+      session: {
+        id: 'session_1',
+        state: 'B2B_MENU',
+        variables: {
+          b2bPartnerId: 'partner_1',
+          b2bPartnerName: 'Dealer One'
+        }
+      }
+    };
+
+    const handled = await routeMessage(ctx);
+
+    expect(handled).toBe(true);
+
+    const calls = telegramOutboxMock.sendMessage.mock.calls.map(([payload]) => payload);
+    expect(calls).toHaveLength(1);
+    expect(calls[0].text).not.toBe('Stored B2B platform menu');
+    expect(calls[0].replyMarkup.keyboard.map((row: any[]) => row.length)).toEqual([2, 2, 1]);
+
+    const runtimeButtons = calls[0].replyMarkup.keyboard.flat();
+    expect(runtimeButtons.every((button: any) => button.web_app?.url?.includes('/p/app/cardealer_lviv_bot'))).toBe(true);
+    expect(runtimeButtons.some((button: any) => button.web_app.url.includes('entry=request'))).toBe(true);
+    expect(runtimeButtons.some((button: any) => button.web_app.url.includes('entry=inventory'))).toBe(true);
+    expect(runtimeButtons.some((button: any) => button.web_app.url.includes('entry=status'))).toBe(true);
+    expect(runtimeButtons.some((button: any) => button.web_app.url.includes('entry=support'))).toBe(true);
+    expect(runtimeButtons.some((button: any) => button.web_app.url.includes('entry=profile'))).toBe(true);
+
+    const storedButtons = ctx.bot.config.menuConfig.buttons;
+    expect(storedButtons[0].value).toContain('https://cartie.test/p/app/cardealer_lviv_bot');
+    expect(storedButtons[0].value).toContain('entry=request');
+    expect(storedButtons[1].value).toContain('https://cartie.test/p/app/cardealer_lviv_bot');
+    expect(storedButtons[1].value).toContain('entry=status');
+    expect(storedButtons[1].value).toContain('utm_source=menu');
+  }, 10000);
+
   it('also clears stale reply keyboards for unregistered B2B users', async () => {
     const { showMenu } = await import('./routeMessage.js');
     prismaMock.partnerUser.findFirst.mockResolvedValueOnce(null);

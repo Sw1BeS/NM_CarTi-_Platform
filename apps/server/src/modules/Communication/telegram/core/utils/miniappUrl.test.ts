@@ -1,5 +1,14 @@
-import { describe, expect, it } from 'vitest';
+import fs from 'node:fs';
+import { describe, expect, it, vi } from 'vitest';
 import { buildMiniAppEntryUrl, buildMiniAppUrl, normalizeMiniAppButtonUrl } from './miniappUrl.js';
+
+const { execSyncMock } = vi.hoisted(() => ({
+  execSyncMock: vi.fn(() => 'cached_sha\n')
+}));
+
+vi.mock('node:child_process', () => ({
+  execSync: execSyncMock
+}));
 
 const bot = {
   config: {
@@ -93,5 +102,33 @@ describe('miniappUrl', () => {
     expect(url.pathname).toBe('/p/app/cartie');
     expect(url.searchParams.get('entry')).toBe('inventory');
     expect(url.searchParams.get('status')).toBe('PENDING');
+  });
+
+  it('caches fallback git build SHA lookup across repeated URL builds', async () => {
+    const previousBuildSha = process.env.BUILD_SHA;
+    delete process.env.BUILD_SHA;
+    execSyncMock.mockClear();
+    const readFileSpy = vi.spyOn(fs, 'readFileSync').mockImplementation(() => {
+      throw new Error('missing BUILD_SHA');
+    });
+
+    try {
+      vi.resetModules();
+      const { buildMiniAppUrl: buildFreshMiniAppUrl } = await import('./miniappUrl.js');
+
+      const first = new URL(buildFreshMiniAppUrl(bot));
+      const second = new URL(buildFreshMiniAppUrl(bot, { entry: 'inventory' }));
+
+      expect(first.searchParams.get('v')).toBe('cached_sha');
+      expect(second.searchParams.get('v')).toBe('cached_sha');
+      expect(execSyncMock).toHaveBeenCalledTimes(1);
+    } finally {
+      readFileSpy.mockRestore();
+      if (previousBuildSha === undefined) {
+        delete process.env.BUILD_SHA;
+      } else {
+        process.env.BUILD_SHA = previousBuildSha;
+      }
+    }
   });
 });
