@@ -53,3 +53,44 @@ export const assertAdminTestAccess = async (ctx: PipelineContext): Promise<Admin
     return { ok: false, errorText: t(lang, 'admin.test.err.unavailable') };
   }
 };
+
+export const assertConfiguredAdminActionAccess = async (ctx: PipelineContext): Promise<AdminTestAccessResult> => {
+  const cb = ctx.update?.callback_query;
+  if (!ctx.bot || !cb) {
+    return { ok: false, errorText: 'Не вдалося перевірити права для цієї дії.' };
+  }
+
+  const chat = cb.message?.chat;
+  const chatType = String(chat?.type || ctx.chatType || '').toLowerCase();
+  const adminChatId = normalizeBotConfigChatId(ctx.bot.adminChatId);
+  const callbackChatId = String(chat?.id || ctx.chatId || '').trim();
+  if (!adminChatId || String(adminChatId) !== callbackChatId) {
+    return { ok: false, errorText: 'Дія доступна лише в налаштованому admin chat.' };
+  }
+
+  const actorId = String(cb.from?.id || '').trim();
+  if (!actorId) {
+    return { ok: false, errorText: 'Недостатньо прав для цієї дії.' };
+  }
+
+  if (chatType === 'private') {
+    return actorId === callbackChatId
+      ? { ok: true, adminChatId: String(adminChatId), actorId }
+      : { ok: false, errorText: 'Недостатньо прав для цієї дії.' };
+  }
+
+  if (chatType !== 'group' && chatType !== 'supergroup') {
+    return { ok: false, errorText: 'Дія доступна лише в налаштованому admin chat.' };
+  }
+
+  try {
+    const member = await TelegramSender.getChatMember(ctx.bot.token, String(adminChatId), actorId);
+    const status = String((member as any)?.status || '').toLowerCase();
+    if (!ADMIN_STATUSES.has(status)) {
+      return { ok: false, errorText: 'Лише адміністратори групи можуть виконати цю дію.' };
+    }
+    return { ok: true, adminChatId: String(adminChatId), actorId };
+  } catch {
+    return { ok: false, errorText: 'Не вдалося перевірити права для цієї дії.' };
+  }
+};

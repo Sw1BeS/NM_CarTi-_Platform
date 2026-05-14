@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { parseMiniAppEntryIntent } from '../../../web/src/pages/public/miniapp/entryIntent.ts';
+import {
+  isMiniAppReadOnlyLaunch,
+  parseMiniAppEntryIntent,
+  resolveMiniAppInternalLinkIntent
+} from '../../../web/src/pages/public/miniapp/entryIntent.ts';
 
 describe('MiniApp entry intent parser', () => {
   it('routes Lead sell deep links to bot flow instead of the request form', () => {
@@ -27,6 +31,35 @@ describe('MiniApp entry intent parser', () => {
     expect(parseMiniAppEntryIntent(new URLSearchParams(), 'contacts')).toMatchObject({
       view: 'CONTACTS',
       consumedStartParam: true
+    });
+  });
+
+  it('treats direct car links from admin chat as read-only preview launches', () => {
+    const params = new URLSearchParams('entry=inventory&carId=car_1');
+
+    expect(isMiniAppReadOnlyLaunch(params)).toBe(true);
+    expect(parseMiniAppEntryIntent(params)).toMatchObject({
+      view: 'INVENTORY'
+    });
+  });
+
+  it('does not treat request/profile/favorites launches as read-only', () => {
+    expect(isMiniAppReadOnlyLaunch(new URLSearchParams('entry=request&type=BUY'))).toBe(false);
+    expect(isMiniAppReadOnlyLaunch(new URLSearchParams('entry=favorites'))).toBe(false);
+    expect(isMiniAppReadOnlyLaunch(new URLSearchParams('entry=profile'))).toBe(false);
+  });
+
+  it('resolves internal MiniApp action links without reopening the app as an external link', () => {
+    expect(resolveMiniAppInternalLinkIntent('/p/app/cartie?entry=contacts', 'LEAD')).toEqual({
+      slug: 'cartie',
+      carId: undefined,
+      intent: { view: 'CONTACTS' }
+    });
+
+    expect(resolveMiniAppInternalLinkIntent('https://cartie.test/p/app/cartie?entry=inventory&carId=car_1', 'LEAD')).toMatchObject({
+      slug: 'cartie',
+      carId: 'car_1',
+      intent: { view: 'INVENTORY' }
     });
   });
 });

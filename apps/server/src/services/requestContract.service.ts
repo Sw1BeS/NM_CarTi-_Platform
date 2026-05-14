@@ -258,8 +258,6 @@ class RequestContractService {
     listingTitles: string[];
     listingTitle?: string;
   }) {
-    const inputTitle = toOptionalString(params.title);
-    if (inputTitle) return inputTitle;
     if (params.listingTitles.length > 1) {
       return params.intentType === 'REQUEST'
         ? `Підбір: ${params.listingTitles.length} авто`
@@ -270,6 +268,8 @@ class RequestContractService {
         ? `Підбір: ${params.listingTitle}`
         : params.listingTitle;
     }
+    const inputTitle = toOptionalString(params.title);
+    if (inputTitle) return inputTitle;
     return params.intentType === 'REQUEST' ? 'Підбір авто з Mini App' : 'Авто з Mini App';
   }
 
@@ -281,19 +281,33 @@ class RequestContractService {
     const tgUserId = toOptionalString((telegram as Record<string, unknown>)?.userId);
     if (!tgUserId) throw new Error('Telegram user required');
 
-      const selection = await this.resolveMiniAppCarSelection({
-        companyId: context.companyId,
-        carListingId: input.carListingId,
-        carListingIds: input.carListingIds
-      });
+    const selection = await this.resolveMiniAppCarSelection({
+      companyId: context.companyId,
+      carListingId: input.carListingId,
+      carListingIds: input.carListingIds
+    });
+    const requestPresentation = buildRequestPresentationSnapshot({
+      cars: selection.selectedCars,
+      slug: context.resolved.slug || input.slug,
+      customerIntent: input.intentType === 'REQUEST' ? 'PICKUP' : 'PRICE_TERMS',
+      sourceView: toOptionalString(input.payload?.sourceView)
+        || toOptionalString(input.payload?.source),
+      criteria: isRecord(input.payload?.criteria)
+        ? input.payload.criteria as Record<string, unknown>
+        : undefined,
+      comment: toOptionalString(input.comment)
+    });
+    const presentationTitles = requestPresentation.selectedCars
+      .map((car) => toOptionalString(car.title))
+      .filter((item): item is string => Boolean(item));
     const title = this.buildMiniAppIntentTitle({
       intentType: input.intentType,
       title: input.title,
-      listingTitles: selection.listingTitles,
-      listingTitle: selection.listingTitle
+      listingTitles: presentationTitles.length ? presentationTitles : selection.listingTitles,
+      listingTitle: presentationTitles[0] || selection.listingTitle
     });
 
-      const pendingIntent: MiniAppPendingIntent = {
+    const pendingIntent: MiniAppPendingIntent = {
       version: 1,
       intentType: input.intentType,
       slug: context.resolved.slug || input.slug,
@@ -305,32 +319,21 @@ class RequestContractService {
       carId: selection.selectedCarIds[0],
       carIds: selection.selectedCarIds.length ? selection.selectedCarIds : undefined,
       tracking: isRecord(input.tracking) ? input.tracking : undefined,
-        payload: isRecord(input.payload) ? input.payload : undefined,
+      payload: isRecord(input.payload) ? input.payload : undefined,
       telegram: {
         userId: tgUserId,
         username: toOptionalString((telegram as Record<string, unknown>)?.username),
         name: toOptionalString((telegram as Record<string, unknown>)?.name)
       },
-        createdAt: new Date().toISOString()
-      };
-      const requestPresentation = buildRequestPresentationSnapshot({
-        cars: selection.selectedCars,
-        slug: context.resolved.slug || input.slug,
-        customerIntent: input.intentType === 'REQUEST' ? 'PICKUP' : 'PRICE_TERMS',
-        sourceView: toOptionalString((pendingIntent.payload as Record<string, unknown> | undefined)?.sourceView)
-          || toOptionalString((pendingIntent.payload as Record<string, unknown> | undefined)?.source),
-        criteria: isRecord((pendingIntent.payload as Record<string, unknown> | undefined)?.criteria)
-          ? (pendingIntent.payload as Record<string, unknown>).criteria as Record<string, unknown>
-          : undefined,
-        comment: pendingIntent.comment
-      });
-      pendingIntent.payload = {
-        ...(pendingIntent.payload || {}),
-        selectedCars: requestPresentation.selectedCars,
-        vehiclePresentation: requestPresentation.vehiclePresentation,
-        requestSummary: requestPresentation.requestSummary,
-        requestPresentation
-      };
+      createdAt: new Date().toISOString()
+    };
+    pendingIntent.payload = {
+      ...(pendingIntent.payload || {}),
+      selectedCars: requestPresentation.selectedCars,
+      vehiclePresentation: requestPresentation.vehiclePresentation,
+      requestSummary: requestPresentation.requestSummary,
+      requestPresentation
+    };
     const pendingIntentVariables = JSON.parse(JSON.stringify({
       miniappPendingIntent: pendingIntent,
       miniappInterestDraft: null
@@ -577,9 +580,15 @@ class RequestContractService {
           .map((id) => selectedCarsMap.get(id))
           .filter((item): item is typeof selectedCars[number] => Boolean(item));
 
-    const title = toOptionalString(pendingIntent.title)
-      || selectedCarsOrdered[0]?.title
-      || (pendingIntent.intentType === 'REQUEST' ? 'Підбір авто з Mini App' : 'Авто з Mini App');
+    const selectedTitles = selectedCarsOrdered
+      .map((car) => toOptionalString((car as any).title))
+      .filter((item): item is string => Boolean(item));
+    const title = this.buildMiniAppIntentTitle({
+      intentType: pendingIntent.intentType,
+      title: selectedTitles.length ? undefined : pendingIntent.title,
+      listingTitles: selectedTitles,
+      listingTitle: selectedTitles[0]
+    });
     const descriptionParts = [
       pendingIntent.intentType === 'REQUEST'
         ? 'Запит сформовано з Mini App.'

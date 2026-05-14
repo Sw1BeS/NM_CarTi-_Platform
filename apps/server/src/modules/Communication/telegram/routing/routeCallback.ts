@@ -24,7 +24,7 @@ import { quotaService } from '../../../../services/quota.service.js';
 import { getEnvInt } from '../../../../services/featureFlags.js';
 import { renderChannelCarPost } from '../../../../services/cardRenderer.js';
 import { normalizeBotConfigChatId } from '../core/utils/telegramChatId.js';
-import { assertAdminTestAccess } from '../core/utils/telegramAdminAccess.js';
+import { assertAdminTestAccess, assertConfiguredAdminActionAccess } from '../core/utils/telegramAdminAccess.js';
 import {
   buildTestPanel,
   resolveScenarioFromPanelState,
@@ -317,7 +317,7 @@ export const routeCallback = async (ctx: PipelineContext) => {
         return true;
       case ActionTokens.AD_TEST:
       case ActionTokens.TEST_REFRESH: {
-        const access = await assertAdminTestAccess(ctx);
+        const access = await assertConfiguredAdminActionAccess(ctx);
         if (!access.ok) {
           await telegramOutbox.answerCallback({ token: ctx.bot.token, callbackId: cb.id, text: access.errorText }).catch(() => null);
           return true;
@@ -837,6 +837,11 @@ export const routeCallback = async (ctx: PipelineContext) => {
         }
 
         const decision = parsed.action === 'ba_ap' || parsed.action === 'b2b_access_approve' ? 'APPROVE' : 'REJECT';
+        const access = await assertAdminTestAccess(ctx);
+        if (!access.ok) {
+          await sendMessage(ctx, access.errorText);
+          return true;
+        }
         const reviewedBy = String(cb.from?.id || ctx.userId || 'unknown');
         const reviewed = await b2bWhitelistService.reviewAccessRequest({
           accessRequestId,

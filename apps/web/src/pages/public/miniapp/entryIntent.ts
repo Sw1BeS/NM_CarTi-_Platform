@@ -109,3 +109,42 @@ export const isMiniAppReadOnlyLaunch = (
   return ['home', 'inventory', 'catalog', 'stock', 'contacts', 'contact'].includes(entry)
     || ['home', 'main', 'app', 'miniapp', 'inventory', 'stock', 'view_inventory', 'view_stock', 'contacts', 'contact'].includes(start);
 };
+
+export type MiniAppInternalLinkIntent = {
+  slug?: string;
+  carId?: string;
+  intent: MiniAppEntryIntent;
+};
+
+export const resolveMiniAppInternalLinkIntent = (
+  value: string | undefined,
+  surfaceMode: MiniAppSurfaceMode = 'LEAD',
+  currentOrigin = 'https://cartie.local'
+): MiniAppInternalLinkIntent | null => {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+
+  let url: URL;
+  try {
+    url = new URL(raw, currentOrigin);
+  } catch {
+    return null;
+  }
+
+  const match = url.pathname.match(/\/p\/app\/([^/]+)/);
+  if (!match) return null;
+
+  const slug = decodeURIComponent(match[1] || '').trim() || undefined;
+  const startParam = url.searchParams.get('tgWebAppStartParam')
+    || url.searchParams.get('startapp')
+    || url.searchParams.get('start_param')
+    || undefined;
+  const carId = String(url.searchParams.get('carId') || url.searchParams.get('carListingId') || '').trim() || undefined;
+  const intent = parseMiniAppEntryIntent(url.searchParams, startParam, surfaceMode);
+
+  if (carId && !intent.view) {
+    intent.view = 'INVENTORY';
+  }
+
+  return { slug, carId, intent };
+};

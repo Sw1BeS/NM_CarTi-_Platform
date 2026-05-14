@@ -21,6 +21,7 @@
     "cleanup:external-hidden-listings": "tsx scripts/cleanup_external_hidden_listings.ts",
     "telegram:normalize-chat-ids": "tsx scripts/telegram_normalize_chat_ids.ts",
     "telegram:backfill-identity": "tsx scripts/backfill_telegram_identity.ts",
+    "repair:miniapp-request-titles": "tsx scripts/repair_miniapp_request_titles.ts",
     "test": "vitest --run",
     "test:watch": "vitest",
     "b2b:backfill-partner-admin-groups": "tsx scripts/backfill_partner_admin_groups.ts"

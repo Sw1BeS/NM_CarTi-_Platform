@@ -20,7 +20,7 @@ import { FavoritesView } from './miniapp/views/FavoritesView';
 import { ProfileView } from './miniapp/views/ProfileView';
 import { RequestView, type RequestFormData } from './miniapp/views/RequestView';
 import { MiniAppImage } from './miniapp/components/MiniAppImage';
-import { isMiniAppReadOnlyLaunch, parseMiniAppEntryIntent, type MiniAppEntryIntent } from './miniapp/entryIntent';
+import { isMiniAppReadOnlyLaunch, parseMiniAppEntryIntent, resolveMiniAppInternalLinkIntent, type MiniAppEntryIntent } from './miniapp/entryIntent';
 import { resolveLeadIntentOutcome } from './miniapp/leadIntentOutcome';
 
 const emitMiniAppEvent = (level: 'info' | 'warn' | 'error', message: string, meta?: Record<string, unknown>) => {
@@ -958,7 +958,7 @@ const MiniAppContent = () => {
         };
     }, [goBack, reqStep, view]);
 
-    const handleAction = (act: MiniAppConfig['actions'][number]) => {
+    const handleAction = async (act: MiniAppConfig['actions'][number]) => {
         const tg = (window as any).Telegram?.WebApp;
         if (act.actionType === 'VIEW') {
             const value = String(act.value || '').trim().toUpperCase();
@@ -980,6 +980,24 @@ const MiniAppContent = () => {
             if (!act.value) {
                 emitMiniAppEvent('warn', 'Ignored empty MiniApp link action', { actionId: act.id });
                 setConfigWarning('Посилання для цієї дії не налаштовано.');
+                return;
+            }
+            const internalLink = resolveMiniAppInternalLinkIntent(act.value, surfaceMode, window.location.origin);
+            if (internalLink && (!internalLink.slug || internalLink.slug === targetSlug || internalLink.slug === slug)) {
+                applyEntryIntent(internalLink.intent);
+                if (internalLink.carId) {
+                    try {
+                        const car = await getMiniAppCar(internalLink.carId);
+                        setSelectedCar(car);
+                        setView('LISTING');
+                    } catch (e) {
+                        emitMiniAppEvent('warn', 'MiniApp internal link car not found', {
+                            actionId: act.id,
+                            carId: internalLink.carId,
+                            error: e instanceof Error ? e.message : String(e)
+                        });
+                    }
+                }
                 return;
             }
             if (tg && tg.openLink) {
@@ -2117,7 +2135,7 @@ const MiniAppContent = () => {
             requestType={requestType}
             showInlineAction={true}
             actionLabel={isRequestSubmitting ? 'Надсилання...' : (reqStep >= 4 ? 'Надіслати' : 'Далі')}
-            actionDisabled={isRequestSubmitting || (reqStep >= 4 && !hasTelegramInit)}
+            actionDisabled={isRequestSubmitting}
             submitError={requestSubmitError}
             openBotUrl={resolveOpenBotUrl()}
             onOpenBot={openBotUrl}

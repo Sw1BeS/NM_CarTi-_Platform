@@ -136,6 +136,52 @@ describe('requestContract.service', () => {
     }));
   });
 
+  it('uses backend vehicle presentation instead of polluted MiniApp title for pending car intent', async () => {
+    mockPrisma.botSession.findUnique.mockResolvedValue(null);
+    mockPrisma.carListing.findMany.mockResolvedValue([{
+      id: 'car_1',
+      title: 'Перевірений VIN-код',
+      price: 25000,
+      currency: 'USD',
+      year: 2017,
+      mediaUrls: [],
+      mediaItems: null,
+      specs: {
+        brand: 'Tesla',
+        model: 'Model X',
+        rawText: 'Tesla Model X 2017'
+      },
+      status: 'AVAILABLE'
+    }]);
+
+    await requestContractService.createPendingLeadIntent({
+      slug: 'cartie',
+      intentType: 'INTEREST',
+      title: 'Перевірений VIN-код',
+      carListingIds: ['car_1'],
+      tracking: { submitId: 'submit_clean_title' },
+      telegram: { userId: '1001', username: 'client_one', name: 'Client One' }
+    });
+
+    expect(mockPrisma.botSession.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        variables: expect.objectContaining({
+          miniappPendingIntent: expect.objectContaining({
+            title: 'Tesla Model X 2017',
+            payload: expect.objectContaining({
+              selectedCars: [
+                expect.objectContaining({
+                  title: 'Tesla Model X 2017'
+                })
+              ],
+              requestSummary: expect.stringContaining('Tesla Model X 2017')
+            })
+          })
+        })
+      })
+    }));
+  });
+
   it('deduplicates pending lead intents by tracking submitId', async () => {
     mockPrisma.botSession.findUnique.mockResolvedValue({
       id: 'sess_1',
@@ -273,6 +319,57 @@ describe('requestContract.service', () => {
       title: 'BMW X5 xDrive40i',
       priceLabel: '$55,000'
     }));
+  });
+
+  it('finalizes old polluted pending MiniApp title using selected car presentation', async () => {
+    mockPrisma.botSession.findUnique.mockResolvedValue({
+      id: 'sess_1',
+      variables: {
+        miniappPendingIntent: {
+          version: 1,
+          intentType: 'INTEREST',
+          slug: 'cartie',
+          title: 'Перевірений VIN-код',
+          carIds: ['car_1'],
+          payload: {
+            selectedCars: [
+              {
+                id: 'car_1',
+                title: 'Tesla Model X 2017',
+                priceLabel: '$25,000',
+                statusLabel: 'В наявності',
+                mediaUrls: []
+              }
+            ]
+          },
+          tracking: { submitId: 'submit_polluted_legacy' },
+          createdAt: new Date().toISOString()
+        }
+      }
+    });
+    mockPrisma.carListing.findMany.mockResolvedValue([]);
+
+    await requestContractService.finalizePendingLeadIntent({
+      botId: 'bot_1',
+      companyId: 'cmp_1',
+      telegramUserId: '1001',
+      phone: '+380671234567',
+      displayName: 'Client One',
+      telegramUsername: 'client_one',
+      telegramName: 'Client One'
+    });
+
+    expect(createOrMergeLeadMock).toHaveBeenCalledWith(expect.objectContaining({
+      request: 'Tesla Model X 2017',
+      requestData: expect.objectContaining({
+        title: 'Tesla Model X 2017'
+      }),
+      payload: expect.objectContaining({
+        request: expect.objectContaining({
+          title: 'Tesla Model X 2017'
+        })
+      })
+    }), {});
   });
 
   it('returns an existing finalized MiniApp request for the same submitId instead of creating a duplicate', async () => {

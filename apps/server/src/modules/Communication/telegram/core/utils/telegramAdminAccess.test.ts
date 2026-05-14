@@ -10,7 +10,7 @@ vi.mock('../../messaging/telegramSender.js', () => ({
   }
 }));
 
-import { assertAdminTestAccess } from './telegramAdminAccess.js';
+import { assertAdminTestAccess, assertConfiguredAdminActionAccess } from './telegramAdminAccess.js';
 
 const buildCtx = (overrides: Record<string, any> = {}) => ({
   receivedAt: new Date(),
@@ -75,6 +75,41 @@ describe('assertAdminTestAccess', () => {
     if (result.ok) {
       expect(result.actorId).toBe('100');
       expect(result.adminChatId).toBe('-100123');
+    }
+  });
+});
+
+describe('assertConfiguredAdminActionAccess', () => {
+  it('allows configured private admin chat owner for non-test admin actions', async () => {
+    const result = await assertConfiguredAdminActionAccess(buildCtx({
+      chatId: '100',
+      chatType: 'private',
+      bot: {
+        id: 'bot_1',
+        token: 'token',
+        adminChatId: '100'
+      },
+      update: {
+        callback_query: {
+          id: 'cb_1',
+          from: { id: 100, username: 'admin' },
+          message: { chat: { id: 100, type: 'private' } }
+        }
+      }
+    }));
+
+    expect(result.ok).toBe(true);
+  });
+
+  it('uses action-specific denial text instead of test panel text', async () => {
+    getChatMemberMock.mockResolvedValueOnce({ status: 'member' });
+
+    const result = await assertConfiguredAdminActionAccess(buildCtx());
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.errorText).not.toMatch(/тест/i);
+      expect(result.errorText).toMatch(/дію|прав/i);
     }
   });
 });

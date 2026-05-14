@@ -4,6 +4,7 @@ import { resolveLang, t, button } from '../../core/utils/telegramText.js';
 import { telegramOutbox } from '../../messaging/outbox/telegramOutbox.js';
 import { ActionTokens, buildCallbackData } from '../../core/utils/callbackUtils.js';
 import { containsForbiddenContacts, normalizePhoneUA, parseBudgetUSD, parseMileageKm, parseYearInput } from '../../core/utils/inputValidators.js';
+import { b2bWhitelistService } from '../../../../../services/b2bWhitelist.service.js';
 
 type VariantDraft = {
   step: number;
@@ -118,6 +119,26 @@ const handleRequesterVariantDecision = async (
   if (!variant?.request) {
     await sendMessage(ctx, '⚠️ Варіант не знайдено.');
     return true;
+  }
+
+  const requesterPartnerId = toText((variant.request as any).requesterPartnerId);
+  if (requesterPartnerId) {
+    const actor = ctx.update?.callback_query?.from || ctx.update?.message?.from;
+    const actorTgUserId = toText(actor?.id || ctx.userId || ctx.chatId);
+    const participant = actorTgUserId
+      ? await b2bWhitelistService.resolveParticipant({
+        tgUserId: actorTgUserId,
+        username: actor?.username || null,
+        fullName: [actor?.first_name, actor?.last_name].filter(Boolean).join(' ').trim() || null
+      }, {
+        companyId: ctx.companyId || null,
+        botId: ctx.bot?.id || null
+      })
+      : null;
+    if (!participant?.partnerCompany || String(participant.partnerCompany.id) !== requesterPartnerId) {
+      await sendMessage(ctx, '⚠️ Оцінити цей варіант може лише автор B2B-запиту.');
+      return true;
+    }
   }
 
   const isFit = decision === 'FIT';
