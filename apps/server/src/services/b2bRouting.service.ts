@@ -1,5 +1,6 @@
 import { prisma } from './prisma.js';
 import { telegramOutbox } from '../modules/Communication/telegram/messaging/outbox/telegramOutbox.js';
+import { TelegramSender } from '../modules/Communication/telegram/messaging/telegramSender.js';
 
 const DEFAULT_CENTRAL_QUEUE_CHAT_ID = '-1003785260526';
 const DEFAULT_CENTRAL_RELAY_BOT_ID = 'cmlz1iy8500x9swgppukznbui';
@@ -16,7 +17,11 @@ export type NotifyB2bQueuesInput = {
   sourceAdminText?: string;
   replyMarkup?: any;
   includeSourceAdminFallback?: boolean;
+  allowPartnerContactDisclosure?: boolean;
 };
+
+const QUEUE_CHAT_TYPES = new Set(['group', 'supergroup']);
+const BOT_MEMBER_STATUSES = new Set(['administrator', 'creator', 'member']);
 
 const normalizeChat = (chatId?: string | null) => {
   const value = String(chatId || '').trim();
@@ -26,6 +31,28 @@ const normalizeChat = (chatId?: string | null) => {
 const withPartnerPrefix = (partnerName: string | null | undefined, text: string) => {
   const safeName = String(partnerName || 'невідомий партнер').trim();
   return `🏢 Партнер: ${safeName}\n\n${text}`;
+};
+
+const redactContactText = (text: string) => String(text || '')
+  .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[contact hidden]')
+  .replace(/(?:\+?\d[\s().-]*){9,16}/g, '[contact hidden]');
+
+const validateQueueTarget = async (target: { token: string; chatId: string }) => {
+  try {
+    const chat = await TelegramSender.getChat(target.token, target.chatId);
+    const chatType = String((chat as any)?.type || '').toLowerCase();
+    if (!QUEUE_CHAT_TYPES.has(chatType)) return false;
+
+    const me = await TelegramSender.getMe(target.token);
+    const botUserId = (me as any)?.id;
+    if (!botUserId) return false;
+
+    const member = await TelegramSender.getChatMember(target.token, target.chatId, botUserId);
+    const status = String((member as any)?.status || '').toLowerCase();
+    return BOT_MEMBER_STATUSES.has(status);
+  } catch {
+    return false;
+  }
 };
 
 const resolveCentralTarget = async (params: {
@@ -96,7 +123,9 @@ class B2bRoutingService {
     });
 
     const targets: Array<{ botId: string; token: string; companyId?: string | null; chatId: string; text: string }> = [];
-    const partnerText = input.partnerText || input.text;
+    const partnerText = input.allowPartnerContactDisclosure
+      ? (input.partnerText || input.text)
+      : redactContactText(input.partnerText || input.text);
     const centralBaseText = input.centralText || input.text;
     const sourceAdminText = input.sourceAdminText || input.text;
 
@@ -139,6 +168,9 @@ class B2bRoutingService {
       const key = `${target.botId}:${target.chatId}`;
       if (sent.has(key)) continue;
       sent.add(key);
+
+      const validTarget = await validateQueueTarget(target);
+      if (!validTarget) continue;
 
       await telegramOutbox.sendMessage({
         botId: target.botId,

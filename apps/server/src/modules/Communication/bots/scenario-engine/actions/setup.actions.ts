@@ -2,6 +2,7 @@ import { prisma } from '../../../../../services/prisma.js';
 import { sendMessage } from '../adapters/telegram.adapter.js';
 import type { BotRuntime } from '../types.js';
 import { normalizeBotConfigChatId } from '../../../telegram/core/utils/telegramChatId.js';
+import { TelegramSender } from '../../../telegram/messaging/telegramSender.js';
 
 interface SetupContext {
   bot: BotRuntime;
@@ -12,6 +13,46 @@ interface SetupContext {
   saveSession: () => Promise<void>;
 }
 
+type SetupAdminAccessResult =
+  | { ok: true; normalizedAdminChatId: string }
+  | { ok: false; errorText: string };
+
+const ADMIN_STATUSES = new Set(['administrator', 'creator']);
+
+const assertSetupAdminCommandAccess = async (
+  bot: BotRuntime,
+  chatId: string,
+  update: any
+): Promise<SetupAdminAccessResult> => {
+  const chat = update?.message?.chat || {};
+  const chatType = String(chat.type || '').toLowerCase();
+  const normalizedChatId = normalizeBotConfigChatId(chatId) || chatId;
+  if (chatType !== 'group' && chatType !== 'supergroup') {
+    return { ok: false, errorText: '⚠️ /setup_admin доступна лише в групі або супергрупі.' };
+  }
+
+  const configuredAdminChatId = normalizeBotConfigChatId((bot as any).adminChatId);
+  if (configuredAdminChatId && configuredAdminChatId !== normalizedChatId) {
+    return { ok: false, errorText: '⚠️ /setup_admin доступна лише в уже налаштованій admin-групі.' };
+  }
+
+  const actorId = String(update?.message?.from?.id || '').trim();
+  if (!actorId) {
+    return { ok: false, errorText: '⚠️ Не вдалося перевірити адміністратора групи.' };
+  }
+
+  try {
+    const member = await TelegramSender.getChatMember(bot.token, normalizedChatId, actorId);
+    const status = String((member as any)?.status || '').toLowerCase();
+    if (!ADMIN_STATUSES.has(status)) {
+      return { ok: false, errorText: '⚠️ Лише адміністратор групи може налаштувати admin chat.' };
+    }
+    return { ok: true, normalizedAdminChatId: normalizedChatId };
+  } catch {
+    return { ok: false, errorText: '⚠️ Не вдалося перевірити адміністратора групи.' };
+  }
+};
+
 export const handleSetupCommands = async ({
   bot,
   input,
@@ -21,7 +62,12 @@ export const handleSetupCommands = async ({
   saveSession
 }: SetupContext): Promise<boolean> => {
   if (input === '/setup_admin') {
-    const normalizedAdminChatId = normalizeBotConfigChatId(chatId) || chatId;
+    const access = await assertSetupAdminCommandAccess(bot, chatId, update);
+    if (!access.ok) {
+      await sendMessage(bot, chatId, access.errorText);
+      return true;
+    }
+    const normalizedAdminChatId = access.normalizedAdminChatId;
     await prisma.botConfig.update({
       where: { id: bot.id },
       data: { adminChatId: normalizedAdminChatId }

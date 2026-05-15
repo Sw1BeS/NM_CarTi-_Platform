@@ -517,5 +517,8 @@ describe('B2B registered menu', () => {
     const queuePayload = b2bRoutingServiceMock.notifyQueues.mock.calls[0]?.[0];
     expect(JSON.stringify(queuePayload || {})).not.toContain('request_1');
     expect(queuePayload?.replyMarkup).toBeUndefined();
+    expect(queuePayload?.text).not.toContain('+380635055252');
+    expect(queuePayload?.text).not.toContain('dealer@example.com');
+    expect(queuePayload?.centralText).toContain('+380635055252');
   }, 10000);
 });

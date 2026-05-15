@@ -161,6 +161,12 @@ class Sender {
     return this.call(token, 'getMe', {});
   }
 
+  async getChat(token: string, chatId: string) {
+    return this.call(token, 'getChat', {
+      chat_id: chatId
+    });
+  }
+
   async getChatMember(token: string, chatId: string, userId: string | number) {
     return this.call(token, 'getChatMember', {
       chat_id: chatId,

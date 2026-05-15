@@ -3,6 +3,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const sendMessageMock = vi.fn();
 const findPartnerCompanyMock = vi.fn();
 const findBotConfigMock = vi.fn();
+const telegramSenderMock = vi.hoisted(() => ({
+  getChat: vi.fn(),
+  getMe: vi.fn(),
+  getChatMember: vi.fn()
+}));
 
 vi.mock('./prisma.js', () => ({
   prisma: {
@@ -21,10 +26,17 @@ vi.mock('../modules/Communication/telegram/messaging/outbox/telegramOutbox.js', 
   }
 }));
 
+vi.mock('../modules/Communication/telegram/messaging/telegramSender.js', () => ({
+  TelegramSender: telegramSenderMock
+}));
+
 describe('b2bRouting.service', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     sendMessageMock.mockResolvedValue({ ok: true });
+    telegramSenderMock.getChat.mockResolvedValue({ type: 'supergroup' });
+    telegramSenderMock.getMe.mockResolvedValue({ id: 777000, username: 'relay_bot' });
+    telegramSenderMock.getChatMember.mockResolvedValue({ status: 'administrator' });
   });
 
   it('routes to partner group and central queue via relay bot with isolated message payloads', async () => {
@@ -67,7 +79,7 @@ describe('b2bRouting.service', () => {
       sourceBotToken: 'b2b_token',
       requesterPartnerId: 'partner_1',
       text: 'request.created.default',
-      partnerText: 'partner.redacted',
+      partnerText: 'partner.redacted +380635055252 dealer@example.com',
       centralText: 'central.with.contact'
     });
 
@@ -80,9 +92,44 @@ describe('b2bRouting.service', () => {
     expect(partnerMsg).toBeTruthy();
     expect(centralMsg).toBeTruthy();
     expect(centralMsg.botId).toBe('relay_bot');
-    expect(partnerMsg.text).toBe('partner.redacted');
+    expect(partnerMsg.text).toContain('partner.redacted');
+    expect(partnerMsg.text).not.toContain('+380635055252');
+    expect(partnerMsg.text).not.toContain('dealer@example.com');
     expect(centralMsg.text).toContain('🏢 Партнер: Dealer Lviv');
     expect(centralMsg.text).toContain('central.with.contact');
+  });
+
+  it('skips queue targets when Telegram chat validation fails', async () => {
+    findPartnerCompanyMock.mockResolvedValueOnce({
+      id: 'partner_invalid',
+      name: 'Private Target',
+      adminGroupChatId: '12345'
+    });
+    findBotConfigMock.mockImplementation(async ({ where }: any) => {
+      if (where.id === 'b2b_bot') {
+        return {
+          id: 'b2b_bot',
+          token: 'b2b_token',
+          companyId: 'cmp_1',
+          isEnabled: true,
+          config: { b2b: { centralQueueChatId: '67890' } }
+        };
+      }
+      return null;
+    });
+    telegramSenderMock.getChat.mockResolvedValue({ type: 'private' });
+
+    const { b2bRoutingService } = await import('./b2bRouting.service.js');
+    const result = await b2bRoutingService.notifyQueues({
+      companyId: 'cmp_1',
+      sourceBotId: 'b2b_bot',
+      sourceBotToken: 'b2b_token',
+      requesterPartnerId: 'partner_invalid',
+      text: 'default'
+    });
+
+    expect(result.totalSent).toBe(0);
+    expect(sendMessageMock).not.toHaveBeenCalled();
   });
 
   it('sends only central queue when partner group is missing', async () => {

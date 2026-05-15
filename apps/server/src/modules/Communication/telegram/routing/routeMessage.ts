@@ -2073,14 +2073,14 @@ export const finalizeB2BRequest = async (ctx: PipelineContext) => {
 
   // Notify partner queue + central queue (relay), with source-admin fallback.
   const managerChatId = (ctx.bot.config as any)?.b2bManagerChatId || ctx.bot.adminChatId;
-  // Partner queue is an admin queue, so contacts must remain visible there.
+  // Partner queues receive buyer context only after an explicit FIT/contact-share decision.
   const requestCardPartner = renderRequestCard({
     ...request,
     payload: {
       ...(request.payload as any || {}),
       companyName: requesterCompanyName || flow.companyName
     }
-  }, { includeContact: true });
+  }, { includeContact: false });
   const requestCardAdmin = renderRequestCard({
     ...request,
     payload: {

@@ -6,6 +6,7 @@ import { ActionTokens, buildCallbackData } from '../../core/utils/callbackUtils.
 import { normalizePhoneUA } from '../../core/utils/inputValidators.js';
 import { b2bRegistrationService } from '../../../../../services/b2bRegistration.service.js';
 import { b2bRoutingService } from '../../../../../services/b2bRouting.service.js';
+import { assertConfiguredAdminGroupActionAccess } from '../../core/utils/telegramAdminAccess.js';
 
 type RegistrationType = 'PARTNER' | 'AGENT';
 
@@ -681,13 +682,19 @@ export const handleB2BRegCallback = async (ctx: PipelineContext, action: string,
   }
 
   if (action === ActionTokens.BR_APPROVE || action === ActionTokens.BR_REJECT) {
+    const access = await assertConfiguredAdminGroupActionAccess(ctx);
+    if (!access.ok) {
+      await sendMessage(ctx, access.errorText);
+      return true;
+    }
+
     const accessRequestId = toText(payload);
     if (!accessRequestId) {
       await sendMessage(ctx, '⚠️ Некоректний ID заявки.');
       return true;
     }
 
-    const reviewedBy = String(ctx.update?.callback_query?.from?.id || ctx.userId || 'unknown');
+    const reviewedBy = access.actorId;
     if (action === ActionTokens.BR_APPROVE) {
       const approved = await b2bRegistrationService.approveNewPartnerRequest({
         accessRequestId,
