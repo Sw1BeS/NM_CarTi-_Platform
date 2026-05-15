@@ -16,6 +16,7 @@ import { requestContractService } from '../services/requestContract.service.js';
 import { startLeadSellWizard } from '../modules/Communication/telegram/routing/wizards/leadSellWizard.js';
 import { buildLeadAdminActionMarkup, buildLeadAdminNotificationText } from '../services/leadAdminNotification.js';
 import { isEnvFlagEnabled } from '../services/featureFlags.js';
+import { vehicleTaxonomyService } from '../services/vehicleTaxonomy.service.js';
 
 const router = Router();
 const showcaseService = new ShowcaseService();
@@ -334,6 +335,18 @@ router.get('/config', async (req, res) => {
     const message = e instanceof Error ? e.message : 'Failed to load config';
     // If company not found, it throws "Company not found", return 404/400
     if (message === 'Company not found') return errorResponse(res, 404, message);
+    errorResponse(res, 500, message);
+  }
+});
+
+router.get('/vehicle-taxonomy', async (req, res) => {
+  try {
+    const slug = readString(req.query.slug);
+    const companyId = slug ? await resolveCompanyIdBySlug(slug) : null;
+    const taxonomy = await vehicleTaxonomyService.getTaxonomy({ companyId });
+    res.json({ ok: true, ...taxonomy });
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'Failed to load vehicle taxonomy';
     errorResponse(res, 500, message);
   }
 });

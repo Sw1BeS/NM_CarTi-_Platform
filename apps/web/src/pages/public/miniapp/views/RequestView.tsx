@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowRight, CheckCircle, ChevronLeft, Search } from 'lucide-react';
+import { ArrowRight, CheckCircle, ChevronLeft } from 'lucide-react';
 import {
   BODY_TYPES,
   CITY_OPTIONS,
@@ -9,6 +9,9 @@ import {
   OTHER_MODEL,
   VEHICLE_BRANDS
 } from '../vehicleOptions';
+import { MultiSelectCombobox } from '../components/MultiSelectCombobox';
+import { SearchableSelect, type SearchableSelectOption } from '../components/SearchableSelect';
+import type { VehicleTaxonomyResponse } from '../../../../services/miniappApi';
 
 type MiniAppSurfaceMode = 'LEAD' | 'B2B';
 type RequestType = 'BUY' | 'SELL';
@@ -18,6 +21,7 @@ export type RequestFormData = {
   model: string;
   brands?: string[];
   models?: string[];
+  bodyTypes?: string[];
   budgetMin: string;
   budgetMax: string;
   yearMin: string;
@@ -49,6 +53,7 @@ type RequestViewProps = {
   primaryColor: string;
   surfaceMode: MiniAppSurfaceMode;
   requestType: RequestType;
+  taxonomy?: VehicleTaxonomyResponse | null;
   showInlineAction: boolean;
   actionLabel: string;
   actionDisabled?: boolean;
@@ -95,92 +100,11 @@ const Chip = ({
   </button>
 );
 
-const SelectedPill = ({ label, onRemove }: { label: string; onRemove: () => void }) => (
-  <span className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/8 px-3 py-2 text-xs font-semibold text-white">
-    {label}
-    <button type="button" onClick={onRemove} className="text-white/55 hover:text-white" aria-label={`Прибрати ${label}`}>
-      x
-    </button>
-  </span>
-);
-
-const SearchableOptionList = ({
-  inputLabel,
-  placeholder,
-  value,
-  onChange,
-  options,
-  selectedValues,
-  onPick,
-  disabled
-}: {
-  inputLabel: string;
-  placeholder: string;
-  value: string;
-  onChange: (value: string) => void;
-  options: string[];
-  selectedValues: string[];
-  onPick: (value: string) => void;
-  disabled?: boolean;
-}) => {
-  const listboxId = React.useId();
-  const [focused, setFocused] = React.useState(false);
-  const visibleOptions = options
-    .filter(option => option.toLowerCase().includes(value.toLowerCase()))
-    .slice(0, 14);
-  const showList = focused && !disabled;
-
-  return (
-    <div className="relative">
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-white/35" size={18} />
-        <input
-          aria-label={inputLabel}
-          aria-autocomplete="list"
-          aria-controls={listboxId}
-          aria-expanded={showList}
-          role="combobox"
-          disabled={disabled}
-          className="w-full bg-[#15171a] text-white pl-10 pr-4 py-3 rounded-xl outline-none placeholder-white/30 border border-white/10 focus:border-white/35 transition-colors disabled:opacity-50"
-          placeholder={placeholder}
-          value={value}
-          onChange={e => onChange(e.target.value)}
-          onFocus={() => setFocused(true)}
-          onBlur={() => window.setTimeout(() => setFocused(false), 120)}
-        />
-      </div>
-      {showList && (
-        <div
-          id={listboxId}
-          role="listbox"
-          className="absolute z-30 mt-2 max-h-64 w-full overflow-y-auto rounded-xl border border-white/12 bg-[#111316] shadow-2xl shadow-black/50"
-        >
-          {visibleOptions.length ? visibleOptions.map(option => {
-            const selected = selectedValues.includes(option);
-            return (
-              <button
-                key={option}
-                type="button"
-                role="option"
-                aria-selected={selected}
-                onMouseDown={e => e.preventDefault()}
-                onClick={() => onPick(option)}
-                className={`flex w-full items-center justify-between px-4 py-3 text-left text-sm transition-colors ${
-                  selected ? 'bg-white/12 text-white' : 'text-white/78 hover:bg-white/8 hover:text-white'
-                }`}
-              >
-                <span>{option}</span>
-                {selected && <span className="text-xs text-white/55">обрано</span>}
-              </button>
-            );
-          }) : (
-            <div className="px-4 py-3 text-sm text-white/50">Нічого не знайдено</div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-};
+const toSelectOption = (label: string, aliases?: string[]): SearchableSelectOption => ({
+  id: label.toLowerCase().replace(/[^a-z0-9а-яіїєґ]+/gi, '-').replace(/^-+|-+$/g, '') || label,
+  label,
+  aliases
+});
 
 export const RequestView = ({
   reqStep,
@@ -201,6 +125,7 @@ export const RequestView = ({
   primaryColor,
   surfaceMode,
   requestType,
+  taxonomy,
   showInlineAction,
   actionLabel,
   actionDisabled,
@@ -212,22 +137,40 @@ export const RequestView = ({
   onBackStep,
   onHome
 }: RequestViewProps) => {
-  const filteredBrands = VEHICLE_BRANDS.filter(item =>
-    item.brand.toLowerCase().includes(reqData.brandSearch.toLowerCase())
-  );
+  const brandSources = (taxonomy?.brands?.length ? taxonomy.brands : VEHICLE_BRANDS.map(item => ({
+    id: item.brand.toLowerCase(),
+    label: item.brand,
+    aliases: [],
+    models: item.models.map(model => ({ id: model.toLowerCase(), label: model, aliases: [], brandId: item.brand.toLowerCase() }))
+  })));
+  const brandOptions = brandSources
+    .map(item => ({ id: item.id, label: item.label === 'Other' ? OTHER_BRAND : item.label, aliases: item.aliases }))
+    .concat(brandSources.some(item => item.label === OTHER_BRAND || item.label === 'Other') ? [] : [toSelectOption(OTHER_BRAND)]);
   const selectedBrands = (reqData.brands?.length ? reqData.brands : (reqData.brand ? [reqData.brand] : []))
     .filter(Boolean);
   const selectedModels = (reqData.models?.length ? reqData.models : (reqData.model ? [reqData.model] : []))
     .filter(Boolean);
+  const selectedBodyTypes = (reqData.bodyTypes?.length ? reqData.bodyTypes : (reqData.bodyType ? [reqData.bodyType] : []))
+    .filter(Boolean);
   const modelOptions = Array.from(new Set(
-    selectedBrands.flatMap(brand => VEHICLE_BRANDS.find(item => item.brand === brand)?.models || [])
+    selectedBrands.flatMap(brand => {
+      if (brand === OTHER_BRAND || brand === 'Other') return [OTHER_MODEL];
+      const source = brandSources.find(item => item.label === brand || item.id === brand);
+      return source?.models?.map(model => model.label === 'Other' ? OTHER_MODEL : model.label) || [];
+    })
   ))
     .filter(Boolean)
-    .concat(selectedBrands.length && !selectedBrands.includes(OTHER_BRAND) ? [OTHER_MODEL] : [])
+    .concat(selectedBrands.length && !selectedBrands.includes(OTHER_BRAND) && !selectedBrands.includes('Other') ? [OTHER_MODEL] : [])
     .sort((a, b) => a.localeCompare(b));
-  const filteredModels = modelOptions.filter(model =>
-    model.toLowerCase().includes(String(reqData.modelSearch || '').toLowerCase())
-  );
+  const modelSelectOptions = modelOptions.map(label => {
+    const sourceModel = brandSources
+      .flatMap(brand => brand.models || [])
+      .find(model => model.label === label || (model.label === 'Other' && label === OTHER_MODEL));
+    return { id: sourceModel?.id || toSelectOption(label).id, label, aliases: sourceModel?.aliases };
+  });
+  const bodyTypeOptions = (taxonomy?.bodyTypes?.length ? taxonomy.bodyTypes : BODY_TYPES.map(type => toSelectOption(type)));
+  const fuelOptions = (taxonomy?.fuels?.length ? taxonomy.fuels : FUEL_TYPES.map(type => toSelectOption(type)));
+  const cityOptions = (taxonomy?.cities?.length ? taxonomy.cities : CITY_OPTIONS.map(city => toSelectOption(city)));
   const displayBrand = selectedBrands.includes(OTHER_BRAND)
     ? (reqData.brandCustom || OTHER_BRAND)
     : selectedBrands.join(', ');
@@ -264,6 +207,16 @@ export const RequestView = ({
       models: nextModels,
       modelSearch: '',
       modelCustom: model === OTHER_MODEL ? reqData.modelCustom : ''
+    });
+  };
+  const pickBodyType = (bodyType: string) => {
+    const nextBodyTypes = allowMultiVehicleChoice
+      ? (selectedBodyTypes.includes(bodyType) ? selectedBodyTypes.filter(item => item !== bodyType) : [...selectedBodyTypes, bodyType])
+      : [bodyType];
+    setReqData({
+      ...reqData,
+      bodyType: nextBodyTypes[0] || '',
+      bodyTypes: nextBodyTypes
     });
   };
 
@@ -318,25 +271,32 @@ export const RequestView = ({
           {reqStep === 1 && (
             <div className="space-y-4 animate-slide-up">
               <Field label="Марка">
-                <SearchableOptionList
-                  inputLabel="Пошук марки"
-                  placeholder={allowMultiVehicleChoice ? 'Почніть вводити марку, можна обрати кілька' : 'Почніть вводити марку'}
-                  value={reqData.brandSearch}
-                  onChange={value => setReqData({ ...reqData, brandSearch: value })}
-                  options={filteredBrands.map(item => item.brand)}
-                  selectedValues={selectedBrands}
-                  onPick={pickBrand}
-                />
-                {selectedBrands.length > 0 && (
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {selectedBrands.map(brand => (
-                      <SelectedPill
-                        key={brand}
-                        label={brand}
-                        onRemove={() => pickBrand(brand)}
-                      />
-                    ))}
-                  </div>
+                {allowMultiVehicleChoice ? (
+                  <MultiSelectCombobox
+                    label="Пошук марки"
+                    placeholder="Почніть вводити марку, можна обрати кілька"
+                    values={selectedBrands}
+                    options={brandOptions}
+                    onChange={values => setReqData({
+                      ...reqData,
+                      brand: values[0] || '',
+                      brands: values,
+                      model: '',
+                      models: [],
+                      brandSearch: '',
+                      modelSearch: '',
+                      brandCustom: values.includes(OTHER_BRAND) ? reqData.brandCustom : '',
+                      modelCustom: ''
+                    })}
+                  />
+                ) : (
+                  <SearchableSelect
+                    label="Пошук марки"
+                    placeholder="Почніть вводити марку"
+                    value={selectedBrands[0] || ''}
+                    options={brandOptions}
+                    onChange={pickBrand}
+                  />
                 )}
                 {selectedBrands.includes(OTHER_BRAND) && (
                   <input
@@ -348,26 +308,30 @@ export const RequestView = ({
                 )}
               </Field>
               <Field label="Модель">
-                <SearchableOptionList
-                  inputLabel="Пошук моделі"
-                  placeholder={selectedBrands.length ? (allowMultiVehicleChoice ? 'Почніть вводити модель, можна обрати кілька' : 'Почніть вводити модель') : 'Спочатку оберіть марку'}
-                  value={reqData.modelSearch || ''}
-                  onChange={value => setReqData({ ...reqData, modelSearch: value })}
-                  options={filteredModels}
-                  selectedValues={selectedModels}
-                  onPick={pickModel}
-                  disabled={!selectedBrands.length}
-                />
-                {selectedModels.length > 0 && (
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {selectedModels.map(model => (
-                      <SelectedPill
-                        key={model}
-                        label={model}
-                        onRemove={() => pickModel(model)}
-                      />
-                    ))}
-                  </div>
+                {allowMultiVehicleChoice ? (
+                  <MultiSelectCombobox
+                    label="Пошук моделі"
+                    placeholder={selectedBrands.length ? 'Почніть вводити модель, можна обрати кілька' : 'Спочатку оберіть марку'}
+                    values={selectedModels}
+                    options={modelSelectOptions}
+                    onChange={values => setReqData({
+                      ...reqData,
+                      model: values[0] || '',
+                      models: values,
+                      modelSearch: '',
+                      modelCustom: values.includes(OTHER_MODEL) ? reqData.modelCustom : ''
+                    })}
+                    disabled={!selectedBrands.length}
+                  />
+                ) : (
+                  <SearchableSelect
+                    label="Пошук моделі"
+                    placeholder={selectedBrands.length ? 'Почніть вводити модель' : 'Спочатку оберіть марку'}
+                    value={selectedModels[0] || ''}
+                    options={modelSelectOptions}
+                    onChange={pickModel}
+                    disabled={!selectedBrands.length}
+                  />
                 )}
                 {selectedModels.includes(OTHER_MODEL) && (
                   <input
@@ -401,8 +365,8 @@ export const RequestView = ({
               </div>
               <Field label="Тип кузова">
                 <div className="grid grid-cols-2 gap-2">
-                  {BODY_TYPES.map(type => (
-                    <Chip key={type} selected={reqData.bodyType === type} onClick={() => setReqData({ ...reqData, bodyType: type })}>{type}</Chip>
+                  {bodyTypeOptions.map(type => (
+                    <Chip key={type.id} selected={selectedBodyTypes.includes(type.label)} onClick={() => pickBodyType(type.label)}>{type.label}</Chip>
                   ))}
                 </div>
               </Field>
@@ -413,8 +377,8 @@ export const RequestView = ({
             <div className="space-y-4 animate-slide-up">
               <Field label="Пальне / двигун">
                 <div className="grid grid-cols-2 gap-2">
-                  {FUEL_TYPES.map(type => (
-                    <Chip key={type} selected={reqFuel === type} onClick={() => setReqFuel(type)}>{type}</Chip>
+                  {fuelOptions.map(type => (
+                    <Chip key={type.id} selected={reqFuel === type.label} onClick={() => setReqFuel(type.label)}>{type.label}</Chip>
                   ))}
                 </div>
               </Field>
@@ -427,8 +391,8 @@ export const RequestView = ({
               </Field>
               <Field label="Місто">
                 <div className="grid grid-cols-2 gap-2">
-                  {CITY_OPTIONS.map(city => (
-                    <Chip key={city} selected={reqData.city === city} onClick={() => setReqData({ ...reqData, city })}>{city}</Chip>
+                  {cityOptions.map(city => (
+                    <Chip key={city.id} selected={reqData.city === city.label} onClick={() => setReqData({ ...reqData, city: city.label })}>{city.label}</Chip>
                   ))}
                 </div>
               </Field>
@@ -462,7 +426,7 @@ export const RequestView = ({
                   ['Авто', [displayBrand, displayModel].filter(Boolean).join(' ') || 'Не обрано'],
                   ['Роки', `${reqData.yearMin || 'будь-який'} - ${reqData.yearMax || 'будь-який'}`],
                   ['Бюджет', reqData.budgetMin || reqData.budgetMax ? `$${reqData.budgetMin || '0'} - $${reqData.budgetMax || '∞'}` : 'Не обрано'],
-                  ['Кузов', reqData.bodyType || 'Не обрано'],
+                  ['Кузов', selectedBodyTypes.join(', ') || 'Не обрано'],
                   ['Пальне', reqFuel || 'Не обрано'],
                   ['Пробіг', reqMileage || 'Не обрано'],
                   ['Локація', reqData.city || 'Не обрано']

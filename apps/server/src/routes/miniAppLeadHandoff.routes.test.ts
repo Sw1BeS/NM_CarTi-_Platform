@@ -11,6 +11,7 @@ const {
   startLeadSellWizardMock,
   emitPlatformEventMock,
   metaPixelTrackEventMock,
+  vehicleTaxonomyServiceMock,
   prismaMock
 } = vi.hoisted(() => ({
   miniAppServiceMock: {
@@ -31,6 +32,9 @@ const {
   startLeadSellWizardMock: vi.fn(),
   emitPlatformEventMock: vi.fn(),
   metaPixelTrackEventMock: vi.fn(),
+  vehicleTaxonomyServiceMock: {
+    getTaxonomy: vi.fn()
+  },
   prismaMock: {
     botConfig: {
       findFirst: vi.fn()
@@ -70,6 +74,9 @@ const {
       findMany: vi.fn(),
       findUnique: vi.fn(),
       update: vi.fn()
+    },
+    normalizationAlias: {
+      findMany: vi.fn()
     }
   }
 }));
@@ -111,6 +118,10 @@ vi.mock('../modules/Integrations/integration.service.js', () => ({
   IntegrationService: vi.fn().mockImplementation(() => ({
     metaPixelTrackEvent: metaPixelTrackEventMock
   }))
+}));
+
+vi.mock('../services/vehicleTaxonomy.service.js', () => ({
+  vehicleTaxonomyService: vehicleTaxonomyServiceMock
 }));
 
 const buildApp = async () => {
@@ -198,7 +209,33 @@ describe('MiniApp Lead handoff routes', () => {
     startLeadSellWizardMock.mockResolvedValue(undefined);
     emitPlatformEventMock.mockResolvedValue(undefined);
     metaPixelTrackEventMock.mockResolvedValue({ success: true, eventId: 'event_1' });
+    vehicleTaxonomyServiceMock.getTaxonomy.mockResolvedValue({
+      brands: [
+        { id: 'bmw', label: 'BMW', aliases: [], models: [{ id: 'x5', label: 'X5', brandId: 'bmw', aliases: [] }] }
+      ],
+      bodyTypes: [{ id: 'suv', label: 'SUV' }],
+      fuels: [{ id: 'diesel', label: 'Дизель' }],
+      transmissions: [{ id: 'automatic', label: 'Автомат' }],
+      drives: [{ id: 'awd', label: 'Повний' }],
+      cities: [{ id: 'kyiv', label: 'Київ' }]
+    });
     vi.unstubAllEnvs();
+  });
+
+  it('returns MiniApp vehicle taxonomy for searchable request forms', async () => {
+    const app = await buildApp();
+
+    const res = await request(app)
+      .get('/api/miniapp/vehicle-taxonomy')
+      .expect(200);
+
+    expect(res.body.ok).toBe(true);
+    expect(res.body.brands[0]).toMatchObject({
+      id: 'bmw',
+      label: 'BMW',
+      models: [expect.objectContaining({ id: 'x5', label: 'X5', brandId: 'bmw' })]
+    });
+    expect(vehicleTaxonomyServiceMock.getTaxonomy).toHaveBeenCalledWith({ companyId: null });
   });
 
   it('creates a pending pick intent and asks for native Telegram contact', async () => {

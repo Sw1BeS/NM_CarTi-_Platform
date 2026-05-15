@@ -82,6 +82,29 @@ export type MiniAppEventPayload = {
   tracking?: MiniAppTrackingMeta;
 };
 
+export type VehicleTaxonomyOption = {
+  id: string;
+  label: string;
+  aliases?: string[];
+};
+
+export type VehicleTaxonomyModel = VehicleTaxonomyOption & {
+  brandId?: string;
+};
+
+export type VehicleTaxonomyBrand = VehicleTaxonomyOption & {
+  models: VehicleTaxonomyModel[];
+};
+
+export type VehicleTaxonomyResponse = {
+  brands: VehicleTaxonomyBrand[];
+  bodyTypes: VehicleTaxonomyOption[];
+  fuels: VehicleTaxonomyOption[];
+  transmissions: VehicleTaxonomyOption[];
+  drives: VehicleTaxonomyOption[];
+  cities: VehicleTaxonomyOption[];
+};
+
 export async function getMiniAppFavorites(params: { slug: string; tgUserId?: string; visitorId?: string }): Promise<MiniAppFavoritesResponse> {
   const query = new URLSearchParams();
   query.append('slug', params.slug);
@@ -188,6 +211,16 @@ export async function getMiniAppConfig(slug: string): Promise<MiniAppConfigRespo
     return response.config as MiniAppConfigResponse;
   }
   return response as MiniAppConfigResponse;
+}
+
+export async function getMiniAppVehicleTaxonomy(params?: { slug?: string }): Promise<VehicleTaxonomyResponse> {
+  const query = new URLSearchParams();
+  if (params?.slug) query.append('slug', params.slug);
+  const response = await apiFetch(`/miniapp/vehicle-taxonomy?${query.toString()}`, {
+    method: 'GET',
+    skipAuth: true
+  });
+  return response as VehicleTaxonomyResponse;
 }
 
 export async function getMiniAppShowcases(slug: string) {
