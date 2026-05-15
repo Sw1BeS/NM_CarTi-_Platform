@@ -218,4 +218,46 @@ describe('miniapp.service', () => {
     }));
     expect(mockPrisma.b2bRequest.create).not.toHaveBeenCalled();
   });
+
+  it('creates B2B SELL/add-car requests without creating a Lead', async () => {
+    const request = await miniAppService.createRequest({
+      slug: 'cardealer_lviv_bot',
+      requestType: 'SELL',
+      title: 'B2B продаж авто: BMW X5',
+      comment: 'Авто партнера для продажу',
+      payload: {
+        requestType: 'SELL',
+        criteria: {
+          brands: [{ id: 'bmw', label: 'BMW' }],
+          models: [{ brandId: 'bmw', id: 'x5', label: 'X5' }],
+          yearFrom: 2021,
+          mileage: '80 000 км'
+        }
+      },
+      tracking: { submitId: 'sell_submit_1' },
+      telegram: {
+        userId: '2001',
+        username: 'dealer_owner',
+        name: 'Dealer Owner'
+      }
+    });
+
+    expect(createOrMergeLeadMock).not.toHaveBeenCalled();
+    expect(mockPrisma.b2bRequest.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        type: 'SELL',
+        leadId: undefined,
+        requesterPartnerId: 'partner_1',
+        payload: expect.objectContaining({
+          requestType: 'SELL',
+          requesterPartner: expect.objectContaining({ id: 'partner_1' }),
+          requestPresentation: expect.objectContaining({
+            customerIntent: 'SELL'
+          })
+        })
+      })
+    }));
+    expect(request.payload.requestType).toBe('SELL');
+    expect(request.leadId).toBeUndefined();
+  });
 });

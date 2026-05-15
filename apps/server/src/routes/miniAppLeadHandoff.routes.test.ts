@@ -593,6 +593,7 @@ describe('MiniApp Lead handoff routes', () => {
       chatType: 'private'
     }));
     expect(requestContractServiceMock.createPendingLeadIntent).not.toHaveBeenCalled();
+    expect(miniAppServiceMock.createRequest).not.toHaveBeenCalled();
   });
 
   it('rejects Lead-only bot-flows for B2B MiniApp configs', async () => {
@@ -694,6 +695,59 @@ describe('MiniApp Lead handoff routes', () => {
         name: 'Ivan Client'
       }
     }));
+  });
+
+  it('creates B2B SELL/add-car requests through MiniApp request path without starting Lead sell flow', async () => {
+    miniAppServiceMock.getConfig.mockResolvedValueOnce({
+      companyId: 'company_1',
+      botId: 'bot_b2b',
+      publicSlug: 'cardealer_lviv_bot',
+      template: 'B2B',
+      miniapp: { surfaceMode: 'B2B' }
+    });
+    miniAppServiceMock.createRequest.mockResolvedValueOnce({
+      id: 'request_sell_1',
+      publicId: 'CD-2026-000002',
+      requesterPartnerId: 'partner_1',
+      type: 'SELL'
+    });
+    const app = await buildApp();
+
+    const res = await request(app)
+      .post('/api/miniapp/requests')
+      .send({
+        slug: 'cardealer_lviv_bot',
+        initData: 'signed-init-data',
+        requestType: 'SELL',
+        payload: {
+          mode: 'B2B',
+          criteria: {
+            brand: 'BMW',
+            model: 'X5',
+            yearFrom: '2021'
+          }
+        },
+        tracking: { submitId: 'b2b_sell_submit_1' }
+      });
+
+    expect(res.status).toBe(200);
+    expect(miniAppServiceMock.createRequest).toHaveBeenCalledWith(expect.objectContaining({
+      requestType: 'SELL',
+      telegram: {
+        userId: '1001',
+        username: 'client_one',
+        name: 'Ivan Client'
+      },
+      payload: expect.objectContaining({
+        mode: 'B2B',
+        criteria: expect.objectContaining({
+          brand: 'BMW',
+          model: 'X5'
+        })
+      })
+    }));
+    expect(startLeadSellWizardMock).not.toHaveBeenCalled();
+    expect(requestContractServiceMock.createPendingLeadIntent).not.toHaveBeenCalled();
   });
 
   it('dispatches Meta CAPI for enabled MiniApp lead events with stable event id', async () => {
