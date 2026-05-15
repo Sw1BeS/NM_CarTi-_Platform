@@ -4,7 +4,8 @@ const {
   mockPrisma,
   createOrMergeLeadMock,
   resolvePublicSlugMock,
-  platformEventsEmitMock
+  platformEventsEmitMock,
+  metaTrackEventMock
 } = vi.hoisted(() => ({
   mockPrisma: {
     botConfig: {
@@ -37,7 +38,8 @@ const {
   },
   createOrMergeLeadMock: vi.fn(),
   resolvePublicSlugMock: vi.fn(),
-  platformEventsEmitMock: vi.fn()
+  platformEventsEmitMock: vi.fn(),
+  metaTrackEventMock: vi.fn()
 }));
 
 vi.mock('./prisma.js', () => ({
@@ -59,6 +61,12 @@ vi.mock('./platform-events.js', () => ({
 
 vi.mock('./publicSlug.service.js', () => ({
   resolvePublicSlug: resolvePublicSlugMock
+}));
+
+vi.mock('../modules/Integrations/integration.service.js', () => ({
+  IntegrationService: class {
+    metaPixelTrackEvent = metaTrackEventMock;
+  }
 }));
 
 import { requestContractService } from './requestContract.service.js';
@@ -98,6 +106,7 @@ describe('requestContract.service', () => {
     mockPrisma.b2bRequest.findFirst.mockResolvedValue(null);
     mockPrisma.b2bRequest.findMany.mockResolvedValue([]);
     mockPrisma.lead.findFirst.mockResolvedValue(null);
+    metaTrackEventMock.mockResolvedValue({ success: true });
   });
 
   it('stores pending lead intent in bot session', async () => {

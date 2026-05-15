@@ -22,6 +22,11 @@ export type MiniAppTrackingMeta = {
   buildSha?: string;
   submitId?: string;
   requestType?: 'BUY' | 'SELL';
+  eventId?: string;
+  fbp?: string;
+  fbc?: string;
+  eventSourceUrl?: string;
+  actionSource?: 'website' | 'chat' | string;
 };
 
 export type MiniAppRequestSubtype = 'GENERAL' | 'SPECIFIC' | 'MULTI_SELECT';

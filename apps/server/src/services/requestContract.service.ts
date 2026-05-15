@@ -18,6 +18,8 @@ import { platformEvents, EVENTS } from './platform-events.js';
 import { resolvePublicSlug, type PublicSlugResolution } from './publicSlug.service.js';
 import { buildOperatorRequestPresentation, buildRequestPresentationSnapshot } from './requestPresentation.js';
 import { findRecentMiniAppSelectedCarsDuplicate } from './miniappRequestDedupe.js';
+import { IntegrationService } from '../modules/Integrations/integration.service.js';
+import { logger } from '../utils/logger.js';
 
 type MiniAppTracking = Record<string, unknown>;
 type MiniAppTelegram = {
@@ -810,6 +812,27 @@ class RequestContractService {
         message: `${pendingIntent.intentType} finalized from Mini App contact share`
       }
     }).catch(() => null);
+
+    const tracking = isRecord(pendingIntent.tracking) ? pendingIntent.tracking as Record<string, unknown> : {};
+    new IntegrationService().metaPixelTrackEvent(params.companyId, 'SubmitApplication', {
+      entityType: 'request',
+      entityId: request.id,
+      stage: 'miniapp_finalized',
+      externalId: params.telegramUserId ? `telegram:${params.telegramUserId}` : undefined,
+      phone: params.phone,
+      actionSource: 'chat',
+      fbp: toOptionalString(tracking.fbp),
+      fbc: toOptionalString(tracking.fbc),
+      eventSourceUrl: toOptionalString(tracking.eventSourceUrl),
+      contentName: title,
+      contentCategory: 'MiniApp Lead Request',
+      contentIds: [request.publicId || request.id],
+      customData: {
+        botId: params.botId,
+        source: 'miniapp_lead_intent',
+        intentType: pendingIntent.intentType
+      }
+    }).catch(logger.error);
 
     return {
       intentType: pendingIntent.intentType,

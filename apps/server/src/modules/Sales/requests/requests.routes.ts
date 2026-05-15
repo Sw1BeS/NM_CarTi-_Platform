@@ -7,6 +7,7 @@ import { generatePublicId, mapRequestInput, mapRequestOutput, mapVariantInput, m
 import { RequestRepository } from '../../../repositories/index.js';
 import { renderRequestCard, managerActionsKeyboard, sanitizePublicText } from '../../../services/cardRenderer.js';
 import { telegramOutbox } from '../../Communication/telegram/messaging/outbox/telegramOutbox.js';
+import { IntegrationService } from '../../Integrations/integration.service.js';
 
 import { validate } from '../../../middleware/validation.js';
 import { createRequestSchema } from '../../../validation/schemas.js';
@@ -102,13 +103,21 @@ router.post('/', authenticateToken, requireRole(['OWNER', 'ADMIN', 'MANAGER', 'O
             companyId
         });
 
-        // Meta CAPI Event (preserved)
         if (companyId) {
-            import('../../Integrations/meta/meta.service.js').then(({ MetaService }) => {
-                MetaService.getInstance().sendEvent('SubmitApplication', {
-                    user: { id: (req as any).user.id },
-                }, { requestId: request.publicId }).catch(logger.error);
-            });
+            new IntegrationService().metaPixelTrackEvent(companyId, 'SubmitApplication', {
+                entityType: 'request',
+                entityId: request.id,
+                stage: 'created',
+                externalId: user.id ? `admin:${user.id}` : undefined,
+                actionSource: 'system_generated',
+                contentName: request.title,
+                contentCategory: 'Request',
+                contentIds: [request.publicId || request.id],
+                customData: {
+                    requestId: request.publicId || request.id,
+                    source: 'admin'
+                }
+            }).catch(logger.error);
         }
         res.json(mapRequestOutput(request, { includeContact: true }));
     } catch (e: any) {
@@ -137,11 +146,23 @@ router.put('/:id', authenticateToken, requireRole(['OWNER', 'ADMIN', 'MANAGER', 
         const request = await requestRepo.updateRequest(id, data);
 
         if (data.status === 'WON' && (existing.companyId || userCompanyId)) {
-            import('../../Integrations/meta/meta.service.js').then(({ MetaService }) => {
-                MetaService.getInstance().sendEvent('Purchase', {
-                    user: { id: (req as any).user.id },
-                }, { requestId: request.publicId, value: request.budgetMax, currency: 'USD' }).catch(logger.error);
-            });
+            const metaCompanyId = existing.companyId || userCompanyId;
+            new IntegrationService().metaPixelTrackEvent(metaCompanyId, 'Purchase', {
+                entityType: 'request',
+                entityId: request.id,
+                stage: 'won',
+                externalId: user.id ? `admin:${user.id}` : undefined,
+                actionSource: 'system_generated',
+                contentName: request.title,
+                contentCategory: 'Request',
+                contentIds: [request.publicId || request.id],
+                value: request.budgetMax || undefined,
+                currency: 'USD',
+                customData: {
+                    requestId: request.publicId || request.id,
+                    source: 'admin'
+                }
+            }).catch(logger.error);
         }
 
         res.json(mapRequestOutput(request, { includeContact: true }));

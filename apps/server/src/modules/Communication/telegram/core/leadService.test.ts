@@ -123,11 +123,14 @@ describe('createOrMergeLead', () => {
       })
     }));
     expect(metaCompanyTrackMock).toHaveBeenCalledWith('comp_1', 'Lead', expect.objectContaining({
-      eventId: 'lead:lead_new',
+      entityType: 'lead',
+      entityId: 'lead_new',
+      stage: 'created',
       externalId: 'telegram:777',
       phone: undefined,
       contentIds: ['lead_new']
     }));
+    expect(metaSendEventMock).not.toHaveBeenCalled();
     expect(leadIdentityUpsertMock).toHaveBeenCalledWith(expect.objectContaining({
       where: {
         companyId_provider_externalId: {

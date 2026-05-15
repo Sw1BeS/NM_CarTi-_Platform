@@ -1396,7 +1396,8 @@ router.post('/events', async (req, res) => {
         contentIds: carListingId ? [carListingId] : undefined,
         customData,
         entityType: 'miniapp_event',
-        entityId: eventId
+        entityId: eventId,
+        stage: eventType
       }).catch((e: unknown) => {
         logger.warn('[MiniApp] Meta CAPI event failed', {
           slug,

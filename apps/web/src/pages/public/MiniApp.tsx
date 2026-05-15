@@ -38,6 +38,15 @@ const emitMiniAppEvent = (level: 'info' | 'warn' | 'error', message: string, met
     }
 };
 
+const readCookie = (name: string) => {
+    if (typeof document === 'undefined') return undefined;
+    const match = document.cookie
+        .split(';')
+        .map(part => part.trim())
+        .find(part => part.startsWith(`${name}=`));
+    return match ? decodeURIComponent(match.slice(name.length + 1)) : undefined;
+};
+
 class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean; error: Error | null; errorInfo: React.ErrorInfo | null }> {
     public state: { hasError: boolean; error: Error | null; errorInfo: React.ErrorInfo | null };
     constructor(props: { children: React.ReactNode }) {
@@ -809,7 +818,11 @@ const MiniAppContent = () => {
                 entrypoint: window.location.pathname,
                 referrer: document.referrer || undefined,
                 miniappVersion: buildVersion,
-                buildSha: buildVersion
+                buildSha: buildVersion,
+                fbp: readCookie('_fbp'),
+                fbc: readCookie('_fbc'),
+                eventSourceUrl: window.location.href,
+                actionSource: 'website'
             });
 
             // 2. Determine Target Slug (priority: URL slug > non-entry start_param > system)
