@@ -24,6 +24,7 @@ const {
     },
     b2bRequest: {
       findFirst: vi.fn(),
+      findMany: vi.fn(),
       update: vi.fn(),
       create: vi.fn()
     },
@@ -95,6 +96,7 @@ describe('requestContract.service', () => {
       status: 'COLLECTING_VARIANTS'
     });
     mockPrisma.b2bRequest.findFirst.mockResolvedValue(null);
+    mockPrisma.b2bRequest.findMany.mockResolvedValue([]);
     mockPrisma.lead.findFirst.mockResolvedValue(null);
   });
 
@@ -423,6 +425,117 @@ describe('requestContract.service', () => {
         })
       })
     }));
+  });
+
+  it('returns a recent finalized MiniApp request for the same selected cars when submitId is missing', async () => {
+    mockPrisma.botSession.findUnique.mockResolvedValue({
+      id: 'sess_1',
+      variables: {
+        miniappPendingIntent: {
+          version: 1,
+          intentType: 'REQUEST',
+          slug: 'cartie',
+          title: 'Підбір авто',
+          carIds: ['car_1', 'car_2'],
+          createdAt: new Date().toISOString()
+        }
+      }
+    });
+    mockPrisma.carListing.findMany.mockResolvedValue([
+      { id: 'car_1', title: 'BMW X5', mediaUrls: [], mediaItems: null, specs: {}, status: 'AVAILABLE' },
+      { id: 'car_2', title: 'Audi Q7', mediaUrls: [], mediaItems: null, specs: {}, status: 'AVAILABLE' }
+    ]);
+    mockPrisma.b2bRequest.findMany.mockResolvedValueOnce([{
+      id: 'request_existing_cars',
+      publicId: 'REQ-CARS',
+      title: 'Підбір авто',
+      type: 'BUY',
+      chatId: '1001',
+      botId: 'bot_1',
+      payload: {
+        source: 'miniapp_intent',
+        request: {
+          carListingIds: ['car_2', 'car_1']
+        }
+      },
+      description: 'Existing request',
+      status: 'COLLECTING_VARIANTS'
+    }]);
+
+    const result = await requestContractService.finalizePendingLeadIntent({
+      botId: 'bot_1',
+      companyId: 'cmp_1',
+      telegramUserId: '1001',
+      phone: '+380671234567',
+      displayName: 'Client One',
+      telegramUsername: 'client_one',
+      telegramName: 'Client One'
+    });
+
+    expect(result.isDuplicate).toBe(true);
+    expect(result.request.publicId).toBe('REQ-CARS');
+    expect(createOrMergeLeadMock).not.toHaveBeenCalled();
+    expect(mockPrisma.b2bRequest.create).not.toHaveBeenCalled();
+    expect(mockPrisma.b2bRequest.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        companyId: 'cmp_1',
+        botId: 'bot_1',
+        chatId: '1001',
+        type: 'BUY',
+        createdAt: expect.objectContaining({ gte: expect.any(Date) })
+      }),
+      orderBy: { createdAt: 'desc' }
+    }));
+  });
+
+  it('falls back to recent selected-car duplicate search when submitId has no exact match', async () => {
+    mockPrisma.botSession.findUnique.mockResolvedValue({
+      id: 'sess_1',
+      variables: {
+        miniappPendingIntent: {
+          version: 1,
+          intentType: 'REQUEST',
+          slug: 'cartie',
+          title: 'Підбір авто',
+          carIds: ['car_1'],
+          tracking: { submitId: 'submit_new_but_same_car' },
+          createdAt: new Date().toISOString()
+        }
+      }
+    });
+    mockPrisma.carListing.findMany.mockResolvedValue([
+      { id: 'car_1', title: 'BMW X5', mediaUrls: [], mediaItems: null, specs: {}, status: 'AVAILABLE' }
+    ]);
+    mockPrisma.b2bRequest.findFirst.mockResolvedValueOnce(null);
+    mockPrisma.b2bRequest.findMany.mockResolvedValueOnce([{
+      id: 'request_existing_same_car',
+      publicId: 'REQ-SAME-CAR',
+      title: 'Підбір авто',
+      type: 'BUY',
+      chatId: '1001',
+      botId: 'bot_1',
+      payload: {
+        source: 'miniapp_intent',
+        request: {
+          carListingIds: ['car_1']
+        }
+      },
+      description: 'Existing request',
+      status: 'COLLECTING_VARIANTS'
+    }]);
+
+    const result = await requestContractService.finalizePendingLeadIntent({
+      botId: 'bot_1',
+      companyId: 'cmp_1',
+      telegramUserId: '1001',
+      phone: '+380671234567',
+      displayName: 'Client One'
+    });
+
+    expect(result.isDuplicate).toBe(true);
+    expect(result.request.publicId).toBe('REQ-SAME-CAR');
+    expect(createOrMergeLeadMock).not.toHaveBeenCalled();
+    expect(mockPrisma.b2bRequest.create).not.toHaveBeenCalled();
   });
 
   it('reveals fit queue contacts only through explicit admin action and sets CONTACT_SHARED', async () => {

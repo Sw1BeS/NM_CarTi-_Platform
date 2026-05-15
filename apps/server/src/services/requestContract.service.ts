@@ -17,6 +17,7 @@ import { createOrMergeLead } from '../modules/Communication/telegram/core/leadSe
 import { platformEvents, EVENTS } from './platform-events.js';
 import { resolvePublicSlug, type PublicSlugResolution } from './publicSlug.service.js';
 import { buildRequestPresentationSnapshot } from './requestPresentation.js';
+import { findRecentMiniAppSelectedCarsDuplicate } from './miniappRequestDedupe.js';
 
 type MiniAppTracking = Record<string, unknown>;
 type MiniAppTelegram = {
@@ -648,57 +649,66 @@ class RequestContractService {
       payload: pendingIntent.payload || undefined
     } as Record<string, unknown>;
     const submitId = readSubmitId(pendingIntent.tracking);
-    if (submitId) {
-      requestPayload.idempotencyKey = buildMiniAppSubmitKey({
+    requestPayload.idempotencyKey = buildMiniAppSubmitKey({
+      companyId: params.companyId,
+      botId: params.botId,
+      telegramUserId: params.telegramUserId,
+      submitId
+    });
+    let existingRequest = submitId
+      ? await this.findExistingMiniAppSubmit({
+          companyId: params.companyId,
+          botId: params.botId,
+          telegramUserId: params.telegramUserId,
+          submitId
+        })
+      : null;
+    if (!existingRequest) {
+      existingRequest = await findRecentMiniAppSelectedCarsDuplicate({
         companyId: params.companyId,
         botId: params.botId,
-        telegramUserId: params.telegramUserId,
-        submitId
+        chatId: params.telegramUserId,
+        requestType: 'BUY',
+        selectedCarIds
       });
-      const existingRequest = await this.findExistingMiniAppSubmit({
-        companyId: params.companyId,
-        botId: params.botId,
-        telegramUserId: params.telegramUserId,
-        submitId
+    }
+    if (existingRequest) {
+      await prisma.botSession.update({
+        where: { id: session.id },
+        data: {
+          state: 'CL_MENU',
+          variables: {
+            ...vars,
+            miniappPendingIntent: null,
+            miniappInterestDraft: null
+          },
+          lastActive: new Date()
+        }
       });
-      if (existingRequest) {
-        await prisma.botSession.update({
-          where: { id: session.id },
-          data: {
-            state: 'CL_MENU',
-            variables: {
-              ...vars,
-              miniappPendingIntent: null,
-              miniappInterestDraft: null
-            },
-            lastActive: new Date()
-          }
-        });
 
-        await prisma.integrationEventLog.create({
-          data: {
-            companyId: params.companyId,
-            integration: 'telegram',
-            action: 'miniapp.lead_intent_duplicate',
-            status: 'SUCCESS',
-            entityType: 'request',
-            entityId: String(existingRequest.id),
-            idempotencyKey: `miniapp-duplicate:${requestPayload.idempotencyKey}`,
-            message: `${pendingIntent.intentType} duplicate submit ignored`
-          }
-        }).catch(() => null);
+      await prisma.integrationEventLog.create({
+        data: {
+          companyId: params.companyId,
+          integration: 'telegram',
+          action: 'miniapp.lead_intent_duplicate',
+          status: 'SUCCESS',
+          entityType: 'request',
+          entityId: String(existingRequest.id),
+          idempotencyKey: `miniapp-duplicate:${requestPayload.idempotencyKey}`,
+          message: `${pendingIntent.intentType} duplicate submit ignored`
+        }
+      }).catch(() => null);
 
-        return {
-          intentType: pendingIntent.intentType,
-          title,
-          phone: params.phone,
-          isDuplicate: true,
-          lead: null,
-          request: existingRequest,
-          selectedCars: requestPresentation.selectedCars,
-          requestPresentation
-        };
-      }
+      return {
+        intentType: pendingIntent.intentType,
+        title,
+        phone: params.phone,
+        isDuplicate: true,
+        lead: null,
+        request: existingRequest,
+        selectedCars: requestPresentation.selectedCars,
+        requestPresentation
+      };
     }
 
     const leadResult = await createOrMergeLead({

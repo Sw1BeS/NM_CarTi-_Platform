@@ -7,6 +7,7 @@ import { resolvePublicSlug, type PublicSlugResolution } from './publicSlug.servi
 import { platformEvents, EVENTS } from './platform-events.js';
 import { buildRequestPresentationSnapshot } from './requestPresentation.js';
 import { buildMiniAppSubmitKey } from './requestContract.service.js';
+import { findRecentMiniAppSelectedCarsDuplicate } from './miniappRequestDedupe.js';
 
 export type MiniAppIdentity = {
   tgUserId?: string;
@@ -335,14 +336,12 @@ export class MiniAppService {
         if (!requesterPartnerId) throw new Error('B2B partner access required');
       }
 
-      const idempotencyKey = submitId
-        ? buildMiniAppSubmitKey({
-          companyId,
-          botId,
-          telegramUserId: tgUserId,
-          submitId
-        })
-        : undefined;
+      const idempotencyKey = buildMiniAppSubmitKey({
+        companyId,
+        botId,
+        telegramUserId: tgUserId,
+        submitId
+      });
 
       const payload: Record<string, any> = {
         ...payloadFromInput,
@@ -352,20 +351,20 @@ export class MiniAppService {
         idempotencyKey,
         tracking,
         telegram,
-      requestType,
-      requestSubtype,
-      selectedCars: requestPresentation.selectedCars,
-      vehiclePresentation: requestPresentation.vehiclePresentation,
-      requestSummary: requestPresentation.requestSummary,
-      requestPresentation,
-      request: {
-        carListingId: carListingId || undefined,
-        carListingIds: selectedCarIds.length ? selectedCarIds : undefined,
-        phone: phone || undefined,
-        comment: comment || undefined,
-        subtype: requestSubtype
-      }
-    };
+        requestType,
+        requestSubtype,
+        selectedCars: requestPresentation.selectedCars,
+        vehiclePresentation: requestPresentation.vehiclePresentation,
+        requestSummary: requestPresentation.requestSummary,
+        requestPresentation,
+        request: {
+          carListingId: carListingId || undefined,
+          carListingIds: selectedCarIds.length ? selectedCarIds : undefined,
+          phone: phone || undefined,
+          comment: comment || undefined,
+          subtype: requestSubtype
+        }
+      };
 
       if (requesterPartnerId) {
         payload.requesterPartner = {
@@ -390,7 +389,17 @@ export class MiniAppService {
           orderBy: { createdAt: 'desc' }
         });
         if (existing) return mapRequestOutput(existing);
-    }
+      }
+
+    const recentDuplicate = await findRecentMiniAppSelectedCarsDuplicate({
+      companyId,
+      botId,
+      chatId: tgUserId,
+      requesterPartnerId,
+      requestType,
+      selectedCarIds
+    });
+    if (recentDuplicate) return mapRequestOutput(recentDuplicate);
 
     const requestInput = mapRequestInput({
       title,
