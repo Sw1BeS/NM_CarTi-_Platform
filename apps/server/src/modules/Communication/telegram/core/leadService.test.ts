@@ -8,6 +8,8 @@ const {
   prismaLeadUpdateMock,
   leadActivityCreateMock,
   integrationEventLogCreateMock,
+  leadIdentityFindUniqueMock,
+  leadIdentityUpsertMock,
   botConfigFindUniqueMock,
   emitPlatformEventMock,
   metaCompanyTrackMock,
@@ -20,6 +22,8 @@ const {
   prismaLeadUpdateMock: vi.fn(async () => null),
   leadActivityCreateMock: vi.fn(async () => ({ id: 'act_1' })),
   integrationEventLogCreateMock: vi.fn(async () => ({ id: 'log_1' })),
+  leadIdentityFindUniqueMock: vi.fn(async () => null),
+  leadIdentityUpsertMock: vi.fn(async () => ({ id: 'identity_1' })),
   botConfigFindUniqueMock: vi.fn(async () => null),
   emitPlatformEventMock: vi.fn(async () => undefined),
   metaCompanyTrackMock: vi.fn(async () => ({ success: true })),
@@ -43,6 +47,10 @@ vi.mock('../../../../repositories/index.js', () => {
 vi.mock('../../../../services/prisma.js', () => ({
   prisma: {
     leadActivity: { create: leadActivityCreateMock },
+    leadIdentity: {
+      findUnique: leadIdentityFindUniqueMock,
+      upsert: leadIdentityUpsertMock
+    },
     integrationEventLog: { create: integrationEventLogCreateMock },
     lead: { update: prismaLeadUpdateMock },
     botConfig: { findUnique: botConfigFindUniqueMock },
@@ -79,6 +87,8 @@ beforeEach(() => {
   createRequestMock.mockResolvedValue({ id: 'req_default', publicId: 'REQ-DEFAULT' } as any);
   botConfigFindUniqueMock.mockResolvedValue(null as any);
   metaCompanyTrackMock.mockResolvedValue({ success: true });
+  leadIdentityFindUniqueMock.mockResolvedValue(null as any);
+  leadIdentityUpsertMock.mockResolvedValue({ id: 'identity_1' } as any);
 });
 
 describe('createOrMergeLead', () => {
@@ -118,6 +128,36 @@ describe('createOrMergeLead', () => {
       phone: undefined,
       contentIds: ['lead_new']
     }));
+    expect(leadIdentityUpsertMock).toHaveBeenCalledWith(expect.objectContaining({
+      where: {
+        companyId_provider_externalId: {
+          companyId: 'comp_1',
+          provider: 'TELEGRAM',
+          externalId: '777'
+        }
+      }
+    }));
+  });
+
+  it('resolves existing lead through durable LeadIdentity before windowed fallback', async () => {
+    const identityLead = { id: 'lead_identity', clientName: 'Identity Client', payload: {} };
+    findDuplicateMock.mockResolvedValueOnce(null);
+    leadIdentityFindUniqueMock.mockResolvedValueOnce({ id: 'identity_telegram', lead: identityLead });
+    prismaLeadUpdateMock.mockResolvedValueOnce({ ...identityLead, payload: { lastInteractionAt: 'now' } });
+
+    const result = await createOrMergeLead({
+      botId: 'bot_1',
+      companyId: 'comp_1',
+      chatId: '123',
+      userId: '123',
+      name: 'Identity Client',
+      source: 'TELEGRAM',
+      createRequest: false
+    });
+
+    expect(result.isDuplicate).toBe(true);
+    expect(result.lead.id).toBe('lead_identity');
+    expect(createLeadMock).not.toHaveBeenCalled();
   });
 
   it('records incoming free-text Telegram messages against lead history', async () => {

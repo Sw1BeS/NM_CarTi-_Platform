@@ -19,6 +19,10 @@ const { mockLeadRepo, mockRequestRepo, mockPrisma } = vi.hoisted(() => ({
         leadActivity: {
             create: vi.fn()
         },
+        leadIdentity: {
+            findUnique: vi.fn(),
+            upsert: vi.fn()
+        },
         lead: {
             update: vi.fn()
         },
@@ -58,11 +62,19 @@ vi.mock('../../../Integrations/meta/meta.service.js', () => ({
     }
 }));
 
+vi.mock('../../../Integrations/integration.service.js', () => ({
+    IntegrationService: class {
+        metaPixelTrackEvent = vi.fn().mockResolvedValue({ success: true });
+    }
+}));
+
 describe('P0-1 Lead Identity Fix', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         mockPrisma.botConfig.findUnique.mockResolvedValue({ companyId: 'comp_123' });
         mockPrisma.leadActivity.create.mockResolvedValue({ id: 'act_1' });
+        mockPrisma.leadIdentity.findUnique.mockResolvedValue(null);
+        mockPrisma.leadIdentity.upsert.mockResolvedValue({ id: 'identity_1' });
         mockPrisma.lead.update.mockResolvedValue({ id: 'lead_existing', payload: {} });
     });
 

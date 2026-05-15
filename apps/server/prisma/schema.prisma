@@ -293,6 +293,7 @@ model Lead {
 
   activities LeadActivity[]
   requests   B2bRequest[]
+  identities  LeadIdentity[]
 
   @@index([botId])
   @@index([status])
@@ -304,6 +305,24 @@ model Lead {
   @@index([botId, phone, createdAt])
   @@index([userTgId, botId])
   @@index([source])
+}
+
+model LeadIdentity {
+  id          String   @id @default(cuid())
+  companyId   String
+  leadId      String
+  provider    String
+  externalId  String
+  confidence  String   @default("HIGH")
+  firstSeenAt DateTime @default(now())
+  lastSeenAt  DateTime @updatedAt
+  payload     Json?    @db.JsonB
+
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, provider, externalId])
+  @@index([leadId])
+  @@index([companyId, provider])
 }
 
 model LeadActivity {
