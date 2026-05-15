@@ -74,6 +74,7 @@ export async function getPublicInventory(slug: string, filters?: any): Promise<{
     if (filters.minPrice) query.append('minPrice', filters.minPrice);
     if (filters.maxPrice) query.append('maxPrice', filters.maxPrice);
     if (filters.status) query.append('status', filters.status);
+    if (filters.availabilityState) query.append('availabilityState', filters.availabilityState);
   }
   return await apiFetch(`/public/${slug}/inventory?${query.toString()}`, {
     method: 'GET',

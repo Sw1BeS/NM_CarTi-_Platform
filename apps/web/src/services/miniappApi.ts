@@ -207,6 +207,7 @@ export async function getMiniAppShowcaseInventory(params: {
   minYear?: number;
   maxYear?: number;
   status?: 'AVAILABLE' | 'PENDING';
+  availabilityState?: 'IN_STOCK' | 'IN_TRANSIT' | 'IMPORT_TO_ORDER' | 'RESERVED' | 'SOLD' | 'UNKNOWN';
 }) {
   const query = new URLSearchParams();
   if (params.page) query.append('page', String(params.page));
@@ -217,6 +218,7 @@ export async function getMiniAppShowcaseInventory(params: {
   if (typeof params.minYear === 'number') query.append('minYear', String(params.minYear));
   if (typeof params.maxYear === 'number') query.append('maxYear', String(params.maxYear));
   if (params.status) query.append('status', params.status);
+  if (params.availabilityState) query.append('availabilityState', params.availabilityState);
   return await apiFetch(`/miniapp/showcases/${encodeURIComponent(params.slug)}/inventory?${query.toString()}`, {
     method: 'GET',
     skipAuth: true

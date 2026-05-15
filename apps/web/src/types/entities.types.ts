@@ -54,6 +54,8 @@ export interface CarCard {
     };
     description?: string;
     status: 'AVAILABLE' | 'RESERVED' | 'SOLD' | 'PENDING' | 'HIDDEN';
+    availabilityState?: 'IN_STOCK' | 'IN_TRANSIT' | 'IMPORT_TO_ORDER' | 'RESERVED' | 'SOLD' | 'UNKNOWN';
+    publicationStatus?: 'DRAFT' | 'REVIEW' | 'PUBLISHED' | 'HIDDEN';
     postedAt: string;
     presentation?: VehiclePresentation;
 }
@@ -220,6 +222,8 @@ export interface ShowcaseRules {
     mode: 'FILTER' | 'MANUAL' | 'HYBRID';
     filters?: {
         status?: string[];
+        availabilityState?: string[];
+        publicationStatus?: string[];
         priceMin?: number;
         priceMax?: number;
         yearMin?: number;

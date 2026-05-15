@@ -3,6 +3,9 @@ import { prisma } from '../../../services/prisma.js';
 import { CarRepository } from '../../../repositories/car.repository.js';
 
 const MINIAPP_PUBLIC_STATUSES = new Set(['AVAILABLE', 'PENDING', 'RESERVED', 'SOLD']);
+const TRANSIT_AVAILABILITY_CONDITION = {
+    availabilityState: { in: ['IN_TRANSIT', 'IMPORT_TO_ORDER'] }
+};
 const TRANSIT_TEXT_CONDITION = {
     OR: [
         { title: { contains: '#вдорозі', mode: 'insensitive' } },
@@ -16,11 +19,79 @@ const TRANSIT_TEXT_CONDITION = {
     ]
 };
 
+const applyRuntimeStatusFilter = (where: any, runtimeStatus: string) => {
+    if (!runtimeStatus) return;
+    const searchClause = Array.isArray(where.OR) ? where.OR : null;
+    delete where.status;
+    delete where.OR;
+
+    const appendRuntimeClause = (clause: any) => {
+        if (searchClause) {
+            where.AND = [
+                ...(Array.isArray(where.AND) ? where.AND : []),
+                { OR: searchClause },
+                clause
+            ];
+        } else if (clause.OR) {
+            where.OR = clause.OR;
+        } else {
+            Object.assign(where, clause);
+        }
+    };
+
+    if (runtimeStatus === 'PENDING') {
+        appendRuntimeClause({
+            OR: [
+                TRANSIT_AVAILABILITY_CONDITION,
+                {
+                    AND: [
+                        { status: 'PENDING' },
+                        { publicationStatus: 'PUBLISHED' }
+                    ]
+                },
+                {
+                    AND: [
+                        { status: 'AVAILABLE' },
+                        TRANSIT_TEXT_CONDITION
+                    ]
+                }
+            ]
+        });
+        return;
+    }
+
+    if (runtimeStatus === 'AVAILABLE') {
+        appendRuntimeClause({
+            OR: [
+                { availabilityState: 'IN_STOCK' },
+                {
+                    AND: [
+                        { status: 'AVAILABLE' },
+                        { NOT: TRANSIT_TEXT_CONDITION }
+                    ]
+                }
+            ]
+        });
+        return;
+    }
+
+    if (runtimeStatus === 'RESERVED') {
+        appendRuntimeClause({ OR: [{ availabilityState: 'RESERVED' }, { status: 'RESERVED' }] });
+        return;
+    }
+
+    if (runtimeStatus === 'SOLD') {
+        appendRuntimeClause({ OR: [{ availabilityState: 'SOLD' }, { status: 'SOLD' }] });
+    }
+};
+
 interface ShowcaseRules {
     mode: 'FILTER' | 'MANUAL' | 'HYBRID';
     partnerCompanyId?: string;
     filters?: {
         status?: string[];
+        availabilityState?: string[];
+        publicationStatus?: string[];
         priceMin?: number;
         priceMax?: number;
         yearMin?: number;
@@ -104,6 +175,7 @@ export class ShowcaseService {
         minYear?: number;
         maxYear?: number;
         status?: string;
+        availabilityState?: string;
     } = {}): Promise<{ showcase: Showcase; items: CarListing[]; total: number }> {
         let showcase = await this.getShowcaseBySlug(slug);
         if (!showcase) {
@@ -145,6 +217,15 @@ export class ShowcaseService {
         const mode = rules.mode || 'FILTER';
         const requestedStatus = String(options.status || '').trim().toUpperCase();
         const runtimeStatus = MINIAPP_PUBLIC_STATUSES.has(requestedStatus) ? requestedStatus : '';
+        const requestedAvailabilityState = String(options.availabilityState || '').trim().toUpperCase();
+        const runtimeAvailabilityState = [
+            'IN_STOCK',
+            'IN_TRANSIT',
+            'IMPORT_TO_ORDER',
+            'RESERVED',
+            'SOLD',
+            'UNKNOWN'
+        ].includes(requestedAvailabilityState) ? requestedAvailabilityState : '';
 
         let items: CarListing[] = [];
         let total = 0;
@@ -152,7 +233,8 @@ export class ShowcaseService {
         // Base Where
         const where: any = {
             companyId: showcase.workspaceId,
-            status: 'AVAILABLE'
+            status: 'AVAILABLE',
+            publicationStatus: 'PUBLISHED'
         };
         const scopedPartnerCompanyId = String((rules as any)?.partnerCompanyId || (rules?.filters as any)?.partnerCompanyId || '').trim();
         if (scopedPartnerCompanyId) {
@@ -179,6 +261,12 @@ export class ShowcaseService {
 
             if (filters.status && filters.status.length > 0) {
                 where.status = { in: filters.status };
+            }
+            if (filters.availabilityState && filters.availabilityState.length > 0) {
+                where.availabilityState = { in: filters.availabilityState };
+            }
+            if (filters.publicationStatus && filters.publicationStatus.length > 0) {
+                where.publicationStatus = { in: filters.publicationStatus };
             }
 
             // Exclusions
@@ -216,35 +304,10 @@ export class ShowcaseService {
             if (yearRange) where.year = yearRange;
         }
 
-        if (runtimeStatus) {
-            if (runtimeStatus === 'PENDING') {
-                const searchClause = Array.isArray(where.OR) ? where.OR : null;
-                delete where.status;
-                delete where.OR;
-                const pendingClause = {
-                    OR: [
-                        { status: 'PENDING' },
-                        {
-                            AND: [
-                                { status: 'AVAILABLE' },
-                                TRANSIT_TEXT_CONDITION
-                            ]
-                        }
-                    ]
-                };
-                if (searchClause) {
-                    where.AND = [
-                        ...(Array.isArray(where.AND) ? where.AND : []),
-                        { OR: searchClause },
-                        pendingClause
-                    ];
-                } else {
-                    where.OR = pendingClause.OR;
-                }
-            } else {
-                where.status = runtimeStatus;
-            }
+        if (runtimeAvailabilityState) {
+            where.availabilityState = runtimeAvailabilityState;
         }
+        applyRuntimeStatusFilter(where, runtimeStatus);
 
         // --- Execution ---
 
@@ -274,7 +337,9 @@ export class ShowcaseService {
             // Apply ranges?
             if (where.price) explicitWhere.price = where.price;
             if (where.year) explicitWhere.year = where.year;
-            if (runtimeStatus) explicitWhere.status = runtimeStatus;
+            if (where.publicationStatus) explicitWhere.publicationStatus = where.publicationStatus;
+            if (where.availabilityState) explicitWhere.availabilityState = where.availabilityState;
+            applyRuntimeStatusFilter(explicitWhere, runtimeStatus);
 
             explicitItems = await prisma.carListing.findMany({ where: explicitWhere });
         }

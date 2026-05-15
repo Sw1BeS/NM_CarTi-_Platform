@@ -379,6 +379,7 @@ router.get('/showcases/:slug/inventory', async (req, res) => {
     const minYear = readNumber(req.query.minYear);
     const maxYear = readNumber(req.query.maxYear);
     const status = readString(req.query.status);
+    const availabilityState = readString(req.query.availabilityState);
 
     const { showcase, items, total } = await showcaseService.getInventoryForShowcase(slug, {
       page,
@@ -388,7 +389,8 @@ router.get('/showcases/:slug/inventory', async (req, res) => {
       maxPrice,
       minYear,
       maxYear,
-      status
+      status,
+      availabilityState
     });
 
     if (!showcase.isPublic) return errorResponse(res, 404, 'Showcase not found');

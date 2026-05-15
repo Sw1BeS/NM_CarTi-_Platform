@@ -1353,13 +1353,26 @@ const MiniAppContent = () => {
     };
 
     const isTransitCar = (car: CarListing) => {
+        const availabilityState = String((car as any).availabilityState || '').toUpperCase();
+        if (availabilityState) {
+            return availabilityState === 'IN_TRANSIT' || availabilityState === 'IMPORT_TO_ORDER';
+        }
         const specs = getCarSpecs(car);
         const condition = (specs.condition || '').toLowerCase();
         const status = String((car as any).status || '').toUpperCase();
         return condition === 'in_transit' || condition.includes('дороз') || car.presentation?.statusLabel === 'В дорозі' || status === 'PENDING' || status === 'IN_TRANSIT';
     };
 
-    const getStatusLabel = (car: CarListing) => car.presentation?.statusLabel || (isTransitCar(car) ? 'В дорозі' : 'В наявності');
+    const getStatusLabel = (car: CarListing) => {
+        if (car.presentation?.statusLabel) return car.presentation.statusLabel;
+        const availabilityState = String((car as any).availabilityState || '').toUpperCase();
+        if (availabilityState === 'IMPORT_TO_ORDER') return 'Під замовлення';
+        if (availabilityState === 'IN_TRANSIT') return 'В дорозі';
+        if (availabilityState === 'RESERVED') return 'Заброньовано';
+        if (availabilityState === 'SOLD') return 'Продано';
+        if (availabilityState === 'UNKNOWN') return 'Статус уточнюється';
+        return isTransitCar(car) ? 'В дорозі' : 'В наявності';
+    };
 
     const renderCompactCarCard = (
         car: CarListing,

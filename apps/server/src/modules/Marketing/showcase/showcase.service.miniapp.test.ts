@@ -60,7 +60,13 @@ describe('ShowcaseService MiniApp inventory routing', () => {
       where: expect.objectContaining({
         companyId: 'company_1',
         OR: expect.arrayContaining([
-          { status: 'PENDING' }
+          { availabilityState: { in: ['IN_TRANSIT', 'IMPORT_TO_ORDER'] } },
+          {
+            AND: [
+              { status: 'PENDING' },
+              { publicationStatus: 'PUBLISHED' }
+            ]
+          }
         ])
       })
     }));
@@ -78,7 +84,13 @@ describe('ShowcaseService MiniApp inventory routing', () => {
       where: expect.objectContaining({
         companyId: 'company_1',
         OR: expect.arrayContaining([
-          { status: 'PENDING' },
+          { availabilityState: { in: ['IN_TRANSIT', 'IMPORT_TO_ORDER'] } },
+          expect.objectContaining({
+            AND: expect.arrayContaining([
+              { status: 'PENDING' },
+              { publicationStatus: 'PUBLISHED' }
+            ])
+          }),
           expect.objectContaining({
             AND: expect.arrayContaining([
               { status: 'AVAILABLE' },
@@ -117,7 +129,16 @@ describe('ShowcaseService MiniApp inventory routing', () => {
     expect(carFindMany).toHaveBeenCalledWith(expect.objectContaining({
       where: expect.objectContaining({
         companyId: 'company_2',
-        status: 'AVAILABLE'
+        publicationStatus: 'PUBLISHED',
+        OR: expect.arrayContaining([
+          { availabilityState: 'IN_STOCK' },
+          expect.objectContaining({
+            AND: expect.arrayContaining([
+              { status: 'AVAILABLE' },
+              expect.objectContaining({ NOT: expect.any(Object) })
+            ])
+          })
+        ])
       })
     }));
   });
