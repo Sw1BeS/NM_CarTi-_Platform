@@ -1,5 +1,6 @@
 import { VariantStatus, RequestStatus } from '@prisma/client';
 import { ActionTokens, buildCallbackData } from '../modules/Communication/telegram/core/utils/callbackUtils.js';
+import { buildOperatorRequestPresentation } from './requestPresentation.js';
 
 // =============================================================================
 // §4 — EXACT CARD FORMATS (hard output contract from MEGA PROMPT v7)
@@ -341,9 +342,10 @@ export const renderVariantCard = (variant: any, opts: { includeContact?: boolean
 export const renderRequestCard = (req: any, opts: { includeContact?: boolean; includeCompany?: boolean } = {}) => {
   const payload = req?.payload || {};
   const payloadReq = payload?.request || {};
+  const presentation = buildOperatorRequestPresentation(req, { includeContact: opts.includeContact });
   const companyName = req?.companyName || payload?.companyName || payloadReq?.companyName;
   const representative = payload?.representative || payloadReq?.representative;
-  const contact = req?.contact || payload?.contact || payloadReq?.contact || payloadReq?.phone || payload?.phone;
+  const contact = req?.contact || payload?.contact || payloadReq?.contact || payloadReq?.phone || payload?.phone || presentation.contactLabel;
   const companyNameLine = opts.includeContact
     ? (escapeTelegramHtmlText(companyName, 120) || '')
     : '';
@@ -359,7 +361,17 @@ export const renderRequestCard = (req: any, opts: { includeContact?: boolean; in
   const mileageText = payloadReq?.mileageText ?? payload?.mileageText;
   const fuel = payloadReq?.fuel ?? payload?.fuel;
   const description = redactSensitiveText(req.description, Boolean(opts.includeContact));
-  const title = safePublicField(req.title || 'Запит', 160) || 'Запит';
+  const presentationField = (value: unknown, max = 160) =>
+    opts.includeContact ? escapeTelegramHtmlText(value, max) : safePublicField(value, max);
+  const title = presentationField(presentation.title || req.title || 'Запит', 160) || 'Запит';
+  const customerLine = presentationField(presentation.customerLabel, 120);
+  const selectedCarLines = presentation.selectedCarLabels
+    .slice(0, 4)
+    .map((item, index) => presentationField(`${index + 1}. ${item}`, 180))
+    .filter(Boolean);
+  const criteriaLine = presentation.criteriaChips.length
+    ? presentation.criteriaChips.slice(0, 6).map((item) => presentationField(item, 80)).filter(Boolean).join(' • ')
+    : '';
   const fuelLine = safePublicField(fuel, 80);
   const cityLine = safePublicField(req.city, 120);
   const mileageTextLine = safePublicField(mileageText, 120);
@@ -376,6 +388,11 @@ export const renderRequestCard = (req: any, opts: { includeContact?: boolean; in
   const includeCompany = Boolean(opts.includeCompany || opts.includeContact);
   const parts = [
     `📄 <b>${title}</b>`,
+    presentation.sourceLabel ? `Джерело: ${presentation.sourceLabel}` : null,
+    customerLine ? `👤 ${customerLine}` : null,
+    presentation.intentLabel ? `🎯 ${presentation.intentLabel}` : null,
+    selectedCarLines.length ? `🚗 ${selectedCarLines.join('\n')}` : null,
+    criteriaLine ? `🔎 ${criteriaLine}` : null,
     budgetPart,
     req.yearMin ? `📅 ${req.yearMin}+` : null,
     mileagePart,

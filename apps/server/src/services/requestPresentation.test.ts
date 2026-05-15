@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { buildRequestPresentationSnapshot } from './requestPresentation.js';
+import { mapRequestOutput } from './dto.js';
+import { buildOperatorRequestPresentation, buildRequestPresentationSnapshot } from './requestPresentation.js';
 
 describe('requestPresentation', () => {
   it('builds readable vehicle snapshots and telegram text for selected cars', () => {
@@ -107,5 +108,90 @@ describe('requestPresentation', () => {
     expect(snapshot.telegramText).toContain('Tesla Model X 2017');
     expect(snapshot.telegramText).not.toContain('🚗 1. Model X 2017');
     expect(JSON.stringify(snapshot.vehiclePresentation)).not.toContain('damaged');
+  });
+
+  it('builds an operator presentation for MiniApp selected-car requests', () => {
+    const request = {
+      id: 'req_1',
+      publicId: 'CD-2026-000001',
+      title: 'Raw MiniApp title',
+      status: 'COLLECTING_VARIANTS',
+      chatId: '111222333',
+      budgetMax: 90000,
+      createdAt: new Date('2026-05-12T10:00:00.000Z'),
+      updatedAt: new Date('2026-05-12T10:02:00.000Z'),
+      payload: {
+        source: 'miniapp_intent',
+        sourceContext: 'miniapp_interest',
+        phone: '+380671234567',
+        telegram: {
+          userId: '111222333',
+          username: 'buyer_one'
+        },
+        requestPresentation: {
+          requestTitle: 'Ціна / умови: Mercedes-Benz S 500',
+          customerIntent: 'PRICE_TERMS',
+          selectedCars: [
+            { id: 'car_1', title: 'Mercedes-Benz S 500 2021' }
+          ],
+          criteriaChips: ['Бюджет 70000-90000']
+        }
+      }
+    };
+
+    const presentation = buildOperatorRequestPresentation(request, { includeContact: true });
+
+    expect(presentation).toEqual(expect.objectContaining({
+      title: 'Ціна / умови: Mercedes-Benz S 500',
+      sourceLabel: 'MiniApp',
+      customerLabel: '@buyer_one',
+      contactLabel: '+380671234567',
+      intentLabel: 'Ціна/умови',
+      selectedCarLabels: ['Mercedes-Benz S 500 2021'],
+      criteriaChips: ['Бюджет 70000-90000']
+    }));
+    expect(presentation.timeline).toEqual([
+      { at: '2026-05-12T10:00:00.000Z', label: 'Створено' },
+      { at: '2026-05-12T10:02:00.000Z', label: 'Оновлено: COLLECTING_VARIANTS' }
+    ]);
+  });
+
+  it('maps B2B requests to operator presentation while keeping raw payload in DTO output', () => {
+    const request = {
+      id: 'req_b2b_1',
+      publicId: 'CD-2026-000010',
+      title: 'BMW X5 до 2022',
+      status: 'COLLECTING_VARIANTS',
+      requesterPartnerId: 'partner_1',
+      createdAt: new Date('2026-05-12T11:00:00.000Z'),
+      updatedAt: new Date('2026-05-12T11:00:00.000Z'),
+      payload: {
+        source: 'telegram_b2b',
+        requesterPartner: {
+          id: 'partner_1',
+          name: 'Dealer One'
+        },
+        request: {
+          budgetMax: 65000,
+          city: 'Львів'
+        },
+        criteria: {
+          brands: [{ id: 'bmw', label: 'BMW' }],
+          models: [{ id: 'x5', label: 'X5' }]
+        }
+      },
+      variants: []
+    };
+
+    const output = mapRequestOutput(request, { includeContact: true });
+
+    expect(output.presentation).toEqual(expect.objectContaining({
+      title: 'BMW X5 до 2022',
+      sourceLabel: 'B2B Bot',
+      customerLabel: 'Dealer One',
+      intentLabel: 'B2B заявка',
+      criteriaChips: expect.arrayContaining(['Марка: BMW', 'Модель: X5'])
+    }));
+    expect(output.payload).toBe(request.payload);
   });
 });

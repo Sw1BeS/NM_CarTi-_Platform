@@ -16,7 +16,7 @@ import {
 import { createOrMergeLead } from '../modules/Communication/telegram/core/leadService.js';
 import { platformEvents, EVENTS } from './platform-events.js';
 import { resolvePublicSlug, type PublicSlugResolution } from './publicSlug.service.js';
-import { buildRequestPresentationSnapshot } from './requestPresentation.js';
+import { buildOperatorRequestPresentation, buildRequestPresentationSnapshot } from './requestPresentation.js';
 import { findRecentMiniAppSelectedCarsDuplicate } from './miniappRequestDedupe.js';
 
 type MiniAppTracking = Record<string, unknown>;
@@ -648,6 +648,16 @@ class RequestContractService {
       requestPresentation,
       payload: pendingIntent.payload || undefined
     } as Record<string, unknown>;
+    requestPayload.operatorPresentation = buildOperatorRequestPresentation({
+      title,
+      description,
+      budgetMax: pendingIntent.budgetMax ?? undefined,
+      yearMin: pendingIntent.yearMin ?? undefined,
+      chatId: params.telegramUserId,
+      botId: params.botId,
+      payload: requestPayload,
+      createdAt: new Date()
+    }, { includeContact: true });
     const submitId = readSubmitId(pendingIntent.tracking);
     requestPayload.idempotencyKey = buildMiniAppSubmitKey({
       companyId: params.companyId,
@@ -926,7 +936,7 @@ class RequestContractService {
     const telegram = isRecord(input.telegram) ? input.telegram : {};
     const payloadFromInput = isRecord(input.payload) ? input.payload : {};
 
-    const payload = {
+    const payload: Record<string, any> = {
       ...payloadFromInput,
       source: 'miniapp',
       phone: phone || undefined,
@@ -942,6 +952,16 @@ class RequestContractService {
         comment: comment || undefined
       }
     };
+    payload.operatorPresentation = buildOperatorRequestPresentation({
+      title,
+      description,
+      budgetMax: toOptionalNumber(input.budgetMax),
+      yearMin: toOptionalNumber(input.yearMin),
+      chatId: toOptionalString((telegram as Record<string, unknown>)?.userId),
+      botId,
+      payload,
+      createdAt: new Date()
+    }, { includeContact: true });
 
     const requestInput = mapRequestInput({
       title,

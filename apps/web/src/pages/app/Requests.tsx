@@ -5,7 +5,7 @@ import { RequestsService } from '../../services/requestsService';
 import { Data } from '../../services/data';
 import { ContentGenerator } from '../../services/contentGenerator';
 import { createDeepLinkKeyboard, buildDeepLink } from '../../services/deeplink';
-import { B2BRequest, RequestStatus, TelegramDestination, Bot } from '../../types';
+import { B2BRequest, RequestPresentation, RequestStatus, TelegramDestination, Bot } from '../../types';
 import { Plus, List as ListIcon, LayoutGrid, Search as SearchIcon, DollarSign, Calendar, ChevronRight, ChevronLeft, Send, X } from 'lucide-react';
 import { useToast } from '../../contexts/ToastContext';
 import { useSearchParams } from 'react-router-dom';
@@ -33,6 +33,22 @@ const getTelegramLabel = (payload?: Record<string, unknown>, chatId?: string) =>
     if (name) return name;
     if (userId) return `TG ${userId}`;
     return chatId ? `TG ${chatId}` : undefined;
+};
+
+const getRequestPresentation = (request: B2BRequest): RequestPresentation | undefined => {
+    if (request.presentation) return request.presentation;
+    if (request.operatorPresentation) return request.operatorPresentation;
+    const payloadPresentation = request.payload && isRecord(request.payload.operatorPresentation)
+        ? request.payload.operatorPresentation
+        : (request.payload && isRecord(request.payload.presentation) ? request.payload.presentation : undefined);
+    return payloadPresentation as RequestPresentation | undefined;
+};
+
+const getDisplayTitle = (request: B2BRequest) => getRequestPresentation(request)?.title || request.title;
+
+const getPrimarySummary = (presentation?: RequestPresentation) => {
+    if (!presentation) return [];
+    return presentation.selectedCarLabels.length ? presentation.selectedCarLabels : presentation.criteriaChips;
 };
 
 export const RequestList: React.FC = () => {
@@ -227,9 +243,10 @@ export const RequestList: React.FC = () => {
 
     const statusOptions = ['ALL', ...Object.values(RequestStatus)];
     const botOptions = [{ id: 'ALL', name: 'All Bots' }, ...bots];
-    const b2bRuntimeRequests = requests.filter(r => getSourceLabel(r.payload) === 'telegram_b2b');
+    const b2bRuntimeRequests = requests.filter(r => getSourceLabel(r.payload) === 'telegram_b2b' || getRequestPresentation(r)?.sourceLabel === 'B2B Bot');
     const awaitingOffers = b2bRuntimeRequests.filter(r => r.status === RequestStatus.COLLECTING_VARIANTS).length;
     const readyForAdmin = b2bRuntimeRequests.filter(r => r.status === RequestStatus.CONTACT_SHARED || r.status === RequestStatus.SHORTLIST).length;
+    const detailPresentation = detailRequest ? getRequestPresentation(detailRequest) : undefined;
 
     return (
         <div className="space-y-8 h-[calc(100vh-140px)] flex flex-col">
@@ -325,18 +342,36 @@ export const RequestList: React.FC = () => {
                                         const updatedAt = new Date(r.updatedAt || r.createdAt);
                                         const isFresh = Date.now() - updatedAt.getTime() < 1000 * 60 * 60 * 24;
                                         const offersCount = Array.isArray(r.variants) ? r.variants.length : 0;
-                                        const sourceLabel = getSourceLabel(r.payload);
-                                        const telegramLabel = getTelegramLabel(r.payload, r.clientChatId);
+                                        const presentation = getRequestPresentation(r);
+                                        const sourceLabel = presentation?.sourceLabel || getSourceLabel(r.payload);
+                                        const customerLabel = presentation?.customerLabel || getTelegramLabel(r.payload, r.clientChatId);
+                                        const contactLabel = presentation?.contactLabel;
+                                        const summaryItems = getPrimarySummary(presentation).slice(0, 3);
                                         return (
                                         <tr key={r.id} onClick={() => openDetails(r)} className={`group cursor-pointer ${isFresh ? 'bg-amber-500/5' : ''}`}>
                                             <td className="font-mono text-sm text-[var(--text-secondary)] hidden md:table-cell">{r.publicId}</td>
                                             <td>
-                                                <div className="font-bold text-base text-[var(--text-primary)]">{r.title}</div>
-                                                <div className="text-sm text-[var(--text-secondary)] mt-0.5">{r.yearMin ? `${r.yearMin}+` : ''}</div>
-                                                {(sourceLabel || telegramLabel) && (
+                                                <div className="font-bold text-base text-[var(--text-primary)]">{getDisplayTitle(r)}</div>
+                                                <div className="flex flex-wrap gap-1.5 mt-1">
+                                                    {presentation?.intentLabel && (
+                                                        <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded border border-gold-500/20 text-gold-500 bg-gold-500/10">
+                                                            {presentation.intentLabel}
+                                                        </span>
+                                                    )}
+                                                    {summaryItems.map(item => (
+                                                        <span key={item} className="text-[10px] px-2 py-0.5 rounded border border-[var(--border-color)] text-[var(--text-secondary)] bg-[var(--bg-input)]">
+                                                            {item}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                                {!summaryItems.length && (
+                                                    <div className="text-sm text-[var(--text-secondary)] mt-0.5">{r.yearMin ? `${r.yearMin}+` : ''}</div>
+                                                )}
+                                                {(sourceLabel || customerLabel || contactLabel) && (
                                                     <div className="text-xs text-[var(--text-secondary)] mt-1">
                                                         {sourceLabel && <span className="mr-2">Source: {sourceLabel}</span>}
-                                                        {telegramLabel && <span>Telegram: {telegramLabel}</span>}
+                                                        {customerLabel && <span className="mr-2">Client: {customerLabel}</span>}
+                                                        {contactLabel && <span>Contact: {contactLabel}</span>}
                                                     </div>
                                                 )}
                                                 <div className="text-xs text-[var(--text-secondary)] mt-1 md:hidden">
@@ -408,12 +443,13 @@ export const RequestList: React.FC = () => {
                                     {requests.filter(r => r.status === colStatus).map(r => (
                                         <div key={r.id} onClick={() => openDetails(r)} className="panel p-5 cursor-pointer hover:border-gold-500/50 group relative hover:-translate-y-1 transition-transform">
                                             {(() => {
-                                                const sourceLabel = getSourceLabel(r.payload);
-                                                const telegramLabel = getTelegramLabel(r.payload, r.clientChatId);
-                                                return (sourceLabel || telegramLabel) ? (
+                                                const presentation = getRequestPresentation(r);
+                                                const sourceLabel = presentation?.sourceLabel || getSourceLabel(r.payload);
+                                                const customerLabel = presentation?.customerLabel || getTelegramLabel(r.payload, r.clientChatId);
+                                                return (sourceLabel || customerLabel) ? (
                                                     <div className="text-[10px] text-[var(--text-secondary)] mb-2">
                                                         {sourceLabel && <span className="mr-2">Source: {sourceLabel}</span>}
-                                                        {telegramLabel && <span>Telegram: {telegramLabel}</span>}
+                                                        {customerLabel && <span>Client: {customerLabel}</span>}
                                                     </div>
                                                 ) : null;
                                             })()}
@@ -421,7 +457,25 @@ export const RequestList: React.FC = () => {
                                                 <span className="font-mono text-xs text-[var(--text-secondary)]">{r.publicId}</span>
                                                 {r.priority === 'HIGH' && <span className="w-2.5 h-2.5 rounded-full bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]"></span>}
                                             </div>
-                                            <h4 className="font-bold text-base text-[var(--text-primary)] mb-4 line-clamp-1">{r.title}</h4>
+                                            <h4 className="font-bold text-base text-[var(--text-primary)] mb-2 line-clamp-2">{getDisplayTitle(r)}</h4>
+                                            {(() => {
+                                                const presentation = getRequestPresentation(r);
+                                                const summaryItems = getPrimarySummary(presentation).slice(0, 2);
+                                                return (presentation?.intentLabel || summaryItems.length) ? (
+                                                    <div className="flex flex-wrap gap-1.5 mb-4">
+                                                        {presentation?.intentLabel && (
+                                                            <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded border border-gold-500/20 text-gold-500 bg-gold-500/10">
+                                                                {presentation.intentLabel}
+                                                            </span>
+                                                        )}
+                                                        {summaryItems.map(item => (
+                                                            <span key={item} className="text-[10px] px-2 py-0.5 rounded border border-[var(--border-color)] text-[var(--text-secondary)] bg-[var(--bg-input)]">
+                                                                {item}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                ) : null;
+                                            })()}
 
                                             <div className="grid grid-cols-2 gap-3 text-sm text-[var(--text-secondary)] mb-4">
                                                 <div className="flex items-center gap-1.5 bg-[var(--bg-input)] p-2 rounded"><DollarSign size={14} /> {r.budgetMax ? `${r.budgetMax / 1000}k` : '—'}</div>
@@ -523,8 +577,11 @@ export const RequestList: React.FC = () => {
                     <div className="panel w-full max-w-4xl p-6 animate-slide-up">
                         <div className="flex justify-between items-center mb-4">
                             <div>
-                                <h3 className="font-bold text-[var(--text-primary)] text-xl">{detailRequest.title}</h3>
-                                <div className="text-xs text-[var(--text-secondary)]">{detailRequest.publicId} • {detailRequest.status}</div>
+                                <h3 className="font-bold text-[var(--text-primary)] text-xl">{detailPresentation?.title || detailRequest.title}</h3>
+                                <div className="text-xs text-[var(--text-secondary)]">
+                                    {detailRequest.publicId} • {detailRequest.status}
+                                    {detailPresentation?.sourceLabel ? ` • ${detailPresentation.sourceLabel}` : ''}
+                                </div>
                             </div>
                             <div className="flex gap-2">
                                 <button onClick={() => setShowCarPicker(true)} className="btn-secondary text-xs">Add From Inventory</button>
@@ -535,10 +592,46 @@ export const RequestList: React.FC = () => {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="panel p-4 bg-[var(--bg-input)]">
                                 <div className="text-xs text-[var(--text-secondary)] uppercase font-bold mb-2">Request Details</div>
+                                {detailPresentation && (
+                                    <div className="mb-3 space-y-1.5">
+                                        <div className="text-sm text-[var(--text-primary)]">Client: {detailPresentation.customerLabel}</div>
+                                        {detailPresentation.contactLabel && (
+                                            <div className="text-sm text-[var(--text-primary)]">Contact: {detailPresentation.contactLabel}</div>
+                                        )}
+                                        <div className="text-sm text-[var(--text-primary)]">Intent: {detailPresentation.intentLabel}</div>
+                                        {detailPresentation.selectedCarLabels.length > 0 && (
+                                            <div className="flex flex-wrap gap-1.5 pt-1">
+                                                {detailPresentation.selectedCarLabels.map(item => (
+                                                    <span key={item} className="text-[10px] px-2 py-0.5 rounded border border-gold-500/20 text-gold-500 bg-gold-500/10">
+                                                        {item}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        )}
+                                        {detailPresentation.criteriaChips.length > 0 && (
+                                            <div className="flex flex-wrap gap-1.5 pt-1">
+                                                {detailPresentation.criteriaChips.map(item => (
+                                                    <span key={item} className="text-[10px] px-2 py-0.5 rounded border border-[var(--border-color)] text-[var(--text-secondary)] bg-[var(--bg-panel)]">
+                                                        {item}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                                 <div className="text-sm text-[var(--text-primary)]">Budget: {detailRequest.budgetMax ? `$${detailRequest.budgetMax.toLocaleString()}` : '—'}</div>
                                 <div className="text-sm text-[var(--text-primary)]">Year: {detailRequest.yearMin ? `${detailRequest.yearMin}+` : '—'}</div>
                                 <div className="text-sm text-[var(--text-primary)]">City: {detailRequest.city || '—'}</div>
                                 <div className="text-xs text-[var(--text-secondary)] mt-3">{detailRequest.description || 'No description.'}</div>
+                                {detailPresentation?.timeline.length ? (
+                                    <div className="mt-3 border-t border-[var(--border-color)] pt-3 space-y-1">
+                                        {detailPresentation.timeline.map(item => (
+                                            <div key={`${item.at}-${item.label}`} className="text-[10px] text-[var(--text-secondary)]">
+                                                {new Date(item.at).toLocaleString()} • {item.label}
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : null}
                             </div>
                             <div className="panel p-4 bg-[var(--bg-input)]">
                                 <div className="text-xs text-[var(--text-secondary)] uppercase font-bold mb-2">Variants</div>
@@ -563,6 +656,14 @@ export const RequestList: React.FC = () => {
                                 </div>
                             </div>
                         </div>
+                        {detailRequest.payload && (
+                            <details className="mt-4 rounded-lg border border-[var(--border-color)] bg-[var(--bg-input)] p-3">
+                                <summary className="cursor-pointer text-xs uppercase font-bold text-[var(--text-secondary)]">Raw payload</summary>
+                                <pre className="mt-3 max-h-56 overflow-auto text-[10px] leading-relaxed text-[var(--text-secondary)] whitespace-pre-wrap">
+                                    {JSON.stringify(detailRequest.payload, null, 2)}
+                                </pre>
+                            </details>
+                        )}
                     </div>
                 </div>
             )}

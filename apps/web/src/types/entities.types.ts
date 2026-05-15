@@ -70,6 +70,17 @@ export interface VehiclePresentation {
     mediaUrls: string[];
 }
 
+export interface RequestPresentation {
+    title: string;
+    sourceLabel: 'MiniApp' | 'Telegram Bot' | 'B2B Bot' | 'Admin';
+    customerLabel: string;
+    contactLabel?: string;
+    intentLabel: 'Підбір авто' | 'Ціна/умови' | 'Продаж авто' | 'B2B заявка';
+    selectedCarLabels: string[];
+    criteriaChips: string[];
+    timeline: Array<{ at: string; label: string }>;
+}
+
 export interface Variant extends Omit<CarCard, 'status'> {
     id: string;
     requestId: string;
@@ -132,6 +143,8 @@ export interface B2BRequest {
     tags?: string[];
     notes?: string;
     internalNote?: string;
+    presentation?: RequestPresentation;
+    operatorPresentation?: RequestPresentation;
     payload?: Record<string, unknown>;
     status: RequestStatus;
     leadId?: string;

@@ -8,6 +8,7 @@ import {
   hasKnownVehicleBrand,
   normalizeVehicleSpecLabel
 } from './vehiclePresentation.js';
+import { buildOperatorRequestPresentation } from './requestPresentation.js';
 
 const DEFAULT_CURRENCY = 'USD';
 
@@ -511,6 +512,7 @@ export const mapRequestOutput = (request: any, opts: { includeContact?: boolean 
   assigneeId: request.assignedTo ?? undefined,
   internalNote: request.internalNotes ?? undefined,
   clientChatId: request.chatId ?? undefined,
+  presentation: buildOperatorRequestPresentation(request, { includeContact: opts.includeContact }),
   payload: request.payload ?? undefined,
   createdAt: request.createdAt,
   updatedAt: request.updatedAt,
