@@ -3,13 +3,18 @@ import request from 'supertest';
 import { app } from '../index.js';
 
 describe('API v2 envelope', () => {
-  it('wraps successful responses in a v2 envelope', async () => {
+  it('wraps health responses in a v2 envelope', async () => {
     const res = await request(app).get('/api/v2/health');
 
     expect([200, 503]).toContain(res.status);
-    expect(res.body?.ok).toBe(true);
     expect(res.body?.meta?.version).toBe('v2');
-    expect(res.body).toHaveProperty('data');
+    if (res.status === 200) {
+      expect(res.body?.ok).toBe(true);
+      expect(res.body).toHaveProperty('data');
+    } else {
+      expect(res.body?.ok).toBe(false);
+      expect(typeof res.body?.error?.message).toBe('string');
+    }
   });
 
   it('wraps auth failures in a v2 envelope', async () => {
