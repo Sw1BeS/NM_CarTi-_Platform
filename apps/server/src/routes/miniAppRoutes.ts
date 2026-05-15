@@ -1230,23 +1230,24 @@ router.post('/requests', async (req, res) => {
       return errorResponse(res, 404, 'Company not found');
     }
 
-      const initCheck = await requireInitData(initData, config.companyId, config.botId);
-      if (!initCheck.ok) return errorResponse(res, 401, initCheck.message || 'Unauthorized');
-
-      if (!isB2BMiniAppConfig(config)) {
+    if (!isB2BMiniAppConfig(config)) {
       return errorResponse(
         res,
         400,
         'Lead MiniApp writes must use /api/miniapp/lead-intents',
-          LEAD_WRONG_ENDPOINT
-        );
-      }
-      const telegram = parseMiniAppTelegramIdentity(initData || '');
-      if (!telegram.userId) {
-        return errorResponse(res, 400, 'Telegram user not found', MINIAPP_ERROR_CODES.INITDATA_INVALID);
-      }
+        LEAD_WRONG_ENDPOINT
+      );
+    }
 
-      logger.info('[MiniApp] request create', {
+    const initCheck = await requireInitData(initData, config.companyId, config.botId);
+    if (!initCheck.ok) return errorResponse(res, 401, initCheck.message || 'Unauthorized');
+
+    const telegram = parseMiniAppTelegramIdentity(initData || '');
+    if (!telegram.userId) {
+      return errorResponse(res, 400, 'Telegram user not found', MINIAPP_ERROR_CODES.INITDATA_INVALID);
+    }
+
+    logger.info('[MiniApp] request create', {
       requestId,
       slug,
       companyId: config.companyId,
@@ -1270,17 +1271,17 @@ router.post('/requests', async (req, res) => {
       phone: readString(body.phone),
       comment: readString(body.comment),
       carListingId: readString(body.carListingId),
-        carListingIds: Array.isArray(body.carListingIds)
-          ? body.carListingIds.map((item) => readString(item)).filter((item): item is string => Boolean(item))
-          : undefined,
-        tracking: (body.tracking as Record<string, unknown>) || undefined,
-        telegram: {
-          userId: telegram.userId,
-          username: telegram.username,
-          name: telegram.name
-        },
-        payload: (body.payload as Record<string, unknown>) || undefined
-      });
+      carListingIds: Array.isArray(body.carListingIds)
+        ? body.carListingIds.map((item) => readString(item)).filter((item): item is string => Boolean(item))
+        : undefined,
+      tracking: (body.tracking as Record<string, unknown>) || undefined,
+      telegram: {
+        userId: telegram.userId,
+        username: telegram.username,
+        name: telegram.name
+      },
+      payload: (body.payload as Record<string, unknown>) || undefined
+    });
 
     res.json({ ok: true, request });
   } catch (e: unknown) {

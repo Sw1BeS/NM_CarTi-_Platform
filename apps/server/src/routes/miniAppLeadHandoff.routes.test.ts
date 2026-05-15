@@ -603,6 +603,24 @@ describe('MiniApp Lead handoff routes', () => {
     expect(miniAppServiceMock.createRequest).not.toHaveBeenCalled();
   });
 
+  it('rejects Lead request writes before initData validation on the legacy endpoint', async () => {
+    const app = await buildApp();
+
+    const res = await request(app)
+      .post('/api/miniapp/requests')
+      .send({
+        slug: 'cartie',
+        requestType: 'BUY'
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({
+      code: 'LEAD_WRONG_ENDPOINT'
+    });
+    expect(verifyInitDataMock).not.toHaveBeenCalled();
+    expect(miniAppServiceMock.createRequest).not.toHaveBeenCalled();
+  });
+
   it('uses verified initData Telegram identity for B2B request writes', async () => {
     miniAppServiceMock.getConfig.mockResolvedValueOnce({
       companyId: 'company_1',
