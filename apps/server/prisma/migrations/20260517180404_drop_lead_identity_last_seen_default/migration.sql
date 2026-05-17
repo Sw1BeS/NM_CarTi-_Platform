@@ -1,0 +1,1 @@
+ALTER TABLE "LeadIdentity" ALTER COLUMN "lastSeenAt" DROP DEFAULT;
