@@ -8,6 +8,13 @@ import {
   hasKnownVehicleBrand,
   normalizeVehicleSpecLabel
 } from './vehiclePresentation.js';
+import { buildOperatorRequestPresentation } from './requestPresentation.js';
+import {
+  deriveVehicleAvailabilityState,
+  deriveVehiclePublicationStatus,
+  type VehicleAvailabilityState,
+  type VehiclePublicationStatus
+} from './vehicleState.service.js';
 
 const DEFAULT_CURRENCY = 'USD';
 
@@ -511,6 +518,7 @@ export const mapRequestOutput = (request: any, opts: { includeContact?: boolean 
   assigneeId: request.assignedTo ?? undefined,
   internalNote: request.internalNotes ?? undefined,
   clientChatId: request.chatId ?? undefined,
+  presentation: buildOperatorRequestPresentation(request, { includeContact: opts.includeContact }),
   payload: request.payload ?? undefined,
   createdAt: request.createdAt,
   updatedAt: request.updatedAt,
@@ -532,6 +540,8 @@ export type InventoryInput = {
   specs?: Prisma.InputJsonValue;
   description?: string | null;
   status?: string;
+  availabilityState?: VehicleAvailabilityState;
+  publicationStatus?: VehiclePublicationStatus;
   postedAt?: Date;
 };
 
@@ -581,6 +591,23 @@ export const mapInventoryInput = (input: Record<string, unknown>): InventoryInpu
   if ('status' in input) {
     const status = toString(input.status);
     if (status) data.status = status;
+  }
+  const availabilityState = deriveVehicleAvailabilityState({
+    availabilityState: input.availabilityState,
+    status: data.status || input.status,
+    title: data.title || input.title,
+    description: data.description || input.description,
+    specs: data.specs || input.specs
+  });
+  if ('availabilityState' in input || 'status' in input || 'title' in input || 'description' in input || 'specs' in input) {
+    data.availabilityState = availabilityState;
+  }
+  const publicationStatus = deriveVehiclePublicationStatus({
+    publicationStatus: input.publicationStatus,
+    status: data.status || input.status
+  });
+  if ('publicationStatus' in input || 'status' in input) {
+    data.publicationStatus = publicationStatus;
   }
   if ('postedAt' in input && input.postedAt) {
     const postedAt = input.postedAt instanceof Date ? input.postedAt : new Date(String(input.postedAt));
@@ -697,6 +724,13 @@ export const mapInventoryOutput = (car: Record<string, unknown>) => {
   const output = {
     ...normalized,
     canonicalId: car.id,
+    availabilityState: (car as any).availabilityState || deriveVehicleAvailabilityState({
+      status: car.status,
+      title: (normalized as any).title,
+      description: (normalized as any).description,
+      specs: (normalized as any).specs
+    }),
+    publicationStatus: (car as any).publicationStatus || deriveVehiclePublicationStatus({ status: car.status }),
     price: {
       amount: toNumber(car.price) || toNumber((normalized as any).derivedPrice) || 0,
       currency: car.currency || DEFAULT_CURRENCY

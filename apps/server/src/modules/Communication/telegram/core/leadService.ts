@@ -4,10 +4,14 @@ import { LeadRepository, RequestRepository } from '../../../../repositories/inde
 import { normalizePhone } from '../../../Inventory/normalization/normalizePhone.js';
 import { emitPlatformEvent } from './events/eventEmitter.js';
 import { generatePublicId, mapRequestInput } from '../../../../services/dto.js';
-import { MetaService } from '../../../Integrations/meta/meta.service.js';
 import { IntegrationService } from '../../../Integrations/integration.service.js';
 import { logger } from '../../../../utils/logger.js';
 import { logIntegrationEvent } from '../../../../services/integrationEventLog.service.js';
+import {
+  buildLeadIdentityCandidates,
+  resolveLeadByIdentity,
+  upsertLeadIdentities
+} from '../../../../services/leadIdentity.service.js';
 
 
 const leadRepo = new LeadRepository(prisma);
@@ -101,12 +105,23 @@ export const createOrMergeLead = async (input: LeadCreateInput, botConfig?: any)
   }
 
   const scope = { companyId };
+  const identityCandidates = buildLeadIdentityCandidates({
+    telegramUserId,
+    phone: normalizedPhone,
+    payload: input.payload,
+    metaExternalId: input.payload?.metaExternalId,
+    visitorId: input.payload?.visitorId
+  });
+  const identityLead = await resolveLeadByIdentity({
+    companyId,
+    candidates: identityCandidates
+  });
   const dup = await leadRepo.findDuplicate(scope, {
     phone: normalizedPhone,
     userTgId: telegramUserId,
     name: normalizedName,
     days: dedupDays
-  });
+  }) || identityLead;
 
   if (dup) {
     const shouldUpdateClientName = !dup.clientName || isGenericName(dup.clientName);
@@ -165,6 +180,12 @@ export const createOrMergeLead = async (input: LeadCreateInput, botConfig?: any)
       }
     }
 
+    await upsertLeadIdentities({
+      companyId,
+      leadId: mergedLead.id,
+      candidates: identityCandidates
+    }).catch(() => null);
+
     await emitPlatformEvent({
       companyId,
       botId: input.botId,
@@ -201,6 +222,12 @@ export const createOrMergeLead = async (input: LeadCreateInput, botConfig?: any)
       telegramName: input.telegramName || undefined  // P0-1 FIX: Add missing telegramName
     }
   });
+
+  await upsertLeadIdentities({
+    companyId,
+    leadId: lead.id,
+    candidates: identityCandidates
+  }).catch(() => null);
 
   let createdRequest: any = null;
   if (input.createRequest) {
@@ -258,14 +285,14 @@ export const createOrMergeLead = async (input: LeadCreateInput, botConfig?: any)
 
   // Meta CAPI Event: prefer company-scoped Integration config; keep env fallback only for legacy installs.
   new IntegrationService().metaPixelTrackEvent(companyId, 'Lead', {
-    eventId: `lead:${lead.id}`,
+    entityType: 'lead',
+    entityId: lead.id,
+    stage: 'created',
     externalId: telegramUserId ? `telegram:${telegramUserId}` : `lead:${lead.id}`,
     phone: normalizedPhone || undefined,
     email: input.email || input.payload?.email || undefined,
     name: normalizedName,
     actionSource: 'chat',
-    entityType: 'lead',
-    entityId: lead.id,
     contentName: `Lead ${normalizedName}`,
     contentCategory: 'Lead',
     contentIds: [lead.id],
@@ -276,19 +303,6 @@ export const createOrMergeLead = async (input: LeadCreateInput, botConfig?: any)
       source: input.source || 'TELEGRAM',
       leadType: input.leadType || undefined
     }
-  }).then((result) => {
-    if (result) return;
-    if (!process.env.META_PIXEL_ID || !process.env.META_ACCESS_TOKEN) return;
-    return MetaService.getInstance().sendEvent('Lead', {
-      ph: normalizedPhone,
-      client_user_agent: 'Telegram Bot'
-    }, {
-      content_name: `Lead ${normalizedName}`,
-      content_category: 'Lead',
-      content_ids: [lead.id],
-      value: 0,
-      currency: 'USD'
-    });
   }).catch(logger.error);
 
   // SendPulse Integration - Add lead to mailing list

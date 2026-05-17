@@ -53,6 +53,7 @@ router.get('/:slug/inventory', async (req, res) => {
         const minYear = req.query.minYear ? Number(req.query.minYear) : undefined;
         const maxYear = req.query.maxYear ? Number(req.query.maxYear) : undefined;
         const status = typeof req.query.status === 'string' ? req.query.status : undefined;
+        const availabilityState = typeof req.query.availabilityState === 'string' ? req.query.availabilityState : undefined;
 
         const { showcase, items, total } = await showcaseService.getInventoryForShowcase(resolved.slug || slug, {
             page,
@@ -62,7 +63,8 @@ router.get('/:slug/inventory', async (req, res) => {
             maxPrice,
             minYear,
             maxYear,
-            status
+            status,
+            availabilityState
         });
 
         if (!showcase.isPublic) {

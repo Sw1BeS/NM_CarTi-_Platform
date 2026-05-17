@@ -3,6 +3,10 @@ import { prisma } from './prisma.js';
 import { CarRepository } from '../repositories/car.repository.js';
 import { DraftRepository } from '../repositories/draft.repository.js';
 import { logger } from '../utils/logger.js';
+import {
+    deriveVehicleAvailabilityState,
+    deriveVehiclePublicationStatus
+} from './vehicleState.service.js';
 
 export type IngestionMode = 'INVENTORY' | 'DRAFT_ONLY';
 
@@ -325,6 +329,13 @@ export class ChannelIngestionService {
         const normalizedMediaItems = media.mediaItems.map(normalizeMediaItem) as Prisma.InputJsonValue;
         const autoPublish = (channelSource?.importRules as any)?.autoPublish;
         const status = autoPublish ? 'AVAILABLE' : 'PENDING';
+        const availabilityState = deriveVehicleAvailabilityState({
+            status: autoPublish ? 'AVAILABLE' : undefined,
+            title: transformedData.title,
+            description: transformedData.description || message.text,
+            specs: transformedData.specs
+        });
+        const publicationStatus = deriveVehiclePublicationStatus({ status, autoPublish });
 
         const sourceMeta = buildSourceMeta(message, sourceLabel, botId, channelSource);
         try {
@@ -343,6 +354,8 @@ export class ChannelIngestionService {
                 specs: (transformedData.specs as Prisma.InputJsonValue | undefined),
                 description: transformedData.description || message.text,
                 status,
+                availabilityState,
+                publicationStatus,
                 companyId,
                 sourceChatId: message.chatId,
                 sourceMessageId: message.messageId,

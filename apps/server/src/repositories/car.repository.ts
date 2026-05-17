@@ -1,4 +1,4 @@
-import { PrismaClient, CarListing, Prisma } from '@prisma/client';
+import { PrismaClient, CarListing, Prisma, VehicleAvailabilityState, VehiclePublicationStatus } from '@prisma/client';
 import { BaseRepository } from './base.repository.js';
 import { generateULID } from '../utils/ulid.js';
 
@@ -20,6 +20,8 @@ export class CarRepository extends BaseRepository<CarListing> {
         specs?: Prisma.InputJsonValue;
         description?: string | null;
         status?: string;
+        availabilityState?: VehicleAvailabilityState;
+        publicationStatus?: VehiclePublicationStatus;
         companyId?: string;
         partnerCompanyId?: string;
         currency?: string;
@@ -36,6 +38,8 @@ export class CarRepository extends BaseRepository<CarListing> {
                 mileage: data.mileage,
                 currency: data.currency || 'USD',
                 status: data.status || 'AVAILABLE',
+                availabilityState: data.availabilityState || 'IN_STOCK',
+                publicationStatus: data.publicationStatus || 'PUBLISHED',
                 sourceUrl: data.sourceUrl,
                 location: data.location,
                 thumbnail: data.thumbnail,
@@ -63,6 +67,8 @@ export class CarRepository extends BaseRepository<CarListing> {
         specs?: Prisma.InputJsonValue;
         description?: string | null;
         status?: string;
+        availabilityState?: VehicleAvailabilityState;
+        publicationStatus?: VehiclePublicationStatus;
         companyId?: string | null;
         sourceChatId: string;
         sourceMessageId: number;
@@ -89,6 +95,8 @@ export class CarRepository extends BaseRepository<CarListing> {
                 specs: data.specs ?? undefined,
                 description: data.description ?? undefined,
                 status: data.status || 'AVAILABLE',
+                availabilityState: data.availabilityState || 'IN_STOCK',
+                publicationStatus: data.publicationStatus || 'PUBLISHED',
                 companyId: data.companyId || undefined,
                 sourceChatId: data.sourceChatId,
                 sourceMessageId: data.sourceMessageId,
@@ -103,6 +111,8 @@ export class CarRepository extends BaseRepository<CarListing> {
         companyId?: string;
         partnerCompanyId?: string;
         status?: string;
+        availabilityState?: VehicleAvailabilityState;
+        publicationStatus?: VehiclePublicationStatus;
         priceMin?: number;
         priceMax?: number;
         yearMin?: number;
@@ -116,6 +126,12 @@ export class CarRepository extends BaseRepository<CarListing> {
         if (filters.companyId) where.companyId = filters.companyId;
         if (filters.partnerCompanyId) where.partnerCompanyId = filters.partnerCompanyId;
         if (filters.status && filters.status !== 'ALL') where.status = filters.status;
+        if (filters.availabilityState) {
+            where.availabilityState = filters.availabilityState;
+        }
+        if (filters.publicationStatus) {
+            where.publicationStatus = filters.publicationStatus;
+        }
 
         if (filters.priceMin !== undefined || filters.priceMax !== undefined) {
             where.price = {};
@@ -164,6 +180,8 @@ export class CarRepository extends BaseRepository<CarListing> {
         specs?: Prisma.InputJsonValue;
         description?: string | null;
         status?: string;
+        availabilityState?: VehicleAvailabilityState;
+        publicationStatus?: VehiclePublicationStatus;
         currency?: string;
         companyId?: string;
         partnerCompanyId?: string;
@@ -172,7 +190,7 @@ export class CarRepository extends BaseRepository<CarListing> {
     }>): Promise<CarListing> {
         return this.prisma.carListing.update({
             where: { id },
-            data
+            data: data as Prisma.CarListingUncheckedUpdateInput
         });
     }
 

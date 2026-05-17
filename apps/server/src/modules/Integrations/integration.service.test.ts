@@ -53,7 +53,9 @@ describe('IntegrationService Meta CAPI', () => {
     const service = new IntegrationService();
 
     const result = await service.metaPixelTrackEvent('company_1', 'Lead', {
-      eventId: 'lead_submit_1',
+      entityType: 'lead',
+      entityId: 'lead_submit_1',
+      stage: 'created',
       externalId: 'telegram:1001',
       phone: '+38 (063) 505-52-52',
       email: 'CLIENT@EXAMPLE.COM',
@@ -66,13 +68,14 @@ describe('IntegrationService Meta CAPI', () => {
       }
     });
 
-    expect(result).toMatchObject({ success: true, eventId: 'lead_submit_1' });
+    const eventId = 'meta:company_1:Lead:lead:lead_submit_1:created';
+    expect(result).toMatchObject({ success: true, eventId });
     expect(axiosPostMock).toHaveBeenCalledTimes(1);
     const payload = axiosPostMock.mock.calls[0][1];
     expect(payload.test_event_code).toBe('TEST123');
     expect(payload.data[0]).toMatchObject({
       event_name: 'Lead',
-      event_id: 'lead_submit_1',
+      event_id: eventId,
       action_source: 'website'
     });
     expect(payload.data[0].user_data).toMatchObject({
@@ -93,7 +96,7 @@ describe('IntegrationService Meta CAPI', () => {
         integration: 'META_PIXEL',
         action: 'Lead',
         status: 'SUCCESS',
-        idempotencyKey: 'meta:company_1:Lead:lead_submit_1'
+        idempotencyKey: eventId
       })
     }));
   });

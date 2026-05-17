@@ -54,6 +54,8 @@ export interface CarCard {
     };
     description?: string;
     status: 'AVAILABLE' | 'RESERVED' | 'SOLD' | 'PENDING' | 'HIDDEN';
+    availabilityState?: 'IN_STOCK' | 'IN_TRANSIT' | 'IMPORT_TO_ORDER' | 'RESERVED' | 'SOLD' | 'UNKNOWN';
+    publicationStatus?: 'DRAFT' | 'REVIEW' | 'PUBLISHED' | 'HIDDEN';
     postedAt: string;
     presentation?: VehiclePresentation;
 }
@@ -68,6 +70,17 @@ export interface VehiclePresentation {
     detailRows: Array<{ label: string; value: string }>;
     badges: string[];
     mediaUrls: string[];
+}
+
+export interface RequestPresentation {
+    title: string;
+    sourceLabel: 'MiniApp' | 'Telegram Bot' | 'B2B Bot' | 'Admin';
+    customerLabel: string;
+    contactLabel?: string;
+    intentLabel: 'Підбір авто' | 'Ціна/умови' | 'Продаж авто' | 'B2B заявка';
+    selectedCarLabels: string[];
+    criteriaChips: string[];
+    timeline: Array<{ at: string; label: string }>;
 }
 
 export interface Variant extends Omit<CarCard, 'status'> {
@@ -132,6 +145,8 @@ export interface B2BRequest {
     tags?: string[];
     notes?: string;
     internalNote?: string;
+    presentation?: RequestPresentation;
+    operatorPresentation?: RequestPresentation;
     payload?: Record<string, unknown>;
     status: RequestStatus;
     leadId?: string;
@@ -207,6 +222,8 @@ export interface ShowcaseRules {
     mode: 'FILTER' | 'MANUAL' | 'HYBRID';
     filters?: {
         status?: string[];
+        availabilityState?: string[];
+        publicationStatus?: string[];
         priceMin?: number;
         priceMax?: number;
         yearMin?: number;

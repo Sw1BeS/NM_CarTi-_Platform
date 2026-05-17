@@ -22,6 +22,11 @@ export type MiniAppTrackingMeta = {
   buildSha?: string;
   submitId?: string;
   requestType?: 'BUY' | 'SELL';
+  eventId?: string;
+  fbp?: string;
+  fbc?: string;
+  eventSourceUrl?: string;
+  actionSource?: 'website' | 'chat' | string;
 };
 
 export type MiniAppRequestSubtype = 'GENERAL' | 'SPECIFIC' | 'MULTI_SELECT';
@@ -75,6 +80,29 @@ export type MiniAppEventPayload = {
   view?: string;
   payload?: Record<string, unknown>;
   tracking?: MiniAppTrackingMeta;
+};
+
+export type VehicleTaxonomyOption = {
+  id: string;
+  label: string;
+  aliases?: string[];
+};
+
+export type VehicleTaxonomyModel = VehicleTaxonomyOption & {
+  brandId?: string;
+};
+
+export type VehicleTaxonomyBrand = VehicleTaxonomyOption & {
+  models: VehicleTaxonomyModel[];
+};
+
+export type VehicleTaxonomyResponse = {
+  brands: VehicleTaxonomyBrand[];
+  bodyTypes: VehicleTaxonomyOption[];
+  fuels: VehicleTaxonomyOption[];
+  transmissions: VehicleTaxonomyOption[];
+  drives: VehicleTaxonomyOption[];
+  cities: VehicleTaxonomyOption[];
 };
 
 export async function getMiniAppFavorites(params: { slug: string; tgUserId?: string; visitorId?: string }): Promise<MiniAppFavoritesResponse> {
@@ -185,6 +213,16 @@ export async function getMiniAppConfig(slug: string): Promise<MiniAppConfigRespo
   return response as MiniAppConfigResponse;
 }
 
+export async function getMiniAppVehicleTaxonomy(params?: { slug?: string }): Promise<VehicleTaxonomyResponse> {
+  const query = new URLSearchParams();
+  if (params?.slug) query.append('slug', params.slug);
+  const response = await apiFetch(`/miniapp/vehicle-taxonomy?${query.toString()}`, {
+    method: 'GET',
+    skipAuth: true
+  });
+  return response as VehicleTaxonomyResponse;
+}
+
 export async function getMiniAppShowcases(slug: string) {
   return await apiFetch(`/miniapp/showcases?slug=${encodeURIComponent(slug)}`, {
     method: 'GET',
@@ -202,6 +240,7 @@ export async function getMiniAppShowcaseInventory(params: {
   minYear?: number;
   maxYear?: number;
   status?: 'AVAILABLE' | 'PENDING';
+  availabilityState?: 'IN_STOCK' | 'IN_TRANSIT' | 'IMPORT_TO_ORDER' | 'RESERVED' | 'SOLD' | 'UNKNOWN';
 }) {
   const query = new URLSearchParams();
   if (params.page) query.append('page', String(params.page));
@@ -212,6 +251,7 @@ export async function getMiniAppShowcaseInventory(params: {
   if (typeof params.minYear === 'number') query.append('minYear', String(params.minYear));
   if (typeof params.maxYear === 'number') query.append('maxYear', String(params.maxYear));
   if (params.status) query.append('status', params.status);
+  if (params.availabilityState) query.append('availabilityState', params.availabilityState);
   return await apiFetch(`/miniapp/showcases/${encodeURIComponent(params.slug)}/inventory?${query.toString()}`, {
     method: 'GET',
     skipAuth: true

@@ -184,6 +184,8 @@ export const routeWebApp = async (ctx: PipelineContext) => {
         tracking: payload.meta || undefined,
         payload: {
           source: 'legacy_web_app_data',
+          surfaceMode: 'LEAD',
+          surfaceType: 'LEAD',
           legacyPayloadType: payload.type,
           fields,
           criteria: fields,
@@ -297,6 +299,15 @@ export const routeWebApp = async (ctx: PipelineContext) => {
           carListingId: primaryCarId || undefined,
           carListingIds: payloadCarIds.length ? payloadCarIds : undefined,
           tracking: payload.meta || undefined,
+          payload: {
+            source: 'legacy_web_app_data',
+            surfaceMode: 'LEAD',
+            surfaceType: 'LEAD',
+            legacyPayloadType: payload.type,
+            fields,
+            criteria: fields,
+            sourceView: 'legacy_web_app_data'
+          },
           telegram: {
             userId: String(from.id),
             username: telegramUsername,

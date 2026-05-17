@@ -68,4 +68,59 @@ describe('ChannelIngestionService', () => {
     expect(result.reason).toBe('MERGED');
     expect(state.lastCarRepo.createFromChannelMessage).not.toHaveBeenCalled();
   });
+
+  it('marks non-autopublished inventory for review without treating review as transit', async () => {
+    (prisma.carListing.findFirst as any).mockResolvedValue(null);
+
+    const message = channelIngestionService.normalizeMessage({
+      chatId: '-100123',
+      messageId: 43,
+      text: 'BMW X5 2020\n50 000 $\n90 000 км',
+      date: new Date('2026-05-15T00:00:00.000Z'),
+      mediaUrls: [],
+      sourceType: 'MTPROTO'
+    });
+
+    const result = await channelIngestionService.upsertCarListingOrDraft({
+      message,
+      mode: 'INVENTORY',
+      channelSource: { id: 'src1', connectorId: 'conn1', importRules: { autoPublish: false } } as any,
+      companyId: 'company_1',
+      sourceLabel: 'MTPROTO'
+    });
+
+    expect(result.created).toBe(true);
+    expect(state.lastCarRepo.createFromChannelMessage).toHaveBeenCalledWith(expect.objectContaining({
+      status: 'PENDING',
+      availabilityState: 'IN_STOCK',
+      publicationStatus: 'REVIEW'
+    }));
+  });
+
+  it('keeps explicit transit signal separate from publication review state', async () => {
+    (prisma.carListing.findFirst as any).mockResolvedValue(null);
+
+    const message = channelIngestionService.normalizeMessage({
+      chatId: '-100123',
+      messageId: 44,
+      text: 'Audi Q7 2021 #вдорозі\n65 000 $\n40 000 км',
+      date: new Date('2026-05-15T00:00:00.000Z'),
+      mediaUrls: [],
+      sourceType: 'MTPROTO'
+    });
+
+    await channelIngestionService.upsertCarListingOrDraft({
+      message,
+      mode: 'INVENTORY',
+      channelSource: { id: 'src1', connectorId: 'conn1', importRules: { autoPublish: false } } as any,
+      companyId: 'company_1',
+      sourceLabel: 'MTPROTO'
+    });
+
+    expect(state.lastCarRepo.createFromChannelMessage).toHaveBeenCalledWith(expect.objectContaining({
+      status: 'PENDING',
+      availabilityState: 'IN_TRANSIT',
+      publicationStatus: 'REVIEW'
+    }));
+  });
 });

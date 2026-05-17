@@ -1,5 +1,6 @@
 import { isPublicMediaUrl, normalizeMediaUrl } from './mediaUrl.service.js';
 import { parseCarData } from './enhanced-parsing.utils.js';
+import { vehicleAvailabilityLabel } from './vehicleState.service.js';
 
 export type VehiclePresentation = {
   title: string;
@@ -217,8 +218,9 @@ export const normalizeVehicleSpecLabel = (
   }
 
   if (key === 'status') {
+    if (/in stock|available|active|наяв|in_stock/.test(norm)) return 'В наявності';
+    if (/import to order|під замов|под заказ/.test(norm)) return 'Під замовлення';
     if (/pending|transit|дороз/.test(norm)) return 'В дорозі';
-    if (/available|active|наяв/.test(norm)) return 'В наявності';
     if (/reserved|брон/.test(norm)) return 'Заброньовано';
     if (/sold|прод/.test(norm)) return 'Продано';
     if (/hidden|hide|архів/.test(norm)) return 'Приховано';
@@ -238,7 +240,9 @@ export const buildVehiclePresentation = (car: any): VehiclePresentation => {
   const rawPrice = rawVehicleText ? extractAutoRiaPriceFromRaw(rawVehicleText) : undefined;
   const rawMileage = rawVehicleText ? extractAutoRiaMileageFromRaw(rawVehicleText) : undefined;
   const rawLocation = rawVehicleText ? extractAutoRiaLocationFromRaw(rawVehicleText) : undefined;
-  const statusLabel = normalizeVehicleSpecLabel('status', car?.status) || 'В наявності';
+  const statusLabel = car?.availabilityState
+    ? vehicleAvailabilityLabel(car.availabilityState, car?.status)
+    : (normalizeVehicleSpecLabel('status', car?.status) || 'В наявності');
   const fuel = normalizeVehicleSpecLabel('fuel', specs.fuel || specs.engineType || parsed.fuel);
   const transmission = normalizeVehicleSpecLabel('transmission', specs.transmission || parsed.transmission);
   const drive = normalizeVehicleSpecLabel('drive', specs.drive || parsed.drive);

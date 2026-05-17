@@ -10,7 +10,11 @@ vi.mock('../../messaging/telegramSender.js', () => ({
   }
 }));
 
-import { assertAdminTestAccess, assertConfiguredAdminActionAccess } from './telegramAdminAccess.js';
+import {
+  assertAdminTestAccess,
+  assertConfiguredAdminActionAccess,
+  assertConfiguredAdminGroupActionAccess
+} from './telegramAdminAccess.js';
 
 const buildCtx = (overrides: Record<string, any> = {}) => ({
   receivedAt: new Date(),
@@ -111,5 +115,38 @@ describe('assertConfiguredAdminActionAccess', () => {
       expect(result.errorText).not.toMatch(/тест/i);
       expect(result.errorText).toMatch(/дію|прав/i);
     }
+  });
+});
+
+describe('assertConfiguredAdminGroupActionAccess', () => {
+  it('denies private chat even when it matches adminChatId', async () => {
+    const result = await assertConfiguredAdminGroupActionAccess(buildCtx({
+      chatId: '100',
+      chatType: 'private',
+      bot: {
+        id: 'bot_1',
+        token: 'token',
+        adminChatId: '100'
+      },
+      update: {
+        callback_query: {
+          id: 'cb_1',
+          from: { id: 100, username: 'admin' },
+          message: { chat: { id: 100, type: 'private' } }
+        }
+      }
+    }));
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.errorText).toMatch(/admin-груп/i);
+  });
+
+  it('allows configured group administrators for high-risk actions', async () => {
+    getChatMemberMock.mockResolvedValueOnce({ status: 'creator' });
+
+    const result = await assertConfiguredAdminGroupActionAccess(buildCtx());
+
+    expect(result.ok).toBe(true);
+    expect(getChatMemberMock).toHaveBeenCalledWith('token', '-100123', '100');
   });
 });

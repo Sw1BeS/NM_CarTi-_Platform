@@ -16,6 +16,7 @@ import { requestContractService } from '../services/requestContract.service.js';
 import { startLeadSellWizard } from '../modules/Communication/telegram/routing/wizards/leadSellWizard.js';
 import { buildLeadAdminActionMarkup, buildLeadAdminNotificationText } from '../services/leadAdminNotification.js';
 import { isEnvFlagEnabled } from '../services/featureFlags.js';
+import { vehicleTaxonomyService } from '../services/vehicleTaxonomy.service.js';
 
 const router = Router();
 const showcaseService = new ShowcaseService();
@@ -338,6 +339,18 @@ router.get('/config', async (req, res) => {
   }
 });
 
+router.get('/vehicle-taxonomy', async (req, res) => {
+  try {
+    const slug = readString(req.query.slug);
+    const companyId = slug ? await resolveCompanyIdBySlug(slug) : null;
+    const taxonomy = await vehicleTaxonomyService.getTaxonomy({ companyId });
+    res.json({ ok: true, ...taxonomy });
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'Failed to load vehicle taxonomy';
+    errorResponse(res, 500, message);
+  }
+});
+
 router.get('/showcases', async (req, res) => {
   try {
     const slug = readString(req.query.slug);
@@ -379,6 +392,7 @@ router.get('/showcases/:slug/inventory', async (req, res) => {
     const minYear = readNumber(req.query.minYear);
     const maxYear = readNumber(req.query.maxYear);
     const status = readString(req.query.status);
+    const availabilityState = readString(req.query.availabilityState);
 
     const { showcase, items, total } = await showcaseService.getInventoryForShowcase(slug, {
       page,
@@ -388,7 +402,8 @@ router.get('/showcases/:slug/inventory', async (req, res) => {
       maxPrice,
       minYear,
       maxYear,
-      status
+      status,
+      availabilityState
     });
 
     if (!showcase.isPublic) return errorResponse(res, 404, 'Showcase not found');
@@ -943,6 +958,20 @@ router.post('/lead-intents', async (req, res) => {
     const bot = await getMiniAppBotForSend(pending.botId || config.botId, config.companyId);
     if (!bot?.token) return errorResponse(res, 400, 'Bot not found', MINIAPP_ERROR_CODES.BOT_FLOW_UNAVAILABLE);
 
+    if ((pending as any).isDuplicate) {
+      return res.json({
+        ok: true,
+        contactRequested: false,
+        duplicate: true,
+        closeMiniApp: true,
+        intent: {
+          kind: kind.kind,
+          type: pending.intentType,
+          title: pending.title
+        }
+      });
+    }
+
     const knownContact = await requestContractService.findKnownLeadContact({
       companyId: config.companyId,
       botId: pending.botId || config.botId,
@@ -1032,20 +1061,6 @@ router.post('/lead-intents', async (req, res) => {
           id: finalized.request.id,
           publicId: finalized.request.publicId
         } : undefined
-      });
-    }
-
-    if ((pending as any).isDuplicate) {
-      return res.json({
-        ok: true,
-        contactRequested: false,
-        duplicate: true,
-        closeMiniApp: true,
-        intent: {
-          kind: kind.kind,
-          type: pending.intentType,
-          title: pending.title
-        }
       });
     }
 
@@ -1230,23 +1245,24 @@ router.post('/requests', async (req, res) => {
       return errorResponse(res, 404, 'Company not found');
     }
 
-      const initCheck = await requireInitData(initData, config.companyId, config.botId);
-      if (!initCheck.ok) return errorResponse(res, 401, initCheck.message || 'Unauthorized');
-
-      if (!isB2BMiniAppConfig(config)) {
+    if (!isB2BMiniAppConfig(config)) {
       return errorResponse(
         res,
         400,
         'Lead MiniApp writes must use /api/miniapp/lead-intents',
-          LEAD_WRONG_ENDPOINT
-        );
-      }
-      const telegram = parseMiniAppTelegramIdentity(initData || '');
-      if (!telegram.userId) {
-        return errorResponse(res, 400, 'Telegram user not found', MINIAPP_ERROR_CODES.INITDATA_INVALID);
-      }
+        LEAD_WRONG_ENDPOINT
+      );
+    }
 
-      logger.info('[MiniApp] request create', {
+    const initCheck = await requireInitData(initData, config.companyId, config.botId);
+    if (!initCheck.ok) return errorResponse(res, 401, initCheck.message || 'Unauthorized');
+
+    const telegram = parseMiniAppTelegramIdentity(initData || '');
+    if (!telegram.userId) {
+      return errorResponse(res, 400, 'Telegram user not found', MINIAPP_ERROR_CODES.INITDATA_INVALID);
+    }
+
+    logger.info('[MiniApp] request create', {
       requestId,
       slug,
       companyId: config.companyId,
@@ -1270,17 +1286,17 @@ router.post('/requests', async (req, res) => {
       phone: readString(body.phone),
       comment: readString(body.comment),
       carListingId: readString(body.carListingId),
-        carListingIds: Array.isArray(body.carListingIds)
-          ? body.carListingIds.map((item) => readString(item)).filter((item): item is string => Boolean(item))
-          : undefined,
-        tracking: (body.tracking as Record<string, unknown>) || undefined,
-        telegram: {
-          userId: telegram.userId,
-          username: telegram.username,
-          name: telegram.name
-        },
-        payload: (body.payload as Record<string, unknown>) || undefined
-      });
+      carListingIds: Array.isArray(body.carListingIds)
+        ? body.carListingIds.map((item) => readString(item)).filter((item): item is string => Boolean(item))
+        : undefined,
+      tracking: (body.tracking as Record<string, unknown>) || undefined,
+      telegram: {
+        userId: telegram.userId,
+        username: telegram.username,
+        name: telegram.name
+      },
+      payload: (body.payload as Record<string, unknown>) || undefined
+    });
 
     res.json({ ok: true, request });
   } catch (e: unknown) {
@@ -1395,7 +1411,8 @@ router.post('/events', async (req, res) => {
         contentIds: carListingId ? [carListingId] : undefined,
         customData,
         entityType: 'miniapp_event',
-        entityId: eventId
+        entityId: eventId,
+        stage: eventType
       }).catch((e: unknown) => {
         logger.warn('[MiniApp] Meta CAPI event failed', {
           slug,

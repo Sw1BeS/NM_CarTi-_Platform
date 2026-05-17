@@ -2,11 +2,18 @@ import { Router } from 'express';
 // @ts-ignore
 import { prisma } from '../services/prisma.js';
 import { requireRole } from '../middleware/auth.js';
+import { LeadRepository } from '../repositories/index.js';
 import { mapLeadCreateInput, mapLeadOutput, mapLeadStatusFilter, mapLeadUpdateInput } from '../services/dto.js';
+import {
+    buildLeadIdentityCandidates,
+    buildLeadTimeline,
+    upsertLeadIdentities
+} from '../services/leadIdentity.service.js';
 import { logger } from '../utils/logger.js';
 import { errorResponse } from '../utils/errorResponse.js';
 
 const router = Router();
+const leadRepo = new LeadRepository(prisma);
 
 router.get('/leads', requireRole(['SUPER_ADMIN', 'OWNER', 'ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
     const page = Math.max(1, Number(req.query.page) || 1);
@@ -79,13 +86,20 @@ router.post('/leads', requireRole(['SUPER_ADMIN', 'OWNER', 'ADMIN', 'MANAGER', '
             if (!isSuperadmin && bot.companyId !== companyId) return errorResponse(res, 403, 'Forbidden');
         }
 
-        const lead = await prisma.lead.create({
-            data: {
-                ...mapped.data,
-                companyId,
-                ...(botId ? { botId } : {})
-            }
+        const lead = await leadRepo.createLead({
+            ...mapped.data,
+            companyId,
+            ...(botId ? { botId } : {})
         });
+        await upsertLeadIdentities({
+            companyId,
+            leadId: lead.id,
+            candidates: buildLeadIdentityCandidates({
+                telegramUserId: mapped.data.userTgId,
+                phone: mapped.data.phone,
+                payload: mapped.data.payload
+            })
+        }).catch(() => null);
         res.json(mapLeadOutput(lead));
     } catch (e) {
         logger.error(e);
@@ -108,6 +122,15 @@ router.put('/leads/:id', requireRole(['SUPER_ADMIN', 'OWNER', 'ADMIN', 'MANAGER'
         }
         const mapped = mapLeadUpdateInput(raw, existing.payload);
         const lead = await prisma.lead.update({ where: { id }, data: mapped.data });
+        await upsertLeadIdentities({
+            companyId: lead.companyId,
+            leadId: lead.id,
+            candidates: buildLeadIdentityCandidates({
+                telegramUserId: lead.userTgId,
+                phone: lead.phone,
+                payload: lead.payload as Record<string, unknown> | null
+            })
+        }).catch(() => null);
         res.json(mapLeadOutput(lead));
     } catch (e) {
         logger.error(e);
@@ -173,11 +196,44 @@ router.post('/leads/merge', requireRole(['SUPER_ADMIN', 'OWNER', 'ADMIN', 'MANAG
                 payload: { duplicateId: duplicate.id }
             }
         }).catch(() => null);
+        await upsertLeadIdentities({
+            companyId: updated.companyId,
+            leadId: updated.id,
+            candidates: buildLeadIdentityCandidates({
+                telegramUserId: updated.userTgId,
+                phone: updated.phone,
+                payload: updated.payload as Record<string, unknown> | null
+            })
+        }).catch(() => null);
 
         res.json(mapLeadOutput(updated));
     } catch (e: any) {
         logger.error('[Leads] Merge error:', e.message || e);
         errorResponse(res, 500, 'Failed to merge leads');
+    }
+});
+
+router.get('/leads/:id/timeline', requireRole(['SUPER_ADMIN', 'OWNER', 'ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
+    try {
+        const { id } = req.params;
+        const user = (req as any).user || {};
+        const isSuperadmin = user.role === 'SUPER_ADMIN';
+        const userCompanyId = user.companyId || user.workspaceId;
+
+        const lead = await prisma.lead.findUnique({
+            where: { id },
+            select: { id: true, companyId: true }
+        });
+        if (!lead) return errorResponse(res, 404, 'Lead not found');
+        if (!isSuperadmin && userCompanyId && lead.companyId !== userCompanyId) {
+            return errorResponse(res, 403, 'Forbidden');
+        }
+
+        const timeline = await buildLeadTimeline({ leadId: lead.id, companyId: lead.companyId });
+        res.json({ items: timeline });
+    } catch (e) {
+        logger.error(e);
+        errorResponse(res, 500, 'Failed to fetch lead timeline');
     }
 });
 

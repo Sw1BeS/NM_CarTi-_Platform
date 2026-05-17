@@ -3,7 +3,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Bot, MiniAppConfig, CarListing } from '../../types';
 import { getPublicInventory } from '../../services/publicApi';
-import { createMiniAppLeadIntent, createMiniAppRequest, getMiniAppCar, getMiniAppConfig, getMiniAppFavorites, getMiniAppRequestStatus, getMiniAppShowcaseInventory, startMiniAppBotFlow, toggleMiniAppFavorite, trackMiniAppEvent, type MiniAppRequestSubtype, type MiniAppTrackingMeta } from '../../services/miniappApi';
+import { createMiniAppLeadIntent, createMiniAppRequest, getMiniAppCar, getMiniAppConfig, getMiniAppFavorites, getMiniAppRequestStatus, getMiniAppShowcaseInventory, getMiniAppVehicleTaxonomy, startMiniAppBotFlow, toggleMiniAppFavorite, trackMiniAppEvent, type MiniAppRequestSubtype, type MiniAppTrackingMeta, type VehicleTaxonomyResponse } from '../../services/miniappApi';
 import {
     Search, LayoutGrid, User, Plus, Filter, DollarSign,
     MessageSquare, Zap, List as ListIcon, Star, Phone, Home, Heart, ClipboardList,
@@ -36,6 +36,15 @@ const emitMiniAppEvent = (level: 'info' | 'warn' | 'error', message: string, met
     } catch {
         // no-op
     }
+};
+
+const readCookie = (name: string) => {
+    if (typeof document === 'undefined') return undefined;
+    const match = document.cookie
+        .split(';')
+        .map(part => part.trim())
+        .find(part => part.startsWith(`${name}=`));
+    return match ? decodeURIComponent(match.slice(name.length + 1)) : undefined;
 };
 
 class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean; error: Error | null; errorInfo: React.ErrorInfo | null }> {
@@ -114,6 +123,9 @@ const deriveRequestSubtype = (ids: string[]): RequestSubtype => {
     if (count === 1) return 'SPECIFIC';
     return 'GENERAL';
 };
+
+const taxonomyId = (value: string) =>
+    value.trim().toLowerCase().replace(/[^a-z0-9а-яіїєґ]+/gi, '-').replace(/^-+|-+$/g, '') || 'other';
 
 const isBrowserImageUrl = (value: unknown): value is string => {
     if (typeof value !== 'string') return false;
@@ -337,6 +349,7 @@ const MiniAppContent = () => {
         model: '',
         brands: [],
         models: [],
+        bodyTypes: [],
         budgetMin: '',
         budgetMax: '',
         yearMin: '',
@@ -348,6 +361,7 @@ const MiniAppContent = () => {
         brandCustom: '',
         modelCustom: ''
     });
+    const [vehicleTaxonomy, setVehicleTaxonomy] = useState<VehicleTaxonomyResponse | null>(null);
     const [reqMileage, setReqMileage] = useState('');
     const [reqFuel, setReqFuel] = useState('');
     const [reqCompany, setReqCompany] = useState('');
@@ -624,6 +638,7 @@ const MiniAppContent = () => {
             model: '',
             brands: car.title ? [car.title] : [],
             models: [],
+            bodyTypes: [],
             budgetMin: '',
             budgetMax: String(car.price?.amount || ''),
             yearMin: String(car.year || ''),
@@ -653,6 +668,7 @@ const MiniAppContent = () => {
                 model: '',
                 brands: first.title ? [first.title] : [],
                 models: [],
+                bodyTypes: [],
                 budgetMin: '',
                 budgetMax: String(first.price?.amount || ''),
                 yearMin: String(first.year || ''),
@@ -809,7 +825,11 @@ const MiniAppContent = () => {
                 entrypoint: window.location.pathname,
                 referrer: document.referrer || undefined,
                 miniappVersion: buildVersion,
-                buildSha: buildVersion
+                buildSha: buildVersion,
+                fbp: readCookie('_fbp'),
+                fbc: readCookie('_fbc'),
+                eventSourceUrl: window.location.href,
+                actionSource: 'website'
             });
 
             // 2. Determine Target Slug (priority: URL slug > non-entry start_param > system)
@@ -1172,6 +1192,22 @@ const MiniAppContent = () => {
         }
     };
 
+    useEffect(() => {
+        const slugValue = targetSlug || slug || 'system';
+        let cancelled = false;
+        getMiniAppVehicleTaxonomy({ slug: slugValue })
+            .then((taxonomy) => {
+                if (!cancelled) setVehicleTaxonomy(taxonomy);
+            })
+            .catch((e) => {
+                emitMiniAppEvent('warn', 'Fetch vehicle taxonomy failed', { error: e instanceof Error ? e.message : String(e) });
+                if (!cancelled) setVehicleTaxonomy(null);
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [slug, targetSlug]);
+
     // Refetch when filters change
     useEffect(() => {
         const fetchCars = async () => {
@@ -1340,13 +1376,26 @@ const MiniAppContent = () => {
     };
 
     const isTransitCar = (car: CarListing) => {
+        const availabilityState = String((car as any).availabilityState || '').toUpperCase();
+        if (availabilityState) {
+            return availabilityState === 'IN_TRANSIT' || availabilityState === 'IMPORT_TO_ORDER';
+        }
         const specs = getCarSpecs(car);
         const condition = (specs.condition || '').toLowerCase();
         const status = String((car as any).status || '').toUpperCase();
         return condition === 'in_transit' || condition.includes('дороз') || car.presentation?.statusLabel === 'В дорозі' || status === 'PENDING' || status === 'IN_TRANSIT';
     };
 
-    const getStatusLabel = (car: CarListing) => car.presentation?.statusLabel || (isTransitCar(car) ? 'В дорозі' : 'В наявності');
+    const getStatusLabel = (car: CarListing) => {
+        if (car.presentation?.statusLabel) return car.presentation.statusLabel;
+        const availabilityState = String((car as any).availabilityState || '').toUpperCase();
+        if (availabilityState === 'IMPORT_TO_ORDER') return 'Під замовлення';
+        if (availabilityState === 'IN_TRANSIT') return 'В дорозі';
+        if (availabilityState === 'RESERVED') return 'Заброньовано';
+        if (availabilityState === 'SOLD') return 'Продано';
+        if (availabilityState === 'UNKNOWN') return 'Статус уточнюється';
+        return isTransitCar(car) ? 'В дорозі' : 'В наявності';
+    };
 
     const renderCompactCarCard = (
         car: CarListing,
@@ -2245,6 +2294,50 @@ const MiniAppContent = () => {
         );
     };
 
+    const findTaxonomyOption = (
+        label: string,
+        options: Array<{ id: string; label: string; aliases?: string[] }>
+    ) => {
+        const normalized = label.trim().toLowerCase();
+        const alternative = normalized === 'інша марка' || normalized === 'інша модель' ? 'other' : normalized;
+        return options.find(option =>
+            option.label.toLowerCase() === normalized
+            || option.label.toLowerCase() === alternative
+            || (option.aliases || []).some(alias => alias.toLowerCase() === normalized || alias.toLowerCase() === alternative)
+        );
+    };
+
+    const toTaxonomyOption = (
+        label: string,
+        options: Array<{ id: string; label: string; aliases?: string[] }>
+    ) => {
+        const clean = label.trim();
+        if (!clean) return undefined;
+        const match = findTaxonomyOption(clean, options);
+        return {
+            id: match?.id || taxonomyId(clean),
+            label: match?.label || clean
+        };
+    };
+
+    const toModelTaxonomyOption = (label: string, selectedBrands: Array<{ id: string; label: string }>) => {
+        const clean = label.trim();
+        if (!clean) return undefined;
+        const brandCandidates = selectedBrands.length
+            ? selectedBrands
+            : (vehicleTaxonomy?.brands || []).map(brand => ({ id: brand.id, label: brand.label }));
+        for (const brand of brandCandidates) {
+            const sourceBrand = (vehicleTaxonomy?.brands || []).find(item => item.id === brand.id || item.label === brand.label);
+            const match = sourceBrand?.models?.find(model =>
+                model.label.toLowerCase() === clean.toLowerCase()
+                || (clean === 'Інша модель' && model.label.toLowerCase() === 'other')
+                || (model.aliases || []).some(alias => alias.toLowerCase() === clean.toLowerCase())
+            );
+            if (sourceBrand && match) return { brandId: sourceBrand.id, id: match.id, label: match.label };
+        }
+        return { brandId: selectedBrands[0]?.id, id: taxonomyId(clean), label: clean };
+    };
+
     const handleNextStep = async () => {
         const isB2BMode = surfaceMode === 'B2B';
         if (isRequestSubmitting) return;
@@ -2302,19 +2395,37 @@ const MiniAppContent = () => {
                 const effectiveModels = (reqData.models?.length ? reqData.models : (effectiveModel ? [effectiveModel] : []))
                     .map(item => item === 'Інша модель' ? reqData.modelCustom.trim() : item.trim())
                     .filter(Boolean);
+                const effectiveBodyTypes = (reqData.bodyTypes?.length ? reqData.bodyTypes : (reqData.bodyType ? [reqData.bodyType] : []))
+                    .map(item => item.trim())
+                    .filter(Boolean);
+                const brandOptions = vehicleTaxonomy?.brands || [];
+                const normalizedBrands = effectiveBrands
+                    .map(label => toTaxonomyOption(label, brandOptions))
+                    .filter((item): item is { id: string; label: string } => Boolean(item));
+                const normalizedModels = effectiveModels
+                    .map(label => toModelTaxonomyOption(label, normalizedBrands))
+                    .filter((item): item is { brandId?: string; id: string; label: string } => Boolean(item));
+                const normalizedBodyTypes = effectiveBodyTypes
+                    .map(label => toTaxonomyOption(label, vehicleTaxonomy?.bodyTypes || []))
+                    .filter((item): item is { id: string; label: string } => Boolean(item));
+                const normalizedFuel = reqFuel ? toTaxonomyOption(reqFuel, vehicleTaxonomy?.fuels || []) : undefined;
+                const normalizedCity = reqData.city ? toTaxonomyOption(reqData.city, vehicleTaxonomy?.cities || []) : undefined;
                 const criteria = {
                     brand: effectiveBrands[0] || effectiveBrand || undefined,
                     model: effectiveModels[0] || effectiveModel || undefined,
-                    brands: effectiveBrands.length ? effectiveBrands : undefined,
-                    models: effectiveModels.length ? effectiveModels : undefined,
+                    brands: normalizedBrands.length ? normalizedBrands : undefined,
+                    models: normalizedModels.length ? normalizedModels : undefined,
                     yearFrom: reqData.yearMin || undefined,
                     yearTo: reqData.yearMax || undefined,
                     budgetMin: reqData.budgetMin || undefined,
                     budgetMax: reqData.budgetMax || undefined,
-                    bodyType: reqData.bodyType || undefined,
+                    bodyType: effectiveBodyTypes[0] || undefined,
+                    bodyTypes: normalizedBodyTypes.length ? normalizedBodyTypes : undefined,
                     fuel: reqFuel || undefined,
+                    fuels: normalizedFuel ? [normalizedFuel] : undefined,
                     mileage: reqMileage || undefined,
                     city: reqData.city || undefined,
+                    cities: normalizedCity ? [normalizedCity] : undefined,
                     selectedCars: selectedTitles.length ? selectedTitles : undefined
                 };
 
@@ -2345,7 +2456,7 @@ const MiniAppContent = () => {
                     [effectiveBrand, effectiveModel].filter(Boolean).length ? `Марка/модель: ${[effectiveBrand, effectiveModel].filter(Boolean).join(' ')}` : null,
                     reqData.yearMin || reqData.yearMax ? `Рік: ${reqData.yearMin || 'будь-який'} - ${reqData.yearMax || 'будь-який'}` : null,
                     reqData.budgetMin || reqData.budgetMax ? `Бюджет: ${reqData.budgetMin || '0'} - ${reqData.budgetMax || '∞'}` : null,
-                    reqData.bodyType ? `Кузов: ${reqData.bodyType}` : null,
+                    effectiveBodyTypes.length ? `Кузов: ${effectiveBodyTypes.join(', ')}` : null,
                     reqMileage ? `Пробіг: ${reqMileage}` : null,
                     reqFuel ? `Пальне: ${reqFuel}` : null,
                     reqCompany ? `Компанія: ${reqCompany}` : null,
@@ -2431,6 +2542,7 @@ const MiniAppContent = () => {
             primaryColor={primaryColor}
             surfaceMode={surfaceMode}
             requestType={requestType}
+            taxonomy={vehicleTaxonomy}
             showInlineAction={true}
             actionLabel={isRequestSubmitting ? 'Надсилання...' : (reqStep >= 4 ? 'Надіслати' : 'Далі')}
             actionDisabled={isRequestSubmitting}

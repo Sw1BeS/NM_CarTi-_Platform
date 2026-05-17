@@ -11,6 +11,7 @@ const {
   startLeadSellWizardMock,
   emitPlatformEventMock,
   metaPixelTrackEventMock,
+  vehicleTaxonomyServiceMock,
   prismaMock
 } = vi.hoisted(() => ({
   miniAppServiceMock: {
@@ -31,6 +32,9 @@ const {
   startLeadSellWizardMock: vi.fn(),
   emitPlatformEventMock: vi.fn(),
   metaPixelTrackEventMock: vi.fn(),
+  vehicleTaxonomyServiceMock: {
+    getTaxonomy: vi.fn()
+  },
   prismaMock: {
     botConfig: {
       findFirst: vi.fn()
@@ -70,6 +74,9 @@ const {
       findMany: vi.fn(),
       findUnique: vi.fn(),
       update: vi.fn()
+    },
+    normalizationAlias: {
+      findMany: vi.fn()
     }
   }
 }));
@@ -111,6 +118,10 @@ vi.mock('../modules/Integrations/integration.service.js', () => ({
   IntegrationService: vi.fn().mockImplementation(() => ({
     metaPixelTrackEvent: metaPixelTrackEventMock
   }))
+}));
+
+vi.mock('../services/vehicleTaxonomy.service.js', () => ({
+  vehicleTaxonomyService: vehicleTaxonomyServiceMock
 }));
 
 const buildApp = async () => {
@@ -198,7 +209,33 @@ describe('MiniApp Lead handoff routes', () => {
     startLeadSellWizardMock.mockResolvedValue(undefined);
     emitPlatformEventMock.mockResolvedValue(undefined);
     metaPixelTrackEventMock.mockResolvedValue({ success: true, eventId: 'event_1' });
+    vehicleTaxonomyServiceMock.getTaxonomy.mockResolvedValue({
+      brands: [
+        { id: 'bmw', label: 'BMW', aliases: [], models: [{ id: 'x5', label: 'X5', brandId: 'bmw', aliases: [] }] }
+      ],
+      bodyTypes: [{ id: 'suv', label: 'SUV' }],
+      fuels: [{ id: 'diesel', label: 'Дизель' }],
+      transmissions: [{ id: 'automatic', label: 'Автомат' }],
+      drives: [{ id: 'awd', label: 'Повний' }],
+      cities: [{ id: 'kyiv', label: 'Київ' }]
+    });
     vi.unstubAllEnvs();
+  });
+
+  it('returns MiniApp vehicle taxonomy for searchable request forms', async () => {
+    const app = await buildApp();
+
+    const res = await request(app)
+      .get('/api/miniapp/vehicle-taxonomy')
+      .expect(200);
+
+    expect(res.body.ok).toBe(true);
+    expect(res.body.brands[0]).toMatchObject({
+      id: 'bmw',
+      label: 'BMW',
+      models: [expect.objectContaining({ id: 'x5', label: 'X5', brandId: 'bmw' })]
+    });
+    expect(vehicleTaxonomyServiceMock.getTaxonomy).toHaveBeenCalledWith({ companyId: null });
   });
 
   it('creates a pending pick intent and asks for native Telegram contact', async () => {
@@ -290,7 +327,13 @@ describe('MiniApp Lead handoff routes', () => {
     }));
   });
 
-  it('finalizes immediately without another contact request when phone is already known', async () => {
+  it('does not send contact request when the same Telegram user already has a phone', async () => {
+    parseTelegramUserMock.mockReturnValueOnce({
+      id: 219480233,
+      username: 'known_client',
+      first_name: 'Known',
+      last_name: 'Client'
+    });
     requestContractServiceMock.findKnownLeadContact.mockResolvedValueOnce({
       phone: '+380635055252',
       leadId: 'lead_existing'
@@ -304,7 +347,7 @@ describe('MiniApp Lead handoff routes', () => {
         initData: 'signed-init-data',
         kind: 'PRICE_TERMS',
         carListingId: 'car_1',
-        tracking: { submitId: 'submit_known_phone' }
+        tracking: { submitId: 'submit_known_phone_219480233' }
       });
 
     expect(res.status).toBe(200);
@@ -315,10 +358,15 @@ describe('MiniApp Lead handoff routes', () => {
       finalized: true,
       closeMiniApp: true
     });
+    expect(requestContractServiceMock.findKnownLeadContact).toHaveBeenCalledWith({
+      companyId: 'company_1',
+      botId: 'bot_1',
+      telegramUserId: '219480233'
+    });
     expect(requestContractServiceMock.finalizePendingLeadIntent).toHaveBeenCalledWith(expect.objectContaining({
       botId: 'bot_1',
       companyId: 'company_1',
-      telegramUserId: '1001',
+      telegramUserId: '219480233',
       phone: '+380635055252'
     }));
     expect(telegramOutboxMock.sendMessage).not.toHaveBeenCalledWith(expect.objectContaining({
@@ -423,6 +471,42 @@ describe('MiniApp Lead handoff routes', () => {
     expect(telegramOutboxMock.sendMessage).not.toHaveBeenCalled();
   });
 
+  it('does not finalize or notify again for duplicate pending submit even when contact is known', async () => {
+    requestContractServiceMock.createPendingLeadIntent.mockResolvedValueOnce({
+      companyId: 'company_1',
+      botId: 'bot_1',
+      chatId: '1001',
+      title: 'Existing request',
+      intentType: 'REQUEST',
+      isDuplicate: true
+    });
+    requestContractServiceMock.findKnownLeadContact.mockResolvedValueOnce({
+      phone: '+380635055252',
+      leadId: 'lead_existing'
+    });
+    const app = await buildApp();
+
+    const res = await request(app)
+      .post('/api/miniapp/lead-intents')
+      .send({
+        slug: 'cartie',
+        initData: 'signed-init-data',
+        kind: 'PICK',
+        tracking: { submitId: 'submit_duplicate_known_contact' }
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      ok: true,
+      duplicate: true,
+      contactRequested: false,
+      closeMiniApp: true
+    });
+    expect(requestContractServiceMock.findKnownLeadContact).not.toHaveBeenCalled();
+    expect(requestContractServiceMock.finalizePendingLeadIntent).not.toHaveBeenCalled();
+    expect(telegramOutboxMock.sendMessage).not.toHaveBeenCalled();
+  });
+
   it('returns a stable auth code when initData is missing', async () => {
     const app = await buildApp();
 
@@ -509,6 +593,7 @@ describe('MiniApp Lead handoff routes', () => {
       chatType: 'private'
     }));
     expect(requestContractServiceMock.createPendingLeadIntent).not.toHaveBeenCalled();
+    expect(miniAppServiceMock.createRequest).not.toHaveBeenCalled();
   });
 
   it('rejects Lead-only bot-flows for B2B MiniApp configs', async () => {
@@ -556,6 +641,24 @@ describe('MiniApp Lead handoff routes', () => {
     expect(miniAppServiceMock.createRequest).not.toHaveBeenCalled();
   });
 
+  it('rejects Lead request writes before initData validation on the legacy endpoint', async () => {
+    const app = await buildApp();
+
+    const res = await request(app)
+      .post('/api/miniapp/requests')
+      .send({
+        slug: 'cartie',
+        requestType: 'BUY'
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({
+      code: 'LEAD_WRONG_ENDPOINT'
+    });
+    expect(verifyInitDataMock).not.toHaveBeenCalled();
+    expect(miniAppServiceMock.createRequest).not.toHaveBeenCalled();
+  });
+
   it('uses verified initData Telegram identity for B2B request writes', async () => {
     miniAppServiceMock.getConfig.mockResolvedValueOnce({
       companyId: 'company_1',
@@ -592,6 +695,59 @@ describe('MiniApp Lead handoff routes', () => {
         name: 'Ivan Client'
       }
     }));
+  });
+
+  it('creates B2B SELL/add-car requests through MiniApp request path without starting Lead sell flow', async () => {
+    miniAppServiceMock.getConfig.mockResolvedValueOnce({
+      companyId: 'company_1',
+      botId: 'bot_b2b',
+      publicSlug: 'cardealer_lviv_bot',
+      template: 'B2B',
+      miniapp: { surfaceMode: 'B2B' }
+    });
+    miniAppServiceMock.createRequest.mockResolvedValueOnce({
+      id: 'request_sell_1',
+      publicId: 'CD-2026-000002',
+      requesterPartnerId: 'partner_1',
+      type: 'SELL'
+    });
+    const app = await buildApp();
+
+    const res = await request(app)
+      .post('/api/miniapp/requests')
+      .send({
+        slug: 'cardealer_lviv_bot',
+        initData: 'signed-init-data',
+        requestType: 'SELL',
+        payload: {
+          mode: 'B2B',
+          criteria: {
+            brand: 'BMW',
+            model: 'X5',
+            yearFrom: '2021'
+          }
+        },
+        tracking: { submitId: 'b2b_sell_submit_1' }
+      });
+
+    expect(res.status).toBe(200);
+    expect(miniAppServiceMock.createRequest).toHaveBeenCalledWith(expect.objectContaining({
+      requestType: 'SELL',
+      telegram: {
+        userId: '1001',
+        username: 'client_one',
+        name: 'Ivan Client'
+      },
+      payload: expect.objectContaining({
+        mode: 'B2B',
+        criteria: expect.objectContaining({
+          brand: 'BMW',
+          model: 'X5'
+        })
+      })
+    }));
+    expect(startLeadSellWizardMock).not.toHaveBeenCalled();
+    expect(requestContractServiceMock.createPendingLeadIntent).not.toHaveBeenCalled();
   });
 
   it('dispatches Meta CAPI for enabled MiniApp lead events with stable event id', async () => {

@@ -81,6 +81,22 @@ enum ExternalSourceProvider {
   OLX
 }
 
+enum VehicleAvailabilityState {
+  IN_STOCK
+  IN_TRANSIT
+  IMPORT_TO_ORDER
+  RESERVED
+  SOLD
+  UNKNOWN
+}
+
+enum VehiclePublicationStatus {
+  DRAFT
+  REVIEW
+  PUBLISHED
+  HIDDEN
+}
+
 enum PartnerUserRole {
   OWNER
   AGENT
@@ -293,6 +309,7 @@ model Lead {
 
   activities LeadActivity[]
   requests   B2bRequest[]
+  identities  LeadIdentity[]
 
   @@index([botId])
   @@index([status])
@@ -304,6 +321,24 @@ model Lead {
   @@index([botId, phone, createdAt])
   @@index([userTgId, botId])
   @@index([source])
+}
+
+model LeadIdentity {
+  id          String   @id @default(cuid())
+  companyId   String
+  leadId      String
+  provider    String
+  externalId  String
+  confidence  String   @default("HIGH")
+  firstSeenAt DateTime @default(now())
+  lastSeenAt  DateTime @updatedAt
+  payload     Json?    @db.JsonB
+
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, provider, externalId])
+  @@index([leadId])
+  @@index([companyId, provider])
 }
 
 model LeadActivity {
@@ -694,6 +729,8 @@ model CarListing {
   specs       Json?
   description String?
   status      String   @default("AVAILABLE") // AVAILABLE, RESERVED, SOLD, PENDING, HIDDEN
+  availabilityState VehicleAvailabilityState @default(IN_STOCK)
+  publicationStatus VehiclePublicationStatus @default(PUBLISHED)
   companyId   String?
   partnerCompanyId String?
   partnerCompany PartnerCompany? @relation(fields: [partnerCompanyId], references: [id], onDelete: SetNull)
@@ -719,6 +756,9 @@ model CarListing {
   @@index([companyId, status, createdAt])
   @@index([partnerCompanyId])
   @@index([partnerCompanyId, status])
+  @@index([availabilityState])
+  @@index([publicationStatus])
+  @@index([companyId, availabilityState, publicationStatus])
   @@index([year, price])
   @@index([source])
   @@index([sourceProvider])

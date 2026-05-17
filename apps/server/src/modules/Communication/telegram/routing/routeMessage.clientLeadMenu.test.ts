@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const {
   prismaMock,
   telegramOutboxMock,
+  scenarioEngineMock,
   b2bWhitelistServiceMock,
   requestContractServiceMock,
   quotaServiceMock
@@ -17,6 +18,10 @@ const {
   },
   telegramOutboxMock: {
     sendMessage: vi.fn()
+  },
+  scenarioEngineMock: {
+    handleUpdate: vi.fn(),
+    startScenario: vi.fn()
   },
   b2bWhitelistServiceMock: {
     isEnforced: vi.fn(),
@@ -36,6 +41,10 @@ vi.mock('../../../../services/prisma.js', () => ({
 
 vi.mock('../messaging/outbox/telegramOutbox.js', () => ({
   telegramOutbox: telegramOutboxMock
+}));
+
+vi.mock('../../bots/scenario.engine.js', () => ({
+  ScenarioEngine: scenarioEngineMock
 }));
 
 vi.mock('../../../../services/b2bWhitelist.service.js', () => ({
@@ -75,6 +84,97 @@ describe('CLIENT_LEAD bot menu', () => {
     }));
     telegramOutboxMock.sendMessage.mockResolvedValue({ message_id: 10 });
   });
+
+  it('routes CLIENT_LEAD /start to the fixed runtime menu while repairing stored MiniApp menu URLs', async () => {
+    const { routeMessage } = await import('./routeMessage.js');
+
+    const ctx: any = {
+      bot: {
+        id: 'bot_lead',
+        token: 'token',
+        name: 'Cartie Client Bot',
+        template: 'CLIENT_LEAD',
+        config: {
+          publicBaseUrl: 'https://cartie.test',
+          defaultShowcaseSlug: 'cartie',
+          miniAppConfig: {
+            url: 'https://cartie.test/p/app/cartie',
+            showcaseSlug: 'cartie'
+          },
+          menuConfig: {
+            welcomeMessage: 'Stored platform menu',
+            buttons: [
+              {
+                id: 'stored_pick',
+                label: 'Stored pick',
+                type: 'WEB_APP',
+                value: 'https://old.example/p/app/old_slug?entry=request&type=BUY',
+                row: 0,
+                col: 0
+              },
+              {
+                id: 'stored_transit',
+                label: 'Stored transit',
+                type: 'LINK',
+                value: 'https://t.me/cartie_bot/app?startapp=view_transit&utm_source=menu',
+                row: 0,
+                col: 1
+              }
+            ]
+          }
+        }
+      },
+      companyId: 'company_1',
+      chatId: '1001',
+      userId: '1001',
+      chatType: 'private',
+      update: {
+        message: {
+          text: '/start',
+          chat: { id: 1001, type: 'private' },
+          from: { id: 1001, first_name: 'Client' }
+        }
+      },
+      session: {
+        id: 'session_1',
+        state: 'CL_MENU',
+        variables: {}
+      }
+    };
+
+    const handled = await routeMessage(ctx);
+
+    expect(handled).toBe(true);
+    expect(scenarioEngineMock.handleUpdate).not.toHaveBeenCalled();
+
+    const calls = telegramOutboxMock.sendMessage.mock.calls.map(([payload]) => payload);
+    expect(calls).toHaveLength(1);
+    expect(calls[0].text).not.toBe('Stored platform menu');
+    expect(calls[0].replyMarkup.keyboard).toHaveLength(3);
+    expect(calls[0].replyMarkup.keyboard.map((row: any[]) => row.length)).toEqual([2, 2, 2]);
+
+    const runtimeButtons = calls[0].replyMarkup.keyboard.flat();
+    expect(runtimeButtons.every((button: any) => button.web_app?.url?.includes('/p/app/cartie'))).toBe(true);
+    expect(runtimeButtons.some((button: any) => button.web_app.url.includes('entry=request') && button.web_app.url.includes('type=BUY'))).toBe(true);
+    expect(runtimeButtons.some((button: any) => button.web_app.url.includes('entry=request') && button.web_app.url.includes('type=SELL'))).toBe(true);
+
+    const storedButtons = ctx.bot.config.menuConfig.buttons;
+    expect(storedButtons).toEqual([
+      expect.objectContaining({
+        id: 'stored_pick',
+        value: expect.stringContaining('https://cartie.test/p/app/cartie')
+      }),
+      expect.objectContaining({
+        id: 'stored_transit',
+        value: expect.stringContaining('https://cartie.test/p/app/cartie')
+      })
+    ]);
+    expect(storedButtons[0].value).toContain('entry=request');
+    expect(storedButtons[0].value).toContain('type=BUY');
+    expect(storedButtons[1].value).toContain('entry=inventory');
+    expect(storedButtons[1].value).toContain('status=PENDING');
+    expect(storedButtons[1].value).toContain('utm_source=menu');
+  }, 10000);
 
   it('sends one welcome message with a persistent reply keyboard of MiniApp section buttons', async () => {
     const { showMenu } = await import('./routeMessage.js');
@@ -184,6 +284,58 @@ describe('CLIENT_LEAD bot menu', () => {
           expect.objectContaining({ text: expect.stringContaining('контакт'), callback_data: 'lead_CONTACTED_lead_1' })
         ])
       ])
+    }));
+  }, 10000);
+
+  it('re-prompts with native contact keyboard when shared contact belongs to another Telegram user', async () => {
+    const { routeMessage } = await import('./routeMessage.js');
+
+    const ctx: any = {
+      bot: {
+        id: 'bot_lead',
+        token: 'token',
+        name: 'Cartie Client Bot',
+        template: 'CLIENT_LEAD',
+        companyId: 'company_1',
+        config: {
+          publicBaseUrl: 'https://cartie.test',
+          defaultShowcaseSlug: 'cartie'
+        }
+      },
+      companyId: 'company_1',
+      chatId: '1001',
+      userId: '1001',
+      chatType: 'private',
+      update: {
+        message: {
+          chat: { id: 1001, type: 'private' },
+          from: { id: 1001, first_name: 'Ivan', last_name: 'Client', username: 'client_one' },
+          contact: { user_id: 2002, phone_number: '+380635055252' }
+        }
+      },
+      session: {
+        id: 'session_1',
+        state: 'CL_MINIAPP_CONTACT',
+        variables: {
+          miniappPendingIntent: {
+            title: 'Mercedes-Benz S 500'
+          }
+        }
+      }
+    };
+
+    const handled = await routeMessage(ctx);
+
+    expect(handled).toBe(true);
+    expect(requestContractServiceMock.finalizePendingLeadIntent).not.toHaveBeenCalled();
+    expect(telegramOutboxMock.sendMessage).toHaveBeenCalledWith(expect.objectContaining({
+      chatId: '1001',
+      text: expect.stringContaining('своїм контактом'),
+      replyMarkup: expect.objectContaining({
+        keyboard: [[expect.objectContaining({ request_contact: true })], [expect.any(Object)]],
+        resize_keyboard: true,
+        one_time_keyboard: true
+      })
     }));
   }, 10000);
 });

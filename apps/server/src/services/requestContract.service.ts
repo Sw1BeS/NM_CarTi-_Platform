@@ -16,7 +16,10 @@ import {
 import { createOrMergeLead } from '../modules/Communication/telegram/core/leadService.js';
 import { platformEvents, EVENTS } from './platform-events.js';
 import { resolvePublicSlug, type PublicSlugResolution } from './publicSlug.service.js';
-import { buildRequestPresentationSnapshot } from './requestPresentation.js';
+import { buildOperatorRequestPresentation, buildRequestPresentationSnapshot } from './requestPresentation.js';
+import { findRecentMiniAppSelectedCarsDuplicate } from './miniappRequestDedupe.js';
+import { IntegrationService } from '../modules/Integrations/integration.service.js';
+import { logger } from '../utils/logger.js';
 
 type MiniAppTracking = Record<string, unknown>;
 type MiniAppTelegram = {
@@ -452,12 +455,14 @@ class RequestContractService {
     telegramUserId?: string | null;
   }) {
     const companyId = toOptionalString(params.companyId);
+    const botId = toOptionalString(params.botId);
     const telegramUserId = toOptionalString(params.telegramUserId);
     if (!companyId || !telegramUserId) return null;
 
     const lead = await prisma.lead.findFirst({
       where: {
         companyId,
+        ...(botId ? { botId } : {}),
         phone: { not: null },
         OR: [
           { userTgId: telegramUserId },
@@ -645,58 +650,77 @@ class RequestContractService {
       requestPresentation,
       payload: pendingIntent.payload || undefined
     } as Record<string, unknown>;
+    requestPayload.operatorPresentation = buildOperatorRequestPresentation({
+      title,
+      description,
+      budgetMax: pendingIntent.budgetMax ?? undefined,
+      yearMin: pendingIntent.yearMin ?? undefined,
+      chatId: params.telegramUserId,
+      botId: params.botId,
+      payload: requestPayload,
+      createdAt: new Date()
+    }, { includeContact: true });
     const submitId = readSubmitId(pendingIntent.tracking);
-    if (submitId) {
-      requestPayload.idempotencyKey = buildMiniAppSubmitKey({
+    requestPayload.idempotencyKey = buildMiniAppSubmitKey({
+      companyId: params.companyId,
+      botId: params.botId,
+      telegramUserId: params.telegramUserId,
+      submitId
+    });
+    let existingRequest = submitId
+      ? await this.findExistingMiniAppSubmit({
+          companyId: params.companyId,
+          botId: params.botId,
+          telegramUserId: params.telegramUserId,
+          submitId
+        })
+      : null;
+    if (!existingRequest) {
+      existingRequest = await findRecentMiniAppSelectedCarsDuplicate({
         companyId: params.companyId,
         botId: params.botId,
-        telegramUserId: params.telegramUserId,
-        submitId
+        chatId: params.telegramUserId,
+        requestType: 'BUY',
+        selectedCarIds
       });
-      const existingRequest = await this.findExistingMiniAppSubmit({
-        companyId: params.companyId,
-        botId: params.botId,
-        telegramUserId: params.telegramUserId,
-        submitId
+    }
+    if (existingRequest) {
+      await prisma.botSession.update({
+        where: { id: session.id },
+        data: {
+          state: 'CL_MENU',
+          variables: {
+            ...vars,
+            miniappPendingIntent: null,
+            miniappInterestDraft: null
+          },
+          lastActive: new Date()
+        }
       });
-      if (existingRequest) {
-        await prisma.botSession.update({
-          where: { id: session.id },
-          data: {
-            state: 'CL_MENU',
-            variables: {
-              ...vars,
-              miniappPendingIntent: null,
-              miniappInterestDraft: null
-            },
-            lastActive: new Date()
-          }
-        });
 
-        await prisma.integrationEventLog.create({
-          data: {
-            companyId: params.companyId,
-            integration: 'telegram',
-            action: 'miniapp.lead_intent_duplicate',
-            status: 'SUCCESS',
-            entityType: 'request',
-            entityId: String(existingRequest.id),
-            idempotencyKey: `miniapp-duplicate:${requestPayload.idempotencyKey}`,
-            message: `${pendingIntent.intentType} duplicate submit ignored`
-          }
-        }).catch(() => null);
+      await prisma.integrationEventLog.create({
+        data: {
+          companyId: params.companyId,
+          integration: 'telegram',
+          action: 'miniapp.lead_intent_duplicate',
+          status: 'SUCCESS',
+          entityType: 'request',
+          entityId: String(existingRequest.id),
+          idempotencyKey: `miniapp-duplicate:${requestPayload.idempotencyKey}`,
+          message: `${pendingIntent.intentType} duplicate submit ignored`
+        }
+      }).catch(() => null);
 
-        return {
-          intentType: pendingIntent.intentType,
-          title,
-          phone: params.phone,
-          isDuplicate: true,
-          lead: null,
-          request: existingRequest,
-          selectedCars: requestPresentation.selectedCars,
-          requestPresentation
-        };
-      }
+      return {
+        intentType: pendingIntent.intentType,
+        title,
+        phone: params.phone,
+        isDuplicate: true,
+        lead: null,
+        request: existingRequest,
+        selectedCars: requestPresentation.selectedCars,
+        requestPresentation
+      };
     }
 
     const leadResult = await createOrMergeLead({
@@ -788,6 +812,27 @@ class RequestContractService {
         message: `${pendingIntent.intentType} finalized from Mini App contact share`
       }
     }).catch(() => null);
+
+    const tracking = isRecord(pendingIntent.tracking) ? pendingIntent.tracking as Record<string, unknown> : {};
+    new IntegrationService().metaPixelTrackEvent(params.companyId, 'SubmitApplication', {
+      entityType: 'request',
+      entityId: request.id,
+      stage: 'miniapp_finalized',
+      externalId: params.telegramUserId ? `telegram:${params.telegramUserId}` : undefined,
+      phone: params.phone,
+      actionSource: 'chat',
+      fbp: toOptionalString(tracking.fbp),
+      fbc: toOptionalString(tracking.fbc),
+      eventSourceUrl: toOptionalString(tracking.eventSourceUrl),
+      contentName: title,
+      contentCategory: 'MiniApp Lead Request',
+      contentIds: [request.publicId || request.id],
+      customData: {
+        botId: params.botId,
+        source: 'miniapp_lead_intent',
+        intentType: pendingIntent.intentType
+      }
+    }).catch(logger.error);
 
     return {
       intentType: pendingIntent.intentType,
@@ -914,7 +959,7 @@ class RequestContractService {
     const telegram = isRecord(input.telegram) ? input.telegram : {};
     const payloadFromInput = isRecord(input.payload) ? input.payload : {};
 
-    const payload = {
+    const payload: Record<string, any> = {
       ...payloadFromInput,
       source: 'miniapp',
       phone: phone || undefined,
@@ -930,6 +975,16 @@ class RequestContractService {
         comment: comment || undefined
       }
     };
+    payload.operatorPresentation = buildOperatorRequestPresentation({
+      title,
+      description,
+      budgetMax: toOptionalNumber(input.budgetMax),
+      yearMin: toOptionalNumber(input.yearMin),
+      chatId: toOptionalString((telegram as Record<string, unknown>)?.userId),
+      botId,
+      payload,
+      createdAt: new Date()
+    }, { includeContact: true });
 
     const requestInput = mapRequestInput({
       title,
