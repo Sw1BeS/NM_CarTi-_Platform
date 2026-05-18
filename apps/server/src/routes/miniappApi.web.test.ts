@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildMiniAppB2BPartnerPortalPath,
   buildMiniAppB2bAdminFitQueuePath,
+  buildMiniAppB2bOfferSubmitPath,
   buildMiniAppB2bMyRequestsPath,
   buildMiniAppB2bReceivedVariantsPath,
   buildMiniAppB2bVariantDecisionPath,
@@ -87,5 +88,13 @@ describe('MiniApp API web client contract', () => {
     expect(adminQueue.searchParams.get('initData')).toBe(initData);
     expect(adminQueue.searchParams.get('status')).toBe('NEW');
     expect(adminQueue.searchParams.has('phone')).toBe(false);
+  });
+
+  it('builds B2B offer submit path with request reference in the URL path', () => {
+    const path = buildMiniAppB2bOfferSubmitPath('CD-2026/000123');
+    const url = new URL(path, 'https://cartie.local');
+
+    expect(url.pathname).toBe('/miniapp/b2b/requests/CD-2026%2F000123/variants');
+    expect(url.search).toBe('');
   });
 });

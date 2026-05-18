@@ -3,7 +3,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Bot, MiniAppConfig, CarListing } from '../../types';
 import { getPublicInventory } from '../../services/publicApi';
-import { createMiniAppLeadIntent, createMiniAppRequest, getMiniAppB2BPartnerPortal, getMiniAppB2bMyRequests, getMiniAppB2bReceivedVariants, getMiniAppCar, getMiniAppConfig, getMiniAppFavorites, getMiniAppRequestStatus, getMiniAppShowcaseInventory, getMiniAppVehicleTaxonomy, setMiniAppB2bVariantDecision, startMiniAppBotFlow, toggleMiniAppFavorite, trackMiniAppEvent, type MiniAppB2BPartnerPortalResponse, type MiniAppB2bMyRequestItem, type MiniAppB2bReceivedVariantItem, type MiniAppRequestSubtype, type MiniAppTrackingMeta, type VehicleTaxonomyResponse } from '../../services/miniappApi';
+import { createMiniAppLeadIntent, createMiniAppRequest, getMiniAppB2BPartnerPortal, getMiniAppB2bMyRequests, getMiniAppB2bReceivedVariants, getMiniAppCar, getMiniAppConfig, getMiniAppFavorites, getMiniAppRequestStatus, getMiniAppShowcaseInventory, getMiniAppVehicleTaxonomy, setMiniAppB2bVariantDecision, startMiniAppBotFlow, submitMiniAppB2bOffer, toggleMiniAppFavorite, trackMiniAppEvent, type MiniAppB2BPartnerPortalResponse, type MiniAppB2bMyRequestItem, type MiniAppB2bReceivedVariantItem, type MiniAppRequestSubtype, type MiniAppTrackingMeta, type VehicleTaxonomyResponse } from '../../services/miniappApi';
 import {
     Search, LayoutGrid, User, Plus, Filter, DollarSign,
     MessageSquare, Zap, List as ListIcon, Star, Phone, Home, Heart, ClipboardList,
@@ -108,9 +108,34 @@ const PLACEHOLDER_IMAGE = 'https://images.unsplash.com/photo-1533473359331-0135e
 type InventoryTab = 'IN_STOCK' | 'IN_TRANSIT';
 type TelegramWriteState = 'unknown' | 'ready' | 'outside_telegram' | 'missing_initdata' | 'read_only_preview' | 'invalid_initdata';
 type MiniAppSurfaceMode = 'LEAD' | 'B2B';
-type MiniAppView = 'HOME' | 'INVENTORY' | 'LISTING' | 'FAVORITES' | 'REQUEST' | 'STATUS' | 'PROFILE' | 'SUPPORT' | 'CONTACTS';
+type MiniAppView = 'HOME' | 'INVENTORY' | 'LISTING' | 'FAVORITES' | 'REQUEST' | 'STATUS' | 'OFFER' | 'PROFILE' | 'SUPPORT' | 'CONTACTS';
 type RequestType = 'BUY' | 'SELL';
 type RequestSubtype = MiniAppRequestSubtype;
+type B2BOfferForm = {
+    requestRef: string;
+    title: string;
+    price: string;
+    year: string;
+    mileage: string;
+    location: string;
+    condition: string;
+    comment: string;
+    contact: string;
+    mediaUrl: string;
+};
+
+const buildEmptyB2BOfferForm = (requestRef = ''): B2BOfferForm => ({
+    requestRef,
+    title: '',
+    price: '',
+    year: '',
+    mileage: '',
+    location: '',
+    condition: '',
+    comment: '',
+    contact: '',
+    mediaUrl: ''
+});
 
 const deriveRequestSubtype = (ids: string[]): RequestSubtype => {
     const count = Array.from(new Set(ids.filter(Boolean))).length;
@@ -268,6 +293,10 @@ const MiniAppContent = () => {
     const [b2bActivityLoading, setB2bActivityLoading] = useState(false);
     const [b2bActivityError, setB2bActivityError] = useState<string | null>(null);
     const [b2bDecisionLoadingId, setB2bDecisionLoadingId] = useState<string | null>(null);
+    const [b2bOfferForm, setB2bOfferForm] = useState<B2BOfferForm>(() => buildEmptyB2BOfferForm());
+    const [b2bOfferSubmitting, setB2bOfferSubmitting] = useState(false);
+    const [b2bOfferError, setB2bOfferError] = useState<string | null>(null);
+    const [b2bOfferSuccess, setB2bOfferSuccess] = useState<{ requestRef: string; variantTitle?: string } | null>(null);
     const [trackingMeta, setTrackingMeta] = useState<MiniAppTrackingMeta>({});
     const [reqComment, setReqComment] = useState('');
     const { toasts, pushToast, dismissToast } = useToasts();
@@ -454,6 +483,13 @@ const MiniAppContent = () => {
         setReqStep(options.startStep || 1);
         setRequestSubmitError(null);
         setView('REQUEST');
+    };
+
+    const openB2BOffer = (requestRef = '') => {
+        setB2bOfferForm(buildEmptyB2BOfferForm(requestRef));
+        setB2bOfferError(null);
+        setB2bOfferSuccess(null);
+        setView('OFFER');
     };
 
     const selectedRequestCars = React.useMemo(() => {
@@ -976,6 +1012,7 @@ const MiniAppContent = () => {
                 if (surfaceMode === 'LEAD') startBotFlow('SELL');
                 else openRequest('SELL');
             }
+            if (value === 'OFFER') openB2BOffer();
             if (value === 'FAVORITES') setView('FAVORITES');
             if (value === 'SUPPORT') setView('SUPPORT');
             if (value === 'CONTACTS') setView('CONTACTS');
@@ -1308,6 +1345,83 @@ const MiniAppContent = () => {
         }
     }, [initData, pushToast, slug, targetSlug]);
 
+    const parseOfferNumber = (value: string) => {
+        const normalized = value.replace(/[^\d.]/g, '');
+        if (!normalized) return undefined;
+        const n = Number(normalized);
+        return Number.isFinite(n) ? n : undefined;
+    };
+
+    const submitB2BOffer = async () => {
+        const offerInitData = initData || readRuntimeTelegramInitData();
+        const requestRef = b2bOfferForm.requestRef.trim();
+        const title = b2bOfferForm.title.trim();
+
+        if (!offerInitData) {
+            setB2bOfferError('Подати варіант можна лише із захищеної Telegram Mini App сесії.');
+            return;
+        }
+        if (!requestRef) {
+            setB2bOfferError('Вкажіть ID запиту, наприклад CD-2026-000123.');
+            return;
+        }
+        if (!title) {
+            setB2bOfferError('Вкажіть назву авто.');
+            return;
+        }
+
+        if (!initData) setInitData(offerInitData);
+        setB2bOfferSubmitting(true);
+        setB2bOfferError(null);
+
+        const submitId = window.crypto?.randomUUID
+            ? window.crypto.randomUUID()
+            : `offer_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+
+        try {
+            const activitySlug = targetSlug || slug || 'system';
+            await submitMiniAppB2bOffer(requestRef, {
+                slug: activitySlug,
+                initData: offerInitData,
+                title,
+                price: parseOfferNumber(b2bOfferForm.price),
+                currency: 'USD',
+                year: parseOfferNumber(b2bOfferForm.year),
+                mileage: parseOfferNumber(b2bOfferForm.mileage),
+                location: b2bOfferForm.location.trim() || undefined,
+                condition: b2bOfferForm.condition.trim() || undefined,
+                comment: b2bOfferForm.comment.trim() || undefined,
+                contact: b2bOfferForm.contact.trim() || undefined,
+                mediaUrls: b2bOfferForm.mediaUrl.trim() ? [b2bOfferForm.mediaUrl.trim()] : [],
+                submitId,
+                tracking: {
+                    ...trackingMeta,
+                    submitId,
+                    eventId: submitId
+                }
+            });
+
+            setB2bOfferSuccess({ requestRef, variantTitle: title });
+            pushToast('Варіант надіслано на review.', 'success');
+            trackMiniAppEvent({
+                slug: activitySlug,
+                eventType: 'B2BOfferSubmit',
+                initData: offerInitData,
+                view: 'OFFER',
+                payload: { requestRef, title },
+                tracking: {
+                    ...trackingMeta,
+                    submitId,
+                    eventId: submitId
+                }
+            }).catch(() => undefined);
+        } catch (e) {
+            setB2bOfferError(resolveMiniAppWriteError(e, 'Не вдалося подати варіант.'));
+        } finally {
+            setB2bOfferSubmitting(false);
+        }
+    };
+
     if (isConfigLoading && !config) {
         return (
             <div className="h-[var(--tg-viewport-height)] min-h-[var(--tg-viewport-height)] flex items-center justify-center text-white bg-black">
@@ -1361,7 +1475,7 @@ const MiniAppContent = () => {
             { id: 'nav_profile', label: 'Профіль', icon: 'User', actionType: 'VIEW', value: 'PROFILE' }
         ];
     const showBottomNav = view !== 'LISTING' && view !== 'REQUEST';
-    const showBackArrow = view === 'REQUEST' && !lightboxCar;
+    const showBackArrow = (view === 'REQUEST' || view === 'OFFER') && !lightboxCar;
 
     const applyFiltersAndSort = () => {
         let filtered = [...cars];
@@ -1542,8 +1656,8 @@ const MiniAppContent = () => {
         const b2bQuickActions = [
             { id: 'requests', label: 'Запити мережі', hint: 'Статуси та ID', icon: 'ClipboardList', onClick: () => setView('STATUS') },
             { id: 'create', label: 'Створити запит', hint: 'Пошук для партнера', icon: 'Search', onClick: () => openRequest('BUY') },
-            { id: 'stock', label: 'Склад B2B', hint: 'Inventory партнерів', icon: 'LayoutGrid', onClick: () => setView('INVENTORY') },
-            { id: 'support', label: 'Підтримка', hint: 'Операційний чат', icon: 'MessageCircle', onClick: () => setView('SUPPORT') }
+            { id: 'offer', label: 'Запропонувати авто', hint: 'Варіант по запиту', icon: 'Plus', onClick: () => openB2BOffer() },
+            { id: 'stock', label: 'Склад B2B', hint: 'Inventory партнерів', icon: 'LayoutGrid', onClick: () => setView('INVENTORY') }
         ];
         const quickActions = surfaceMode === 'B2B' ? b2bQuickActions : leadQuickActions;
         const stats = surfaceMode === 'B2B'
@@ -2123,6 +2237,201 @@ const MiniAppContent = () => {
         }
     };
 
+    const renderB2BOffer = () => {
+        const updateField = (key: keyof B2BOfferForm, value: string) => {
+            setB2bOfferForm(prev => ({ ...prev, [key]: value }));
+        };
+        const fieldClass = 'w-full rounded-[16px] border border-white/10 bg-black/28 px-4 py-3 text-sm text-white outline-none placeholder-white/28 focus:border-white/30';
+
+        if (surfaceMode !== 'B2B') {
+            return (
+                <div className="flex h-full items-center justify-center bg-[#050608] px-6 text-center text-white">
+                    <div className="max-w-sm">
+                        <div className="text-xl font-black">B2B недоступний</div>
+                        <div className="mt-2 text-sm leading-relaxed text-white/58">Подати варіант можна тільки в B2B Mini App.</div>
+                    </div>
+                </div>
+            );
+        }
+
+        if (b2bOfferSuccess) {
+            return (
+                <div className="animate-fade-in h-full overflow-y-auto bg-[#050608] px-5 pb-24 pt-7 text-white">
+                    <section className="relative overflow-hidden rounded-[24px] border border-white/10 bg-[#111417] p-5">
+                        <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-[linear-gradient(120deg,rgba(255,255,255,0.14),transparent_58%)]" />
+                        <div className="relative z-10 flex size-12 items-center justify-center rounded-[16px] border border-white/10 bg-white/[0.06] text-white/80">
+                            <CheckCircle size={24} />
+                        </div>
+                        <div className="relative z-10 mt-5">
+                            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-white/40">Offer submitted</p>
+                            <h2 className="mt-2 text-[28px] font-black leading-tight text-white">Варіант відправлено</h2>
+                            <p className="mt-2 text-sm leading-relaxed text-white/58">
+                                {b2bOfferSuccess.variantTitle || 'Авто'} додано до запиту {b2bOfferSuccess.requestRef}. Контакти залишаються закритими до погодженого процесу.
+                            </p>
+                        </div>
+                    </section>
+                    <section className="mt-4 grid grid-cols-1 gap-3">
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setB2bOfferSuccess(null);
+                                setView('STATUS');
+                                void loadB2bActivity();
+                            }}
+                            className="rounded-[16px] py-4 text-sm font-black"
+                            style={premiumCtaStyle}
+                        >
+                            Переглянути угоди
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => openB2BOffer()}
+                            className="rounded-[16px] border border-white/10 py-3 text-sm font-bold text-white/72"
+                        >
+                            Подати ще варіант
+                        </button>
+                    </section>
+                </div>
+            );
+        }
+
+        return (
+            <div className="animate-fade-in h-full overflow-y-auto bg-[#050608] px-5 pb-24 pt-7 text-white">
+                <div className="flex flex-col gap-5">
+                    <section className="relative overflow-hidden rounded-[24px] border border-white/10 bg-[#111417] p-5">
+                        <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-[linear-gradient(120deg,rgba(255,255,255,0.14),transparent_58%)]" />
+                        <div className="relative z-10">
+                            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-white/40">B2B offer</p>
+                            <h2 className="mt-2 text-[28px] font-black leading-tight text-white">Запропонувати авто</h2>
+                            <p className="mt-2 text-sm leading-relaxed text-white/58">
+                                Вкажіть ID запиту і параметри авто. Контакт збережеться для admin review, але не відкриється партнеру до погодженого статусу.
+                            </p>
+                        </div>
+                    </section>
+
+                    <section className="rounded-[22px] border border-white/10 bg-white/[0.045] p-4">
+                        <div className="grid grid-cols-1 gap-3">
+                            <label>
+                                <span className="mb-2 block text-[10px] font-bold uppercase tracking-[0.14em] text-white/42">ID запиту</span>
+                                <input
+                                    className={fieldClass}
+                                    placeholder="CD-2026-000123"
+                                    value={b2bOfferForm.requestRef}
+                                    onChange={e => updateField('requestRef', e.target.value)}
+                                />
+                            </label>
+                            <label>
+                                <span className="mb-2 block text-[10px] font-bold uppercase tracking-[0.14em] text-white/42">Авто</span>
+                                <input
+                                    className={fieldClass}
+                                    placeholder="Hyundai IONIQ 5 2024"
+                                    value={b2bOfferForm.title}
+                                    onChange={e => updateField('title', e.target.value)}
+                                />
+                            </label>
+                            <div className="grid grid-cols-2 gap-3">
+                                <label>
+                                    <span className="mb-2 block text-[10px] font-bold uppercase tracking-[0.14em] text-white/42">Ціна, $</span>
+                                    <input
+                                        className={fieldClass}
+                                        inputMode="numeric"
+                                        placeholder="16000"
+                                        value={b2bOfferForm.price}
+                                        onChange={e => updateField('price', e.target.value)}
+                                    />
+                                </label>
+                                <label>
+                                    <span className="mb-2 block text-[10px] font-bold uppercase tracking-[0.14em] text-white/42">Рік</span>
+                                    <input
+                                        className={fieldClass}
+                                        inputMode="numeric"
+                                        placeholder="2024"
+                                        value={b2bOfferForm.year}
+                                        onChange={e => updateField('year', e.target.value)}
+                                    />
+                                </label>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <label>
+                                    <span className="mb-2 block text-[10px] font-bold uppercase tracking-[0.14em] text-white/42">Пробіг</span>
+                                    <input
+                                        className={fieldClass}
+                                        inputMode="numeric"
+                                        placeholder="17000"
+                                        value={b2bOfferForm.mileage}
+                                        onChange={e => updateField('mileage', e.target.value)}
+                                    />
+                                </label>
+                                <label>
+                                    <span className="mb-2 block text-[10px] font-bold uppercase tracking-[0.14em] text-white/42">Локація</span>
+                                    <input
+                                        className={fieldClass}
+                                        placeholder="Lviv"
+                                        value={b2bOfferForm.location}
+                                        onChange={e => updateField('location', e.target.value)}
+                                    />
+                                </label>
+                            </div>
+                            <label>
+                                <span className="mb-2 block text-[10px] font-bold uppercase tracking-[0.14em] text-white/42">Стан / пошкодження</span>
+                                <input
+                                    className={fieldClass}
+                                    placeholder="Передня частина, заводиться"
+                                    value={b2bOfferForm.condition}
+                                    onChange={e => updateField('condition', e.target.value)}
+                                />
+                            </label>
+                            <label>
+                                <span className="mb-2 block text-[10px] font-bold uppercase tracking-[0.14em] text-white/42">Фото URL</span>
+                                <input
+                                    className={fieldClass}
+                                    placeholder="https://..."
+                                    value={b2bOfferForm.mediaUrl}
+                                    onChange={e => updateField('mediaUrl', e.target.value)}
+                                />
+                            </label>
+                            <label>
+                                <span className="mb-2 block text-[10px] font-bold uppercase tracking-[0.14em] text-white/42">Контакт для admin review</span>
+                                <input
+                                    className={fieldClass}
+                                    placeholder="+380..."
+                                    value={b2bOfferForm.contact}
+                                    onChange={e => updateField('contact', e.target.value)}
+                                />
+                            </label>
+                            <label>
+                                <span className="mb-2 block text-[10px] font-bold uppercase tracking-[0.14em] text-white/42">Коментар</span>
+                                <textarea
+                                    className={`${fieldClass} min-h-[96px] resize-none`}
+                                    placeholder="Деталі по авто, торг, документи"
+                                    value={b2bOfferForm.comment}
+                                    onChange={e => updateField('comment', e.target.value)}
+                                />
+                            </label>
+                        </div>
+
+                        {b2bOfferError && (
+                            <div className="mt-4 rounded-[16px] border border-red-400/20 bg-red-500/10 p-3 text-sm text-red-50">
+                                {b2bOfferError}
+                            </div>
+                        )}
+
+                        <button
+                            type="button"
+                            onClick={submitB2BOffer}
+                            disabled={b2bOfferSubmitting}
+                            className="mt-5 flex w-full items-center justify-center gap-2 rounded-[16px] py-4 text-sm font-black disabled:opacity-60"
+                            style={premiumCtaStyle}
+                        >
+                            {b2bOfferSubmitting ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+                            {b2bOfferSubmitting ? 'Відправляємо' : 'Подати варіант'}
+                        </button>
+                    </section>
+                </div>
+            </div>
+        );
+    };
+
     const renderStatus = () => {
         const isB2BMode = surfaceMode === 'B2B';
         const headerTitle = isB2BMode ? 'Угоди B2B' : 'Мої заявки';
@@ -2267,6 +2576,13 @@ const MiniAppContent = () => {
                                                 </div>
                                             </div>
                                             <div className="mt-2 text-[11px] text-white/34">{formatActivityDate(item.createdAt)}</div>
+                                            <button
+                                                type="button"
+                                                onClick={() => openB2BOffer(item.publicId || item.id)}
+                                                className="mt-3 w-full rounded-[14px] border border-white/10 bg-white/[0.055] py-3 text-xs font-black text-white/72"
+                                            >
+                                                Запропонувати авто
+                                            </button>
                                         </div>
                                     ))
                                 ) : (
@@ -2359,14 +2675,14 @@ const MiniAppContent = () => {
                             <div className="mt-1 text-[11px] text-white/42">{isB2BMode ? 'Пошук авто у мережі' : 'Підбір або умови'}</div>
                         </button>
                         <button
-                            onClick={() => setView(isB2BMode ? 'SUPPORT' : 'CONTACTS')}
+                            onClick={() => isB2BMode ? openB2BOffer() : setView('CONTACTS')}
                             className="rounded-[18px] border border-white/10 bg-white/[0.045] p-4 text-left active:scale-[0.98]"
                         >
                             <div className="mb-3 flex size-10 items-center justify-center rounded-[14px] border border-white/10 bg-black/28 text-white/72">
-                                <MessageSquare size={19} />
+                                {isB2BMode ? <Plus size={19} /> : <MessageSquare size={19} />}
                             </div>
-                            <div className="text-sm font-black text-white">{isB2BMode ? 'Підтримка' : 'Менеджер'}</div>
-                            <div className="mt-1 text-[11px] text-white/42">{isB2BMode ? 'Операційні питання' : 'Контакти CarTié'}</div>
+                            <div className="text-sm font-black text-white">{isB2BMode ? 'Запропонувати авто' : 'Менеджер'}</div>
+                            <div className="mt-1 text-[11px] text-white/42">{isB2BMode ? 'Варіант по ID запиту' : 'Контакти CarTié'}</div>
                         </button>
                     </section>
                 </div>
@@ -2857,7 +3173,7 @@ const MiniAppContent = () => {
 
     const renderSelectionBar = () => {
         if (!selectedRequestCarIds.length) return null;
-        if (view === 'REQUEST' || view === 'STATUS') return null;
+        if (view === 'REQUEST' || view === 'STATUS' || view === 'OFFER') return null;
         return (
             <div className="absolute bottom-20 left-4 right-4 z-30">
                 <div className="bg-[#111214] border border-white/10 rounded-2xl p-3 shadow-2xl backdrop-blur">
@@ -2953,6 +3269,7 @@ const MiniAppContent = () => {
                 {view === 'LISTING' && renderListing()}
                 {view === 'REQUEST' && renderRequest()}
                 {view === 'STATUS' && renderStatus()}
+                {view === 'OFFER' && renderB2BOffer()}
                 {view === 'PROFILE' && renderProfile()}
                 {view === 'SUPPORT' && renderSupport()}
                 {view === 'CONTACTS' && renderContacts()}

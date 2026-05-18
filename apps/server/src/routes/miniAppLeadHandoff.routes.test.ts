@@ -74,7 +74,9 @@ const {
     },
     requestVariant: {
       findMany: vi.fn(),
+      findFirst: vi.fn(),
       findUnique: vi.fn(),
+      create: vi.fn(),
       update: vi.fn(),
       count: vi.fn()
     },
@@ -1134,6 +1136,145 @@ describe('MiniApp Lead handoff routes', () => {
         ]
       }
     });
+  });
+
+  it('lets an approved B2B partner submit an offer without exposing contacts in the response', async () => {
+    miniAppServiceMock.getConfig.mockResolvedValueOnce({
+      companyId: 'company_1',
+      botId: 'bot_b2b',
+      publicSlug: 'cardealer_lviv_bot',
+      template: 'B2B',
+      miniapp: { surfaceMode: 'B2B' }
+    });
+    prismaMock.partnerUser.findFirst.mockResolvedValueOnce({
+      partnerId: 'seller_partner_1',
+      role: 'MANAGER',
+      partner: {
+        id: 'seller_partner_1',
+        name: 'Dealer Seller',
+        partnerCode: 'DS1',
+        showcaseSlug: 'dealer-seller'
+      }
+    });
+    prismaMock.b2bRequest.findFirst.mockResolvedValueOnce({
+      id: 'request_1',
+      publicId: 'CD-2026-000123',
+      companyId: 'company_1',
+      requesterPartnerId: 'requester_partner_1',
+      title: 'Hyundai IONIQ 5 до 20000$'
+    });
+    prismaMock.requestVariant.findFirst.mockResolvedValueOnce(null);
+    prismaMock.requestVariant.create.mockResolvedValueOnce({
+      id: 'variant_1',
+      requestId: 'request_1',
+      request: { publicId: 'CD-2026-000123' },
+      status: 'SUBMITTED',
+      requesterDecision: 'PENDING',
+      title: 'Hyundai IONIQ 5 2024',
+      price: 16000,
+      currency: 'USD',
+      year: 2024,
+      mileage: 17000,
+      location: 'Lviv',
+      thumbnail: 'https://cdn.example.com/ioniq.jpg',
+      mediaUrls: ['https://cdn.example.com/ioniq.jpg'],
+      specs: {
+        condition: 'front damage',
+        comment: 'Ready for inspection',
+        phone: '+380501112233',
+        source: 'miniapp_b2b_offer',
+        submitId: 'submit_1'
+      },
+      contact: '+380501112233',
+      companyName: 'Dealer Seller',
+      sellerPartnerId: 'seller_partner_1',
+      createdAt: new Date('2026-05-18T11:00:00.000Z')
+    });
+    const app = await buildApp();
+
+    const res = await request(app)
+      .post('/api/miniapp/b2b/requests/CD-2026-000123/variants')
+      .send({
+        slug: 'cardealer_lviv_bot',
+        initData: 'signed-init-data',
+        title: 'Hyundai IONIQ 5 2024',
+        price: 16000,
+        currency: 'USD',
+        year: 2024,
+        mileage: 17000,
+        location: 'Lviv',
+        condition: 'front damage',
+        comment: 'Ready for inspection',
+        contact: '+380501112233',
+        submitId: 'submit_1',
+        mediaUrls: [
+          'https://cdn.example.com/ioniq.jpg',
+          'https://wa.me/380501112233'
+        ]
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      ok: true,
+      duplicate: false,
+      variant: {
+        id: 'variant_1',
+        requestId: 'request_1',
+        requestPublicId: 'CD-2026-000123',
+        title: 'Hyundai IONIQ 5 2024',
+        status: 'SUBMITTED',
+        price: 16000,
+        year: 2024,
+        mileage: 17000,
+        location: 'Lviv',
+        mediaUrls: ['https://cdn.example.com/ioniq.jpg'],
+        specs: {
+          condition: 'front damage',
+          comment: 'Ready for inspection',
+          source: 'miniapp_b2b_offer',
+          submitId: 'submit_1'
+        }
+      }
+    });
+    expect(res.body.variant).not.toHaveProperty('contact');
+    expect(res.body.variant.specs).not.toHaveProperty('phone');
+    expect(prismaMock.b2bRequest.findFirst).toHaveBeenCalledWith({
+      where: {
+        companyId: 'company_1',
+        OR: [{ id: 'CD-2026-000123' }, { publicId: 'CD-2026-000123' }]
+      }
+    });
+    expect(prismaMock.requestVariant.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        requestId: 'request_1',
+        sellerPartnerId: 'seller_partner_1',
+        companyName: 'Dealer Seller',
+        contact: '+380501112233',
+        source: 'MINIAPP_B2B_OFFER',
+        status: 'SUBMITTED',
+        thumbnail: 'https://cdn.example.com/ioniq.jpg',
+        mediaUrls: ['https://cdn.example.com/ioniq.jpg'],
+        specs: expect.objectContaining({
+          source: 'miniapp_b2b_offer',
+          submitId: 'submit_1',
+          condition: 'front damage',
+          comment: 'Ready for inspection',
+          telegramUserId: '1001'
+        })
+      })
+    });
+    expect(emitPlatformEventMock).toHaveBeenCalledWith(expect.objectContaining({
+      companyId: 'company_1',
+      botId: 'bot_b2b',
+      eventType: 'miniapp.b2b.offer.created',
+      userId: '1001',
+      payload: expect.objectContaining({
+        requestId: 'request_1',
+        requestPublicId: 'CD-2026-000123',
+        variantId: 'variant_1',
+        sellerPartnerId: 'seller_partner_1'
+      })
+    }));
   });
 
   it('dispatches Meta CAPI for enabled MiniApp lead events with stable event id', async () => {

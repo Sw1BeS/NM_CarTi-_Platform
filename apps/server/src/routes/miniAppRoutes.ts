@@ -7,7 +7,7 @@ import { resolvePublicSlug } from '../services/publicSlug.service.js';
 import { prisma } from '../services/prisma.js';
 import { logger } from '../utils/logger.js';
 import { ShowcaseService } from '../modules/Marketing/showcase/showcase.service.js';
-import { mapInventoryOutput } from '../services/dto.js';
+import { mapInventoryOutput, mapVariantInput } from '../services/dto.js';
 import { renderCarCardForBot } from '../services/carCardRenderer.v2.js';
 import { telegramOutbox } from '../modules/Communication/telegram/messaging/outbox/telegramOutbox.js';
 import { emitPlatformEvent } from '../modules/Communication/telegram/core/events/eventEmitter.js';
@@ -265,6 +265,25 @@ const sanitizeB2BMediaUrls = (value: unknown) => {
   if (!Array.isArray(value)) return [];
   return Array.from(new Set(value.map(sanitizeB2BMediaUrl).filter((item): item is string => Boolean(item))));
 };
+
+const mapB2BMiniAppVariantOutput = (variant: any, request?: { publicId?: string | null }) => ({
+  id: variant.id,
+  requestId: variant.requestId,
+  requestPublicId: request?.publicId || variant.request?.publicId || variant.requestId,
+  status: variant.status,
+  requesterDecision: variant.requesterDecision,
+  fitQueueStatus: variant.fitQueueStatus,
+  title: variant.title,
+  price: variant.price,
+  currency: variant.currency || 'USD',
+  year: variant.year,
+  mileage: variant.mileage,
+  location: variant.location,
+  thumbnail: sanitizeB2BMediaUrl(variant.thumbnail),
+  mediaUrls: sanitizeB2BMediaUrls(variant.mediaUrls),
+  specs: sanitizeB2BPublicSpecs(variant.specs || {}) || {},
+  createdAt: variant.createdAt
+});
 
 const buildInitDataDiagnostics = (initData?: string) => {
   if (!initData) return { hasInitData: false };
@@ -964,6 +983,144 @@ router.post('/b2b/variants/:variantId/decision', async (req, res) => {
     });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : 'Failed to save decision';
+    errorResponse(res, 500, message);
+  }
+});
+
+router.post('/b2b/requests/:requestRef/variants', async (req, res) => {
+  try {
+    const requestRef = readString(req.params.requestRef);
+    if (!requestRef) return errorResponse(res, 400, 'requestRef is required');
+
+    const body = (req.body || {}) as Record<string, unknown>;
+    const slug = readString(body.slug);
+    const initData = readString(body.initData);
+    if (!slug) return errorResponse(res, 400, 'slug is required');
+    if (!initData) return errorResponse(res, 400, 'initData is required');
+
+    const config = await miniAppService.getConfig(slug);
+    if (!isB2BMiniAppConfig(config as Record<string, any>)) {
+      return b2bPortalUnavailableResponse(res);
+    }
+
+    const initCheck = await requireInitData(initData, config.companyId, config.botId);
+    if (!initCheck.ok) return errorResponse(res, 401, initCheck.message || 'Unauthorized');
+
+    const telegram = parseMiniAppTelegramIdentity(initData);
+    if (!telegram.userId) {
+      return errorResponse(res, 400, 'Telegram user not found', MINIAPP_ERROR_CODES.INITDATA_INVALID);
+    }
+
+    const partnerState = await resolveB2BMiniAppPartner(config as Record<string, any>, initData);
+    if (!partnerState.approved) return b2bPartnerNotApprovedResponse(res);
+
+    const request = await prisma.b2bRequest.findFirst({
+      where: {
+        companyId: config.companyId,
+        OR: [{ id: requestRef }, { publicId: requestRef }]
+      }
+    });
+    if (!request) return errorResponse(res, 404, 'Request not found');
+
+    const title = readString(body.title);
+    if (!title) return errorResponse(res, 400, 'title is required', MINIAPP_ERROR_CODES.VALIDATION);
+
+    const submitId = readString(body.submitId)
+      || (isRecord(body.tracking) ? readString(body.tracking.submitId) || readString(body.tracking.eventId) : undefined);
+
+    if (submitId) {
+      const existing = await prisma.requestVariant.findFirst({
+        where: {
+          requestId: request.id,
+          sellerPartnerId: partnerState.partner.partnerId,
+          specs: {
+            path: ['submitId'],
+            equals: submitId
+          } as any
+        }
+      });
+      if (existing) {
+        return res.json({
+          ok: true,
+          duplicate: true,
+          variant: mapB2BMiniAppVariantOutput(existing, request)
+        });
+      }
+    }
+
+    const safeMediaUrls = sanitizeB2BMediaUrls([
+      readString(body.thumbnail),
+      ...(readStringArray(body.mediaUrls) || [])
+    ]);
+    const comment = readString(body.comment);
+    const condition = readString(body.condition);
+    const vin = readString(body.vin)?.toUpperCase();
+    const sourceUrl = sanitizeB2BMediaUrl(body.sourceUrl) || sanitizeB2BMediaUrl(body.url);
+    const specs = JSON.parse(JSON.stringify({
+      ...(isRecord(body.specs) ? body.specs : {}),
+      ...(condition ? { condition } : {}),
+      ...(vin ? { vin } : {}),
+      ...(comment ? { comment } : {}),
+      source: 'miniapp_b2b_offer',
+      ...(submitId ? { submitId } : {}),
+      telegramUserId: telegram.userId
+    })) as Prisma.InputJsonValue;
+
+    const variantInput = mapVariantInput({
+      title,
+      price: readNumber(body.price),
+      currency: readString(body.currency) || 'USD',
+      year: readNumber(body.year),
+      mileage: readNumber(body.mileage),
+      location: readString(body.location),
+      condition,
+      contact: readString(body.contact),
+      companyName: partnerState.partner.name,
+      source: 'MINIAPP_B2B_OFFER',
+      sourceUrl,
+      thumbnail: safeMediaUrls[0] || null,
+      mediaUrls: safeMediaUrls,
+      specs,
+      status: 'SUBMITTED',
+      statusHistory: [
+        {
+          status: 'SUBMITTED',
+          at: new Date().toISOString(),
+          by: telegram.userId
+        }
+      ],
+      sellerPartnerId: partnerState.partner.partnerId
+    });
+
+    const variant = await prisma.requestVariant.create({
+      data: {
+        ...variantInput,
+        requestId: request.id
+      }
+    });
+
+    await emitPlatformEvent({
+      companyId: config.companyId,
+      botId: config.botId || null,
+      eventType: 'miniapp.b2b.offer.created',
+      userId: telegram.userId,
+      payload: {
+        requestId: request.id,
+        requestPublicId: request.publicId || request.id,
+        variantId: variant.id,
+        sellerPartnerId: partnerState.partner.partnerId,
+        submitId,
+        source: 'miniapp'
+      }
+    });
+
+    res.json({
+      ok: true,
+      duplicate: false,
+      variant: mapB2BMiniAppVariantOutput(variant, request)
+    });
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'Failed to submit B2B offer';
     errorResponse(res, 500, message);
   }
 });

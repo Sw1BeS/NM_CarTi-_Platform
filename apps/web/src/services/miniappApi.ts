@@ -137,6 +137,33 @@ export type MiniAppB2bListResponse<T> = {
   items: T[];
 };
 
+export type MiniAppB2bOfferPayload = {
+  slug: string;
+  initData: string;
+  title: string;
+  price?: number;
+  currency?: string;
+  year?: number;
+  mileage?: number;
+  location?: string;
+  condition?: string;
+  vin?: string;
+  comment?: string;
+  contact?: string;
+  thumbnail?: string;
+  mediaUrls?: string[];
+  sourceUrl?: string;
+  submitId?: string;
+  specs?: Record<string, unknown>;
+  tracking?: MiniAppTrackingMeta;
+};
+
+export type MiniAppB2bOfferSubmitResponse = {
+  ok: boolean;
+  duplicate?: boolean;
+  variant?: MiniAppB2bReceivedVariantItem;
+};
+
 export type VehicleTaxonomyOption = {
   id: string;
   label: string;
@@ -378,6 +405,18 @@ export async function getMiniAppB2bReceivedVariants(params: { slug: string; init
 
 export function buildMiniAppB2bVariantDecisionPath(variantId: string) {
   return `/miniapp/b2b/variants/${encodeURIComponent(variantId)}/decision`;
+}
+
+export function buildMiniAppB2bOfferSubmitPath(requestRef: string) {
+  return `/miniapp/b2b/requests/${encodeURIComponent(requestRef)}/variants`;
+}
+
+export async function submitMiniAppB2bOffer(requestRef: string, payload: MiniAppB2bOfferPayload): Promise<MiniAppB2bOfferSubmitResponse> {
+  return await apiFetch(buildMiniAppB2bOfferSubmitPath(requestRef), {
+    method: 'POST',
+    skipAuth: true,
+    body: JSON.stringify(payload)
+  });
 }
 
 export async function setMiniAppB2bVariantDecision(variantId: string, payload: { slug: string; initData: string; decision: 'FIT' | 'NOT_FIT' }): Promise<{
