@@ -104,6 +104,39 @@ export type MiniAppB2BPartnerPortalResponse = {
   };
 };
 
+export type MiniAppB2bMyRequestItem = {
+  id: string;
+  publicId?: string;
+  title?: string;
+  status?: string;
+  channelPostUrl?: string;
+  createdAt?: string;
+};
+
+export type MiniAppB2bReceivedVariantItem = {
+  id: string;
+  requestId?: string;
+  requestPublicId?: string;
+  status?: string;
+  requesterDecision?: 'PENDING' | 'FIT' | 'NOT_FIT' | string;
+  fitQueueStatus?: 'NEW' | 'IN_PROGRESS' | 'AGREED' | 'MEETING_SCHEDULED' | 'CLOSED' | string | null;
+  title?: string;
+  price?: number;
+  currency?: string;
+  year?: number;
+  mileage?: number;
+  location?: string;
+  thumbnail?: string;
+  mediaUrls?: string[];
+  specs?: Record<string, unknown>;
+  createdAt?: string;
+};
+
+export type MiniAppB2bListResponse<T> = {
+  ok: boolean;
+  items: T[];
+};
+
 export type VehicleTaxonomyOption = {
   id: string;
   label: string;
@@ -191,24 +224,30 @@ export async function trackMiniAppEvent(payload: MiniAppEventPayload): Promise<{
   });
 }
 
-export async function getMiniAppRequestStatus(params: { slug: string; initData: string; requestId?: string }) {
+export function buildMiniAppRequestStatusPath(params: { slug: string; initData: string; requestId?: string }) {
   const query = new URLSearchParams();
   query.append('slug', params.slug);
   query.append('initData', params.initData);
   if (params.requestId) query.append('requestId', params.requestId);
+  return `/miniapp/requests/status?${query.toString()}`;
+}
 
-  return await apiFetch(`/miniapp/requests/status?${query.toString()}`, {
+export async function getMiniAppRequestStatus(params: { slug: string; initData: string; requestId?: string }) {
+  return await apiFetch(buildMiniAppRequestStatusPath(params), {
     method: 'GET',
     skipAuth: true
   });
 }
 
-export async function getMiniAppB2BPartnerPortal(params: { slug: string; initData: string }): Promise<MiniAppB2BPartnerPortalResponse> {
+export function buildMiniAppB2BPartnerPortalPath(params: { slug: string; initData: string }) {
   const query = new URLSearchParams();
   query.append('slug', params.slug);
   query.append('initData', params.initData);
+  return `/miniapp/b2b/me?${query.toString()}`;
+}
 
-  return await apiFetch(`/miniapp/b2b/me?${query.toString()}`, {
+export async function getMiniAppB2BPartnerPortal(params: { slug: string; initData: string }): Promise<MiniAppB2BPartnerPortalResponse> {
+  return await apiFetch(buildMiniAppB2BPartnerPortalPath(params), {
     method: 'GET',
     skipAuth: true
   });
@@ -309,40 +348,63 @@ export async function shareMiniAppCar(carId: string, payload: { slug: string; in
   });
 }
 
-export async function getMiniAppB2bMyRequests(params: { slug: string; initData: string }) {
+export function buildMiniAppB2bMyRequestsPath(params: { slug: string; initData: string }) {
   const query = new URLSearchParams();
   query.append('slug', params.slug);
   query.append('initData', params.initData);
-  return await apiFetch(`/miniapp/b2b/requests/my?${query.toString()}`, {
+  return `/miniapp/b2b/requests/my?${query.toString()}`;
+}
+
+export async function getMiniAppB2bMyRequests(params: { slug: string; initData: string }): Promise<MiniAppB2bListResponse<MiniAppB2bMyRequestItem>> {
+  return await apiFetch(buildMiniAppB2bMyRequestsPath(params), {
     method: 'GET',
     skipAuth: true
   });
 }
 
-export async function getMiniAppB2bReceivedVariants(params: { slug: string; initData: string }) {
+export function buildMiniAppB2bReceivedVariantsPath(params: { slug: string; initData: string }) {
   const query = new URLSearchParams();
   query.append('slug', params.slug);
   query.append('initData', params.initData);
-  return await apiFetch(`/miniapp/b2b/variants/received?${query.toString()}`, {
+  return `/miniapp/b2b/variants/received?${query.toString()}`;
+}
+
+export async function getMiniAppB2bReceivedVariants(params: { slug: string; initData: string }): Promise<MiniAppB2bListResponse<MiniAppB2bReceivedVariantItem>> {
+  return await apiFetch(buildMiniAppB2bReceivedVariantsPath(params), {
     method: 'GET',
     skipAuth: true
   });
 }
 
-export async function setMiniAppB2bVariantDecision(variantId: string, payload: { slug: string; initData: string; decision: 'FIT' | 'NOT_FIT' }) {
-  return await apiFetch(`/miniapp/b2b/variants/${encodeURIComponent(variantId)}/decision`, {
+export function buildMiniAppB2bVariantDecisionPath(variantId: string) {
+  return `/miniapp/b2b/variants/${encodeURIComponent(variantId)}/decision`;
+}
+
+export async function setMiniAppB2bVariantDecision(variantId: string, payload: { slug: string; initData: string; decision: 'FIT' | 'NOT_FIT' }): Promise<{
+  ok: boolean;
+  variant?: {
+    id: string;
+    requesterDecision?: string;
+    fitQueueStatus?: string | null;
+  };
+}> {
+  return await apiFetch(buildMiniAppB2bVariantDecisionPath(variantId), {
     method: 'POST',
     skipAuth: true,
     body: JSON.stringify(payload)
   });
 }
 
-export async function getMiniAppB2bAdminFitQueue(params: { slug: string; initData: string; status?: string }) {
+export function buildMiniAppB2bAdminFitQueuePath(params: { slug: string; initData: string; status?: string }) {
   const query = new URLSearchParams();
   query.append('slug', params.slug);
   query.append('initData', params.initData);
   if (params.status) query.append('status', params.status);
-  return await apiFetch(`/miniapp/b2b/admin/fit-queue?${query.toString()}`, {
+  return `/miniapp/b2b/admin/fit-queue?${query.toString()}`;
+}
+
+export async function getMiniAppB2bAdminFitQueue(params: { slug: string; initData: string; status?: string }) {
+  return await apiFetch(buildMiniAppB2bAdminFitQueuePath(params), {
     method: 'GET',
     skipAuth: true
   });

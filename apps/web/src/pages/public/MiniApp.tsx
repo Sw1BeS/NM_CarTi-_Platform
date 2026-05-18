@@ -3,7 +3,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Bot, MiniAppConfig, CarListing } from '../../types';
 import { getPublicInventory } from '../../services/publicApi';
-import { createMiniAppLeadIntent, createMiniAppRequest, getMiniAppB2BPartnerPortal, getMiniAppCar, getMiniAppConfig, getMiniAppFavorites, getMiniAppRequestStatus, getMiniAppShowcaseInventory, getMiniAppVehicleTaxonomy, startMiniAppBotFlow, toggleMiniAppFavorite, trackMiniAppEvent, type MiniAppB2BPartnerPortalResponse, type MiniAppRequestSubtype, type MiniAppTrackingMeta, type VehicleTaxonomyResponse } from '../../services/miniappApi';
+import { createMiniAppLeadIntent, createMiniAppRequest, getMiniAppB2BPartnerPortal, getMiniAppB2bMyRequests, getMiniAppB2bReceivedVariants, getMiniAppCar, getMiniAppConfig, getMiniAppFavorites, getMiniAppRequestStatus, getMiniAppShowcaseInventory, getMiniAppVehicleTaxonomy, setMiniAppB2bVariantDecision, startMiniAppBotFlow, toggleMiniAppFavorite, trackMiniAppEvent, type MiniAppB2BPartnerPortalResponse, type MiniAppB2bMyRequestItem, type MiniAppB2bReceivedVariantItem, type MiniAppRequestSubtype, type MiniAppTrackingMeta, type VehicleTaxonomyResponse } from '../../services/miniappApi';
 import {
     Search, LayoutGrid, User, Plus, Filter, DollarSign,
     MessageSquare, Zap, List as ListIcon, Star, Phone, Home, Heart, ClipboardList,
@@ -263,6 +263,11 @@ const MiniAppContent = () => {
     const [statusResult, setStatusResult] = useState<any>(null);
     const [b2bPortal, setB2bPortal] = useState<MiniAppB2BPartnerPortalResponse | null>(null);
     const [b2bPortalLoading, setB2bPortalLoading] = useState(false);
+    const [b2bMyRequests, setB2bMyRequests] = useState<MiniAppB2bMyRequestItem[]>([]);
+    const [b2bReceivedVariants, setB2bReceivedVariants] = useState<MiniAppB2bReceivedVariantItem[]>([]);
+    const [b2bActivityLoading, setB2bActivityLoading] = useState(false);
+    const [b2bActivityError, setB2bActivityError] = useState<string | null>(null);
+    const [b2bDecisionLoadingId, setB2bDecisionLoadingId] = useState<string | null>(null);
     const [trackingMeta, setTrackingMeta] = useState<MiniAppTrackingMeta>({});
     const [reqComment, setReqComment] = useState('');
     const { toasts, pushToast, dismissToast } = useToasts();
@@ -1235,6 +1240,74 @@ const MiniAppContent = () => {
         return () => clearTimeout(debounce);
     }, [search, filters, tab, targetSlug]); // Re-fetch on filter change
 
+    const loadB2bActivity = useCallback(async () => {
+        if (config?.surfaceMode !== 'B2B' || !b2bPortal?.approved) return;
+        const activityInitData = initData || readRuntimeTelegramInitData();
+        if (!activityInitData) {
+            setB2bActivityError('Активність B2B доступна лише із захищеної Telegram Mini App сесії.');
+            return;
+        }
+
+        if (!initData) setInitData(activityInitData);
+        setB2bActivityLoading(true);
+        setB2bActivityError(null);
+
+        try {
+            const activitySlug = targetSlug || slug || 'system';
+            const [requestsRes, variantsRes] = await Promise.all([
+                getMiniAppB2bMyRequests({ slug: activitySlug, initData: activityInitData }),
+                getMiniAppB2bReceivedVariants({ slug: activitySlug, initData: activityInitData })
+            ]);
+
+            setB2bMyRequests(Array.isArray(requestsRes.items) ? requestsRes.items : []);
+            setB2bReceivedVariants(Array.isArray(variantsRes.items) ? variantsRes.items : []);
+        } catch (e) {
+            setB2bActivityError(resolveMiniAppWriteError(e, 'Не вдалося завантажити B2B активність.'));
+        } finally {
+            setB2bActivityLoading(false);
+        }
+    }, [b2bPortal?.approved, config?.surfaceMode, initData, slug, targetSlug]);
+
+    useEffect(() => {
+        if (view === 'STATUS') {
+            void loadB2bActivity();
+        }
+    }, [loadB2bActivity, view]);
+
+    const handleB2bVariantDecision = useCallback(async (variantId: string, decision: 'FIT' | 'NOT_FIT') => {
+        const decisionInitData = initData || readRuntimeTelegramInitData();
+        if (!decisionInitData) {
+            pushToast('Рішення по варіанту доступне лише із захищеної Telegram Mini App сесії.', 'error');
+            return;
+        }
+
+        if (!initData) setInitData(decisionInitData);
+        const loadingId = `${variantId}:${decision}`;
+        setB2bDecisionLoadingId(loadingId);
+
+        try {
+            const activitySlug = targetSlug || slug || 'system';
+            const res = await setMiniAppB2bVariantDecision(variantId, {
+                slug: activitySlug,
+                initData: decisionInitData,
+                decision
+            });
+            setB2bReceivedVariants(prev => prev.map(item => item.id === variantId
+                ? {
+                    ...item,
+                    requesterDecision: res.variant?.requesterDecision || decision,
+                    fitQueueStatus: res.variant?.fitQueueStatus ?? item.fitQueueStatus,
+                    status: decision === 'FIT' ? 'APPROVED' : 'REJECTED'
+                }
+                : item));
+            pushToast(decision === 'FIT' ? 'Варіант передано в FIT-чергу.' : 'Варіант позначено як не підходить.', 'success');
+        } catch (e) {
+            pushToast(resolveMiniAppWriteError(e, 'Не вдалося зберегти рішення по варіанту.'), 'error');
+        } finally {
+            setB2bDecisionLoadingId(null);
+        }
+    }, [initData, pushToast, slug, targetSlug]);
+
     if (isConfigLoading && !config) {
         return (
             <div className="h-[var(--tg-viewport-height)] min-h-[var(--tg-viewport-height)] flex items-center justify-center text-white bg-black">
@@ -2067,6 +2140,21 @@ const MiniAppContent = () => {
                 ['Ціна/умови', 'По авто', 'Привʼязка до Inventory'],
                 ['Контакт', 'Telegram', 'Нативний contact request']
             ];
+        const formatActivityDate = (value?: string) => {
+            if (!value) return '—';
+            const date = new Date(value);
+            if (Number.isNaN(date.getTime())) return '—';
+            return date.toLocaleDateString('uk-UA', { day: '2-digit', month: '2-digit', year: '2-digit' });
+        };
+        const formatVariantPrice = (variant: MiniAppB2bReceivedVariantItem) => {
+            if (!variant.price) return '—';
+            return formatPrice({ amount: variant.price, currency: variant.currency || 'USD' });
+        };
+        const decisionLabel = (value?: string | null) => {
+            if (value === 'FIT') return 'FIT';
+            if (value === 'NOT_FIT') return 'Не підходить';
+            return 'Очікує рішення';
+        };
 
         return (
             <div className="animate-fade-in h-full overflow-y-auto bg-[#050608] px-5 pb-24 pt-7">
@@ -2136,6 +2224,126 @@ const MiniAppContent = () => {
                                     </div>
                                 </div>
                             )}
+                        </section>
+                    )}
+
+                    {isB2BMode && (
+                        <section className="rounded-[22px] border border-white/10 bg-white/[0.045] p-4 text-white">
+                            <div className="flex items-center justify-between gap-3">
+                                <div>
+                                    <h3 className="text-lg font-black text-white">Моя активність</h3>
+                                    <p className="mt-1 text-xs leading-relaxed text-white/44">Запити і варіанти з approved partner account.</p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={loadB2bActivity}
+                                    disabled={b2bActivityLoading}
+                                    className="shrink-0 rounded-[14px] border border-white/10 px-3 py-2 text-xs font-black text-white/70 disabled:opacity-50"
+                                >
+                                    {b2bActivityLoading ? 'Оновлення' : 'Оновити'}
+                                </button>
+                            </div>
+
+                            {b2bActivityError && (
+                                <div className="mt-4 rounded-[16px] border border-red-400/20 bg-red-500/10 p-3 text-sm text-red-50">
+                                    {b2bActivityError}
+                                </div>
+                            )}
+
+                            <div className="mt-4 flex flex-col gap-3">
+                                <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-white/38">Мої запити</div>
+                                {b2bActivityLoading && !b2bMyRequests.length ? (
+                                    <div className="rounded-[16px] border border-white/10 bg-black/22 p-4 text-sm text-white/52">Завантажуємо запити...</div>
+                                ) : b2bMyRequests.length ? (
+                                    b2bMyRequests.slice(0, 5).map(item => (
+                                        <div key={item.id} className="rounded-[16px] border border-white/10 bg-black/24 p-3">
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div className="min-w-0">
+                                                    <div className="truncate text-sm font-black text-white">{item.publicId || item.id}</div>
+                                                    <div className="mt-1 line-clamp-2 text-xs leading-relaxed text-white/50">{item.title || 'B2B запит'}</div>
+                                                </div>
+                                                <div className="shrink-0 rounded-full border border-white/10 bg-white/[0.055] px-2 py-1 text-[10px] font-bold text-white/62">
+                                                    {item.status || '—'}
+                                                </div>
+                                            </div>
+                                            <div className="mt-2 text-[11px] text-white/34">{formatActivityDate(item.createdAt)}</div>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <div className="rounded-[16px] border border-white/10 bg-black/22 p-4 text-sm text-white/52">
+                                        Ще немає створених B2B запитів.
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="mt-5 flex flex-col gap-3">
+                                <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-white/38">Отримані варіанти</div>
+                                {b2bActivityLoading && !b2bReceivedVariants.length ? (
+                                    <div className="rounded-[16px] border border-white/10 bg-black/22 p-4 text-sm text-white/52">Завантажуємо варіанти...</div>
+                                ) : b2bReceivedVariants.length ? (
+                                    b2bReceivedVariants.slice(0, 5).map(item => {
+                                        const fitLoading = b2bDecisionLoadingId === `${item.id}:FIT`;
+                                        const notFitLoading = b2bDecisionLoadingId === `${item.id}:NOT_FIT`;
+                                        return (
+                                            <div key={item.id} className="rounded-[18px] border border-white/10 bg-[#111417] p-3">
+                                                <div className="flex gap-3">
+                                                    {item.thumbnail ? (
+                                                        <img src={item.thumbnail} alt="" className="size-16 shrink-0 rounded-[14px] object-cover bg-white/10" />
+                                                    ) : (
+                                                        <div className="flex size-16 shrink-0 items-center justify-center rounded-[14px] border border-white/10 bg-black/24 text-white/32">
+                                                            <ImageIcon size={20} />
+                                                        </div>
+                                                    )}
+                                                    <div className="min-w-0 flex-1">
+                                                        <div className="truncate text-sm font-black text-white">{item.title || 'Варіант авто'}</div>
+                                                        <div className="mt-1 text-xs font-bold text-white/70">{formatVariantPrice(item)}</div>
+                                                        <div className="mt-1 truncate text-[11px] text-white/40">
+                                                            {[
+                                                                item.year ? `${item.year}` : '',
+                                                                item.mileage ? formatMileage(item.mileage) : '',
+                                                                item.location || ''
+                                                            ].filter(Boolean).join(' · ') || 'Деталі уточнюються'}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div className="mt-3 grid grid-cols-2 gap-2 text-[11px]">
+                                                    <div className="rounded-[14px] border border-white/10 bg-black/22 p-2">
+                                                        <div className="text-white/34">Запит</div>
+                                                        <div className="mt-0.5 truncate font-black text-white">{item.requestPublicId || item.requestId || '—'}</div>
+                                                    </div>
+                                                    <div className="rounded-[14px] border border-white/10 bg-black/22 p-2">
+                                                        <div className="text-white/34">Рішення</div>
+                                                        <div className="mt-0.5 truncate font-black text-white">{decisionLabel(item.requesterDecision)}</div>
+                                                    </div>
+                                                </div>
+                                                <div className="mt-3 grid grid-cols-2 gap-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleB2bVariantDecision(item.id, 'FIT')}
+                                                        disabled={Boolean(b2bDecisionLoadingId)}
+                                                        className="rounded-[14px] py-3 text-xs font-black disabled:opacity-50"
+                                                        style={premiumCtaStyle}
+                                                    >
+                                                        {fitLoading ? 'Зберігаємо' : 'FIT'}
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleB2bVariantDecision(item.id, 'NOT_FIT')}
+                                                        disabled={Boolean(b2bDecisionLoadingId)}
+                                                        className="rounded-[14px] border border-white/10 bg-black/22 py-3 text-xs font-black text-white/70 disabled:opacity-50"
+                                                    >
+                                                        {notFitLoading ? 'Зберігаємо' : 'Не підходить'}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        );
+                                    })
+                                ) : (
+                                    <div className="rounded-[16px] border border-white/10 bg-black/22 p-4 text-sm text-white/52">
+                                        По твоїх запитах ще немає отриманих варіантів.
+                                    </div>
+                                )}
+                            </div>
                         </section>
                     )}
 
