@@ -386,6 +386,215 @@ const handleB2BVariantAdminTokenAction = async (
   }
 };
 
+const handleLegacyB2BVariantAdminCallback = async (
+  ctx: PipelineContext,
+  cb: any,
+  variantId: string,
+  rawAction: string
+) => {
+  const action = String(rawAction || '').trim().toUpperCase();
+  const allowedActions = new Set(['APPROVE', 'REJECT', 'SEND_TO_CLIENT', 'MORE']);
+  if (!variantId || !allowedActions.has(action)) return false;
+
+  const access = await assertConfiguredAdminActionAccess(ctx);
+  if (!access.ok) {
+    await telegramOutbox.answerCallback({
+      token: ctx.bot!.token,
+      callbackId: cb.id,
+      text: access.errorText
+    }).catch(() => null);
+    return true;
+  }
+
+  const message = cb.message;
+  const callbackChatId = message?.chat?.id ? String(message.chat.id) : String(ctx.chatId || '');
+  const messageId = Number(message?.message_id || 0);
+  const actorId = String(cb.from?.id || ctx.userId || '').trim();
+  const adminUsername = String(cb.from?.username || '').trim() || null;
+
+  const variant = await prisma.requestVariant.findUnique({
+    where: { id: variantId },
+    include: { request: true, sellerPartner: true }
+  });
+
+  if (!variant?.request) {
+    await telegramOutbox.answerCallback({
+      token: ctx.bot!.token,
+      callbackId: cb.id,
+      text: 'Variant not found'
+    }).catch(() => null);
+    return true;
+  }
+
+  if (ctx.companyId && String((variant.request as any).companyId || '') !== String(ctx.companyId)) {
+    await telegramOutbox.answerCallback({
+      token: ctx.bot!.token,
+      callbackId: cb.id,
+      text: 'Action unavailable'
+    }).catch(() => null);
+    return true;
+  }
+
+  if (action === 'MORE') {
+    await sendMessage(
+      ctx,
+      [
+        'ℹ️ [B2B OFFER DETAILS]',
+        `Request ID: ${(variant.request as any).publicId || variant.requestId}`,
+        renderVariantCard(variant as any, { includeContact: true, includeCompany: true })
+      ].join('\n'),
+      undefined,
+      callbackChatId
+    );
+    await telegramOutbox.answerCallback({
+      token: ctx.bot!.token,
+      callbackId: cb.id,
+      text: 'Details sent'
+    }).catch(() => null);
+    return true;
+  }
+
+  let nextStatus = 'APPROVED';
+  if (action === 'REJECT') nextStatus = 'REJECTED';
+  if (action === 'SEND_TO_CLIENT') nextStatus = 'SENT_TO_CLIENT';
+
+  if (action === 'SEND_TO_CLIENT') {
+    const requesterChatId = String((variant.request as any).chatId || '').trim();
+    if (!requesterChatId) {
+      await telegramOutbox.answerCallback({
+        token: ctx.bot!.token,
+        callbackId: cb.id,
+        text: 'Requester chat unavailable'
+      }).catch(() => null);
+      return true;
+    }
+
+    await sendMessage(
+      ctx,
+      [
+        `🚗 Новий варіант для запиту "${(variant.request as any).title || (variant.request as any).publicId || variant.requestId}":`,
+        '',
+        renderVariantCard({
+          ...variant,
+          contact: undefined,
+          specs: { ...((variant as any).specs || {}), contact: undefined }
+        } as any, { includeContact: false, includeCompany: true })
+      ].join('\n'),
+      {
+        inline_keyboard: [
+          [
+            { text: '✅ Підходить', callback_data: buildCallbackData(ActionTokens.BV_FIT, variant.id) },
+            { text: '❌ Не підходить', callback_data: buildCallbackData(ActionTokens.BV_NFIT, variant.id) }
+          ]
+        ]
+      },
+      requesterChatId
+    );
+  }
+
+  const idempotencyKey = [
+    'telegram:b2b-variant-admin-legacy',
+    variant.id,
+    action,
+    messageId > 0 ? String(messageId) : cb.id || actorId || 'manual'
+  ].join(':');
+  const existingStatusEvent = await prisma.integrationEventLog.findUnique({
+    where: { idempotencyKey }
+  }).catch(() => null);
+  const alreadyLogged = String((existingStatusEvent as any)?.action || '') === 'b2b.variant.admin_action.legacy' &&
+    String((existingStatusEvent as any)?.status || '').toUpperCase() === 'SUCCESS';
+
+  if (!alreadyLogged) {
+    await prisma.requestVariant.update({
+      where: { id: variant.id },
+      data: {
+        status: nextStatus as any,
+        statusHistory: appendVariantStatusHistory(variant, nextStatus, actorId)
+      }
+    });
+
+    await prisma.messageLog.create({
+      data: {
+        requestId: variant.requestId,
+        variantId: variant.id,
+        botId: ctx.bot!.id,
+        chatId: callbackChatId,
+        direction: 'OUTGOING',
+        text: `Manager action: ${action}`,
+        payload: {
+          status: nextStatus,
+          legacyCallback: true,
+          adminTgUserId: actorId || null,
+          adminUsername,
+          callbackId: cb.id || null
+        } as any
+      }
+    }).catch(() => null);
+  }
+
+  await prisma.integrationEventLog.upsert({
+    where: { idempotencyKey },
+    create: {
+      companyId: ctx.companyId || (variant.request as any).companyId || null,
+      integration: 'telegram',
+      action: 'b2b.variant.admin_action.legacy',
+      status: 'SUCCESS',
+      entityType: 'request_variant',
+      entityId: variant.id,
+      idempotencyKey,
+      message: `Legacy B2B variant admin action ${action}`,
+      meta: {
+        action,
+        status: nextStatus,
+        requestId: variant.requestId,
+        botId: ctx.bot?.id || null,
+        adminTgUserId: actorId || null,
+        adminUsername,
+        callbackId: cb.id || null,
+        messageId: messageId || null,
+        chatId: callbackChatId || null
+      } as any
+    },
+    update: {
+      status: 'SUCCESS',
+      message: `Legacy B2B variant admin action ${action}`,
+      meta: {
+        action,
+        status: nextStatus,
+        requestId: variant.requestId,
+        botId: ctx.bot?.id || null,
+        adminTgUserId: actorId || null,
+        adminUsername,
+        callbackId: cb.id || null,
+        messageId: messageId || null,
+        chatId: callbackChatId || null,
+        repeatedAt: new Date().toISOString()
+      } as any
+    }
+  }).catch(() => null);
+
+  if (callbackChatId && messageId) {
+    const currentText = message.text || message.caption || '';
+    await telegramOutbox.editMessageText({
+      botId: ctx.bot!.id,
+      token: ctx.bot!.token,
+      chatId: callbackChatId,
+      messageId,
+      text: appendPlainStatusLineOnce(currentText, nextStatus),
+      replyMarkup: message.reply_markup || undefined,
+      companyId: ctx.companyId,
+      userId: ctx.userId || undefined
+    }).catch(() => null);
+  }
+
+  await telegramOutbox.answerCallback({
+    token: ctx.bot!.token,
+    callbackId: cb.id,
+    text: `✅ ${nextStatus}`
+  }).catch(() => null);
+  return true;
+};
+
 const handleLeadStatusCallback = async (ctx: PipelineContext, cb: any, status: LeadStatus, leadId: string) => {
   if (ctx.companyId) {
     const leadScope = await prisma.lead.findUnique({
@@ -1295,6 +1504,26 @@ export const routeCallback = async (ctx: PipelineContext) => {
       resize_keyboard: true
     });
     return true;
+  }
+
+  if (data.startsWith('B2BVAR:')) {
+    const [, variantId, legacyDecision] = data.split(':');
+    const action = String(legacyDecision || '').toUpperCase() === 'FIT'
+      ? ActionTokens.BV_FIT
+      : String(legacyDecision || '').toUpperCase() === 'NO'
+        ? ActionTokens.BV_NFIT
+        : '';
+    if (action && variantId) {
+      const { handleB2BVariantCallback } = await import('./wizards/b2bVariantWizard.js');
+      const handled = await handleB2BVariantCallback(ctx, action, variantId);
+      if (handled) return true;
+    }
+  }
+
+  if (data.startsWith('VARIANT:')) {
+    const [, variantId, legacyAction] = data.split(':');
+    const handled = await handleLegacyB2BVariantAdminCallback(ctx, cb, variantId, legacyAction);
+    if (handled) return true;
   }
 
   const parts = data.split('_');
