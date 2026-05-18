@@ -1190,6 +1190,15 @@ describe('MiniApp Lead handoff routes', () => {
       sellerPartnerId: 'seller_partner_1',
       createdAt: new Date('2026-05-18T11:00:00.000Z')
     });
+    prismaMock.botConfig.findFirst.mockResolvedValueOnce({
+      id: 'bot_b2b',
+      token: 'telegram-token',
+      companyId: 'company_1',
+      adminChatId: '-100999',
+      config: {
+        botUsername: 'CarDealer_Lviv_Bot'
+      }
+    });
     const app = await buildApp();
 
     const res = await request(app)
@@ -1275,6 +1284,36 @@ describe('MiniApp Lead handoff routes', () => {
         sellerPartnerId: 'seller_partner_1'
       })
     }));
+    const adminMessage = telegramOutboxMock.sendMessage.mock.calls
+      .map((call: any[]) => call[0])
+      .find((payload: any) => payload.chatId === '-100999');
+    expect(adminMessage).toEqual(expect.objectContaining({
+      botId: 'bot_b2b',
+      chatId: '-100999',
+      text: expect.stringContaining('[B2B OFFER]')
+    }));
+    expect(adminMessage.text).toContain('Request ID: CD-2026-000123');
+    expect(adminMessage.text).toContain('Джерело: MiniApp B2B');
+    expect(adminMessage.text).toContain('Партнер: Dealer Seller');
+    expect(adminMessage.text).toContain('+380501112233');
+    expect(adminMessage.replyMarkup).toEqual(expect.objectContaining({
+      inline_keyboard: expect.arrayContaining([
+        expect.arrayContaining([
+          expect.objectContaining({ text: expect.stringContaining('Підтвердити'), callback_data: expect.stringMatching(/^v1:aa:/) }),
+          expect.objectContaining({ text: expect.stringContaining('Відхилити'), callback_data: expect.stringMatching(/^v1:aa:/) })
+        ]),
+        expect.arrayContaining([
+          expect.objectContaining({ text: expect.stringContaining('Надіслати'), callback_data: expect.stringMatching(/^v1:aa:/) }),
+          expect.objectContaining({ text: expect.stringContaining('Деталі'), callback_data: expect.stringMatching(/^v1:aa:/) })
+        ])
+      ])
+    }));
+    const callbacks = adminMessage.replyMarkup.inline_keyboard
+      .flat()
+      .map((button: any) => button.callback_data)
+      .filter(Boolean);
+    expect(callbacks.every((value: string) => Buffer.byteLength(value, 'utf8') <= 64)).toBe(true);
+    expect(callbacks.some((value: string) => value.includes('variant_1'))).toBe(false);
   });
 
   it('dispatches Meta CAPI for enabled MiniApp lead events with stable event id', async () => {

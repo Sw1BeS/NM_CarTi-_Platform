@@ -15,6 +15,7 @@ import { verifyMiniAppInitDataForScope } from '../services/miniAppAuth.service.j
 import { requestContractService } from '../services/requestContract.service.js';
 import { startLeadSellWizard } from '../modules/Communication/telegram/routing/wizards/leadSellWizard.js';
 import { buildLeadAdminActionMarkupAsync, buildLeadAdminNotificationText } from '../services/leadAdminNotification.js';
+import { buildB2BVariantAdminActionMarkupAsync, buildB2BVariantAdminNotificationText } from '../services/b2bAdminNotification.js';
 import { isEnvFlagEnabled } from '../services/featureFlags.js';
 import { vehicleTaxonomyService } from '../services/vehicleTaxonomy.service.js';
 
@@ -1113,6 +1114,41 @@ router.post('/b2b/requests/:requestRef/variants', async (req, res) => {
         source: 'miniapp'
       }
     });
+
+    const bot = await getMiniAppBotForSend(config.botId, config.companyId);
+    if (bot?.token && bot.adminChatId) {
+      const adminText = buildB2BVariantAdminNotificationText({
+        request,
+        variant,
+        partnerName: partnerState.partner.name,
+        telegramUserId: telegram.userId,
+        telegramUsername: telegram.username,
+        source: 'MiniApp B2B'
+      });
+      const replyMarkup = await buildB2BVariantAdminActionMarkupAsync({
+        variant,
+        request,
+        botId: bot.id,
+        companyId: bot.companyId || config.companyId
+      });
+      await telegramOutbox.sendMessage({
+        botId: bot.id,
+        token: bot.token,
+        chatId: String(bot.adminChatId),
+        text: adminText,
+        replyMarkup,
+        companyId: bot.companyId || config.companyId,
+        userId: telegram.userId
+      }).catch((e: unknown) => {
+        logger.warn('[MiniApp] failed to send B2B offer admin notification', {
+          requestId: request.id,
+          variantId: variant.id,
+          slug,
+          botId: bot.id,
+          error: e instanceof Error ? e.message : String(e)
+        });
+      });
+    }
 
     res.json({
       ok: true,

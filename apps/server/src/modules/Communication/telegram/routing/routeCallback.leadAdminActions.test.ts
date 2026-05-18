@@ -5,7 +5,8 @@ const {
   prismaMock,
   telegramOutboxMock,
   scenarioEngineMock,
-  quotaServiceMock
+  quotaServiceMock,
+  telegramSenderMock
 } = vi.hoisted(() => ({
   prismaMock: {
     botSession: {
@@ -16,6 +17,13 @@ const {
       update: vi.fn()
     },
     leadActivity: {
+      create: vi.fn()
+    },
+    requestVariant: {
+      findUnique: vi.fn(),
+      update: vi.fn()
+    },
+    messageLog: {
       create: vi.fn()
     },
     integrationEventLog: {
@@ -35,6 +43,9 @@ const {
   },
   quotaServiceMock: {
     consume: vi.fn()
+  },
+  telegramSenderMock: {
+    getChatMember: vi.fn()
   }
 }));
 
@@ -54,11 +65,16 @@ vi.mock('../../../../services/quota.service.js', () => ({
   quotaService: quotaServiceMock
 }));
 
+vi.mock('../messaging/telegramSender.js', () => ({
+  TelegramSender: telegramSenderMock
+}));
+
 describe('lead admin callback actions', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     scenarioEngineMock.handleUpdate.mockResolvedValue(false);
     quotaServiceMock.consume.mockResolvedValue({ allowed: true });
+    telegramSenderMock.getChatMember.mockResolvedValue({ status: 'administrator' });
     prismaMock.lead.update.mockResolvedValue({
       id: 'lead_1',
       companyId: 'company_1',
@@ -91,7 +107,10 @@ describe('lead admin callback actions', () => {
     });
     prismaMock.integrationEventLog.updateMany.mockResolvedValue({ count: 1 });
     prismaMock.integrationEventLog.update.mockResolvedValue({});
+    prismaMock.integrationEventLog.upsert.mockResolvedValue({});
+    prismaMock.messageLog.create.mockResolvedValue({});
     telegramOutboxMock.answerCallback.mockResolvedValue({});
+    telegramOutboxMock.sendMessage.mockResolvedValue({});
     telegramOutboxMock.editMessageText.mockResolvedValue({});
   });
 
@@ -417,5 +436,187 @@ describe('lead admin callback actions', () => {
       callbackId: 'callback_1',
       text: 'Action unavailable'
     }));
+  });
+
+  it('handles tokenized B2B variant approve action from the configured admin chat', async () => {
+    const { routeCallback } = await import('./routeCallback.js');
+    prismaMock.integrationEventLog.findUnique.mockResolvedValueOnce({
+      id: 'event_token_b2b',
+      companyId: 'company_1',
+      integration: 'telegram',
+      action: 'admin.action_token_created',
+      status: 'PENDING',
+      entityType: 'request_variant',
+      entityId: 'variant_1',
+      idempotencyKey: 'telegram:admin-action-token:tok_b2b',
+      meta: {
+        action: 'b2bVariant.APPROVE',
+        targetType: 'request_variant',
+        targetId: 'variant_1',
+        botId: 'bot_b2b',
+        companyId: 'company_1',
+        requestId: 'request_1'
+      }
+    });
+    prismaMock.requestVariant.findUnique.mockResolvedValueOnce({
+      id: 'variant_1',
+      requestId: 'request_1',
+      status: 'SUBMITTED',
+      statusHistory: [{ status: 'SUBMITTED', at: '2026-05-18T10:00:00.000Z' }],
+      title: 'Hyundai IONIQ 5 2024',
+      price: 16000,
+      currency: 'USD',
+      companyName: 'Dealer Seller',
+      contact: '+380501112233',
+      request: {
+        id: 'request_1',
+        publicId: 'CD-2026-000123',
+        companyId: 'company_1',
+        chatId: '2002'
+      },
+      sellerPartner: { name: 'Dealer Seller' }
+    });
+    prismaMock.requestVariant.update.mockResolvedValueOnce({
+      id: 'variant_1',
+      status: 'APPROVED'
+    });
+
+    const handled = await routeCallback({
+      ...buildCtx('🟣 [B2B OFFER]\nRequest ID: CD-2026-000123', 'v1:aa:tok_b2b'),
+      bot: {
+        id: 'bot_b2b',
+        token: 'token',
+        name: 'B2B',
+        template: 'B2B',
+        adminChatId: '-100999'
+      },
+      session: {
+        id: 'session_admin',
+        state: 'B2B_MENU',
+        variables: {}
+      }
+    } as any);
+
+    expect(handled).toBe(true);
+    expect(telegramSenderMock.getChatMember).toHaveBeenCalledWith('token', '-100999', '7001');
+    expect(prismaMock.requestVariant.update).toHaveBeenCalledWith({
+      where: { id: 'variant_1' },
+      data: expect.objectContaining({
+        status: 'APPROVED',
+        statusHistory: expect.arrayContaining([
+          expect.objectContaining({ status: 'APPROVED', by: '7001' })
+        ])
+      })
+    });
+    expect(prismaMock.messageLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        requestId: 'request_1',
+        variantId: 'variant_1',
+        botId: 'bot_b2b',
+        chatId: '-100999',
+        direction: 'OUTGOING',
+        text: 'Manager action: APPROVE'
+      })
+    });
+    expect(prismaMock.integrationEventLog.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      where: { idempotencyKey: 'telegram:b2b-variant-admin:variant_1:APPROVE:44' },
+      create: expect.objectContaining({
+        integration: 'telegram',
+        action: 'b2b.variant.admin_action',
+        status: 'SUCCESS',
+        entityType: 'request_variant',
+        entityId: 'variant_1'
+      })
+    }));
+    expect(telegramOutboxMock.editMessageText).toHaveBeenCalledWith(expect.objectContaining({
+      chatId: '-100999',
+      messageId: 44,
+      text: expect.stringContaining('✅ APPROVED')
+    }));
+    expect(telegramOutboxMock.answerCallback).toHaveBeenCalledWith(expect.objectContaining({
+      callbackId: 'callback_1',
+      text: '✅ APPROVED'
+    }));
+  });
+
+  it('sends a tokenized B2B variant to the requester without revealing seller contact', async () => {
+    const { routeCallback } = await import('./routeCallback.js');
+    prismaMock.integrationEventLog.findUnique.mockResolvedValueOnce({
+      id: 'event_token_b2b_send',
+      companyId: 'company_1',
+      integration: 'telegram',
+      action: 'admin.action_token_created',
+      status: 'PENDING',
+      entityType: 'request_variant',
+      entityId: 'variant_1',
+      idempotencyKey: 'telegram:admin-action-token:tok_b2b_send',
+      meta: {
+        action: 'b2bVariant.SEND_TO_CLIENT',
+        targetType: 'request_variant',
+        targetId: 'variant_1',
+        botId: 'bot_b2b',
+        companyId: 'company_1',
+        requestId: 'request_1'
+      }
+    });
+    prismaMock.requestVariant.findUnique.mockResolvedValueOnce({
+      id: 'variant_1',
+      requestId: 'request_1',
+      status: 'APPROVED',
+      title: 'Hyundai IONIQ 5 2024',
+      price: 16000,
+      currency: 'USD',
+      contact: '+380501112233',
+      companyName: 'Dealer Seller',
+      specs: { contact: '+380501112233', condition: 'front damage' },
+      request: {
+        id: 'request_1',
+        publicId: 'CD-2026-000123',
+        companyId: 'company_1',
+        chatId: '2002',
+        title: 'Hyundai IONIQ 5 до 20000$'
+      },
+      sellerPartner: { name: 'Dealer Seller' }
+    });
+    prismaMock.requestVariant.update.mockResolvedValueOnce({
+      id: 'variant_1',
+      status: 'SENT_TO_CLIENT'
+    });
+
+    const handled = await routeCallback({
+      ...buildCtx('🟣 [B2B OFFER]\nRequest ID: CD-2026-000123', 'v1:aa:tok_b2b_send'),
+      bot: {
+        id: 'bot_b2b',
+        token: 'token',
+        name: 'B2B',
+        template: 'B2B',
+        adminChatId: '-100999'
+      },
+      session: {
+        id: 'session_admin',
+        state: 'B2B_MENU',
+        variables: {}
+      }
+    } as any);
+
+    expect(handled).toBe(true);
+    const requesterMessage = telegramOutboxMock.sendMessage.mock.calls
+      .map((call: any[]) => call[0])
+      .find((payload: any) => payload.chatId === '2002');
+    expect(requesterMessage).toEqual(expect.objectContaining({
+      chatId: '2002',
+      text: expect.stringContaining('Новий варіант')
+    }));
+    expect(requesterMessage.text).not.toContain('+380501112233');
+    expect(requesterMessage.replyMarkup.inline_keyboard[0]).toEqual(expect.arrayContaining([
+      expect.objectContaining({ text: expect.stringContaining('Підходить'), callback_data: expect.stringMatching(/^v1:bv_fit:/) }),
+      expect.objectContaining({ text: expect.stringContaining('Не підходить'), callback_data: expect.stringMatching(/^v1:bv_nfit:/) })
+    ]));
+    expect(prismaMock.requestVariant.update).toHaveBeenCalledWith({
+      where: { id: 'variant_1' },
+      data: expect.objectContaining({
+        status: 'SENT_TO_CLIENT'
+      })
+    });
   });
 });

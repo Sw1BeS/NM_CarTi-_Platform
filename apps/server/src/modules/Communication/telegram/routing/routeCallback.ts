@@ -22,7 +22,7 @@ import { handleLeadSellAdminAction, handleLeadSellCallback } from './wizards/lea
 import { handleB2BSellCallback, startB2BSellWizard } from './wizards/b2bSellWizard.js';
 import { quotaService } from '../../../../services/quota.service.js';
 import { getEnvInt } from '../../../../services/featureFlags.js';
-import { renderChannelCarPost } from '../../../../services/cardRenderer.js';
+import { renderChannelCarPost, renderVariantCard } from '../../../../services/cardRenderer.js';
 import { normalizeBotConfigChatId } from '../core/utils/telegramChatId.js';
 import { assertAdminTestAccess, assertConfiguredAdminActionAccess } from '../core/utils/telegramAdminAccess.js';
 import {
@@ -98,6 +98,292 @@ const appendStatusLineOnce = (text: string, status: LeadStatus) => {
   const value = String(text || '').trimEnd();
   if (new RegExp(`(^|\\n)\\s*✅\\s+${status}\\s*$`, 'm').test(value)) return value;
   return `${value}\n\n${statusLine}`.trim();
+};
+
+const appendPlainStatusLineOnce = (text: string, status: string) => {
+  const normalizedStatus = String(status || '').trim().toUpperCase();
+  const statusLine = `✅ ${normalizedStatus}`;
+  const value = String(text || '').trimEnd();
+  if (!normalizedStatus) return value;
+  if (new RegExp(`(^|\\n)\\s*✅\\s+${normalizedStatus}\\s*$`, 'm').test(value)) return value;
+  return `${value}\n\n${statusLine}`.trim();
+};
+
+const appendVariantStatusHistory = (variant: any, status: string, by?: string | null) => {
+  const existing = Array.isArray(variant?.statusHistory) ? variant.statusHistory : [];
+  return [
+    ...existing,
+    {
+      status,
+      at: new Date().toISOString(),
+      by: by || 'telegram_admin'
+    }
+  ];
+};
+
+const handleB2BVariantAdminTokenAction = async (
+  ctx: PipelineContext,
+  cb: any,
+  tokenPayload: NonNullable<Awaited<ReturnType<typeof resolveAdminActionToken>>>
+) => {
+  if (tokenPayload.targetType !== 'request_variant' || !tokenPayload.targetId) return false;
+  const rawAction = String(tokenPayload.action || '').trim();
+  if (!rawAction.startsWith('b2bVariant.')) return false;
+
+  const action = rawAction.slice('b2bVariant.'.length).toUpperCase();
+  const allowedActions = new Set(['APPROVE', 'REJECT', 'SEND_TO_CLIENT', 'MORE']);
+  if (!allowedActions.has(action)) {
+    await telegramOutbox.answerCallback({
+      token: ctx.bot!.token,
+      callbackId: cb.id,
+      text: 'Unsupported action'
+    }).catch(() => null);
+    return true;
+  }
+
+  const access = await assertConfiguredAdminActionAccess(ctx);
+  if (!access.ok) {
+    await telegramOutbox.answerCallback({
+      token: ctx.bot!.token,
+      callbackId: cb.id,
+      text: access.errorText
+    }).catch(() => null);
+    return true;
+  }
+
+  const consumedBy = {
+    adminTgUserId: String(cb.from?.id || ctx.userId || '').trim() || null,
+    adminUsername: String(cb.from?.username || '').trim() || null,
+    callbackId: cb.id || null
+  };
+
+  const claimed = await claimAdminActionToken(tokenPayload, consumedBy);
+  if (!claimed) {
+    await telegramOutbox.answerCallback({
+      token: ctx.bot!.token,
+      callbackId: cb.id,
+      text: 'Action already processed'
+    }).catch(() => null);
+    return true;
+  }
+
+  const message = cb.message;
+  const callbackChatId = message?.chat?.id ? String(message.chat.id) : String(ctx.chatId || '');
+  const messageId = Number(message?.message_id || 0);
+  const actorId = String(cb.from?.id || ctx.userId || '').trim();
+
+  try {
+    const variant = await prisma.requestVariant.findUnique({
+      where: { id: tokenPayload.targetId },
+      include: { request: true, sellerPartner: true }
+    });
+
+    if (!variant?.request) {
+      await releaseAdminActionTokenClaim(tokenPayload, {
+        message: 'Variant not found',
+        failedAt: new Date().toISOString()
+      });
+      await telegramOutbox.answerCallback({
+        token: ctx.bot!.token,
+        callbackId: cb.id,
+        text: 'Variant not found'
+      }).catch(() => null);
+      return true;
+    }
+
+    if (
+      tokenPayload.companyId &&
+      String((variant.request as any).companyId || '') !== String(tokenPayload.companyId)
+    ) {
+      await releaseAdminActionTokenClaim(tokenPayload, {
+        message: 'Variant company mismatch',
+        failedAt: new Date().toISOString()
+      });
+      await telegramOutbox.answerCallback({
+        token: ctx.bot!.token,
+        callbackId: cb.id,
+        text: 'Action unavailable'
+      }).catch(() => null);
+      return true;
+    }
+
+    if (action === 'MORE') {
+      await sendMessage(
+        ctx,
+        [
+          'ℹ️ [B2B OFFER DETAILS]',
+          `Request ID: ${(variant.request as any).publicId || variant.requestId}`,
+          renderVariantCard(variant as any, { includeContact: true, includeCompany: true })
+        ].join('\n'),
+        undefined,
+        callbackChatId
+      );
+      await markAdminActionTokenConsumed(tokenPayload, consumedBy);
+      await telegramOutbox.answerCallback({
+        token: ctx.bot!.token,
+        callbackId: cb.id,
+        text: 'Details sent'
+      }).catch(() => null);
+      return true;
+    }
+
+    let nextStatus = 'APPROVED';
+    if (action === 'REJECT') nextStatus = 'REJECTED';
+    if (action === 'SEND_TO_CLIENT') nextStatus = 'SENT_TO_CLIENT';
+
+    if (action === 'SEND_TO_CLIENT') {
+      const requesterChatId = String((variant.request as any).chatId || '').trim();
+      if (!requesterChatId) {
+        await releaseAdminActionTokenClaim(tokenPayload, {
+          message: 'Requester chat unavailable',
+          failedAt: new Date().toISOString()
+        });
+        await telegramOutbox.answerCallback({
+          token: ctx.bot!.token,
+          callbackId: cb.id,
+          text: 'Requester chat unavailable'
+        }).catch(() => null);
+        return true;
+      }
+
+      await sendMessage(
+        ctx,
+        [
+          `🚗 Новий варіант для запиту "${(variant.request as any).title || (variant.request as any).publicId || variant.requestId}":`,
+          '',
+          renderVariantCard({
+            ...variant,
+            contact: undefined,
+            specs: { ...((variant as any).specs || {}), contact: undefined }
+          } as any, { includeContact: false, includeCompany: true })
+        ].join('\n'),
+        {
+          inline_keyboard: [
+            [
+              { text: '✅ Підходить', callback_data: buildCallbackData(ActionTokens.BV_FIT, variant.id) },
+              { text: '❌ Не підходить', callback_data: buildCallbackData(ActionTokens.BV_NFIT, variant.id) }
+            ]
+          ]
+        },
+        requesterChatId
+      );
+    }
+
+    await prisma.requestVariant.update({
+      where: { id: variant.id },
+      data: {
+        status: nextStatus as any,
+        statusHistory: appendVariantStatusHistory(variant, nextStatus, actorId)
+      }
+    });
+
+    await prisma.messageLog.create({
+      data: {
+        requestId: variant.requestId,
+        variantId: variant.id,
+        botId: ctx.bot!.id,
+        chatId: callbackChatId,
+        direction: 'OUTGOING',
+        text: `Manager action: ${action}`,
+        payload: {
+          status: nextStatus,
+          adminTgUserId: actorId || null,
+          adminUsername: consumedBy.adminUsername,
+          callbackId: cb.id || null
+        } as any
+      }
+    }).catch(() => null);
+
+    const idempotencyKey = [
+      'telegram:b2b-variant-admin',
+      variant.id,
+      action,
+      messageId > 0 ? String(messageId) : cb.id || actorId || 'manual'
+    ].join(':');
+    await prisma.integrationEventLog.upsert({
+      where: { idempotencyKey },
+      create: {
+        companyId: ctx.companyId || (variant.request as any).companyId || null,
+        integration: 'telegram',
+        action: 'b2b.variant.admin_action',
+        status: 'SUCCESS',
+        entityType: 'request_variant',
+        entityId: variant.id,
+        idempotencyKey,
+        message: `B2B variant admin action ${action}`,
+        meta: {
+          action,
+          status: nextStatus,
+          requestId: variant.requestId,
+          botId: ctx.bot?.id || null,
+          adminTgUserId: actorId || null,
+          adminUsername: consumedBy.adminUsername,
+          callbackId: cb.id || null,
+          messageId: messageId || null,
+          chatId: callbackChatId || null
+        } as any
+      },
+      update: {
+        status: 'SUCCESS',
+        message: `B2B variant admin action ${action}`,
+        meta: {
+          action,
+          status: nextStatus,
+          requestId: variant.requestId,
+          botId: ctx.bot?.id || null,
+          adminTgUserId: actorId || null,
+          adminUsername: consumedBy.adminUsername,
+          callbackId: cb.id || null,
+          messageId: messageId || null,
+          chatId: callbackChatId || null,
+          repeatedAt: new Date().toISOString()
+        } as any
+      }
+    }).catch(() => null);
+
+    try {
+      await markAdminActionTokenConsumed(tokenPayload, consumedBy);
+    } catch {
+      await telegramOutbox.answerCallback({
+        token: ctx.bot!.token,
+        callbackId: cb.id,
+        text: 'Action completed, but log finalization failed.'
+      }).catch(() => null);
+      return true;
+    }
+
+    if (callbackChatId && messageId) {
+      const currentText = message.text || message.caption || '';
+      await telegramOutbox.editMessageText({
+        botId: ctx.bot!.id,
+        token: ctx.bot!.token,
+        chatId: callbackChatId,
+        messageId,
+        text: appendPlainStatusLineOnce(currentText, nextStatus),
+        replyMarkup: message.reply_markup || undefined,
+        companyId: ctx.companyId,
+        userId: ctx.userId || undefined
+      }).catch(() => null);
+    }
+
+    await telegramOutbox.answerCallback({
+      token: ctx.bot!.token,
+      callbackId: cb.id,
+      text: `✅ ${nextStatus}`
+    }).catch(() => null);
+    return true;
+  } catch {
+    await releaseAdminActionTokenClaim(tokenPayload, {
+      message: 'B2B variant admin action failed',
+      failedAt: new Date().toISOString()
+    });
+    await telegramOutbox.answerCallback({
+      token: ctx.bot!.token,
+      callbackId: cb.id,
+      text: 'Action failed. Please retry.'
+    }).catch(() => null);
+    return true;
+  }
 };
 
 const handleLeadStatusCallback = async (ctx: PipelineContext, cb: any, status: LeadStatus, leadId: string) => {
@@ -341,6 +627,9 @@ export const routeCallback = async (ctx: PipelineContext) => {
         }
         return true;
       }
+
+      const handledB2BVariantAdminAction = await handleB2BVariantAdminTokenAction(ctx, cb, tokenPayload);
+      if (handledB2BVariantAdminAction) return true;
 
       await telegramOutbox.answerCallback({
         token: ctx.bot.token,
