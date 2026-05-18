@@ -3,13 +3,13 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Bot, MiniAppConfig, CarListing } from '../../types';
 import { getPublicInventory } from '../../services/publicApi';
-import { createMiniAppLeadIntent, createMiniAppRequest, getMiniAppCar, getMiniAppConfig, getMiniAppFavorites, getMiniAppRequestStatus, getMiniAppShowcaseInventory, getMiniAppVehicleTaxonomy, startMiniAppBotFlow, toggleMiniAppFavorite, trackMiniAppEvent, type MiniAppRequestSubtype, type MiniAppTrackingMeta, type VehicleTaxonomyResponse } from '../../services/miniappApi';
+import { createMiniAppLeadIntent, createMiniAppRequest, getMiniAppB2BPartnerPortal, getMiniAppCar, getMiniAppConfig, getMiniAppFavorites, getMiniAppRequestStatus, getMiniAppShowcaseInventory, getMiniAppVehicleTaxonomy, startMiniAppBotFlow, toggleMiniAppFavorite, trackMiniAppEvent, type MiniAppB2BPartnerPortalResponse, type MiniAppRequestSubtype, type MiniAppTrackingMeta, type VehicleTaxonomyResponse } from '../../services/miniappApi';
 import {
     Search, LayoutGrid, User, Plus, Filter, DollarSign,
     MessageSquare, Zap, List as ListIcon, Star, Phone, Home, Heart, ClipboardList,
     ChevronRight, MapPin, Calendar, CheckCircle, SlidersHorizontal,
     X, ChevronLeft, ChevronRight as ChevronRightIcon, Image as ImageIcon, Loader2, Share2, Globe, Instagram,
-    Send, MapPinned, Youtube, Video
+    Send, MapPinned, Youtube, Video, ShieldCheck
 } from 'lucide-react';
 import { initTelegramViewport } from './miniapp/telegramViewport';
 import {
@@ -256,6 +256,8 @@ const MiniAppContent = () => {
     const [requestSubmitError, setRequestSubmitError] = useState<{ message: string; openBotUrl?: string } | null>(null);
     const [statusQuery, setStatusQuery] = useState({ publicId: '' });
     const [statusResult, setStatusResult] = useState<any>(null);
+    const [b2bPortal, setB2bPortal] = useState<MiniAppB2BPartnerPortalResponse | null>(null);
+    const [b2bPortalLoading, setB2bPortalLoading] = useState(false);
     const [trackingMeta, setTrackingMeta] = useState<MiniAppTrackingMeta>({});
     const [reqComment, setReqComment] = useState('');
     const { toasts, pushToast, dismissToast } = useToasts();
@@ -658,6 +660,8 @@ const MiniAppContent = () => {
             setInitError(null);
             setRequiresTelegram(false);
             setTelegramWriteState('unknown');
+            setB2bPortal(null);
+            setB2bPortalLoading(false);
             const requestId = Math.random().toString(36).substring(7);
             emitMiniAppEvent('info', 'MiniApp init started', { requestId, slug });
             setConfigWarning(null);
@@ -804,6 +808,47 @@ const MiniAppContent = () => {
                         defaultShowcaseSlug: conf.publicSlug,
                         miniAppConfig: conf.miniapp
                     } as Bot);
+                }
+
+                if (resolvedMode === 'B2B') {
+                    if (telegramContext.initData) {
+                        setB2bPortalLoading(true);
+                        try {
+                            const portal = await getMiniAppB2BPartnerPortal({
+                                slug: conf.publicSlug || resolvedSlug,
+                                initData: telegramContext.initData
+                            });
+                            setB2bPortal(portal);
+                        } catch (error) {
+                            emitMiniAppEvent('warn', 'Failed to load B2B partner portal state', {
+                                resolvedSlug,
+                                error: error instanceof Error ? error.message : String(error)
+                            });
+                            setB2bPortal({
+                                ok: true,
+                                approved: false,
+                                reason: 'PARTNER_NOT_APPROVED',
+                                user: {
+                                    telegramUserId: resolvedUser?.id ? String(resolvedUser.id) : undefined,
+                                    username: resolvedUser?.username,
+                                    name: [resolvedUser?.first_name, resolvedUser?.last_name].filter(Boolean).join(' ') || undefined
+                                }
+                            });
+                        } finally {
+                            setB2bPortalLoading(false);
+                        }
+                    } else {
+                        setB2bPortal({
+                            ok: true,
+                            approved: false,
+                            reason: 'TELEGRAM_INITDATA_REQUIRED',
+                            user: {
+                                telegramUserId: resolvedUser?.id ? String(resolvedUser.id) : undefined,
+                                username: resolvedUser?.username,
+                                name: [resolvedUser?.first_name, resolvedUser?.last_name].filter(Boolean).join(' ') || undefined
+                            }
+                        });
+                    }
                 }
 
                 // Load favorites
@@ -1425,10 +1470,10 @@ const MiniAppContent = () => {
         const quickActions = surfaceMode === 'B2B' ? b2bQuickActions : leadQuickActions;
         const stats = surfaceMode === 'B2B'
             ? [
-                ['Активні авто', String(cars.length)],
+                ['Мої запити', String(b2bPortal?.stats?.ownRequests ?? 0)],
+                ['Варіанти', String(b2bPortal?.stats?.receivedVariants ?? 0)],
                 ['Склад', String(stockCount)],
-                ['В дорозі', String(transitCount)],
-                ['У виборі', String(selectedRequestCarIds.length)]
+                ['В дорозі', String(transitCount)]
             ]
             : [
                 ['В наявності', String(stockCount)],
@@ -1438,16 +1483,86 @@ const MiniAppContent = () => {
             ];
 
         if (surfaceMode === 'B2B') {
+            const partnerName = b2bPortal?.partner?.name || 'Partner portal';
+            const partnerRole = b2bPortal?.partner?.role || 'pending';
+            const partnerCode = b2bPortal?.partner?.code;
+            if (b2bPortalLoading) {
+                return (
+                    <div className="flex h-full items-center justify-center bg-[#050608] px-6 text-center text-white">
+                        <div className="flex max-w-xs flex-col items-center gap-3">
+                            <div className="size-8 rounded-full border-2 border-white/20 border-t-white animate-spin" />
+                            <div className="text-sm font-bold text-white/78">Перевіряємо партнерський доступ</div>
+                            <div className="text-xs leading-relaxed text-white/42">Mini App звіряє Telegram сесію з approved partner account.</div>
+                        </div>
+                    </div>
+                );
+            }
+
+            if (b2bPortal && !b2bPortal.approved) {
+                return (
+                    <div className="animate-fade-in h-full overflow-y-auto bg-[#050608] px-5 pb-24 pt-7 text-white">
+                        <section className="relative overflow-hidden rounded-[26px] border border-white/10 bg-[#111417] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.34)]">
+                            <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-[linear-gradient(115deg,rgba(255,255,255,0.14),transparent_62%)]" />
+                            <div className="relative z-10">
+                                <div className="mb-4 flex size-12 items-center justify-center rounded-[16px] border border-white/10 bg-white/[0.06] text-white/80">
+                                    <ShieldCheck size={24} />
+                                </div>
+                                <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-white/40">Partner access</p>
+                                <h1 className="mt-2 text-[28px] font-black leading-tight text-white">Доступ до B2B порталу очікує підтвердження</h1>
+                                <p className="mt-3 text-sm leading-relaxed text-white/58">
+                                    Цей Telegram профіль ще не привʼязаний до approved partner account. Після підтвердження відкриються запити, варіанти, вітрина і команда.
+                                </p>
+                            </div>
+                            <div className="relative z-10 mt-5 rounded-[18px] border border-white/10 bg-black/24 p-4">
+                                <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-white/34">Telegram user</div>
+                                <div className="mt-1 text-base font-black text-white">{b2bPortal.user?.name || b2bPortal.user?.username || 'Невідомий профіль'}</div>
+                                <div className="mt-1 text-xs text-white/42">
+                                    {b2bPortal.user?.username ? `@${b2bPortal.user.username}` : 'username недоступний'}
+                                </div>
+                            </div>
+                            <div className="relative z-10 mt-5 grid grid-cols-1 gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => setView('SUPPORT')}
+                                    className="rounded-[16px] py-4 text-sm font-black"
+                                    style={premiumCtaStyle}
+                                >
+                                    Звʼязатися з адміністратором
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => window.location.reload()}
+                                    className="rounded-[16px] border border-white/10 py-3 text-sm font-bold text-white/72"
+                                >
+                                    Оновити статус
+                                </button>
+                            </div>
+                        </section>
+
+                        <section className="mt-4 grid grid-cols-3 gap-2 text-center">
+                            {['Request access', 'Admin approval', 'Partner portal'].map((step, index) => (
+                                <div key={step} className="rounded-[14px] border border-white/10 bg-white/[0.045] px-2 py-3">
+                                    <div className="mx-auto mb-2 flex size-7 items-center justify-center rounded-full border border-white/10 text-xs font-black text-white/70">
+                                        {index + 1}
+                                    </div>
+                                    <div className="text-[10px] font-bold leading-tight text-white/54">{step}</div>
+                                </div>
+                            ))}
+                        </section>
+                    </div>
+                );
+            }
+
             return (
                 <div className="animate-fade-in h-full overflow-y-auto bg-[#050608] pb-24">
                     <div className="flex flex-col gap-5 px-5 pb-5 pt-7">
                         <div className="flex items-center justify-between gap-4">
                             <div>
                                 <div className="text-[22px] font-black tracking-[0.16em] text-white">CARTIÉ</div>
-                                <div className="mt-0.5 text-xs text-white/45">CarDealer Lviv B2B</div>
+                                <div className="mt-0.5 text-xs text-white/45">{partnerName}</div>
                             </div>
                             <div className="rounded-full border border-white/12 bg-white/[0.055] px-3 py-2 text-[11px] font-bold text-white/70">
-                                Partner portal
+                                {partnerCode ? `${partnerCode} · ${partnerRole}` : partnerRole}
                             </div>
                         </div>
 
@@ -1911,10 +2026,18 @@ const MiniAppContent = () => {
     const checkRequestStatus = async () => {
         try {
             const slug = targetSlug || 'system';
+            const statusInitData = initData || readRuntimeTelegramInitData();
+            if (!statusInitData) {
+                setStatusResult({
+                    error: 'Статус заявки доступний лише із захищеної Telegram Mini App сесії. Відкрийте застосунок з меню бота.'
+                });
+                return;
+            }
+            if (!initData) setInitData(statusInitData);
             const res = await getMiniAppRequestStatus({
                 slug,
+                initData: statusInitData,
                 requestId: statusQuery.publicId || undefined,
-                telegramUserId: tgUser?.id ? String(tgUser.id) : undefined
             });
             setStatusResult(res.request || res);
         } catch (e) {

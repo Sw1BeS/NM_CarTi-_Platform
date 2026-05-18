@@ -82,6 +82,28 @@ export type MiniAppEventPayload = {
   tracking?: MiniAppTrackingMeta;
 };
 
+export type MiniAppB2BPartnerPortalResponse = {
+  ok: boolean;
+  approved: boolean;
+  reason?: string;
+  user?: {
+    telegramUserId?: string;
+    username?: string;
+    name?: string;
+  };
+  partner?: {
+    id: string;
+    name: string;
+    code?: string;
+    showcaseSlug?: string;
+    role?: string;
+  };
+  stats?: {
+    ownRequests: number;
+    receivedVariants: number;
+  };
+};
+
 export type VehicleTaxonomyOption = {
   id: string;
   label: string;
@@ -169,14 +191,24 @@ export async function trackMiniAppEvent(payload: MiniAppEventPayload): Promise<{
   });
 }
 
-export async function getMiniAppRequestStatus(params: { slug: string; requestId?: string; phone?: string; telegramUserId?: string }) {
+export async function getMiniAppRequestStatus(params: { slug: string; initData: string; requestId?: string }) {
   const query = new URLSearchParams();
   query.append('slug', params.slug);
+  query.append('initData', params.initData);
   if (params.requestId) query.append('requestId', params.requestId);
-  if (params.phone) query.append('phone', params.phone);
-  if (params.telegramUserId) query.append('telegramUserId', params.telegramUserId);
 
   return await apiFetch(`/miniapp/requests/status?${query.toString()}`, {
+    method: 'GET',
+    skipAuth: true
+  });
+}
+
+export async function getMiniAppB2BPartnerPortal(params: { slug: string; initData: string }): Promise<MiniAppB2BPartnerPortalResponse> {
+  const query = new URLSearchParams();
+  query.append('slug', params.slug);
+  query.append('initData', params.initData);
+
+  return await apiFetch(`/miniapp/b2b/me?${query.toString()}`, {
     method: 'GET',
     skipAuth: true
   });
