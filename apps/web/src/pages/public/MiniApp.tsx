@@ -53,6 +53,11 @@ const readCookie = (name: string) => {
     return match ? decodeURIComponent(match.slice(name.length + 1)) : undefined;
 };
 
+const hasTelegramUserAgent = () => {
+    if (typeof navigator === 'undefined') return false;
+    return /telegram/i.test(navigator.userAgent || '');
+};
+
 class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean; error: Error | null; errorInfo: React.ErrorInfo | null }> {
     public state: { hasError: boolean; error: Error | null; errorInfo: React.ErrorInfo | null };
     constructor(props: { children: React.ReactNode }) {
