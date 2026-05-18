@@ -19,7 +19,7 @@ import { publicIdService } from '../../../../services/publicId.service.js';
 import { b2bWhitelistService } from '../../../../services/b2bWhitelist.service.js';
 import { quotaService } from '../../../../services/quota.service.js';
 import { requestContractService } from '../../../../services/requestContract.service.js';
-import { buildLeadAdminActionMarkup, buildLeadAdminNotificationText } from '../../../../services/leadAdminNotification.js';
+import { buildLeadAdminActionMarkupAsync, buildLeadAdminNotificationText } from '../../../../services/leadAdminNotification.js';
 import { getEnvInt, isEnvFlagEnabled } from '../../../../services/featureFlags.js';
 import { logger } from '../../../../utils/logger.js';
 import { buildTelegramChannelPostUrl, normalizeBotConfigChatId } from '../core/utils/telegramChatId.js';
@@ -213,16 +213,19 @@ const webAppButton = (text: string, url: string) => ({ text, web_app: { url } })
 const buildB2BRegisteredMenu = (ctx: PipelineContext, lang: Lang) => {
   if (!ctx.bot) return { keyboard: [], resize_keyboard: true, is_persistent: true };
 
-  const requestUrl = buildMiniAppUrl(ctx.bot, { entry: 'request' });
-  const inventoryUrl = buildMiniAppUrl(ctx.bot, { entry: 'inventory' });
-  const statusUrl = buildMiniAppUrl(ctx.bot, { entry: 'status' });
-  const supportUrl = buildMiniAppUrl(ctx.bot, { entry: 'support' });
+  const requestListUrl = buildMiniAppUrl(ctx.bot, { entry: 'status', scope: 'network_requests' });
+  const createRequestUrl = buildMiniAppUrl(ctx.bot, { entry: 'request', type: 'BUY' });
+  const offerUrl = buildMiniAppUrl(ctx.bot, { entry: 'request', type: 'SELL' });
+  const showcaseUrl = buildMiniAppUrl(ctx.bot, { entry: 'inventory' });
+  const teamUrl = buildMiniAppUrl(ctx.bot, { entry: 'profile', section: 'team' });
+  const activityUrl = buildMiniAppUrl(ctx.bot, { entry: 'status' });
   const profileUrl = buildMiniAppUrl(ctx.bot, { entry: 'profile' });
 
   const rows: any[][] = [
-    [webAppButton(button(lang, 'b2bMenu.newRequest'), requestUrl), webAppButton('🚙 Склад', inventoryUrl)],
-    [webAppButton('📊 Угоди', statusUrl), webAppButton('🆘 Підтримка', supportUrl)],
-    [webAppButton('👤 Профіль', profileUrl)]
+    [webAppButton(button(lang, 'b2bMenu.activeRequests'), requestListUrl), webAppButton(button(lang, 'b2bMenu.newRequest'), createRequestUrl)],
+    [webAppButton(button(lang, 'b2bMenu.sell'), offerUrl), webAppButton(button(lang, 'b2bMenu.myInventory'), showcaseUrl)],
+    [webAppButton(button(lang, 'b2bMenu.team'), teamUrl), webAppButton(button(lang, 'b2bMenu.activity'), activityUrl)],
+    [webAppButton(button(lang, 'b2bMenu.settings'), profileUrl)]
   ];
 
   return {
@@ -477,14 +480,14 @@ const handleClientLead = async (ctx: PipelineContext, text: string) => {
   const vars = (ctx.session.variables as any) || {};
   const flowV2 = getFlowVersion();
 
-  const isLeaveRequest = isCommand(text, ['/buy', button(lang, 'leadMenu.buy'), 'Купити авто']);
+  const isLeaveRequest = isCommand(text, ['/buy', button(lang, 'leadMenu.buy'), 'Купити авто', '⏱ Підібрати авто за 1 хвилину']);
   const isSellRequest = isCommand(text, ['/sell', button(lang, 'leadMenu.sell'), 'Продати авто']);
-  const isSupport = isCommand(text, [button(lang, 'leadMenu.support'), 'Підтримка']);
+  const isSupport = isCommand(text, [button(lang, 'leadMenu.support'), 'Підтримка', '🆘 Підтримка']);
   const isInfo = isCommand(text, [button(lang, 'common.info')]);
   const isCatalog = isCommand(text, [button(lang, 'common.openMiniApp'), 'Каталог авто']);
   const isStockCatalog = isCommand(text, [button(lang, 'leadMenu.stock'), 'Авто в наявності']);
   const isTransitCatalog = isCommand(text, [button(lang, 'leadMenu.transit'), 'Авто в дорозі']);
-  const isContacts = isCommand(text, ['Контакти']);
+  const isContacts = isCommand(text, ['Контакти', '📞 Контакти', '👤 Звʼязатися з менеджером', '👤 Зв’язатися з менеджером']);
   const isCancel = isCommand(text, ['cancel', 'stop', 'відміна', 'отмена', button(lang, 'common.cancel')]);
   const isBack = isCommand(text, ['back', 'назад', '⬅️ back', '⬅️ назад', button(lang, 'common.back')]);
   const isMenu = isCommand(text, ['/start', '/menu', 'menu', 'reset']);
@@ -707,11 +710,16 @@ const handleClientLead = async (ctx: PipelineContext, text: string) => {
         source: 'miniapp_contact_handoff',
         duplicate: Boolean(finalized.isDuplicate)
       });
-      const adminMarkup = buildLeadAdminActionMarkup({
+      const adminMarkup = await buildLeadAdminActionMarkupAsync({
         lead: finalized.lead,
         request: finalized.request,
         telegramUserId: tgUserId,
-        selectedCars: finalized.requestPresentation?.selectedCars
+        selectedCars: finalized.requestPresentation?.selectedCars,
+        tokenContext: {
+          botId: ctx.bot.id,
+          companyId: ctx.companyId,
+          requestId: finalized.request?.id
+        }
       });
       await sendMessage(ctx, adminText, adminMarkup, String(ctx.bot.adminChatId));
     }
@@ -1249,16 +1257,20 @@ const handleB2B = async (ctx: PipelineContext, text: string) => {
   const isNewRequest = isCommand(text, [
     '/request',
     '📝 Створити запит',
+    '➕ Створити запит',
     button(lang, 'b2bMenu.newRequest')
   ]);
   const isMyInventory = isCommand(text, [
     '/inventory',
     '🚙 Мій інвентар',
+    '🚙 Склад',
+    '🏪 Моя вітрина',
     button(lang, 'b2bMenu.myInventory')
   ]);
   const isSellCar = isCommand(text, [
     '/sell',
     '💰 Продати авто',
+    '🚘 Запропонувати авто',
     button(lang, 'b2bMenu.sell')
   ]);
   const isRules = isCommand(text, [button(lang, 'common.rules')]);

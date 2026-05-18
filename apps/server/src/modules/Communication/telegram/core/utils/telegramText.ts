@@ -10,7 +10,7 @@ export const resolveLang = (_ctx: PipelineContext): Lang => 'UK';
 const TEXT: Record<string, Record<Lang, string>> = {
   'common.welcome_lead': {
     EN: '', RU: '',
-    UK: '👋 <b>CarTié</b> — підбір, продаж та супровід авто.\n\nОберіть, що хочете зробити зараз: підібрати авто, швидко відкрити каталог, продати своє авто або написати в підтримку.'
+    UK: '👋 <b>CarTié</b> — підбір, продаж та супровід авто.\n\nОберіть, що хочете зробити зараз: переглянути авто в наявності, авто в дорозі, підібрати авто під запит або звʼязатися з менеджером.'
   },
   'common.welcome_b2b_unregistered': {
     EN: '', RU: '',
@@ -276,11 +276,11 @@ const BUTTONS = {
     newTicket: { EN: '', RU: '', UK: 'Новий запит' }
   },
   leadMenu: {
-    buy: { EN: '', RU: '', UK: '⏱ Підібрати авто за 1 хвилину' },
+    buy: { EN: '', RU: '', UK: '🔎 Підібрати авто' },
     stock: { EN: '', RU: '', UK: '🚘 Авто в наявності' },
-    transit: { EN: '', RU: '', UK: '🚚 Авто в дорозі' },
+    transit: { EN: '', RU: '', UK: '🚢 Авто в дорозі' },
     sell: { EN: '', RU: '', UK: '💰 Продати своє авто' },
-    support: { EN: '', RU: '', UK: '🆘 Підтримка' }
+    support: { EN: '', RU: '', UK: '👤 Звʼязатися з менеджером' }
   },
   lead: {
     interest: { EN: '', RU: '', UK: '✅ Зацікавило дане авто' },
@@ -291,9 +291,13 @@ const BUTTONS = {
     changeFilters: { EN: '', RU: '', UK: 'Змінити фільтри' }
   },
   b2bMenu: {
-    newRequest: { EN: '', RU: '', UK: '📝 Створити запит' },
-    myInventory: { EN: '', RU: '', UK: '🚙 Мій інвентар' },
-    sell: { EN: '', RU: '', UK: '💰 Продати авто' }
+    activeRequests: { EN: '', RU: '', UK: '📥 Запити на авто' },
+    newRequest: { EN: '', RU: '', UK: '➕ Створити запит' },
+    myInventory: { EN: '', RU: '', UK: '🏪 Моя вітрина' },
+    sell: { EN: '', RU: '', UK: '🚘 Запропонувати авто' },
+    team: { EN: '', RU: '', UK: '👥 Команда' },
+    activity: { EN: '', RU: '', UK: '📊 Активність / статуси' },
+    settings: { EN: '', RU: '', UK: '⚙️ Налаштування' }
   },
   b2b: {
     haveCar: { EN: '', RU: '', UK: 'Є авто' },

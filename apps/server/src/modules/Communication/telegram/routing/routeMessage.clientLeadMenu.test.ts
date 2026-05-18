@@ -12,6 +12,9 @@ const {
     botSession: {
       update: vi.fn()
     },
+    integrationEventLog: {
+      create: vi.fn()
+    },
     partnerUser: {
       findFirst: vi.fn()
     }
@@ -82,6 +85,7 @@ describe('CLIENT_LEAD bot menu', () => {
       variables: data.variables,
       lastActive: data.lastActive
     }));
+    prismaMock.integrationEventLog.create.mockResolvedValue({});
     telegramOutboxMock.sendMessage.mockResolvedValue({ message_id: 10 });
   });
 
@@ -156,7 +160,9 @@ describe('CLIENT_LEAD bot menu', () => {
     const runtimeButtons = calls[0].replyMarkup.keyboard.flat();
     expect(runtimeButtons.every((button: any) => button.web_app?.url?.includes('/p/app/cartie'))).toBe(true);
     expect(runtimeButtons.some((button: any) => button.web_app.url.includes('entry=request') && button.web_app.url.includes('type=BUY'))).toBe(true);
-    expect(runtimeButtons.some((button: any) => button.web_app.url.includes('entry=request') && button.web_app.url.includes('type=SELL'))).toBe(true);
+    expect(runtimeButtons.some((button: any) => button.web_app.url.includes('status=AVAILABLE'))).toBe(true);
+    expect(runtimeButtons.some((button: any) => button.web_app.url.includes('status=PENDING'))).toBe(true);
+    expect(runtimeButtons.some((button: any) => button.web_app.url.includes('entry=status'))).toBe(true);
 
     const storedButtons = ctx.bot.config.menuConfig.buttons;
     expect(storedButtons).toEqual([
@@ -225,7 +231,9 @@ describe('CLIENT_LEAD bot menu', () => {
     const flatButtons = calls[0].replyMarkup.keyboard.flat();
     expect(flatButtons.every((button: any) => button.web_app?.url?.includes('/p/app/cartie'))).toBe(true);
     expect(flatButtons.some((button: any) => button.web_app?.url?.includes('entry=request') && button.web_app.url.includes('type=BUY'))).toBe(true);
-    expect(flatButtons.some((button: any) => button.web_app?.url?.includes('entry=request') && button.web_app.url.includes('type=SELL'))).toBe(true);
+    expect(flatButtons.some((button: any) => button.web_app?.url?.includes('status=AVAILABLE'))).toBe(true);
+    expect(flatButtons.some((button: any) => button.web_app?.url?.includes('status=PENDING'))).toBe(true);
+    expect(flatButtons.some((button: any) => button.web_app?.url?.includes('entry=status'))).toBe(true);
     expect(flatButtons.some((button: any) => button.web_app?.url?.includes('entry=contacts'))).toBe(true);
   }, 10000);
 
@@ -281,10 +289,15 @@ describe('CLIENT_LEAD bot menu', () => {
           expect.objectContaining({ text: expect.stringContaining('CRM'), url: expect.stringContaining('/requests') })
         ]),
         expect.arrayContaining([
-          expect.objectContaining({ text: expect.stringContaining('контакт'), callback_data: 'lead_CONTACTED_lead_1' })
+          expect.objectContaining({ text: expect.stringContaining('контакт'), callback_data: expect.stringMatching(/^v1:aa:/) })
         ])
       ])
     }));
+    const contactButton = adminMessage.replyMarkup.inline_keyboard
+      .flat()
+      .find((button: any) => String(button.text || '').includes('контакт'));
+    expect(Buffer.byteLength(contactButton.callback_data, 'utf8')).toBeLessThanOrEqual(64);
+    expect(contactButton.callback_data).not.toContain('lead_1');
   }, 10000);
 
   it('re-prompts with native contact keyboard when shared contact belongs to another Telegram user', async () => {

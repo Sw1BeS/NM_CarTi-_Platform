@@ -17,14 +17,16 @@ describe('clientLeadMiniAppMenu', () => {
     expect(markup.is_persistent).toBe(true);
 
     const flat = markup.keyboard.flat();
-    expect(flat[0].web_app.url).toContain('entry=request');
-    expect(flat[0].web_app.url).toContain('type=BUY');
-    expect(flat[1].text).toContain('Продати');
-    expect(flat[1].web_app.url).toContain('entry=request');
-    expect(flat[1].web_app.url).toContain('type=SELL');
-    expect(flat[2].web_app.url).toContain('status=AVAILABLE');
-    expect(flat[3].web_app.url).toContain('status=PENDING');
-    expect(flat[4].web_app.url).toContain('entry=favorites');
+    expect(flat[0].text).toContain('Авто в наявності');
+    expect(flat[0].web_app.url).toContain('status=AVAILABLE');
+    expect(flat[1].text).toContain('Авто в дорозі');
+    expect(flat[1].web_app.url).toContain('status=PENDING');
+    expect(flat[2].web_app.url).toContain('entry=request');
+    expect(flat[2].web_app.url).toContain('type=BUY');
+    expect(flat[3].web_app.url).toContain('entry=favorites');
+    expect(flat[4].text).toContain('Мої запити');
+    expect(flat[4].web_app.url).toContain('entry=status');
+    expect(flat[5].text).toContain('менеджером');
     expect(flat[5].web_app.url).toContain('entry=contacts');
   });
 });

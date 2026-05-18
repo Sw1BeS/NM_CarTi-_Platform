@@ -16,7 +16,8 @@ const {
 } = vi.hoisted(() => ({
   miniAppServiceMock: {
     getConfig: vi.fn(),
-    createRequest: vi.fn()
+    createRequest: vi.fn(),
+    getRequestStatus: vi.fn()
   },
   requestContractServiceMock: {
     createPendingLeadIntent: vi.fn(),
@@ -68,12 +69,17 @@ const {
     },
     b2bRequest: {
       findMany: vi.fn(),
-      findFirst: vi.fn()
+      findFirst: vi.fn(),
+      count: vi.fn()
     },
     requestVariant: {
       findMany: vi.fn(),
       findUnique: vi.fn(),
-      update: vi.fn()
+      update: vi.fn(),
+      count: vi.fn()
+    },
+    integrationEventLog: {
+      create: vi.fn()
     },
     normalizationAlias: {
       findMany: vi.fn()
@@ -206,9 +212,17 @@ describe('MiniApp Lead handoff routes', () => {
       }
     });
     telegramOutboxMock.sendMessage.mockResolvedValue({ message_id: 10 });
+    prismaMock.integrationEventLog.create.mockResolvedValue({});
     startLeadSellWizardMock.mockResolvedValue(undefined);
     emitPlatformEventMock.mockResolvedValue(undefined);
     metaPixelTrackEventMock.mockResolvedValue({ success: true, eventId: 'event_1' });
+    miniAppServiceMock.getRequestStatus.mockResolvedValue({
+      id: 'request_1',
+      publicId: 'REQ-1',
+      status: 'NEW',
+      title: 'Підбір авто',
+      createdAt: new Date('2026-05-18T10:00:00.000Z')
+    });
     vehicleTaxonomyServiceMock.getTaxonomy.mockResolvedValue({
       brands: [
         { id: 'bmw', label: 'BMW', aliases: [], models: [{ id: 'x5', label: 'X5', brandId: 'bmw', aliases: [] }] }
@@ -435,10 +449,15 @@ describe('MiniApp Lead handoff routes', () => {
           })
         ]),
         expect.arrayContaining([
-          expect.objectContaining({ text: expect.stringContaining('контакт'), callback_data: 'lead_CONTACTED_lead_1' })
+          expect.objectContaining({ text: expect.stringContaining('контакт'), callback_data: expect.stringMatching(/^v1:aa:/) })
         ])
       ])
     }));
+    const contactButton = adminMessage.replyMarkup.inline_keyboard
+      .flat()
+      .find((button: any) => String(button.text || '').includes('контакт'));
+    expect(Buffer.byteLength(contactButton.callback_data, 'utf8')).toBeLessThanOrEqual(64);
+    expect(contactButton.callback_data).not.toContain('lead_1');
   });
 
   it('does not send another native contact request for a duplicate pending submit', async () => {
@@ -667,6 +686,16 @@ describe('MiniApp Lead handoff routes', () => {
       template: 'B2B',
       miniapp: { surfaceMode: 'B2B' }
     });
+    prismaMock.partnerUser.findFirst.mockResolvedValueOnce({
+      partnerId: 'partner_1',
+      role: 'OWNER',
+      partner: {
+        id: 'partner_1',
+        name: 'Dealer One',
+        partnerCode: 'D1',
+        showcaseSlug: 'dealer-one'
+      }
+    });
     miniAppServiceMock.createRequest.mockResolvedValueOnce({
       id: 'request_1',
       publicId: 'CD-2026-000001',
@@ -697,6 +726,34 @@ describe('MiniApp Lead handoff routes', () => {
     }));
   });
 
+  it('returns structured not-approved error for B2B request writes before creating request', async () => {
+    miniAppServiceMock.getConfig.mockResolvedValueOnce({
+      companyId: 'company_1',
+      botId: 'bot_b2b',
+      publicSlug: 'cardealer_lviv_bot',
+      template: 'B2B',
+      miniapp: { surfaceMode: 'B2B' }
+    });
+    prismaMock.partnerUser.findFirst.mockResolvedValueOnce(null);
+    const app = await buildApp();
+
+    const res = await request(app)
+      .post('/api/miniapp/requests')
+      .send({
+        slug: 'cardealer_lviv_bot',
+        initData: 'signed-init-data',
+        requestType: 'BUY',
+        tracking: { submitId: 'b2b_submit_1' }
+      });
+
+    expect(res.status).toBe(403);
+    expect(res.body).toMatchObject({
+      code: 'B2B_PARTNER_NOT_APPROVED',
+      details: { reason: 'PARTNER_NOT_APPROVED' }
+    });
+    expect(miniAppServiceMock.createRequest).not.toHaveBeenCalled();
+  });
+
   it('creates B2B SELL/add-car requests through MiniApp request path without starting Lead sell flow', async () => {
     miniAppServiceMock.getConfig.mockResolvedValueOnce({
       companyId: 'company_1',
@@ -704,6 +761,16 @@ describe('MiniApp Lead handoff routes', () => {
       publicSlug: 'cardealer_lviv_bot',
       template: 'B2B',
       miniapp: { surfaceMode: 'B2B' }
+    });
+    prismaMock.partnerUser.findFirst.mockResolvedValueOnce({
+      partnerId: 'partner_1',
+      role: 'OWNER',
+      partner: {
+        id: 'partner_1',
+        name: 'Dealer One',
+        partnerCode: 'D1',
+        showcaseSlug: 'dealer-one'
+      }
     });
     miniAppServiceMock.createRequest.mockResolvedValueOnce({
       id: 'request_sell_1',
@@ -750,12 +817,333 @@ describe('MiniApp Lead handoff routes', () => {
     expect(requestContractServiceMock.createPendingLeadIntent).not.toHaveBeenCalled();
   });
 
+  it('returns pending B2B partner portal state without querying partner-owned data', async () => {
+    miniAppServiceMock.getConfig.mockResolvedValueOnce({
+      companyId: 'company_1',
+      botId: 'bot_b2b',
+      publicSlug: 'cardealer_lviv_bot',
+      template: 'B2B',
+      miniapp: { surfaceMode: 'B2B' }
+    });
+    prismaMock.partnerUser.findFirst.mockResolvedValueOnce(null);
+    const app = await buildApp();
+
+    const res = await request(app)
+      .get('/api/miniapp/b2b/me')
+      .query({
+        slug: 'cardealer_lviv_bot',
+        initData: 'signed-init-data',
+        telegramUserId: 'spoofed_user'
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      ok: true,
+      approved: false,
+      reason: 'PARTNER_NOT_APPROVED',
+      user: {
+        telegramUserId: '1001',
+        username: 'client_one',
+        name: 'Ivan Client'
+      }
+    });
+    expect(prismaMock.partnerUser.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: { companyId: 'company_1', telegramId: '1001' }
+    }));
+    expect(prismaMock.b2bRequest.findMany).not.toHaveBeenCalled();
+    expect(prismaMock.requestVariant.findMany).not.toHaveBeenCalled();
+    expect(prismaMock.b2bRequest.count).not.toHaveBeenCalled();
+    expect(prismaMock.requestVariant.count).not.toHaveBeenCalled();
+  });
+
+  it('returns approved B2B partner summary and counts using verified Telegram identity', async () => {
+    miniAppServiceMock.getConfig.mockResolvedValueOnce({
+      companyId: 'company_1',
+      botId: 'bot_b2b',
+      publicSlug: 'cardealer_lviv_bot',
+      template: 'B2B',
+      miniapp: { surfaceMode: 'B2B' }
+    });
+    prismaMock.partnerUser.findFirst.mockResolvedValueOnce({
+      partnerId: 'partner_1',
+      role: 'OWNER',
+      partner: {
+        id: 'partner_1',
+        name: 'Dealer One',
+        partnerCode: 'D1',
+        showcaseSlug: 'dealer-one'
+      }
+    });
+    prismaMock.b2bRequest.count.mockResolvedValueOnce(2);
+    prismaMock.requestVariant.count.mockResolvedValueOnce(5);
+    const app = await buildApp();
+
+    const res = await request(app)
+      .get('/api/miniapp/b2b/me')
+      .query({
+        slug: 'cardealer_lviv_bot',
+        initData: 'signed-init-data',
+        telegramUserId: 'spoofed_user'
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      ok: true,
+      approved: true,
+      user: {
+        telegramUserId: '1001',
+        username: 'client_one',
+        name: 'Ivan Client'
+      },
+      partner: {
+        id: 'partner_1',
+        name: 'Dealer One',
+        code: 'D1',
+        showcaseSlug: 'dealer-one',
+        role: 'OWNER'
+      },
+      stats: {
+        ownRequests: 2,
+        receivedVariants: 5
+      }
+    });
+    expect(prismaMock.partnerUser.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: { companyId: 'company_1', telegramId: '1001' }
+    }));
+    expect(prismaMock.b2bRequest.findMany).not.toHaveBeenCalled();
+    expect(prismaMock.requestVariant.count).toHaveBeenCalledWith({
+      where: {
+        request: {
+          companyId: 'company_1',
+          requesterPartnerId: 'partner_1'
+        }
+      }
+    });
+  });
+
+  it('rejects own B2B requests for non-B2B MiniApp config before partner data lookup', async () => {
+    const app = await buildApp();
+
+    const res = await request(app)
+      .get('/api/miniapp/b2b/requests/my')
+      .query({
+        slug: 'cartie',
+        initData: 'signed-init-data'
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({
+      code: 'B2B_PORTAL_UNAVAILABLE'
+    });
+    expect(verifyInitDataMock).not.toHaveBeenCalled();
+    expect(prismaMock.partnerUser.findFirst).not.toHaveBeenCalled();
+    expect(prismaMock.b2bRequest.findMany).not.toHaveBeenCalled();
+  });
+
+  it('rejects received B2B variants for non-B2B MiniApp config before partner data lookup', async () => {
+    const app = await buildApp();
+
+    const res = await request(app)
+      .get('/api/miniapp/b2b/variants/received')
+      .query({
+        slug: 'cartie',
+        initData: 'signed-init-data'
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({
+      code: 'B2B_PORTAL_UNAVAILABLE'
+    });
+    expect(verifyInitDataMock).not.toHaveBeenCalled();
+    expect(prismaMock.partnerUser.findFirst).not.toHaveBeenCalled();
+    expect(prismaMock.requestVariant.findMany).not.toHaveBeenCalled();
+  });
+
+  it('rejects B2B variant decisions for non-B2B MiniApp config before partner data lookup', async () => {
+    const app = await buildApp();
+
+    const res = await request(app)
+      .post('/api/miniapp/b2b/variants/variant_1/decision')
+      .send({
+        slug: 'cartie',
+        initData: 'signed-init-data',
+        decision: 'FIT'
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({
+      code: 'B2B_PORTAL_UNAVAILABLE'
+    });
+    expect(verifyInitDataMock).not.toHaveBeenCalled();
+    expect(prismaMock.partnerUser.findFirst).not.toHaveBeenCalled();
+    expect(prismaMock.requestVariant.findUnique).not.toHaveBeenCalled();
+    expect(prismaMock.requestVariant.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects B2B admin fit queue reads for non-B2B MiniApp config before admin lookup', async () => {
+    const app = await buildApp();
+
+    const res = await request(app)
+      .get('/api/miniapp/b2b/admin/fit-queue')
+      .query({
+        slug: 'cartie',
+        initData: 'signed-init-data'
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({
+      code: 'B2B_PORTAL_UNAVAILABLE'
+    });
+    expect(verifyInitDataMock).not.toHaveBeenCalled();
+    expect(prismaMock.globalUser.findFirst).not.toHaveBeenCalled();
+    expect(prismaMock.membership.findFirst).not.toHaveBeenCalled();
+    expect(prismaMock.requestVariant.findMany).not.toHaveBeenCalled();
+  });
+
+  it('rejects B2B admin fit queue updates for non-B2B MiniApp config before admin lookup', async () => {
+    const app = await buildApp();
+
+    const res = await request(app)
+      .patch('/api/miniapp/b2b/admin/fit-queue/variant_1')
+      .send({
+        slug: 'cartie',
+        initData: 'signed-init-data',
+        fitQueueStatus: 'CONTACTED'
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({
+      code: 'B2B_PORTAL_UNAVAILABLE'
+    });
+    expect(verifyInitDataMock).not.toHaveBeenCalled();
+    expect(prismaMock.globalUser.findFirst).not.toHaveBeenCalled();
+    expect(prismaMock.membership.findFirst).not.toHaveBeenCalled();
+    expect(prismaMock.requestVariant.findUnique).not.toHaveBeenCalled();
+    expect(prismaMock.requestVariant.update).not.toHaveBeenCalled();
+  });
+
+  it('returns structured not-approved error for B2B own requests', async () => {
+    miniAppServiceMock.getConfig.mockResolvedValueOnce({
+      companyId: 'company_1',
+      botId: 'bot_b2b',
+      publicSlug: 'cardealer_lviv_bot',
+      template: 'B2B',
+      miniapp: { surfaceMode: 'B2B' }
+    });
+    prismaMock.partnerUser.findFirst.mockResolvedValueOnce(null);
+    const app = await buildApp();
+
+    const res = await request(app)
+      .get('/api/miniapp/b2b/requests/my')
+      .query({
+        slug: 'cardealer_lviv_bot',
+        initData: 'signed-init-data'
+      });
+
+    expect(res.status).toBe(403);
+    expect(res.body).toMatchObject({
+      code: 'B2B_PARTNER_NOT_APPROVED',
+      details: { reason: 'PARTNER_NOT_APPROVED' }
+    });
+    expect(prismaMock.b2bRequest.findMany).not.toHaveBeenCalled();
+  });
+
+  it('does not expose contacts in approved B2B received variants', async () => {
+    miniAppServiceMock.getConfig.mockResolvedValueOnce({
+      companyId: 'company_1',
+      botId: 'bot_b2b',
+      publicSlug: 'cardealer_lviv_bot',
+      template: 'B2B',
+      miniapp: { surfaceMode: 'B2B' }
+    });
+    prismaMock.partnerUser.findFirst.mockResolvedValueOnce({
+      partnerId: 'partner_1',
+      role: 'AGENT',
+      partner: {
+        id: 'partner_1',
+        name: 'Dealer One',
+        partnerCode: 'D1',
+        showcaseSlug: 'dealer-one'
+      }
+    });
+    prismaMock.b2bRequest.findMany.mockResolvedValueOnce([{ id: 'request_1' }]);
+    prismaMock.requestVariant.findMany.mockResolvedValueOnce([{
+      id: 'variant_1',
+      requestId: 'request_1',
+      request: { publicId: 'REQ-1' },
+      status: 'NEW',
+      requesterDecision: null,
+      title: 'BMW X5',
+      price: 55000,
+      year: 2022,
+      mileage: 12000,
+      location: 'Lviv',
+      thumbnail: 'https://example.com/x5.jpg',
+      mediaUrls: [
+        'https://example.com/x5.jpg',
+        'tg://resolve?domain=dealer_one',
+        'https://wa.me/380501112233',
+        'mailto:dealer@example.com',
+        'tel:+380501112233',
+        'https://cdn.example.com/redirect?to=https%3A%2F%2Ft.me%2Fdealer_one',
+        'https://cdn.example.com/img.jpg?phone=%2B380501112233'
+      ],
+      specs: {
+        brand: 'BMW',
+        color: 'black',
+        ownerContact: '+380501112233',
+        phone: '+380501112233',
+        email: 'dealer@example.com',
+        nested: {
+          safeNote: 'service history ok',
+          whatsapp: 'https://wa.me/380501112233',
+          contactPerson: {
+            name: 'Dealer',
+            phone: '+380501112233'
+          },
+          items: [
+            { label: 'battery', value: '77 kWh' },
+            { telegram: '@dealer_one', value: 'hidden contact' }
+          ]
+        }
+      },
+      contact: '+380501112233',
+      createdAt: new Date('2026-05-18T10:00:00.000Z')
+    }]);
+    const app = await buildApp();
+
+    const res = await request(app)
+      .get('/api/miniapp/b2b/variants/received')
+      .query({
+        slug: 'cardealer_lviv_bot',
+        initData: 'signed-init-data'
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.items).toHaveLength(1);
+    expect(res.body.items[0]).not.toHaveProperty('contact');
+    expect(res.body.items[0].mediaUrls).toEqual(['https://example.com/x5.jpg']);
+    expect(res.body.items[0].specs).toEqual({
+      brand: 'BMW',
+      color: 'black',
+      nested: {
+        safeNote: 'service history ok',
+        items: [
+          { label: 'battery', value: '77 kWh' },
+          { value: 'hidden contact' }
+        ]
+      }
+    });
+  });
+
   it('dispatches Meta CAPI for enabled MiniApp lead events with stable event id', async () => {
     vi.stubEnv('META_CAPI_ENABLED', 'true');
     const app = await buildApp();
 
     const res = await request(app)
       .post('/api/miniapp/events')
+      .set('x-forwarded-for', '203.0.113.10, 10.0.0.1')
+      .set('user-agent', 'Cartie MiniApp Test')
       .send({
         slug: 'cartie',
         eventType: 'LeadSubmit',
@@ -783,6 +1171,11 @@ describe('MiniApp Lead handoff routes', () => {
       });
 
     expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      ok: true,
+      eventId: 'meta_event_1',
+      meta: { enabled: true, eventName: 'Lead' }
+    });
     expect(emitPlatformEventMock).toHaveBeenCalledWith(expect.objectContaining({
       eventType: 'miniapp.LeadSubmit',
       userId: '1001'
@@ -793,6 +1186,8 @@ describe('MiniApp Lead handoff routes', () => {
       fbp: 'fb.1.123',
       fbc: 'fb.1.456',
       eventSourceUrl: 'https://cartie.test/p/app/cartie',
+      ip: '203.0.113.10',
+      userAgent: 'Cartie MiniApp Test',
       contentIds: ['car_1'],
       customData: expect.objectContaining({
         source: 'miniapp',
@@ -806,6 +1201,153 @@ describe('MiniApp Lead handoff routes', () => {
     expect(JSON.stringify(platformPayload)).not.toContain('+380635055252');
     expect(JSON.stringify(platformPayload)).not.toContain('client@example.com');
     expect(JSON.stringify(platformPayload)).not.toContain('raw-init-data');
+  });
+
+  it('stores MiniApp tracking event_id and tracking metadata when Meta CAPI is disabled', async () => {
+    const app = await buildApp();
+
+    const res = await request(app)
+      .post('/api/miniapp/events')
+      .send({
+        slug: 'cartie',
+        eventType: 'MiniAppOpen',
+        initData: 'signed-init-data',
+        tracking: {
+          routeSource: 'telegram_menu',
+          meta: {
+            eventId: 'mini_open_1',
+            fbclid: 'fbclid_1',
+            fbp: 'fb.1.123',
+            fbc: 'fb.1.456'
+          },
+          utm: {
+            source: 'facebook',
+            campaign: 'launch'
+          }
+        },
+        payload: {
+          screen: 'catalog'
+        }
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      ok: true,
+      eventId: 'mini_open_1',
+      meta: { enabled: false, eventName: 'PageView' }
+    });
+    expect(metaPixelTrackEventMock).not.toHaveBeenCalled();
+    expect(emitPlatformEventMock).toHaveBeenCalledWith(expect.objectContaining({
+      eventType: 'miniapp.MiniAppOpen',
+      userId: '1001',
+      payload: expect.objectContaining({
+        eventId: 'mini_open_1',
+        source: 'miniapp',
+        tracking: expect.objectContaining({
+          routeSource: 'telegram_menu',
+          utm: {
+            source: 'facebook',
+            campaign: 'launch'
+          }
+        })
+      })
+    }));
+  });
+
+  it('maps B2B MiniApp tracking events to server-side Meta CAPI behind the feature flag', async () => {
+    vi.stubEnv('META_CAPI_ENABLED', 'true');
+    miniAppServiceMock.getConfig.mockResolvedValueOnce({
+      companyId: 'company_1',
+      botId: 'bot_b2b',
+      publicSlug: 'cardealer_lviv_bot',
+      template: 'B2B',
+      miniapp: { surfaceMode: 'B2B' }
+    });
+    const app = await buildApp();
+
+    const res = await request(app)
+      .post('/api/miniapp/events')
+      .send({
+        slug: 'cardealer_lviv_bot',
+        eventType: 'B2BOfferSubmit',
+        initData: 'signed-init-data',
+        tracking: {
+          meta: { eventId: 'b2b_offer_1' }
+        },
+        payload: {
+          requestId: 'request_1',
+          price: 55000
+        }
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      eventId: 'b2b_offer_1',
+      meta: { enabled: true, eventName: 'SubmitApplication' }
+    });
+    expect(metaPixelTrackEventMock).toHaveBeenCalledWith('company_1', 'SubmitApplication', expect.objectContaining({
+      eventId: 'b2b_offer_1',
+      externalId: 'telegram:1001',
+      customData: expect.objectContaining({
+        source: 'miniapp',
+        slug: 'cardealer_lviv_bot',
+        miniapp_event: 'B2BOfferSubmit',
+        requestId: 'request_1',
+        price: 55000
+      })
+    }));
+  });
+
+  it('rejects MiniApp request status reads without initData instead of trusting query identity', async () => {
+    const app = await buildApp();
+
+    const res = await request(app)
+      .get('/api/miniapp/requests/status')
+      .query({
+        slug: 'cartie',
+        requestId: 'REQ-1',
+        telegramUserId: 'spoofed_user',
+        phone: '+380635055252'
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({
+      code: 'TELEGRAM_INITDATA_REQUIRED'
+    });
+    expect(verifyInitDataMock).not.toHaveBeenCalled();
+    expect(miniAppServiceMock.getRequestStatus).not.toHaveBeenCalled();
+  });
+
+  it('uses verified initData Telegram identity for MiniApp request status reads', async () => {
+    const app = await buildApp();
+
+    const res = await request(app)
+      .get('/api/miniapp/requests/status')
+      .query({
+        slug: 'cartie',
+        initData: 'signed-init-data',
+        requestId: 'REQ-1',
+        telegramUserId: 'spoofed_user',
+        phone: '+380635055252'
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      ok: true,
+      request: {
+        id: 'request_1',
+        publicId: 'REQ-1',
+        status: 'NEW'
+      }
+    });
+    expect(verifyInitDataMock).toHaveBeenCalledWith('signed-init-data', {
+      companyId: 'company_1',
+      botId: 'bot_1'
+    });
+    expect(miniAppServiceMock.getRequestStatus).toHaveBeenCalledWith('cartie', {
+      requestId: 'REQ-1',
+      telegramUserId: '1001'
+    });
   });
 
   it('rejects MiniApp events without initData instead of trusting client-supplied tgUserId', async () => {

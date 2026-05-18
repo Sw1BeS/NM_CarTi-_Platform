@@ -14,7 +14,7 @@ import { emitPlatformEvent } from '../modules/Communication/telegram/core/events
 import { verifyMiniAppInitDataForScope } from '../services/miniAppAuth.service.js';
 import { requestContractService } from '../services/requestContract.service.js';
 import { startLeadSellWizard } from '../modules/Communication/telegram/routing/wizards/leadSellWizard.js';
-import { buildLeadAdminActionMarkup, buildLeadAdminNotificationText } from '../services/leadAdminNotification.js';
+import { buildLeadAdminActionMarkupAsync, buildLeadAdminNotificationText } from '../services/leadAdminNotification.js';
 import { isEnvFlagEnabled } from '../services/featureFlags.js';
 import { vehicleTaxonomyService } from '../services/vehicleTaxonomy.service.js';
 
@@ -30,6 +30,9 @@ const MINIAPP_ERROR_CODES = {
 } as const;
 
 const LEAD_WRONG_ENDPOINT = 'LEAD_WRONG_ENDPOINT';
+const B2B_PARTNER_NOT_APPROVED = 'B2B_PARTNER_NOT_APPROVED';
+const B2B_PARTNER_NOT_APPROVED_REASON = 'PARTNER_NOT_APPROVED';
+const B2B_PORTAL_UNAVAILABLE = 'B2B_PORTAL_UNAVAILABLE';
 
 const isB2BMiniAppConfig = (config: Record<string, any> | null | undefined) => {
   const template = String(config?.template || '').trim().toUpperCase();
@@ -86,6 +89,181 @@ const parseMiniAppTelegramIdentity = (initData: string) => {
     name,
     raw: tgUser
   };
+};
+
+const resolveB2BMiniAppPartner = async (config: Record<string, any>, initData: string) => {
+  const tgIdentity = parseMiniAppTelegramIdentity(initData);
+  if (!tgIdentity.userId) {
+    return {
+      approved: false as const,
+      reason: B2B_PARTNER_NOT_APPROVED_REASON,
+      user: {
+        telegramUserId: undefined,
+        username: tgIdentity.username,
+        name: tgIdentity.name
+      }
+    };
+  }
+
+  const partnerUser = await prisma.partnerUser.findFirst({
+    where: { companyId: config.companyId, telegramId: tgIdentity.userId },
+    select: {
+      partnerId: true,
+      role: true,
+      partner: {
+        select: {
+          id: true,
+          name: true,
+          partnerCode: true,
+          showcaseSlug: true
+        }
+      }
+    }
+  });
+
+  const user = {
+    telegramUserId: tgIdentity.userId,
+    username: tgIdentity.username,
+    name: tgIdentity.name
+  };
+
+  if (!partnerUser?.partnerId || !partnerUser.partner) {
+    return {
+      approved: false as const,
+      reason: B2B_PARTNER_NOT_APPROVED_REASON,
+      user
+    };
+  }
+
+  return {
+    approved: true as const,
+    user,
+    partner: {
+      id: partnerUser.partner.id,
+      name: partnerUser.partner.name,
+      code: partnerUser.partner.partnerCode,
+      showcaseSlug: partnerUser.partner.showcaseSlug,
+      role: partnerUser.role,
+      partnerId: partnerUser.partnerId
+    }
+  };
+};
+
+const b2bPartnerNotApprovedResponse = (res: any) => errorResponse(
+  res,
+  403,
+  'B2B partner is not approved',
+  B2B_PARTNER_NOT_APPROVED,
+  { reason: B2B_PARTNER_NOT_APPROVED_REASON }
+);
+
+const b2bPortalUnavailableResponse = (res: any) => errorResponse(
+  res,
+  400,
+  'B2B portal is not available for this MiniApp',
+  B2B_PORTAL_UNAVAILABLE
+);
+
+const CONTACT_URL_HOSTS = [
+  'wa.me',
+  'whatsapp.com',
+  't.me',
+  'telegram.me',
+  'viber.com'
+];
+
+const normalizeSensitiveKey = (key: string) => key.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+const isContactLikeKey = (key: string) => {
+  const normalized = normalizeSensitiveKey(key);
+  return normalized.includes('contact')
+    || normalized.includes('phone')
+    || normalized.includes('mobile')
+    || normalized.includes('telegram')
+    || normalized.includes('whatsapp')
+    || normalized.includes('viber')
+    || normalized.includes('email')
+    || normalized === 'mail'
+    || normalized === 'tel'
+    || normalized === 'tg'
+    || normalized === 'dealerphone'
+    || normalized === 'ownerphone';
+};
+
+const isContactLikeString = (value: string) => {
+  const text = value.trim().toLowerCase();
+  if (!text) return false;
+  if (/mailto:|tel:|tg:|wa\.me|whatsapp|telegram\.me|t\.me|viber/.test(text)) return true;
+  if (/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i.test(value)) return true;
+  if (/(^|\s)@[a-z0-9_]{5,}\b/i.test(value)) return true;
+  if (/\+?\d[\d\s().-]{7,}\d/.test(value)) return true;
+  return false;
+};
+
+const safeDecodeURIComponent = (value: string) => {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+};
+
+const sanitizeB2BPublicSpecs = (value: unknown, depth = 0): unknown => {
+  if (depth > 8) return undefined;
+  if (Array.isArray(value)) {
+    const items = value
+      .map(item => sanitizeB2BPublicSpecs(item, depth + 1))
+      .filter(item => {
+        if (item === undefined) return false;
+        if (isRecord(item) && Object.keys(item).length === 0) return false;
+        return true;
+      });
+    return items;
+  }
+  if (isRecord(value)) {
+    const cleaned: Record<string, unknown> = {};
+    for (const [key, item] of Object.entries(value)) {
+      if (isContactLikeKey(key)) continue;
+      const sanitized = sanitizeB2BPublicSpecs(item, depth + 1);
+      if (sanitized === undefined) continue;
+      if (isRecord(sanitized) && Object.keys(sanitized).length === 0) continue;
+      cleaned[key] = sanitized;
+    }
+    return cleaned;
+  }
+  if (typeof value === 'string') {
+    return isContactLikeString(value) ? undefined : value;
+  }
+  return value;
+};
+
+const sanitizeB2BMediaUrl = (value: unknown) => {
+  const raw = readString(value);
+  if (!raw) return undefined;
+  let parsed: URL;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    return undefined;
+  }
+  if (!['http:', 'https:'].includes(parsed.protocol)) return undefined;
+  const host = parsed.hostname.toLowerCase().replace(/^www\./, '');
+  if (CONTACT_URL_HOSTS.some(contactHost => host === contactHost || host.endsWith(`.${contactHost}`))) return undefined;
+  for (const key of parsed.searchParams.keys()) {
+    if (isContactLikeKey(key)) return undefined;
+  }
+  const decodedValues = [
+    safeDecodeURIComponent(raw),
+    safeDecodeURIComponent(parsed.href),
+    ...Array.from(parsed.searchParams.values()).map(param => safeDecodeURIComponent(param))
+  ];
+  if (decodedValues.some(item => isContactLikeString(item))) return undefined;
+  return raw;
+};
+
+const sanitizeB2BMediaUrls = (value: unknown) => {
+  if (!Array.isArray(value)) return [];
+  return Array.from(new Set(value.map(sanitizeB2BMediaUrl).filter((item): item is string => Boolean(item))));
 };
 
 const buildInitDataDiagnostics = (initData?: string) => {
@@ -193,9 +371,14 @@ const normalizeLeadIntentKind = (value: unknown) => {
 
 const mapMiniAppEventToMeta = (eventType: string) => {
   const normalized = String(eventType || '').trim().toLowerCase();
+  if (['miniappopen', 'miniapp_open', 'mini_app_open'].includes(normalized)) return 'PageView';
   if (['leadsubmit', 'lead_submit', 'lead_intent_pick_submitted', 'lead_intent_price_terms_submitted', 'lead_intent_selected_cars_submitted'].includes(normalized)) {
     return 'Lead';
   }
+  if (['b2brequestcreate', 'b2b_request_create', 'b2brequestcreated', 'b2b_request_created'].includes(normalized)) return 'SubmitApplication';
+  if (['b2boffersubmit', 'b2b_offer_submit', 'offersubmit', 'offer_submit'].includes(normalized)) return 'SubmitApplication';
+  if (['qualifiedlead', 'qualified_lead'].includes(normalized)) return 'Lead';
+  if (['adminstatuschange', 'admin_status_change'].includes(normalized)) return 'SubmitApplication';
   if (['contactshare', 'contact_share'].includes(normalized)) return 'Contact';
   if (['viewcar', 'view_car', 'viewinventoryitem', 'view_inventory_item'].includes(normalized)) return 'ViewContent';
   if (['viewinventory', 'view_inventory', 'viewshowcase', 'view_showcase', 'search'].includes(normalized)) return 'Search';
@@ -240,6 +423,25 @@ const isReadOnlyPreviewMiniAppEvent = (eventType: string) => {
 const readTrackingMeta = (tracking: unknown) => {
   const trackingRecord = isRecord(tracking) ? tracking : {};
   return isRecord(trackingRecord.meta) ? trackingRecord.meta : {};
+};
+
+const buildMiniAppTrackingEventId = (eventType: string, tracking: unknown, requestId?: string) => {
+  const trackingRecord = isRecord(tracking) ? tracking : {};
+  const trackingMeta = readTrackingMeta(trackingRecord);
+  return readString(trackingMeta.eventId)
+    || readString(trackingMeta.event_id)
+    || readString(trackingRecord.eventId)
+    || readString(trackingRecord.event_id)
+    || readString(trackingRecord.submitId)
+    || readString(trackingRecord.submit_id)
+    || readString(requestId)
+    || `miniapp_${normalizeMiniAppEventType(eventType) || 'event'}_${Date.now().toString(36)}`;
+};
+
+const readClientIp = (req: any) => {
+  const forwarded = readString(req?.get?.('x-forwarded-for'));
+  const firstForwarded = forwarded?.split(',').map(part => part.trim()).find(Boolean);
+  return firstForwarded || readString(req?.ip) || readString(req?.socket?.remoteAddress);
 };
 
 const SENSITIVE_EVENT_KEYS = new Set([
@@ -543,6 +745,70 @@ router.post('/cars/:carId/share', async (req, res) => {
   }
 });
 
+router.get('/b2b/me', async (req, res) => {
+  try {
+    const slug = readString(req.query.slug);
+    const initData = readString(req.query.initData);
+    if (!slug) return errorResponse(res, 400, 'slug is required');
+    if (!initData) return errorResponse(res, 400, 'initData is required');
+
+    const config = await miniAppService.getConfig(slug);
+    if (!isB2BMiniAppConfig(config as Record<string, any>)) {
+      return b2bPortalUnavailableResponse(res);
+    }
+
+    const initCheck = await requireInitData(initData, config.companyId, config.botId);
+    if (!initCheck.ok) return errorResponse(res, 401, initCheck.message || 'Unauthorized');
+
+    const partnerState = await resolveB2BMiniAppPartner(config as Record<string, any>, initData);
+    if (!partnerState.approved) {
+      return res.json({
+        ok: true,
+        approved: false,
+        reason: partnerState.reason,
+        user: partnerState.user
+      });
+    }
+
+    const [ownRequests, receivedVariants] = await Promise.all([
+      prisma.b2bRequest.count({
+        where: {
+          companyId: config.companyId,
+          requesterPartnerId: partnerState.partner.partnerId
+        }
+      }),
+      prisma.requestVariant.count({
+        where: {
+          request: {
+            companyId: config.companyId,
+            requesterPartnerId: partnerState.partner.partnerId
+          }
+        }
+      })
+    ]);
+
+    res.json({
+      ok: true,
+      approved: true,
+      user: partnerState.user,
+      partner: {
+        id: partnerState.partner.id,
+        name: partnerState.partner.name,
+        code: partnerState.partner.code,
+        showcaseSlug: partnerState.partner.showcaseSlug,
+        role: partnerState.partner.role
+      },
+      stats: {
+        ownRequests,
+        receivedVariants
+      }
+    });
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'Failed to load B2B partner portal';
+    errorResponse(res, 500, message);
+  }
+});
+
 router.get('/b2b/requests/my', async (req, res) => {
   try {
     const slug = readString(req.query.slug);
@@ -551,23 +817,20 @@ router.get('/b2b/requests/my', async (req, res) => {
     if (!initData) return errorResponse(res, 400, 'initData is required');
 
     const config = await miniAppService.getConfig(slug);
+    if (!isB2BMiniAppConfig(config as Record<string, any>)) {
+      return b2bPortalUnavailableResponse(res);
+    }
+
     const initCheck = await requireInitData(initData, config.companyId, config.botId);
     if (!initCheck.ok) return errorResponse(res, 401, initCheck.message || 'Unauthorized');
 
-    const tgUser = parseTelegramUser(initData);
-    const tgUserId = tgUser?.id ? String(tgUser.id) : undefined;
-    if (!tgUserId) return errorResponse(res, 400, 'Telegram user not found');
-
-    const partnerUser = await prisma.partnerUser.findFirst({
-      where: { companyId: config.companyId, telegramId: tgUserId },
-      select: { partnerId: true }
-    });
-    if (!partnerUser?.partnerId) return errorResponse(res, 403, 'Access denied');
+    const partnerState = await resolveB2BMiniAppPartner(config as Record<string, any>, initData);
+    if (!partnerState.approved) return b2bPartnerNotApprovedResponse(res);
 
     const requests = await prisma.b2bRequest.findMany({
       where: {
         companyId: config.companyId,
-        requesterPartnerId: partnerUser.partnerId
+        requesterPartnerId: partnerState.partner.partnerId
       },
       orderBy: { createdAt: 'desc' }
     });
@@ -597,21 +860,18 @@ router.get('/b2b/variants/received', async (req, res) => {
     if (!initData) return errorResponse(res, 400, 'initData is required');
 
     const config = await miniAppService.getConfig(slug);
+    if (!isB2BMiniAppConfig(config as Record<string, any>)) {
+      return b2bPortalUnavailableResponse(res);
+    }
+
     const initCheck = await requireInitData(initData, config.companyId, config.botId);
     if (!initCheck.ok) return errorResponse(res, 401, initCheck.message || 'Unauthorized');
 
-    const tgUser = parseTelegramUser(initData);
-    const tgUserId = tgUser?.id ? String(tgUser.id) : undefined;
-    if (!tgUserId) return errorResponse(res, 400, 'Telegram user not found');
-
-    const partnerUser = await prisma.partnerUser.findFirst({
-      where: { companyId: config.companyId, telegramId: tgUserId },
-      select: { partnerId: true }
-    });
-    if (!partnerUser?.partnerId) return errorResponse(res, 403, 'Access denied');
+    const partnerState = await resolveB2BMiniAppPartner(config as Record<string, any>, initData);
+    if (!partnerState.approved) return b2bPartnerNotApprovedResponse(res);
 
     const requests = await prisma.b2bRequest.findMany({
-      where: { companyId: config.companyId, requesterPartnerId: partnerUser.partnerId },
+      where: { companyId: config.companyId, requesterPartnerId: partnerState.partner.partnerId },
       select: { id: true }
     });
     const requestIds = requests.map(r => r.id);
@@ -636,9 +896,9 @@ router.get('/b2b/variants/received', async (req, res) => {
         year: v.year,
         mileage: v.mileage,
         location: v.location,
-        thumbnail: v.thumbnail,
-        mediaUrls: v.mediaUrls || [],
-        specs: v.specs || {},
+        thumbnail: sanitizeB2BMediaUrl(v.thumbnail),
+        mediaUrls: sanitizeB2BMediaUrls(v.mediaUrls),
+        specs: sanitizeB2BPublicSpecs(v.specs || {}) || {},
         createdAt: v.createdAt
       }))
     });
@@ -666,25 +926,22 @@ router.post('/b2b/variants/:variantId/decision', async (req, res) => {
     }
 
     const config = await miniAppService.getConfig(slug);
+    if (!isB2BMiniAppConfig(config as Record<string, any>)) {
+      return b2bPortalUnavailableResponse(res);
+    }
+
     const initCheck = await requireInitData(initData, config.companyId, config.botId);
     if (!initCheck.ok) return errorResponse(res, 401, initCheck.message || 'Unauthorized');
 
-    const tgUser = parseTelegramUser(initData);
-    const tgUserId = tgUser?.id ? String(tgUser.id) : undefined;
-    if (!tgUserId) return errorResponse(res, 400, 'Telegram user not found');
-
-    const partnerUser = await prisma.partnerUser.findFirst({
-      where: { companyId: config.companyId, telegramId: tgUserId },
-      select: { partnerId: true }
-    });
-    if (!partnerUser?.partnerId) return errorResponse(res, 403, 'Access denied');
+    const partnerState = await resolveB2BMiniAppPartner(config as Record<string, any>, initData);
+    if (!partnerState.approved) return b2bPartnerNotApprovedResponse(res);
 
     const variant = await prisma.requestVariant.findUnique({
       where: { id: variantId },
       include: { request: true }
     });
     if (!variant || variant.request?.companyId !== config.companyId) return errorResponse(res, 404, 'Variant not found');
-    if (variant.request?.requesterPartnerId !== partnerUser.partnerId) return errorResponse(res, 403, 'Forbidden');
+    if (variant.request?.requesterPartnerId !== partnerState.partner.partnerId) return errorResponse(res, 403, 'Forbidden');
 
     const updated = await prisma.requestVariant.update({
       where: { id: variantId },
@@ -719,6 +976,10 @@ router.get('/b2b/admin/fit-queue', async (req, res) => {
     if (!initData) return errorResponse(res, 400, 'initData is required');
 
     const config = await miniAppService.getConfig(slug);
+    if (!isB2BMiniAppConfig(config as Record<string, any>)) {
+      return b2bPortalUnavailableResponse(res);
+    }
+
     const initCheck = await requireInitData(initData, config.companyId, config.botId);
     if (!initCheck.ok) return errorResponse(res, 401, initCheck.message || 'Unauthorized');
 
@@ -775,6 +1036,10 @@ router.patch('/b2b/admin/fit-queue/:variantId', async (req, res) => {
     if (!fitQueueStatus) return errorResponse(res, 400, 'fitQueueStatus is required');
 
     const config = await miniAppService.getConfig(slug);
+    if (!isB2BMiniAppConfig(config as Record<string, any>)) {
+      return b2bPortalUnavailableResponse(res);
+    }
+
     const initCheck = await requireInitData(initData, config.companyId, config.botId);
     if (!initCheck.ok) return errorResponse(res, 401, initCheck.message || 'Unauthorized');
 
@@ -1029,11 +1294,16 @@ router.post('/lead-intents', async (req, res) => {
           source: 'miniapp',
           duplicate: Boolean((pending as any).isDuplicate || finalized.isDuplicate)
         });
-        const replyMarkup = buildLeadAdminActionMarkup({
+        const replyMarkup = await buildLeadAdminActionMarkupAsync({
           lead: finalized.lead,
           request: finalized.request,
           telegramUserId: telegram.userId,
-          selectedCars: finalized.requestPresentation?.selectedCars
+          selectedCars: finalized.requestPresentation?.selectedCars,
+          tokenContext: {
+            botId: bot.id,
+            companyId: bot.companyId || config.companyId,
+            requestId: finalized.request?.id
+          }
         });
         await telegramOutbox.sendMessage({
           botId: bot.id,
@@ -1270,6 +1540,9 @@ router.post('/requests', async (req, res) => {
       return errorResponse(res, 400, 'Telegram user not found', MINIAPP_ERROR_CODES.INITDATA_INVALID);
     }
 
+    const partnerState = await resolveB2BMiniAppPartner(config as Record<string, any>, initData || '');
+    if (!partnerState.approved) return b2bPartnerNotApprovedResponse(res);
+
     logger.info('[MiniApp] request create', {
       requestId,
       slug,
@@ -1367,6 +1640,13 @@ router.post('/events', async (req, res) => {
       ? sanitizeMiniAppEventValue(body.tracking) as Record<string, unknown>
       : undefined;
     const carListingId = readString(body.carListingId);
+    const eventId = buildMiniAppTrackingEventId(eventType, tracking, readString(req.get('x-request-id')));
+    const metaEventName = mapMiniAppEventToMeta(eventType);
+    const metaEnabled = Boolean(metaEventName && isEnvFlagEnabled('META_CAPI_ENABLED', false));
+    const metaStatus: Record<string, unknown> = {
+      enabled: metaEnabled,
+      eventName: metaEventName
+    };
 
     await emitPlatformEvent({
       companyId: config.companyId,
@@ -1374,6 +1654,8 @@ router.post('/events', async (req, res) => {
       eventType: `miniapp.${eventType}`,
       userId: resolvedUserId,
       payload: {
+        eventId,
+        source: 'miniapp',
         slug,
         visitorId,
         tgUserId: verifiedTelegram?.userId,
@@ -1384,16 +1666,8 @@ router.post('/events', async (req, res) => {
       }
     });
 
-    const metaEventName = mapMiniAppEventToMeta(eventType);
-    if (metaEventName && isEnvFlagEnabled('META_CAPI_ENABLED', false)) {
+    if (metaEventName && metaEnabled) {
       const trackingMeta = readTrackingMeta(tracking);
-      const eventId = readString(trackingMeta.eventId)
-        || readString(trackingMeta.event_id)
-        || readString(tracking?.eventId)
-        || readString(tracking?.event_id)
-        || readString(tracking?.submitId)
-        || readString(tracking?.submit_id)
-        || `miniapp_${eventType}_${Date.now().toString(36)}`;
       const externalId = verifiedTelegram?.userId
         ? `telegram:${verifiedTelegram.userId}`
         : (visitorId ? `visitor:${visitorId}` : undefined);
@@ -1416,6 +1690,8 @@ router.post('/events', async (req, res) => {
         fbc: readString(trackingMeta.fbc),
         eventSourceUrl: readString(trackingMeta.eventSourceUrl) || readString(trackingMeta.event_source_url),
         actionSource: readString(trackingMeta.actionSource) || readString(trackingMeta.action_source) || 'website',
+        ip: readClientIp(req),
+        userAgent: readString(req.get('user-agent')),
         contentIds: carListingId ? [carListingId] : undefined,
         customData,
         entityType: 'miniapp_event',
@@ -1431,6 +1707,11 @@ router.post('/events', async (req, res) => {
         });
         return null;
       });
+      if (metaResult && typeof metaResult === 'object') {
+        metaStatus.success = (metaResult as any).success;
+        metaStatus.duplicate = Boolean((metaResult as any).duplicate);
+        if ((metaResult as any).error) metaStatus.error = (metaResult as any).error;
+      }
       if (metaResult && typeof metaResult === 'object' && metaResult.success === false) {
         logger.warn('[MiniApp] Meta CAPI event rejected', {
           slug,
@@ -1443,7 +1724,7 @@ router.post('/events', async (req, res) => {
       }
     }
 
-    res.json({ ok: true });
+    res.json({ ok: true, eventId, meta: metaStatus });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : 'Failed to track event';
     errorResponse(res, 500, message);
@@ -1454,15 +1735,20 @@ router.get('/requests/status', async (req, res) => {
   try {
     const slug = readString(req.query.slug);
     if (!slug) return errorResponse(res, 400, 'slug is required');
+    const initData = readString(req.query.initData);
+    if (!initData) return errorResponse(res, 400, 'initData is required', MINIAPP_ERROR_CODES.INITDATA_REQUIRED);
 
+    const config = await miniAppService.getConfig(slug);
+    if (!config?.companyId) return errorResponse(res, 404, 'Company not found');
+    const initCheck = await requireInitData(initData, config.companyId, config.botId);
+    if (!initCheck.ok) return errorResponse(res, 401, initCheck.message || 'Unauthorized', MINIAPP_ERROR_CODES.INITDATA_INVALID);
+    const telegram = parseMiniAppTelegramIdentity(initData);
+    if (!telegram.userId) return errorResponse(res, 400, 'Telegram user not found', MINIAPP_ERROR_CODES.INITDATA_INVALID);
     const requestId = readString(req.query.requestId) || readString(req.query.publicId);
-    const phone = readString(req.query.phone);
-    const telegramUserId = readString(req.query.telegramUserId) || readString(req.query.tgUserId);
 
     const request = await miniAppService.getRequestStatus(slug, {
       requestId: requestId || undefined,
-      phone: phone || undefined,
-      telegramUserId: telegramUserId || undefined
+      telegramUserId: telegram.userId
     });
 
     if (!request) return errorResponse(res, 404, 'Request not found');

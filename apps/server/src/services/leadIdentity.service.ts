@@ -16,6 +16,37 @@ const isRecord = (value: unknown): value is Record<string, unknown> => {
   return !!value && typeof value === 'object' && !Array.isArray(value);
 };
 
+const SENSITIVE_PAYLOAD_KEYS = new Set([
+  'token',
+  'password',
+  'apikey',
+  'accesstoken',
+  'refreshtoken',
+  'clientsecret',
+  'secret',
+  'authorization',
+  'cookie',
+  'sessionstring',
+  'bottoken',
+  'initdata',
+  'hash',
+  'signature'
+]);
+
+const normalizePayloadKey = (key: string) => key.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+const redactTimelinePayload = (value: unknown): unknown => {
+  if (Array.isArray(value)) return value.map((item) => redactTimelinePayload(item));
+  if (!isRecord(value)) return value;
+
+  return Object.fromEntries(
+    Object.entries(value).map(([key, item]) => [
+      key,
+      SENSITIVE_PAYLOAD_KEYS.has(normalizePayloadKey(key)) ? '[REDACTED]' : redactTimelinePayload(item)
+    ])
+  );
+};
+
 const toText = (value: unknown) => String(value || '').trim();
 
 const normalizeProviderExternalId = (provider: LeadIdentityProvider, externalId: string) => {
@@ -129,11 +160,12 @@ export const upsertLeadIdentities = async (params: {
 export const buildLeadTimeline = async (params: { leadId: string; companyId?: string | null }) => {
   const leadId = toText(params.leadId);
   if (!leadId) return [];
+  const newestFirstOrder = [{ createdAt: 'desc' as const }, { id: 'desc' as const }];
 
   const [activities, requests, logs] = await Promise.all([
     prisma.leadActivity.findMany({
       where: { leadId },
-      orderBy: { createdAt: 'asc' },
+      orderBy: newestFirstOrder,
       take: 100
     }),
     prisma.b2bRequest.findMany({
@@ -141,7 +173,7 @@ export const buildLeadTimeline = async (params: { leadId: string; companyId?: st
         leadId,
         ...(params.companyId ? { companyId: params.companyId } : {})
       },
-      orderBy: { createdAt: 'asc' },
+      orderBy: newestFirstOrder,
       take: 100
     }),
     prisma.integrationEventLog.findMany({
@@ -149,29 +181,100 @@ export const buildLeadTimeline = async (params: { leadId: string; companyId?: st
         entityId: leadId,
         ...(params.companyId ? { companyId: params.companyId } : {})
       },
-      orderBy: { createdAt: 'asc' },
+      orderBy: newestFirstOrder,
       take: 100
     })
   ]);
 
-  return [
+  const requestIds = requests.map((request) => request.id).filter(Boolean);
+  const [messages, variants] = requestIds.length
+    ? await Promise.all([
+      prisma.messageLog.findMany({
+        where: { requestId: { in: requestIds } },
+        orderBy: newestFirstOrder,
+        take: 200
+      }),
+      prisma.requestVariant.findMany({
+        where: { requestId: { in: requestIds } },
+        orderBy: newestFirstOrder,
+        take: 200
+      })
+    ])
+    : [[], []];
+
+  const typePriority = (type: string) => {
+    if (type === 'REQUEST_CREATED') return 20;
+    if (type.startsWith('MESSAGE_')) return 30;
+    if (type === 'REQUEST_VARIANT_SUBMITTED') return 40;
+    if (type.startsWith('INTEGRATION_')) return 50;
+    return 10;
+  };
+
+  const timeline = [
     ...activities.map((item) => ({
+      _sort: { sourceKey: toText(item.id) },
       at: item.createdAt,
       type: item.type,
       label: item.type.replace(/_/g, ' ').toLowerCase(),
-      payload: item.payload
+      payload: redactTimelinePayload(item.payload)
     })),
     ...requests.map((item) => ({
+      _sort: { sourceKey: toText(item.id || item.publicId) },
       at: item.createdAt,
       type: 'REQUEST_CREATED',
       label: `request ${item.publicId || item.id}`,
-      payload: { requestId: item.id, publicId: item.publicId, status: item.status }
+      payload: redactTimelinePayload({ requestId: item.id, publicId: item.publicId, status: item.status })
+    })),
+    ...messages.map((item) => {
+      const direction = toText(item.direction).toUpperCase() === 'OUTGOING' ? 'OUTGOING' : 'INCOMING';
+      return {
+        _sort: { sourceKey: toText(item.id || item.requestId || item.variantId) },
+        at: item.createdAt,
+        type: `MESSAGE_${direction}`,
+        label: `message ${direction.toLowerCase()}`,
+        payload: redactTimelinePayload({
+          requestId: item.requestId,
+          variantId: item.variantId,
+          text: item.text,
+          direction,
+          meta: item.payload
+        })
+      };
+    }),
+    ...variants.map((item) => ({
+      _sort: { sourceKey: toText(item.id) },
+      at: item.createdAt,
+      type: 'REQUEST_VARIANT_SUBMITTED',
+      label: `variant ${item.title || item.id}`,
+      payload: redactTimelinePayload({
+        requestId: item.requestId,
+        variantId: item.id,
+        status: item.status,
+        requesterDecision: item.requesterDecision,
+        fitQueueStatus: item.fitQueueStatus,
+        title: item.title,
+        price: item.price,
+        location: item.location
+      })
     })),
     ...logs.map((item) => ({
+      _sort: { sourceKey: toText(item.id) },
       at: item.createdAt,
       type: `INTEGRATION_${item.action}`,
       label: `${item.integration}: ${item.action}`,
-      payload: { status: item.status, message: item.message, meta: item.meta }
+      payload: redactTimelinePayload({ status: item.status, message: item.message, meta: item.meta })
     }))
-  ].sort((a, b) => a.at.getTime() - b.at.getTime());
+  ];
+
+  return timeline
+    .sort((a, b) => {
+      const atDiff = a.at.getTime() - b.at.getTime();
+      if (atDiff) return atDiff;
+      const priorityDiff = typePriority(a.type) - typePriority(b.type);
+      if (priorityDiff) return priorityDiff;
+      const typeDiff = a.type.localeCompare(b.type);
+      if (typeDiff) return typeDiff;
+      return a._sort.sourceKey.localeCompare(b._sort.sourceKey);
+    })
+    .map(({ _sort, ...item }) => item);
 };

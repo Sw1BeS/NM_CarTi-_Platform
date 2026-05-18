@@ -25,6 +25,9 @@ router.use('/parsing', parsingRoutes as any);
 import telegramRegistryRoutes from './telegram/telegramRegistry.routes.js';
 router.use('/telegram', telegramRegistryRoutes as any);
 
+import salesDriveRoutes from './salesdrive/salesdrive.routes.js';
+router.use('/salesdrive', salesDriveRoutes as any);
+
 /**
  * GET /api/integrations/logs
  * Integration event logs

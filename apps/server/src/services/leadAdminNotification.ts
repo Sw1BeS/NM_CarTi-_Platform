@@ -1,3 +1,6 @@
+import { buildCallbackData } from '../modules/Communication/telegram/core/utils/callbackUtils.js';
+import { createAdminActionToken } from './telegramAdminActionToken.service.js';
+
 const DEFAULT_PUBLIC_BASE_URL = 'https://cartie2.umanoff-analytics.space';
 
 const toText = (value: unknown) => String(value || '').trim();
@@ -18,6 +21,30 @@ const leadContactedCallback = (leadId?: string | null) => {
   return id ? `lead_CONTACTED_${id}` : undefined;
 };
 
+const tokenizedLeadContactedCallback = async (params: {
+  leadId?: string | null;
+  botId?: string | null;
+  companyId?: string | null;
+  requestId?: string | null;
+}) => {
+  const leadId = toText(params.leadId);
+  if (!leadId) return undefined;
+  let token: string | undefined;
+  try {
+    token = await createAdminActionToken({
+      action: 'lead.CONTACTED',
+      targetType: 'lead',
+      targetId: leadId,
+      botId: params.botId || null,
+      companyId: params.companyId || null,
+      requestId: params.requestId || null
+    });
+  } catch {
+    return undefined;
+  }
+  return token ? buildCallbackData('aa', token) : undefined;
+};
+
 const requestSearchUrl = (request?: { id?: string | null; publicId?: string | null } | null) => {
   const value = toText(request?.publicId) || toText(request?.id);
   if (!value) return undefined;
@@ -36,6 +63,15 @@ export const buildLeadAdminActionMarkup = (params: {
   telegramUserId?: string | null;
   selectedCars?: Array<{ id?: string | null; title?: string | null; publicUrl?: string | null }> | null;
 }) => {
+  return buildLeadAdminActionMarkupWithCallback(params, leadContactedCallback(params.lead?.id));
+};
+
+const buildLeadAdminActionMarkupWithCallback = (params: {
+  lead?: { id?: string | null; leadCode?: string | null } | null;
+  request?: { id?: string | null; publicId?: string | null } | null;
+  telegramUserId?: string | null;
+  selectedCars?: Array<{ id?: string | null; title?: string | null; publicUrl?: string | null }> | null;
+}, contacted?: string) => {
   const rows: any[][] = [];
   const crmUrl = requestSearchUrl(params.request) || leadSearchUrl(params.lead);
   if (crmUrl) {
@@ -57,7 +93,6 @@ export const buildLeadAdminActionMarkup = (params: {
     rows.push(carButtons.slice(i, i + 2));
   }
 
-  const contacted = leadContactedCallback(params.lead?.id);
   const userId = toText(params.telegramUserId);
   const actionRow = [
     contacted ? { text: '✅ Позначити контакт', callback_data: contacted } : null,
@@ -67,6 +102,26 @@ export const buildLeadAdminActionMarkup = (params: {
 
   if (!rows.length) return undefined;
   return { inline_keyboard: rows };
+};
+
+export const buildLeadAdminActionMarkupAsync = async (params: {
+  lead?: { id?: string | null; leadCode?: string | null } | null;
+  request?: { id?: string | null; publicId?: string | null } | null;
+  telegramUserId?: string | null;
+  selectedCars?: Array<{ id?: string | null; title?: string | null; publicUrl?: string | null }> | null;
+  tokenContext?: {
+    botId?: string | null;
+    companyId?: string | null;
+    requestId?: string | null;
+  };
+}) => {
+  const contacted = await tokenizedLeadContactedCallback({
+    leadId: params.lead?.id,
+    botId: params.tokenContext?.botId,
+    companyId: params.tokenContext?.companyId,
+    requestId: params.tokenContext?.requestId || params.request?.id
+  });
+  return buildLeadAdminActionMarkupWithCallback(params, contacted);
 };
 
 export const buildLeadAdminNotificationText = (params: {

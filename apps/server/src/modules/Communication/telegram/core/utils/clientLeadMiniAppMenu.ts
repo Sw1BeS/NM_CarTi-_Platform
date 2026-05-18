@@ -19,25 +19,25 @@ const webAppButton = (text: string, url: string): TelegramKeyboardButton => {
 
 export const buildClientLeadMiniAppKeyboard = (bot: BotConfig, lang: Lang): TelegramReplyKeyboard => {
   const pickUrl = buildMiniAppUrl(bot, { entry: 'request', type: 'BUY' });
-  const sellUrl = buildMiniAppUrl(bot, { entry: 'request', type: 'SELL' });
   const stockUrl = buildMiniAppUrl(bot, { entry: 'inventory', status: 'AVAILABLE' });
   const transitUrl = buildMiniAppUrl(bot, { entry: 'inventory', status: 'PENDING' });
   const favoritesUrl = buildMiniAppUrl(bot, { entry: 'favorites' });
+  const requestsUrl = buildMiniAppUrl(bot, { entry: 'status' });
   const contactsUrl = buildMiniAppUrl(bot, { entry: 'contacts' });
 
   return {
     keyboard: [
       [
-        webAppButton(button(lang, 'leadMenu.buy'), pickUrl),
-        webAppButton(button(lang, 'leadMenu.sell'), sellUrl)
-      ],
-      [
         webAppButton(button(lang, 'leadMenu.stock'), stockUrl),
         webAppButton(button(lang, 'leadMenu.transit'), transitUrl)
       ],
       [
-        webAppButton('⭐ Обране', favoritesUrl),
-        webAppButton('📞 Контакти', contactsUrl)
+        webAppButton(button(lang, 'leadMenu.buy'), pickUrl),
+        webAppButton('❤️ Обрані / Переглянуті', favoritesUrl)
+      ],
+      [
+        webAppButton('📩 Мої запити', requestsUrl),
+        webAppButton(button(lang, 'leadMenu.support'), contactsUrl)
       ]
     ],
     resize_keyboard: true,

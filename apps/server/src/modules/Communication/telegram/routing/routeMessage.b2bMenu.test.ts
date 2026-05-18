@@ -182,7 +182,9 @@ describe('B2B registered menu', () => {
     expect(flatButtons.some((button: any) => button.web_app?.url?.includes('entry=request'))).toBe(true);
     expect(flatButtons.some((button: any) => button.web_app?.url?.includes('entry=inventory'))).toBe(true);
     expect(flatButtons.some((button: any) => button.web_app?.url?.includes('entry=status'))).toBe(true);
-    expect(flatButtons.some((button: any) => button.web_app?.url?.includes('entry=support'))).toBe(true);
+    expect(flatButtons.some((button: any) => button.web_app?.url?.includes('entry=profile'))).toBe(true);
+    expect(flatButtons.some((button: any) => button.text.includes('Команда'))).toBe(true);
+    expect(flatButtons.some((button: any) => button.text.includes('Налаштування'))).toBe(true);
   }, 10000);
 
   it('routes B2B /start to the fixed runtime menu while repairing stored MiniApp menu URLs', async () => {
@@ -252,15 +254,16 @@ describe('B2B registered menu', () => {
     const calls = telegramOutboxMock.sendMessage.mock.calls.map(([payload]) => payload);
     expect(calls).toHaveLength(1);
     expect(calls[0].text).not.toBe('Stored B2B platform menu');
-    expect(calls[0].replyMarkup.keyboard.map((row: any[]) => row.length)).toEqual([2, 2, 1]);
+    expect(calls[0].replyMarkup.keyboard.map((row: any[]) => row.length)).toEqual([2, 2, 2, 1]);
 
     const runtimeButtons = calls[0].replyMarkup.keyboard.flat();
     expect(runtimeButtons.every((button: any) => button.web_app?.url?.includes('/p/app/cardealer_lviv_bot'))).toBe(true);
     expect(runtimeButtons.some((button: any) => button.web_app.url.includes('entry=request'))).toBe(true);
     expect(runtimeButtons.some((button: any) => button.web_app.url.includes('entry=inventory'))).toBe(true);
     expect(runtimeButtons.some((button: any) => button.web_app.url.includes('entry=status'))).toBe(true);
-    expect(runtimeButtons.some((button: any) => button.web_app.url.includes('entry=support'))).toBe(true);
     expect(runtimeButtons.some((button: any) => button.web_app.url.includes('entry=profile'))).toBe(true);
+    expect(runtimeButtons.some((button: any) => button.web_app.url.includes('scope=network_requests'))).toBe(true);
+    expect(runtimeButtons.some((button: any) => button.web_app.url.includes('section=team'))).toBe(true);
 
     const storedButtons = ctx.bot.config.menuConfig.buttons;
     expect(storedButtons[0].value).toContain('https://cartie.test/p/app/cardealer_lviv_bot');

@@ -476,14 +476,15 @@ export class MiniAppService {
     const where: Prisma.B2bRequestWhereInput = { companyId };
     const or: Record<string, unknown>[] = [];
 
+    if (telegramUserId) {
+      where.chatId = telegramUserId;
+    }
+
     if (requestId) {
       or.push({ id: requestId });
       or.push({ publicId: requestId });
     }
-    if (telegramUserId) {
-      or.push({ chatId: telegramUserId });
-    }
-    if (phone) {
+    if (phone && !telegramUserId) {
       or.push({
         payload: {
           path: ['phone'],

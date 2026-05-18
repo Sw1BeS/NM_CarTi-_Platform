@@ -26,6 +26,12 @@ import { renderChannelCarPost } from '../../../../services/cardRenderer.js';
 import { normalizeBotConfigChatId } from '../core/utils/telegramChatId.js';
 import { assertAdminTestAccess, assertConfiguredAdminActionAccess } from '../core/utils/telegramAdminAccess.js';
 import {
+  claimAdminActionToken,
+  markAdminActionTokenConsumed,
+  releaseAdminActionTokenClaim,
+  resolveAdminActionToken
+} from '../../../../services/telegramAdminActionToken.service.js';
+import {
   buildTestPanel,
   resolveScenarioFromPanelState,
   runTestScenario
@@ -95,6 +101,21 @@ const appendStatusLineOnce = (text: string, status: LeadStatus) => {
 };
 
 const handleLeadStatusCallback = async (ctx: PipelineContext, cb: any, status: LeadStatus, leadId: string) => {
+  if (ctx.companyId) {
+    const leadScope = await prisma.lead.findUnique({
+      where: { id: leadId },
+      select: { id: true, companyId: true, botId: true }
+    });
+    if (!leadScope || String((leadScope as any).companyId || '') !== String(ctx.companyId)) {
+      await telegramOutbox.answerCallback({
+        token: ctx.bot!.token,
+        callbackId: cb.id,
+        text: 'Action unavailable'
+      }).catch(() => null);
+      return false;
+    }
+  }
+
   const updatedLead = await prisma.lead.update({ where: { id: leadId }, data: { status } });
   const adminTgUserId = String(cb.from?.id || ctx.userId || '').trim();
   const adminUsername = String(cb.from?.username || '').trim() || null;
@@ -106,22 +127,29 @@ const handleLeadStatusCallback = async (ctx: PipelineContext, cb: any, status: L
     status,
     messageId > 0 ? String(messageId) : cb.id || adminTgUserId || 'manual'
   ].join(':');
-
-  await prisma.leadActivity.create({
-    data: {
-      leadId,
-      type: 'ADMIN_STATUS_CHANGED',
-      payload: {
-        status,
-        botId: ctx.bot?.id || null,
-        adminTgUserId: adminTgUserId || null,
-        adminUsername,
-        callbackId: cb.id || null,
-        messageId: messageId || null,
-        chatId: chatId || null
-      } as any
-    }
+  const existingStatusEvent = await prisma.integrationEventLog.findUnique({
+    where: { idempotencyKey }
   }).catch(() => null);
+  const alreadyLogged = String((existingStatusEvent as any)?.action || '') === 'lead.status_changed' &&
+    String((existingStatusEvent as any)?.status || '').toUpperCase() === 'SUCCESS';
+
+  if (!alreadyLogged) {
+    await prisma.leadActivity.create({
+      data: {
+        leadId,
+        type: 'ADMIN_STATUS_CHANGED',
+        payload: {
+          status,
+          botId: ctx.bot?.id || null,
+          adminTgUserId: adminTgUserId || null,
+          adminUsername,
+          callbackId: cb.id || null,
+          messageId: messageId || null,
+          chatId: chatId || null
+        } as any
+      }
+    }).catch(() => null);
+  }
 
   await prisma.integrationEventLog.upsert({
     where: { idempotencyKey },
@@ -179,6 +207,7 @@ const handleLeadStatusCallback = async (ctx: PipelineContext, cb: any, status: L
     callbackId: cb.id,
     text: `✅ ${status}`
   }).catch(() => null);
+  return true;
 };
 
 export const routeCallback = async (ctx: PipelineContext) => {
@@ -243,6 +272,84 @@ export const routeCallback = async (ctx: PipelineContext) => {
   }
 
   if (parsed.ok && parsed.action) {
+    if (parsed.action === 'aa') {
+      const tokenPayload = await resolveAdminActionToken(parsed.id);
+      if (!tokenPayload) {
+        await telegramOutbox.answerCallback({
+          token: ctx.bot.token,
+          callbackId: cb.id,
+          text: 'Action already processed'
+        }).catch(() => null);
+        return true;
+      }
+
+      const tokenBotId = tokenPayload.botId ? String(tokenPayload.botId) : '';
+      const tokenCompanyId = tokenPayload.companyId ? String(tokenPayload.companyId) : '';
+      if (
+        (tokenBotId && tokenBotId !== String(ctx.bot.id || '')) ||
+        (tokenCompanyId && tokenCompanyId !== String(ctx.companyId || ''))
+      ) {
+        await telegramOutbox.answerCallback({
+          token: ctx.bot.token,
+          callbackId: cb.id,
+          text: 'Action unavailable'
+        }).catch(() => null);
+        return true;
+      }
+
+      if (
+        tokenPayload.action === 'lead.CONTACTED' &&
+        tokenPayload.targetType === 'lead' &&
+        tokenPayload.targetId
+      ) {
+        const consumedBy = {
+          adminTgUserId: String(cb.from?.id || ctx.userId || '').trim() || null,
+          callbackId: cb.id || null
+        };
+        const claimed = await claimAdminActionToken(tokenPayload, consumedBy);
+        if (!claimed) {
+          await telegramOutbox.answerCallback({
+            token: ctx.bot.token,
+            callbackId: cb.id,
+            text: 'Action already processed'
+          }).catch(() => null);
+          return true;
+        }
+
+        try {
+          await markAdminActionTokenConsumed(tokenPayload, consumedBy);
+        } catch {
+          await releaseAdminActionTokenClaim(tokenPayload, {
+            message: 'Admin action token finalization failed',
+            failedAt: new Date().toISOString()
+          });
+          await telegramOutbox.answerCallback({
+            token: ctx.bot.token,
+            callbackId: cb.id,
+            text: 'Action failed. Please retry.'
+          }).catch(() => null);
+          return true;
+        }
+        try {
+          await handleLeadStatusCallback(ctx, cb, LeadStatus.CONTACTED, tokenPayload.targetId);
+        } catch {
+          await telegramOutbox.answerCallback({
+            token: ctx.bot.token,
+            callbackId: cb.id,
+            text: 'Action accepted, but lead update failed.'
+          }).catch(() => null);
+        }
+        return true;
+      }
+
+      await telegramOutbox.answerCallback({
+        token: ctx.bot.token,
+        callbackId: cb.id,
+        text: 'Unsupported action'
+      }).catch(() => null);
+      return true;
+    }
+
     if (parsed.action.startsWith('lb_') && parsed.action !== ActionTokens.LB_CANCEL) {
       const handled = await handleLeadBuyCallback(ctx, parsed.action, parsed.id);
       if (handled) return true;
@@ -905,7 +1012,7 @@ export const routeCallback = async (ctx: PipelineContext) => {
   if (parts.length >= 3 && parts[0] === 'lead') {
     const status = parts[1] as LeadStatus;
     const id = parts.slice(2).join('_');
-    if (!Object.values(LeadStatus).includes(status)) return false;
+    if (status !== LeadStatus.CONTACTED) return false;
     await handleLeadStatusCallback(ctx, cb, status, id);
     return true;
   }

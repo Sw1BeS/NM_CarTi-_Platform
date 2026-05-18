@@ -29,7 +29,21 @@ const envSchema = z.object({
     TELEGRAM_INITDATA_MAX_AGE_SECONDS: intWithDefault(43200),
     BOT_A_DAILY_LEAD_LIMIT: intWithDefault(5, 1),
     BOT_STEP_RATE_LIMIT_PER_MIN: intWithDefault(30, 1),
-    BOT_MEDIA_MAX_PHOTO_BYTES: intWithDefault(10485760, 1024)
+    BOT_MEDIA_MAX_PHOTO_BYTES: intWithDefault(10485760, 1024),
+    SALESDRIVE_API_BASE_URL: z.string().optional(),
+    SALESDRIVE_API_URL: z.string().optional(),
+    SALESDRIVE_API_KEY: z.string().optional(),
+    SALESDRIVE_FORM_API_KEY: z.string().optional(),
+    SALESDRIVE_ORDER_LIST_PATH: z.string().optional(),
+    SALESDRIVE_STATUSES_PATH: z.string().optional(),
+    SALESDRIVE_SYNC_ENABLED: z.string().optional(),
+    SALESDRIVE_WRITE_ENABLED: z.string().optional(),
+    SALESDRIVE_TIMEOUT_MS: intWithDefault(8000, 1000),
+    META_PIXEL_ID: z.string().optional(),
+    META_ACCESS_TOKEN: z.string().optional(),
+    META_CAPI_ACCESS_TOKEN: z.string().optional(),
+    META_TEST_EVENT_CODE: z.string().optional(),
+    META_CAPI_ENABLED: z.string().optional()
 });
 
 export interface ValidatedEnv {
@@ -49,6 +63,20 @@ export interface ValidatedEnv {
     BOT_A_DAILY_LEAD_LIMIT: number;
     BOT_STEP_RATE_LIMIT_PER_MIN: number;
     BOT_MEDIA_MAX_PHOTO_BYTES: number;
+    SALESDRIVE_API_BASE_URL?: string;
+    SALESDRIVE_API_URL?: string;
+    SALESDRIVE_API_KEY?: string;
+    SALESDRIVE_FORM_API_KEY?: string;
+    SALESDRIVE_ORDER_LIST_PATH?: string;
+    SALESDRIVE_STATUSES_PATH?: string;
+    SALESDRIVE_SYNC_ENABLED?: string;
+    SALESDRIVE_WRITE_ENABLED?: string;
+    SALESDRIVE_TIMEOUT_MS: number;
+    META_PIXEL_ID?: string;
+    META_ACCESS_TOKEN?: string;
+    META_CAPI_ACCESS_TOKEN?: string;
+    META_TEST_EVENT_CODE?: string;
+    META_CAPI_ENABLED?: string;
 }
 
 export const validateEnv = (): ValidatedEnv => {

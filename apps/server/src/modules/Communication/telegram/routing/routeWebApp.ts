@@ -12,7 +12,7 @@ import { emitPlatformEvent } from '../core/events/eventEmitter.js';
 import { ScenarioEngine } from '../../bots/scenario.engine.js';
 import { resolveLang, t } from '../core/utils/telegramText.js';
 import { requestContractService } from '../../../../services/requestContract.service.js';
-import { buildLeadAdminActionMarkup, buildLeadAdminNotificationText } from '../../../../services/leadAdminNotification.js';
+import { buildLeadAdminActionMarkupAsync, buildLeadAdminNotificationText } from '../../../../services/leadAdminNotification.js';
 
 const shouldBypassScenarioEngine = (ctx: PipelineContext) => {
   const template = String(ctx.bot?.template || '').toUpperCase();
@@ -233,11 +233,16 @@ export const routeWebApp = async (ctx: PipelineContext) => {
           await sendMessage(
             ctx,
             adminText,
-            buildLeadAdminActionMarkup({
+            await buildLeadAdminActionMarkupAsync({
               lead: finalized.lead,
               request: finalized.request,
               telegramUserId: String(from.id),
-              selectedCars: finalized.requestPresentation?.selectedCars
+              selectedCars: finalized.requestPresentation?.selectedCars,
+              tokenContext: {
+                botId: ctx.bot.id,
+                companyId: ctx.companyId,
+                requestId: finalized.request?.id
+              }
             }),
             String(ctx.bot.adminChatId)
           );
