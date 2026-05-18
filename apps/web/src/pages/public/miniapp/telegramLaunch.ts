@@ -159,7 +159,7 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 const hasTelegramUserAgent = (navigatorRef?: NavigatorLike) => /telegram/i.test(navigatorRef?.userAgent || '');
 const hasTelegramReferrer = (documentRef?: DocumentLike) => /t\.me|telegram/i.test(documentRef?.referrer || '');
-const hasTelegramBridgeProxy = (windowRef?: WindowLike) => Boolean(windowRef?.TelegramWebviewProxy || windowRef?.TelegramGameProxy);
+const hasTelegramBridgeProxy = (windowRef?: WindowLike) => Boolean(windowRef?.TelegramWebviewProxy);
 
 export const resolveTelegramLaunchContext = async (
   options: ResolveTelegramLaunchContextOptions = {}

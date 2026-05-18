@@ -116,7 +116,8 @@ describe('Telegram MiniApp launch context helper', () => {
             platform: 'unknown',
             version: '6.0'
           }
-        }
+        },
+        TelegramGameProxy: { receiveEvent: vi.fn() }
       },
       documentRef: { referrer: '' }
     });
