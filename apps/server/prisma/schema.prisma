@@ -967,7 +967,7 @@ model ScheduledJob {
 
 model OrchestrationPolicy {
   id                           String    @id @default(cuid())
-  companyId                    String    @unique
+  companyId                    String    @unique @db.Char(26)
   workspace                    Workspace @relation(fields: [companyId], references: [id], onDelete: Cascade)
   internalDocsPreferred        Boolean   @default(true)
   officialDocsPreferred        Boolean   @default(true)
@@ -984,7 +984,7 @@ model OrchestrationPolicy {
 
 model AutomationIntake {
   id              String               @id @default(cuid())
-  companyId       String
+  companyId       String               @db.Char(26)
   workspace       Workspace            @relation(fields: [companyId], references: [id], onDelete: Cascade)
   sourceType      String
   status          String               @default("ACTIVE")
@@ -1012,7 +1012,7 @@ model AutomationIntake {
 
 model AutomationSourceRef {
   id             String           @id @default(cuid())
-  companyId      String
+  companyId      String           @db.Char(26)
   workspace      Workspace        @relation(fields: [companyId], references: [id], onDelete: Cascade)
   intakeId       String
   intake         AutomationIntake @relation(fields: [intakeId], references: [id], onDelete: Cascade)
@@ -1031,7 +1031,7 @@ model AutomationSourceRef {
 
 model AutomationSkillPack {
   id                       String           @id @default(cuid())
-  companyId                String
+  companyId                String           @db.Char(26)
   workspace                Workspace        @relation(fields: [companyId], references: [id], onDelete: Cascade)
   intakeId                 String
   intake                   AutomationIntake @relation(fields: [intakeId], references: [id], onDelete: Cascade)
@@ -1060,7 +1060,7 @@ model AutomationSkillPack {
 
 model AutomationRun {
   id             String               @id @default(cuid())
-  companyId      String
+  companyId      String               @db.Char(26)
   workspace      Workspace            @relation(fields: [companyId], references: [id], onDelete: Cascade)
   intakeId       String?
   intake         AutomationIntake?    @relation(fields: [intakeId], references: [id], onDelete: SetNull)
@@ -1107,7 +1107,7 @@ model AutomationRunStep {
 
 model ImportSource {
   id           String            @id @default(cuid())
-  companyId    String
+  companyId    String            @db.Char(26)
   workspace    Workspace         @relation(fields: [companyId], references: [id], onDelete: Cascade)
   intakeId     String?
   intake       AutomationIntake? @relation(fields: [intakeId], references: [id], onDelete: SetNull)
@@ -1132,7 +1132,7 @@ model ImportSource {
 
 model ImportBatch {
   id                 String                     @id @default(cuid())
-  companyId          String
+  companyId          String                     @db.Char(26)
   workspace          Workspace                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
   importSourceId     String
   importSource       ImportSource               @relation(fields: [importSourceId], references: [id], onDelete: Cascade)
@@ -1158,7 +1158,7 @@ model ImportBatch {
 
 model ImportItem {
   id             String                  @id @default(cuid())
-  companyId      String
+  companyId      String                  @db.Char(26)
   workspace      Workspace               @relation(fields: [companyId], references: [id], onDelete: Cascade)
   importBatchId  String
   importBatch    ImportBatch             @relation(fields: [importBatchId], references: [id], onDelete: Cascade)
@@ -1184,7 +1184,7 @@ model ImportItem {
 
 model ImportLinkageCandidate {
   id            String      @id @default(cuid())
-  companyId     String
+  companyId     String      @db.Char(26)
   workspace     Workspace   @relation(fields: [companyId], references: [id], onDelete: Cascade)
   importBatchId String
   importBatch   ImportBatch @relation(fields: [importBatchId], references: [id], onDelete: Cascade)
@@ -1206,7 +1206,7 @@ model ImportLinkageCandidate {
 
 model ImportRecommendedAction {
   id            String      @id @default(cuid())
-  companyId     String
+  companyId     String      @db.Char(26)
   workspace     Workspace   @relation(fields: [companyId], references: [id], onDelete: Cascade)
   importBatchId String
   importBatch   ImportBatch @relation(fields: [importBatchId], references: [id], onDelete: Cascade)
@@ -1228,7 +1228,7 @@ model ImportRecommendedAction {
 
 model ImportWriteCandidate {
   id            String                @id @default(cuid())
-  companyId     String
+  companyId     String                @db.Char(26)
   workspace     Workspace             @relation(fields: [companyId], references: [id], onDelete: Cascade)
   importBatchId String
   importBatch   ImportBatch           @relation(fields: [importBatchId], references: [id], onDelete: Cascade)
@@ -1253,7 +1253,7 @@ model ImportWriteCandidate {
 
 model AutomationReviewQueue {
   id               String                @id @default(cuid())
-  companyId        String
+  companyId        String                @db.Char(26)
   workspace        Workspace             @relation(fields: [companyId], references: [id], onDelete: Cascade)
   queueType        String
   status           String                @default("PENDING")
@@ -1515,7 +1515,7 @@ model Workspace {
   id         String    @id @db.Char(26)
   slug       String    @unique @db.Citext
   name       String    @db.VarChar(255)
-  settings   Json      @default(dbgenerated("'{}'::jsonb")) @db.JsonB
+  settings   Json      @default("{}") @db.JsonB
   created_at DateTime  @default(now()) @db.Timestamptz(6)
   updated_at DateTime  @default(now()) @db.Timestamptz(6)
   deleted_at DateTime? @db.Timestamptz(6)
@@ -1594,7 +1594,7 @@ model Account {
   workspace_id String    @db.Char(26)
   slug         String    @db.Citext
   name         String    @db.VarChar(255)
-  config       Json      @default(dbgenerated("'{}'::jsonb")) @db.JsonB
+  config       Json      @default("{}") @db.JsonB
   created_at   DateTime  @default(now()) @db.Timestamptz(6)
   updated_at   DateTime  @default(now()) @db.Timestamptz(6)
   deleted_at   DateTime? @db.Timestamptz(6)
@@ -1620,7 +1620,7 @@ model Membership {
   workspace_id String    @db.Char(26)
   account_id   String?   @db.Char(26)
   role_id      String    @db.VarChar(64)
-  permissions  Json      @default(dbgenerated("'{}'::jsonb")) @db.JsonB
+  permissions  Json      @default("{}") @db.JsonB
   created_at   DateTime  @default(now()) @db.Timestamptz(6)
   updated_at   DateTime  @default(now()) @db.Timestamptz(6)
   deleted_at   DateTime? @db.Timestamptz(6)
@@ -1643,7 +1643,7 @@ model EntityType {
   workspace_id String    @db.Char(26)
   slug         String    @db.Citext
   name         String    @db.VarChar(255)
-  capabilities Json      @default(dbgenerated("'{}'::jsonb")) @db.JsonB
+  capabilities Json      @default("{}") @db.JsonB
   created_at   DateTime  @default(now()) @db.Timestamptz(6)
   updated_at   DateTime  @default(now()) @db.Timestamptz(6)
   deleted_at   DateTime? @db.Timestamptz(6)
@@ -1671,7 +1671,7 @@ model FieldDefinition {
   entity_type_id String    @db.Char(26)
   slug           String    @db.Citext
   type           String    @db.VarChar(64)
-  config         Json      @default(dbgenerated("'{}'::jsonb")) @db.JsonB
+  config         Json      @default("{}") @db.JsonB
   is_pii         Boolean   @default(false)
   is_searchable  Boolean   @default(false)
   created_at     DateTime  @default(now()) @db.Timestamptz(6)
@@ -1693,7 +1693,7 @@ model Record {
   account_id     String?   @db.Char(26)
   entity_type_id String    @db.Char(26)
   status         String    @default("active") @db.VarChar(32)
-  attributes     Json      @default(dbgenerated("'{}'::jsonb")) @db.JsonB
+  attributes     Json      @default("{}") @db.JsonB
   created_at     DateTime  @default(now()) @db.Timestamptz(6)
   updated_at     DateTime  @default(now()) @db.Timestamptz(6)
   deleted_at     DateTime? @db.Timestamptz(6)
@@ -1720,7 +1720,7 @@ model RecordSearchIndex {
   record_id     String                  @db.Char(26)
   account_id    String?                 @db.Char(26)
   search_vector Unsupported("tsvector")
-  promoted      Json                    @default(dbgenerated("'{}'::jsonb")) @db.JsonB
+  promoted      Json                    @default("{}") @db.JsonB
   updated_at    DateTime                @default(now()) @db.Timestamptz(6)
 
   record  Record   @relation(fields: [workspace_id, record_id], references: [workspace_id, id])
@@ -1757,7 +1757,7 @@ model RecordRelation {
   relation_type_id String    @db.Char(26)
   source_record_id String    @db.Char(26)
   target_record_id String    @db.Char(26)
-  meta             Json      @default(dbgenerated("'{}'::jsonb")) @db.JsonB
+  meta             Json      @default("{}") @db.JsonB
   created_at       DateTime  @default(now()) @db.Timestamptz(6)
   updated_at       DateTime  @default(now()) @db.Timestamptz(6)
   deleted_at       DateTime? @db.Timestamptz(6)
@@ -1819,7 +1819,7 @@ model DictionaryEntry {
   workspace_id String    @db.Char(26)
   set_id       String    @db.Char(26)
   canonical    String    @db.VarChar(255)
-  meta         Json      @default(dbgenerated("'{}'::jsonb")) @db.JsonB
+  meta         Json      @default("{}") @db.JsonB
   created_at   DateTime  @default(now()) @db.Timestamptz(6)
   updated_at   DateTime  @default(now()) @db.Timestamptz(6)
   deleted_at   DateTime? @db.Timestamptz(6)
@@ -2072,7 +2072,7 @@ model IngestionSource {
   id           String    @id @db.Char(26)
   workspace_id String    @db.Char(26)
   type         String    @db.VarChar(64)
-  config       Json      @default(dbgenerated("'{}'::jsonb")) @db.JsonB
+  config       Json      @default("{}") @db.JsonB
   created_at   DateTime  @default(now()) @db.Timestamptz(6)
   updated_at   DateTime  @default(now()) @db.Timestamptz(6)
   deleted_at   DateTime? @db.Timestamptz(6)
