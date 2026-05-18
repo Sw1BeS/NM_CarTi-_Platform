@@ -29,7 +29,7 @@ import { startScheduler } from './workers/scheduler.js';
 import { mtprotoWorker } from './modules/Integrations/mtproto/mtproto.worker.js';
 import { MTProtoLifeCycle } from './modules/Integrations/mtproto/mtproto.lifecycle.js';
 import { workspaceContext } from './middleware/workspaceContext.js';
-import { checkHealth } from './modules/Core/health/health.controller.js';
+import { checkHealth, checkPlatformReadiness } from './modules/Core/health/health.controller.js';
 import { validateEnv } from './config/env.js';
 import { apiV2Envelope } from './middleware/apiV2Envelope.js';
 import process from 'process';
@@ -96,11 +96,13 @@ app.use('/api/b2b', b2bV2Routes);
 // Health Check (Robust)
 app.get('/health', checkHealth);
 app.get('/api/health', checkHealth);
+app.get('/api/health/platform-readiness', checkPlatformReadiness);
 
 // 5) Versioned API v2 (enveloped responses)
 const apiV2Router = express.Router();
 apiV2Router.use(apiV2Envelope);
 apiV2Router.get('/health', checkHealth);
+apiV2Router.get('/health/platform-readiness', checkPlatformReadiness);
 apiV2Router.use('/public', publicRoutes);
 apiV2Router.use('/miniapp', miniAppRoutes);
 apiV2Router.use('/auth', authRoutes);

@@ -218,8 +218,8 @@ describe('normalizeMiniAppButtonUrl', () => {
 
 ```bash
 npm --prefix apps/server test -- miniappUrl.test.ts clientLeadMiniAppMenu.test.ts telegramReplyMarkup.test.ts templatePreset.service.test.ts
-npm --prefix apps/server tsx scripts/repair_miniapp_menu_config.ts --dry-run
-npm --prefix apps/server tsx scripts/repair_miniapp_menu_config.ts --apply
+npm --prefix apps/server run repair:miniapp-menu-config -- --dry-run
+npm --prefix apps/server run repair:miniapp-menu-config -- --apply
 ```
 
 ## Task 2: Clear Contract For Platform MenuConfig

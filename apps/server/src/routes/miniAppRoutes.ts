@@ -226,7 +226,10 @@ const READ_ONLY_PREVIEW_EVENT_TYPES = new Set([
   'favoriteadded',
   'favorite_removed',
   'favoriteremoved',
-  'write_blocked_missing_initdata'
+  'miniapp_launch_diagnostics',
+  'miniapplaunchdiagnostics',
+  'write_blocked_missing_initdata',
+  'write_rejected_invalid_initdata'
 ]);
 
 const isReadOnlyPreviewMiniAppEvent = (eventType: string) => {
@@ -246,6 +249,11 @@ const SENSITIVE_EVENT_KEYS = new Set([
   'name',
   'fullname',
   'initdata',
+  'raw',
+  'rawuser',
+  'telegramuser',
+  'tguser',
+  'user',
   'token',
   'accesstoken',
   'authorization'

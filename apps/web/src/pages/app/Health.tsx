@@ -4,7 +4,7 @@ import { useToast } from '../../contexts/ToastContext';
 import { Data } from '../../services/data';
 import { TelegramAPI } from '../../services/telegram';
 import { ApiClient } from '../../services/apiClient';
-import { RefreshCw, Shield, Wifi, HardDrive, Terminal } from 'lucide-react';
+import { AlertTriangle, CheckCircle, RefreshCw, Shield, Wifi, HardDrive, Terminal } from 'lucide-react';
 
 export const HealthPage = () => {
     return (
@@ -19,6 +19,7 @@ const SystemHealth = () => {
     const [bots, setBots] = useState<Bot[]>([]);
     const [botHealth, setBotHealth] = useState<Record<string, { status: 'OK' | 'FAIL' | 'DISABLED', latency: number, msg?: string }>>({});
     const [serverHealth, setServerHealth] = useState<any>(null);
+    const [platformReadiness, setPlatformReadiness] = useState<any>(null);
     const [logs, setLogs] = useState<ActivityLog[]>([]);
     const [loading, setLoading] = useState(false);
     const { showToast } = useToast();
@@ -29,6 +30,7 @@ const SystemHealth = () => {
             const activity = await Data.getActivity();
             setLogs(activity.filter(l => l.entityType === 'ERROR' || l.entityType === 'SYSTEM' || (l.entityType || '').includes('API')).slice(0, 50));
             await fetchServerHealth();
+            await fetchPlatformReadiness();
         };
         load();
     }, []);
@@ -37,6 +39,13 @@ const SystemHealth = () => {
         try {
             const res = await ApiClient.get<any>('health');
             if (res.ok) setServerHealth(res.data);
+        } catch { /* ignore */ }
+    };
+
+    const fetchPlatformReadiness = async () => {
+        try {
+            const res = await ApiClient.get<any>('health/platform-readiness');
+            if (res.ok) setPlatformReadiness(res.data);
         } catch { /* ignore */ }
     };
 
@@ -143,6 +152,37 @@ const SystemHealth = () => {
                         <div className="text-sm text-[var(--text-secondary)]">No health data yet.</div>
                     )}
                 </div>
+            </div>
+
+            <div className="panel p-4 space-y-4">
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-[var(--text-primary)] font-bold">
+                        {platformReadiness?.status === 'OK' ? <CheckCircle size={16} className="text-green-500" /> : <AlertTriangle size={16} className="text-amber-500" />}
+                        CRM/ERP Readiness
+                    </div>
+                    <button onClick={fetchPlatformReadiness} className="text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)]">Refresh</button>
+                </div>
+                {platformReadiness ? (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        {Object.entries(platformReadiness.sections || {}).map(([key, section]: [string, any]) => (
+                            <div key={key} className="rounded border border-[var(--border-color)] bg-[var(--bg-input)] p-3">
+                                <div className="flex items-center justify-between gap-3">
+                                    <div className="text-xs uppercase tracking-wide text-[var(--text-secondary)]">{section.label || key}</div>
+                                    <span className={`text-[10px] font-bold px-2 py-1 rounded ${
+                                        section.status === 'OK' ? 'bg-green-500/20 text-green-600' :
+                                        section.status === 'ERROR' ? 'bg-red-500/20 text-red-600' :
+                                        'bg-amber-500/20 text-amber-600'
+                                    }`}>
+                                        {section.status}
+                                    </span>
+                                </div>
+                                <div className="mt-2 text-sm font-semibold text-[var(--text-primary)]">{section.summary}</div>
+                            </div>
+                        ))}
+                    </div>
+                ) : (
+                    <div className="text-sm text-[var(--text-secondary)]">No readiness data yet.</div>
+                )}
             </div>
 
             <div className="panel p-4">

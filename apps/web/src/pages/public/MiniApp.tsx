@@ -12,6 +12,12 @@ import {
     Send, MapPinned, Youtube, Video
 } from 'lucide-react';
 import { initTelegramViewport } from './miniapp/telegramViewport';
+import {
+    parseTelegramUserFromInitData,
+    readRuntimeTelegramInitData,
+    resolveTelegramLaunchContext,
+    type TgUser
+} from './miniapp/telegramLaunch';
 import { popViewHistory, pushViewHistory } from './miniapp/navigation';
 import { ToastStack, useToasts } from '../../components/ui/Toast';
 import { MiniAppShell } from './miniapp/MiniAppShell';
@@ -95,23 +101,7 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
 const PLACEHOLDER_IMAGE = 'https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?auto=format&fit=crop&q=80&w=1000';
 
 type InventoryTab = 'IN_STOCK' | 'IN_TRANSIT';
-type TgUser = {
-    id?: number;
-    first_name?: string;
-    last_name?: string;
-    username?: string;
-    photo_url?: string;
-    language_code?: string;
-};
-
-type TelegramBootstrapContext = {
-    tg: any;
-    initData?: string;
-    startParam?: string;
-    user: TgUser | null;
-    isTelegramContext: boolean;
-};
-
+type TelegramWriteState = 'unknown' | 'ready' | 'outside_telegram' | 'missing_initdata' | 'read_only_preview' | 'invalid_initdata';
 type MiniAppSurfaceMode = 'LEAD' | 'B2B';
 type MiniAppView = 'HOME' | 'INVENTORY' | 'LISTING' | 'FAVORITES' | 'REQUEST' | 'STATUS' | 'PROFILE' | 'SUPPORT' | 'CONTACTS';
 type RequestType = 'BUY' | 'SELL';
@@ -168,28 +158,6 @@ const resolveMiniAppWriteError = (error: unknown, fallback = 'Не вдалос�
     return message;
 };
 
-const readTelegramLaunchValue = (key: string): string => {
-    const sources = [window.location.search, window.location.hash.startsWith('#') ? `?${window.location.hash.slice(1)}` : ''];
-    for (const source of sources) {
-        if (!source) continue;
-        const match = source.match(new RegExp(`[?&]${key}=([^&]+)`));
-        if (!match || !match[1]) continue;
-        try {
-            return decodeURIComponent(match[1]);
-        } catch {
-            return match[1];
-        }
-    }
-    return '';
-};
-
-const readRuntimeTelegramInitData = (): string => {
-    const bridgeInitData = typeof (window as any).Telegram?.WebApp?.initData === 'string'
-        ? String((window as any).Telegram.WebApp.initData).trim()
-        : '';
-    return bridgeInitData || readTelegramLaunchValue('tgWebAppData');
-};
-
 const PREMIUM_SILVER = '#C9CDD3';
 const premiumCtaStyle: React.CSSProperties = {
     background: 'linear-gradient(135deg, #f7f8fa 0%, #d7dbe1 34%, #a4abb4 68%, #f1f3f6 100%)',
@@ -208,89 +176,6 @@ const normalizeMiniAppAccent = (value?: string) => {
     return PREMIUM_SILVER;
 };
 
-const parseTelegramUserFromInitData = (rawInitData?: string): TgUser | null => {
-    if (!rawInitData) return null;
-    try {
-        const params = new URLSearchParams(rawInitData);
-        const userRaw = params.get('user');
-        if (!userRaw) return null;
-        try {
-            return JSON.parse(userRaw) as TgUser;
-        } catch {
-            return JSON.parse(decodeURIComponent(userRaw)) as TgUser;
-        }
-    } catch {
-        return null;
-    }
-};
-
-const sleep = (ms: number) => new Promise(resolve => window.setTimeout(resolve, ms));
-
-const hasTelegramUserAgent = () => /telegram/i.test(window.navigator?.userAgent || '');
-const hasTelegramReferrer = () => /t\.me|telegram/i.test(document.referrer || '');
-const hasTelegramBridgeProxy = () => Boolean((window as any).TelegramWebviewProxy || (window as any).TelegramGameProxy);
-
-const resolveTelegramBootstrapContext = async (): Promise<TelegramBootstrapContext> => {
-    const launchInitData = readTelegramLaunchValue('tgWebAppData');
-    const launchStartParam = readTelegramLaunchValue('tgWebAppStartParam') || readTelegramLaunchValue('startapp') || readTelegramLaunchValue('start_param');
-    const launchPlatform = readTelegramLaunchValue('tgWebAppPlatform');
-    const launchVersion = readTelegramLaunchValue('tgWebAppVersion');
-    const launchTheme = readTelegramLaunchValue('tgWebAppThemeParams');
-
-    for (let attempt = 0; attempt < 20; attempt++) {
-        const tg = (window as any).Telegram?.WebApp;
-        const bridgeInitData = typeof tg?.initData === 'string' ? tg.initData.trim() : '';
-        const bridgeStartParam = typeof tg?.initDataUnsafe?.start_param === 'string' ? String(tg.initDataUnsafe.start_param) : '';
-        const bridgeUser = (tg?.initDataUnsafe?.user as TgUser | undefined) || null;
-
-        if (tg && attempt === 0) {
-            tg.ready?.();
-            tg.expand?.();
-            tg.enableClosingConfirmation?.();
-        }
-
-        const resolvedInitData = bridgeInitData || launchInitData || '';
-        const resolvedUser = bridgeUser || parseTelegramUserFromInitData(resolvedInitData);
-        const hasBridgeContext = Boolean(bridgeInitData || bridgeStartParam || bridgeUser);
-        const hasLaunchContext = Boolean(launchInitData || launchStartParam || launchPlatform || launchVersion || launchTheme);
-        const isTelegramContext = hasBridgeContext || hasLaunchContext || Boolean(tg) || hasTelegramUserAgent() || hasTelegramReferrer() || hasTelegramBridgeProxy();
-
-        if (hasBridgeContext || hasLaunchContext) {
-            return {
-                tg,
-                initData: resolvedInitData || undefined,
-                startParam: bridgeStartParam || launchStartParam || undefined,
-                user: resolvedUser,
-                isTelegramContext
-            };
-        }
-
-        if (!isTelegramContext) {
-            return {
-                tg,
-                initData: undefined,
-                startParam: undefined,
-                user: null,
-                isTelegramContext: false
-            };
-        }
-
-        await sleep(150);
-    }
-
-    const tg = (window as any).Telegram?.WebApp;
-    const bridgeInitData = typeof tg?.initData === 'string' ? tg.initData.trim() : '';
-    const resolvedInitData = bridgeInitData || launchInitData;
-    const resolvedUser = (tg?.initDataUnsafe?.user as TgUser | undefined) || parseTelegramUserFromInitData(resolvedInitData);
-    return {
-        tg,
-        initData: resolvedInitData || undefined,
-        startParam: launchStartParam || undefined,
-        user: resolvedUser,
-        isTelegramContext: Boolean(resolvedInitData || tg || hasTelegramUserAgent() || launchStartParam || launchPlatform || launchVersion || launchTheme || hasTelegramReferrer() || hasTelegramBridgeProxy())
-    };
-};
-
 const MiniAppContent = () => {
     const { slug } = useParams();
     const [activeBot, setActiveBot] = useState<Bot | null>(null);
@@ -302,6 +187,7 @@ const MiniAppContent = () => {
     const [favoriteItems, setFavoriteItems] = useState<CarListing[]>([]);
     const [tgUser, setTgUser] = useState<TgUser | null>(null);
     const [requiresTelegram, setRequiresTelegram] = useState(false);
+    const [telegramWriteState, setTelegramWriteState] = useState<TelegramWriteState>('unknown');
     const [initData, setInitData] = useState<string | undefined>(undefined);
     const [initError, setInitError] = useState<string | null>(null);
     const [configWarning, setConfigWarning] = useState<string | null>(null);
@@ -454,9 +340,10 @@ const MiniAppContent = () => {
             const nextInitData = readRuntimeTelegramInitData();
             if (!nextInitData) return false;
             setInitData(nextInitData);
+            setTelegramWriteState('ready');
             const nextUser = parseTelegramUserFromInitData(nextInitData);
             if (nextUser) setTgUser(nextUser);
-            setConfigWarning(prev => prev === 'Telegram відкрито без initData. Для дій відкрийте Mini App повторно через кнопку меню бота.' ? null : prev);
+            setConfigWarning(prev => prev === 'Telegram відкрив Mini App без захищеної сесії. Закрийте це вікно і відкрийте Mini App кнопкою в чаті бота.' ? null : prev);
             return true;
         };
 
@@ -595,6 +482,17 @@ const MiniAppContent = () => {
             });
         });
     }, [initData, slug, targetSlug, tgUser?.id, trackingMeta, view, visitorId]);
+
+    const resolveWriteFailureMessage = (error: unknown, fallback: string, payload: Record<string, unknown> = {}) => {
+        const code = typeof error === 'object' && error && 'code' in error ? String((error as any).code || '') : '';
+        const message = resolveMiniAppWriteError(error, fallback);
+        if (['TELEGRAM_INITDATA_INVALID', 'TELEGRAM_INITDATA_EXPIRED'].includes(code)) {
+            setTelegramWriteState('invalid_initdata');
+            setConfigWarning(message);
+            trackEvent('write_rejected_invalid_initdata', { ...payload, code });
+        }
+        return message;
+    };
 
     const toggleFavorite = async (car: CarListing) => {
         const id = getCarId(car);
@@ -759,12 +657,13 @@ const MiniAppContent = () => {
             setIsConfigLoading(true);
             setInitError(null);
             setRequiresTelegram(false);
+            setTelegramWriteState('unknown');
             const requestId = Math.random().toString(36).substring(7);
             emitMiniAppEvent('info', 'MiniApp init started', { requestId, slug });
             setConfigWarning(null);
 
             // 1. Initialize Telegram Web App & Extract start_param
-            const telegramContext = await resolveTelegramBootstrapContext();
+            const telegramContext = await resolveTelegramLaunchContext();
             cleanupViewport = initTelegramViewport(telegramContext.tg);
             let startParam = telegramContext.startParam || '';
             const resolvedUser = telegramContext.user;
@@ -774,6 +673,7 @@ const MiniAppContent = () => {
             if (!telegramContext.isTelegramContext && !isReadOnlyLaunch) {
                 emitMiniAppEvent('warn', 'Telegram WebApp context not detected');
                 setRequiresTelegram(true);
+                setTelegramWriteState('outside_telegram');
                 setInitData(undefined);
                 setTgUser(null);
                 setConfig(null);
@@ -782,8 +682,8 @@ const MiniAppContent = () => {
                 return;
             }
 
-            const platform = telegramContext.tg?.platform || (hasTelegramUserAgent() ? 'telegram-ua' : 'url-fallback');
-            const version = telegramContext.tg?.version || 'n/a';
+            const platform = telegramContext.platform;
+            const version = telegramContext.version;
             const launchCarId = String(urlParams.get('carId') || urlParams.get('carListingId') || '').trim();
             const safeLaunchMeta = {
                 slug: slug || undefined,
@@ -792,9 +692,12 @@ const MiniAppContent = () => {
                 status: urlParams.get('status') || undefined,
                 type: urlParams.get('type') || urlParams.get('requestType') || undefined,
                 startParam: startParam || undefined,
-                routeSource: urlParams.has('tgWebAppStartParam') ? 'tgWebAppStartParam' : (startParam ? 'start_param' : 'path'),
+                routeSource: telegramContext.startParamSource || (startParam ? 'start_param' : 'path'),
                 platform,
                 version,
+                hasBridge: telegramContext.hasBridge,
+                isTelegramContext: telegramContext.isTelegramContext,
+                isReadOnlyLaunch,
                 hasInitData: Boolean(telegramContext.initData)
             };
             emitMiniAppEvent('info', 'Telegram context detected', {
@@ -806,7 +709,12 @@ const MiniAppContent = () => {
             setTgUser(resolvedUser);
             setInitData(telegramContext.initData);
             if (!telegramContext.initData && !isReadOnlyLaunch) {
-                setConfigWarning('Telegram відкрито без initData. Для дій відкрийте Mini App повторно через кнопку меню бота.');
+                setTelegramWriteState('missing_initdata');
+                setConfigWarning('Telegram відкрив Mini App без захищеної сесії. Закрийте це вікно і відкрийте Mini App кнопкою в чаті бота.');
+            } else if (telegramContext.initData) {
+                setTelegramWriteState('ready');
+            } else {
+                setTelegramWriteState('read_only_preview');
             }
 
             const rawEntryIntent = parseMiniAppEntryIntent(urlParams, startParam);
@@ -836,6 +744,28 @@ const MiniAppContent = () => {
             const rawSlug = slug || (rawEntryIntent.consumedStartParam ? '' : startParam) || 'system';
             const resolvedSlug = normalizeSlug(rawSlug) || 'system';
             emitMiniAppEvent('info', 'Resolved target slug', { ...safeLaunchMeta, resolvedSlug, rawSlug });
+            trackMiniAppEvent({
+                slug: resolvedSlug,
+                eventType: 'miniapp_launch_diagnostics',
+                initData: telegramContext.initData || undefined,
+                visitorId,
+                tgUserId: resolvedUser?.id ? String(resolvedUser.id) : undefined,
+                view: 'HOME',
+                payload: { ...safeLaunchMeta, resolvedSlug, requestId },
+                tracking: {
+                    startParam: startParam || undefined,
+                    entrypoint: window.location.pathname,
+                    referrer: document.referrer || undefined,
+                    miniappVersion: buildVersion,
+                    buildSha: buildVersion,
+                    eventSourceUrl: window.location.href,
+                    actionSource: 'website'
+                }
+            }).catch((error) => {
+                emitMiniAppEvent('warn', 'Failed to track MiniApp launch diagnostics', {
+                    error: error instanceof Error ? error.message : String(error)
+                });
+            });
 
             // 3. Load Mini App Configuration
             try {
@@ -1074,11 +1004,13 @@ const MiniAppContent = () => {
         const submitInitData = initData || readRuntimeTelegramInitData();
         if (!submitInitData) {
             const message = 'Надсилання запиту доступне лише всередині Telegram Mini App.';
+            setTelegramWriteState(telegramWriteState === 'outside_telegram' ? 'outside_telegram' : 'missing_initdata');
             setConfigWarning(message);
             setRequestSubmitError({ message, openBotUrl: resolveOpenBotUrl() });
             trackEvent('write_blocked_missing_initdata', { flow: params.kind, requestType: 'BUY' });
             return false;
         }
+        setTelegramWriteState('ready');
         setRequestSubmitError(null);
         if (!initData) setInitData(submitInitData);
         const submitId = requestSubmitIdRef.current
@@ -1124,7 +1056,10 @@ const MiniAppContent = () => {
                 code: typeof e === 'object' && e && 'code' in e ? String((e as any).code || '') : undefined,
                 carId
             }));
-            pushToast(resolveMiniAppWriteError(e, 'Не вдалося надіслати запит по авто.'), 'error');
+            pushToast(resolveWriteFailureMessage(e, 'Не вдалося надіслати запит по авто.', {
+                flow: 'PRICE_TERMS',
+                carListingId: carId
+            }), 'error');
         } finally {
             setIsRequestSubmitting(false);
         }
@@ -1134,10 +1069,12 @@ const MiniAppContent = () => {
         const submitInitData = initData || readRuntimeTelegramInitData();
         if (!submitInitData) {
             const message = 'Цей сценарій доступний лише через Telegram Mini App.';
+            setTelegramWriteState(telegramWriteState === 'outside_telegram' ? 'outside_telegram' : 'missing_initdata');
             setConfigWarning(message);
             setRequestSubmitError({ message, openBotUrl: resolveOpenBotUrl() });
             return;
         }
+        setTelegramWriteState('ready');
         setRequestSubmitError(null);
         if (!initData) setInitData(submitInitData);
         try {
@@ -1157,7 +1094,7 @@ const MiniAppContent = () => {
                 error: e instanceof Error ? e.message : String(e),
                 code: typeof e === 'object' && e && 'code' in e ? String((e as any).code || '') : undefined
             }));
-            pushToast(resolveMiniAppWriteError(e, 'Не вдалося відкрити сценарій у боті.'), 'error');
+            pushToast(resolveWriteFailureMessage(e, 'Не вдалося відкрити сценарій у боті.', { flow }), 'error');
         } finally {
             setIsRequestSubmitting(false);
         }
@@ -1186,7 +1123,10 @@ const MiniAppContent = () => {
                 code: typeof e === 'object' && e && 'code' in e ? String((e as any).code || '') : undefined,
                 selectedCarsCount: selectedRequestCarIds.length
             }));
-            pushToast(resolveMiniAppWriteError(e, 'Не вдалося надіслати запит по обраних авто.'), 'error');
+            pushToast(resolveWriteFailureMessage(e, 'Не вдалося надіслати запит по обраних авто.', {
+                flow: 'PRICE_TERMS',
+                selectedCarsCount: selectedRequestCarIds.length
+            }), 'error');
         } finally {
             setIsRequestSubmitting(false);
         }
@@ -2362,11 +2302,13 @@ const MiniAppContent = () => {
             const submitInitData = initData || readRuntimeTelegramInitData();
             if (!submitInitData) {
                 const message = 'Надсилання запиту доступне лише в Telegram Mini App.';
+                setTelegramWriteState(telegramWriteState === 'outside_telegram' ? 'outside_telegram' : 'missing_initdata');
                 setConfigWarning(message);
                 setRequestSubmitError({ message, openBotUrl: resolveOpenBotUrl() });
                 trackEvent('write_blocked_missing_initdata', { view: 'REQUEST', requestType });
                 return;
             }
+            setTelegramWriteState('ready');
             if (!initData) setInitData(submitInitData);
             if (isB2BMode && !reqCompany.trim()) {
                 setConfigWarning('Для B2B запиту вкажіть компанію.');
@@ -2513,7 +2455,7 @@ const MiniAppContent = () => {
                     code: typeof e === 'object' && e && 'code' in e ? String((e as any).code || '') : undefined,
                     requestType
                 }));
-                const message = resolveMiniAppWriteError(e, 'Не вдалося надіслати запит.');
+                const message = resolveWriteFailureMessage(e, 'Не вдалося надіслати запит.', { requestType });
                 setRequestSubmitError({ message, openBotUrl: resolveOpenBotUrl() });
                 pushToast(message, 'error');
             } finally {
@@ -2522,39 +2464,50 @@ const MiniAppContent = () => {
         }
     };
 
-    const renderRequest = () => (
-        <RequestView
-            reqStep={reqStep}
-            reqData={reqData}
-            setReqData={setReqData}
-            reqMileage={reqMileage}
-            setReqMileage={setReqMileage}
-            reqFuel={reqFuel}
-            setReqFuel={setReqFuel}
-            reqCompany={reqCompany}
-            setReqCompany={setReqCompany}
-            reqComment={reqComment}
-            setReqComment={setReqComment}
-            selectedCarsCount={selectedRequestCarIds.length}
-            selectedCarsPreview={selectedRequestCars.map(car => car.title).filter(Boolean).slice(0, 3)}
-            onClearSelectedCars={clearRequestSelection}
-            hasTelegramInit={hasTelegramInit}
-            primaryColor={primaryColor}
-            surfaceMode={surfaceMode}
-            requestType={requestType}
-            taxonomy={vehicleTaxonomy}
-            showInlineAction={true}
-            actionLabel={isRequestSubmitting ? 'Надсилання...' : (reqStep >= 4 ? 'Надіслати' : 'Далі')}
-            actionDisabled={isRequestSubmitting}
-            submitError={requestSubmitError}
-            openBotUrl={resolveOpenBotUrl()}
-            onOpenBot={openBotUrl}
-            onDismissSubmitError={() => setRequestSubmitError(null)}
-            onNextStep={handleNextStep}
-            onBackStep={() => setReqStep(prev => Math.max(1, prev - 1))}
-            onHome={() => { setReqStep(1); setView('HOME'); }}
-        />
-    );
+    const renderRequest = () => {
+        const telegramWriteUnavailableMessage = telegramWriteState === 'outside_telegram'
+            ? 'Відкрийте Mini App саме з кнопки Telegram-бота, щоб надіслати запит.'
+            : telegramWriteState === 'invalid_initdata'
+                ? 'Сесія Telegram застаріла. Закрийте це вікно і відкрийте Mini App повторно з бота.'
+                : telegramWriteState === 'missing_initdata'
+                    ? 'Telegram відкрив Mini App без захищеної сесії. Закрийте це вікно і відкрийте Mini App кнопкою в чаті бота.'
+                    : 'Для надсилання потрібна захищена сесія Telegram Mini App.';
+
+        return (
+            <RequestView
+                reqStep={reqStep}
+                reqData={reqData}
+                setReqData={setReqData}
+                reqMileage={reqMileage}
+                setReqMileage={setReqMileage}
+                reqFuel={reqFuel}
+                setReqFuel={setReqFuel}
+                reqCompany={reqCompany}
+                setReqCompany={setReqCompany}
+                reqComment={reqComment}
+                setReqComment={setReqComment}
+                selectedCarsCount={selectedRequestCarIds.length}
+                selectedCarsPreview={selectedRequestCars.map(car => car.title).filter(Boolean).slice(0, 3)}
+                onClearSelectedCars={clearRequestSelection}
+                hasTelegramInit={hasTelegramInit}
+                telegramWriteUnavailableMessage={telegramWriteUnavailableMessage}
+                primaryColor={primaryColor}
+                surfaceMode={surfaceMode}
+                requestType={requestType}
+                taxonomy={vehicleTaxonomy}
+                showInlineAction={true}
+                actionLabel={isRequestSubmitting ? 'Надсилання...' : (reqStep >= 4 ? 'Надіслати' : 'Далі')}
+                actionDisabled={isRequestSubmitting}
+                submitError={requestSubmitError}
+                openBotUrl={resolveOpenBotUrl()}
+                onOpenBot={openBotUrl}
+                onDismissSubmitError={() => setRequestSubmitError(null)}
+                onNextStep={handleNextStep}
+                onBackStep={() => setReqStep(prev => Math.max(1, prev - 1))}
+                onHome={() => { setReqStep(1); setView('HOME'); }}
+            />
+        );
+    };
 
     const renderProfile = () => (
         <ProfileView

@@ -4,6 +4,7 @@ import { botManager } from '../../Communication/bots/bot.service.js';
 import { getWorkerStatus } from '../../../workers/content.worker.js';
 import { getBuildInfo } from '../../../config/buildInfo.js';
 import { logger } from '../../../utils/logger.js';
+import { getPlatformReadinessReport } from './platformReadiness.service.js';
 import process from 'process';
 
 export const checkHealth = async (req: Request, res: Response) => {
@@ -47,4 +48,19 @@ export const checkHealth = async (req: Request, res: Response) => {
 
     const code = dbStatus === 'connected' ? 200 : 503;
     res.status(code).json(status);
+};
+
+export const checkPlatformReadiness = async (req: Request, res: Response) => {
+    try {
+        const companyId = typeof req.query.companyId === 'string' ? req.query.companyId : undefined;
+        const report = await getPlatformReadinessReport({ companyId });
+        res.status(report.status === 'ERROR' ? 503 : 200).json(report);
+    } catch (e) {
+        logger.error('Platform readiness check error:', e);
+        res.status(503).json({
+            status: 'ERROR',
+            generatedAt: new Date().toISOString(),
+            error: e instanceof Error ? e.message : 'Platform readiness failed'
+        });
+    }
 };

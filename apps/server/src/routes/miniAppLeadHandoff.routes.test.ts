@@ -883,6 +883,85 @@ describe('MiniApp Lead handoff routes', () => {
     expect(JSON.stringify(platformPayload)).not.toContain('+380635055252');
   });
 
+  it('allows launch diagnostics without initData and strips sensitive launch payload fields', async () => {
+    const app = await buildApp();
+
+    const res = await request(app)
+      .post('/api/miniapp/events')
+      .send({
+        slug: 'cartie',
+        eventType: 'miniapp_launch_diagnostics',
+        visitorId: 'visitor_launch_1',
+        tgUserId: 'spoofed_user',
+        payload: {
+          path: '/p/app/cartie',
+          hasBridge: true,
+          hasInitData: false,
+          phone: '+380635055252',
+          initData: 'raw-init-data',
+          user: {
+            id: 1001,
+            phone: '+380635055252',
+            email: 'client@example.com'
+          }
+        }
+      });
+
+    expect(res.status).toBe(200);
+    expect(emitPlatformEventMock).toHaveBeenCalledWith(expect.objectContaining({
+      eventType: 'miniapp.miniapp_launch_diagnostics',
+      userId: 'visitor_launch_1',
+      payload: expect.objectContaining({
+        tgUserId: undefined,
+        visitorId: 'visitor_launch_1',
+        payload: expect.objectContaining({
+          path: '/p/app/cartie',
+          hasBridge: true,
+          hasInitData: false
+        })
+      })
+    }));
+    const platformPayload = emitPlatformEventMock.mock.calls[0][0].payload;
+    expect(JSON.stringify(platformPayload)).not.toContain('spoofed_user');
+    expect(JSON.stringify(platformPayload)).not.toContain('+380635055252');
+    expect(JSON.stringify(platformPayload)).not.toContain('client@example.com');
+    expect(JSON.stringify(platformPayload)).not.toContain('raw-init-data');
+  });
+
+  it('allows invalid initData write diagnostics without initData but not real lead submit events', async () => {
+    const app = await buildApp();
+
+    const diagnostics = await request(app)
+      .post('/api/miniapp/events')
+      .send({
+        slug: 'cartie',
+        eventType: 'write_rejected_invalid_initdata',
+        visitorId: 'visitor_invalid_1',
+        payload: { code: 'TELEGRAM_INITDATA_INVALID', flow: 'PICK' }
+      });
+
+    expect(diagnostics.status).toBe(200);
+    expect(emitPlatformEventMock).toHaveBeenCalledWith(expect.objectContaining({
+      eventType: 'miniapp.write_rejected_invalid_initdata',
+      userId: 'visitor_invalid_1'
+    }));
+
+    emitPlatformEventMock.mockClear();
+    const leadSubmit = await request(app)
+      .post('/api/miniapp/events')
+      .send({
+        slug: 'cartie',
+        eventType: 'LeadSubmit',
+        visitorId: 'visitor_invalid_1'
+      });
+
+    expect(leadSubmit.status).toBe(400);
+    expect(leadSubmit.body).toMatchObject({
+      code: 'TELEGRAM_INITDATA_REQUIRED'
+    });
+    expect(emitPlatformEventMock).not.toHaveBeenCalled();
+  });
+
   it('allows visitor favorite telemetry without initData because favorites support visitorId', async () => {
     vi.stubEnv('META_CAPI_ENABLED', 'true');
     const app = await buildApp();

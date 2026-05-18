@@ -85,14 +85,16 @@ describe('miniappUrl', () => {
   });
 
   it('normalizes stale platform button URLs while preserving write params', () => {
-    const url = new URL(normalizeMiniAppButtonUrl(bot, 'https://old.example/p/app/old_slug?entry=request&type=BUY&carId=car_1'));
+    const url = new URL(normalizeMiniAppButtonUrl(bot, 'https://old.example/p/app/old_slug?v=old_build&entry=request&type=BUY&status=PENDING&carId=car_1'));
 
     expect(url.origin).toBe('https://example.com');
     expect(url.pathname).toBe('/p/app/cartie');
     expect(url.searchParams.get('theme')).toBe('dark');
     expect(url.searchParams.get('entry')).toBe('request');
     expect(url.searchParams.get('type')).toBe('BUY');
+    expect(url.searchParams.get('status')).toBe('PENDING');
     expect(url.searchParams.get('carId')).toBe('car_1');
+    expect(url.searchParams.get('v')).not.toBe('old_build');
   });
 
   it('normalizes Telegram startapp aliases into configured MiniApp URLs', () => {

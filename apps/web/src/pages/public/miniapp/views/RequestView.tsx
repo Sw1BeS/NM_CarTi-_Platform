@@ -50,6 +50,7 @@ type RequestViewProps = {
   selectedCarsPreview: string[];
   onClearSelectedCars: () => void;
   hasTelegramInit: boolean;
+  telegramWriteUnavailableMessage?: string;
   primaryColor: string;
   surfaceMode: MiniAppSurfaceMode;
   requestType: RequestType;
@@ -122,6 +123,7 @@ export const RequestView = ({
   selectedCarsPreview,
   onClearSelectedCars,
   hasTelegramInit,
+  telegramWriteUnavailableMessage,
   primaryColor,
   surfaceMode,
   requestType,
@@ -439,7 +441,7 @@ export const RequestView = ({
               </div>
               {!hasTelegramInit && (
                 <div className="text-xs text-yellow-200 bg-yellow-500/10 border border-yellow-500/25 rounded-xl p-3 text-center">
-                  <div>Відкрийте Mini App з Telegram-бота, щоб надіслати запит.</div>
+                  <div>{telegramWriteUnavailableMessage || 'Відкрийте Mini App з Telegram-бота, щоб надіслати запит.'}</div>
                   {(submitError?.openBotUrl || openBotUrl) && (
                     <button
                       type="button"
