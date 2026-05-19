@@ -342,6 +342,20 @@ describe('requestContract.service', () => {
       requestPublicId: 'REQ-1',
       source: 'miniapp_lead_intent'
     }));
+    expect(metaTrackEventMock).toHaveBeenCalledWith('cmp_1', 'Contact', expect.objectContaining({
+      entityType: 'request',
+      entityId: 'req_1',
+      stage: 'ContactShare',
+      externalId: 'telegram:1001',
+      phone: '+380671234567',
+      actionSource: 'chat',
+      contentIds: ['REQ-1'],
+      customData: expect.objectContaining({
+        botId: 'bot_1',
+        source: 'telegram_contact_keyboard',
+        intentType: 'INTEREST'
+      })
+    }));
     expect(result.selectedCars[0]).toEqual(expect.objectContaining({
       id: 'car_1',
       title: 'BMW X5 xDrive40i',

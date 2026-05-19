@@ -2,6 +2,7 @@ import { prisma } from '../../../../services/prisma.js';
 import type { PipelineContext } from '../core/types.js';
 import { ScenarioEngine } from '../../bots/scenario.engine.js';
 import { telegramOutbox } from '../messaging/outbox/telegramOutbox.js';
+import { emitPlatformEvent } from '../core/events/eventEmitter.js';
 import { normalizeBrand } from '../../../Inventory/normalization/normalizeBrand.js';
 import { normalizeModel } from '../../../Inventory/normalization/normalizeModel.js';
 import { normalizeCity } from '../../../Inventory/normalization/normalizeCity.js';
@@ -678,6 +679,29 @@ const handleClientLead = async (ctx: PipelineContext, text: string) => {
     });
 
     const requestPublicId = finalized.request?.publicId || finalized.request?.id;
+    const botId = ctx.bot.id;
+    await emitPlatformEvent({
+      companyId,
+      botId,
+      eventType: 'miniapp.ContactShare',
+      userId: tgUserId,
+      chatId: ctx.chatId,
+      payload: {
+        source: 'telegram_contact_keyboard',
+        leadId: finalized.lead?.id,
+        requestId: finalized.request?.id,
+        requestPublicId,
+        intentType: finalized.intentType,
+        duplicate: Boolean(finalized.isDuplicate),
+        hasPhone: true
+      }
+    }).catch((error: unknown) => {
+      logger.warn('[LeadBot] failed to emit ContactShare event', {
+        botId,
+        chatId: ctx.chatId,
+        error: error instanceof Error ? error.message : String(error)
+      });
+    });
     await sendMessage(
       ctx,
       finalized.isDuplicate

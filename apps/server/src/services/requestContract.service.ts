@@ -843,6 +843,25 @@ class RequestContractService {
         intentType: pendingIntent.intentType
       }
     }).catch(logger.error);
+    new IntegrationService().metaPixelTrackEvent(params.companyId, 'Contact', {
+      entityType: 'request',
+      entityId: request.id,
+      stage: 'ContactShare',
+      externalId: params.telegramUserId ? `telegram:${params.telegramUserId}` : undefined,
+      phone: params.phone,
+      actionSource: 'chat',
+      fbp: toOptionalString(tracking.fbp),
+      fbc: toOptionalString(tracking.fbc),
+      eventSourceUrl: toOptionalString(tracking.eventSourceUrl),
+      contentName: title,
+      contentCategory: 'MiniApp Contact Share',
+      contentIds: [request.publicId || request.id],
+      customData: {
+        botId: params.botId,
+        source: 'telegram_contact_keyboard',
+        intentType: pendingIntent.intentType
+      }
+    }).catch(logger.error);
 
     return {
       intentType: pendingIntent.intentType,

@@ -6,7 +6,8 @@ const {
   scenarioEngineMock,
   b2bWhitelistServiceMock,
   requestContractServiceMock,
-  quotaServiceMock
+  quotaServiceMock,
+  emitPlatformEventMock
 } = vi.hoisted(() => ({
   prismaMock: {
     botSession: {
@@ -35,7 +36,8 @@ const {
   },
   quotaServiceMock: {
     consume: vi.fn()
-  }
+  },
+  emitPlatformEventMock: vi.fn()
 }));
 
 vi.mock('../../../../services/prisma.js', () => ({
@@ -62,11 +64,16 @@ vi.mock('../../../../services/quota.service.js', () => ({
   quotaService: quotaServiceMock
 }));
 
+vi.mock('../core/events/eventEmitter.js', () => ({
+  emitPlatformEvent: emitPlatformEventMock
+}));
+
 describe('CLIENT_LEAD bot menu', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     b2bWhitelistServiceMock.isEnforced.mockReturnValue(false);
     quotaServiceMock.consume.mockResolvedValue({ allowed: true });
+    emitPlatformEventMock.mockResolvedValue(undefined);
     requestContractServiceMock.finalizePendingLeadIntent.mockResolvedValue({
       intentType: 'INTEREST',
       title: 'Mercedes-Benz S 500',
@@ -298,6 +305,21 @@ describe('CLIENT_LEAD bot menu', () => {
       .find((button: any) => String(button.text || '').includes('контакт'));
     expect(Buffer.byteLength(contactButton.callback_data, 'utf8')).toBeLessThanOrEqual(64);
     expect(contactButton.callback_data).not.toContain('lead_1');
+    expect(emitPlatformEventMock).toHaveBeenCalledWith(expect.objectContaining({
+      companyId: 'company_1',
+      botId: 'bot_lead',
+      eventType: 'miniapp.ContactShare',
+      userId: '1001',
+      chatId: '1001',
+      payload: expect.objectContaining({
+        source: 'telegram_contact_keyboard',
+        leadId: 'lead_1',
+        requestId: 'request_1',
+        requestPublicId: 'REQ-1',
+        hasPhone: true
+      })
+    }));
+    expect(JSON.stringify(emitPlatformEventMock.mock.calls)).not.toContain('+380635055252');
   }, 10000);
 
   it('re-prompts with native contact keyboard when shared contact belongs to another Telegram user', async () => {
