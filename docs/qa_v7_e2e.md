@@ -59,12 +59,14 @@ Expected:
 6. Натиснути `Позначити контакт`.
 7. Якщо SalesDrive sync увімкнений прапорцями, натиснути `SalesDrive sync`.
 8. Повторити клік по вже використаній tokenized дії.
+9. Відкрити заявку в CRM Requests detail і перевірити блок `Timeline`.
 
 Expected:
 - `Відкрити в CRM` веде на пошук заявки.
 - `Взяти в роботу` оновлює `assignedTo` на Telegram admin id і додає `ASSIGNED` у повідомлення.
 - `Змінити статус` відкриває окреме tokenized меню, вибір статусу оновлює `B2bRequest.status` і логується.
 - `Додати коментар` відкриває ForceReply prompt; відповідь адміна додається в `B2bRequest.internalNotes`, `MessageLog` і `IntegrationEventLog`.
+- CRM `Timeline` показує request created, admin actions, messages, variants і integration logs; sensitive payload keys відображаються як `[REDACTED]`.
 - `Позначити контакт` ставить lead status `CONTACTED`.
 - Повторний tokenized клік відповідає як already processed без дублювання side effects.
 - SalesDrive action не пише в SalesDrive, якщо write/sync flags вимкнені.

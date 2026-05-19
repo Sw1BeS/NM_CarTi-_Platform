@@ -5,7 +5,7 @@ import { RequestsService } from '../../services/requestsService';
 import { Data } from '../../services/data';
 import { ContentGenerator } from '../../services/contentGenerator';
 import { createDeepLinkKeyboard, buildDeepLink } from '../../services/deeplink';
-import { B2BRequest, RequestPresentation, RequestStatus, TelegramDestination, Bot } from '../../types';
+import { B2BRequest, RequestPresentation, RequestStatus, RequestTimelineItem, TelegramDestination, Bot } from '../../types';
 import { Plus, List as ListIcon, LayoutGrid, Search as SearchIcon, DollarSign, Calendar, ChevronRight, ChevronLeft, Send, X } from 'lucide-react';
 import { useToast } from '../../contexts/ToastContext';
 import { useSearchParams } from 'react-router-dom';
@@ -51,6 +51,18 @@ const getPrimarySummary = (presentation?: RequestPresentation) => {
     return presentation.selectedCarLabels.length ? presentation.selectedCarLabels : presentation.criteriaChips;
 };
 
+const toTimelineSummary = (item: RequestTimelineItem) => {
+    const payload = isRecord(item.payload) ? item.payload : {};
+    const parts = [
+        typeof payload.status === 'string' ? payload.status : undefined,
+        typeof payload.direction === 'string' ? payload.direction.toLowerCase() : undefined,
+        typeof payload.text === 'string' ? payload.text : undefined,
+        typeof payload.message === 'string' ? payload.message : undefined,
+        typeof payload.title === 'string' ? payload.title : undefined
+    ].filter(Boolean) as string[];
+    return parts.slice(0, 2).join(' • ');
+};
+
 export const RequestList: React.FC = () => {
     const [requests, setRequests] = useState<B2BRequest[]>([]);
     const [viewMode, setViewMode] = useState<'LIST' | 'BOARD'>('LIST');
@@ -75,6 +87,9 @@ export const RequestList: React.FC = () => {
     const [broadcasting, setBroadcasting] = useState(false);
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [detailRequest, setDetailRequest] = useState<B2BRequest | null>(null);
+    const [detailTimeline, setDetailTimeline] = useState<RequestTimelineItem[]>([]);
+    const [detailTimelineLoading, setDetailTimelineLoading] = useState(false);
+    const [detailTimelineError, setDetailTimelineError] = useState<string | null>(null);
     const [showCarPicker, setShowCarPicker] = useState(false);
     const [createForm, setCreateForm] = useState({
         title: '',
@@ -222,8 +237,25 @@ export const RequestList: React.FC = () => {
         }
     };
 
+    const loadRequestTimeline = async (requestId: string) => {
+        setDetailTimelineLoading(true);
+        setDetailTimelineError(null);
+        try {
+            const items = await RequestsService.getTimeline(requestId);
+            setDetailTimeline(items);
+        } catch (e: unknown) {
+            const message = e instanceof Error ? e.message : 'Failed to load timeline';
+            setDetailTimelineError(message);
+            setDetailTimeline([]);
+        } finally {
+            setDetailTimelineLoading(false);
+        }
+    };
+
     const openDetails = (req: B2BRequest) => {
         setDetailRequest(req);
+        setDetailTimeline([]);
+        loadRequestTimeline(req.id);
     };
 
     const handleAddFromInventory = async (car: any) => {
@@ -247,6 +279,12 @@ export const RequestList: React.FC = () => {
     const awaitingOffers = b2bRuntimeRequests.filter(r => r.status === RequestStatus.COLLECTING_VARIANTS).length;
     const readyForAdmin = b2bRuntimeRequests.filter(r => r.status === RequestStatus.CONTACT_SHARED || r.status === RequestStatus.SHORTLIST).length;
     const detailPresentation = detailRequest ? getRequestPresentation(detailRequest) : undefined;
+    const fallbackTimeline: RequestTimelineItem[] = (detailPresentation?.timeline || []).map(item => ({
+        at: item.at,
+        type: 'PRESENTATION',
+        label: item.label
+    }));
+    const visibleTimeline = detailTimeline.length ? detailTimeline : fallbackTimeline;
 
     return (
         <div className="space-y-8 h-[calc(100vh-140px)] flex flex-col">
@@ -623,15 +661,39 @@ export const RequestList: React.FC = () => {
                                 <div className="text-sm text-[var(--text-primary)]">Year: {detailRequest.yearMin ? `${detailRequest.yearMin}+` : '—'}</div>
                                 <div className="text-sm text-[var(--text-primary)]">City: {detailRequest.city || '—'}</div>
                                 <div className="text-xs text-[var(--text-secondary)] mt-3">{detailRequest.description || 'No description.'}</div>
-                                {detailPresentation?.timeline.length ? (
-                                    <div className="mt-3 border-t border-[var(--border-color)] pt-3 space-y-1">
-                                        {detailPresentation.timeline.map(item => (
-                                            <div key={`${item.at}-${item.label}`} className="text-[10px] text-[var(--text-secondary)]">
-                                                {new Date(item.at).toLocaleString()} • {item.label}
-                                            </div>
-                                        ))}
+                                <div className="mt-3 border-t border-[var(--border-color)] pt-3">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <div className="text-xs text-[var(--text-secondary)] uppercase font-bold">Timeline</div>
+                                        {detailTimelineLoading && (
+                                            <div className="text-[10px] text-[var(--text-secondary)]">Loading...</div>
+                                        )}
                                     </div>
-                                ) : null}
+                                    {detailTimelineError && (
+                                        <div className="text-[10px] text-red-400 mb-2">{detailTimelineError}</div>
+                                    )}
+                                    {visibleTimeline.length ? (
+                                        <div className="space-y-2 max-h-44 overflow-y-auto pr-1">
+                                            {visibleTimeline.map((item, index) => (
+                                                <div key={`${item.at}-${item.type}-${index}`} className="rounded-md border border-[var(--border-color)] bg-[var(--bg-panel)] px-2.5 py-2">
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <span className="text-[10px] uppercase font-bold text-gold-500 truncate">{item.type}</span>
+                                                        <span className="text-[10px] text-[var(--text-secondary)] whitespace-nowrap">
+                                                            {new Date(item.at).toLocaleString()}
+                                                        </span>
+                                                    </div>
+                                                    <div className="text-xs text-[var(--text-primary)] mt-1">{item.label}</div>
+                                                    {toTimelineSummary(item) && (
+                                                        <div className="text-[10px] text-[var(--text-secondary)] mt-0.5 line-clamp-2">
+                                                            {toTimelineSummary(item)}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div className="text-xs text-[var(--text-secondary)]">No timeline events yet.</div>
+                                    )}
+                                </div>
                             </div>
                             <div className="panel p-4 bg-[var(--bg-input)]">
                                 <div className="text-xs text-[var(--text-secondary)] uppercase font-bold mb-2">Variants</div>

@@ -83,6 +83,13 @@ export interface RequestPresentation {
     timeline: Array<{ at: string; label: string }>;
 }
 
+export interface RequestTimelineItem {
+    at: string;
+    type: string;
+    label: string;
+    payload?: Record<string, any>;
+}
+
 export interface Variant extends Omit<CarCard, 'status'> {
     id: string;
     requestId: string;

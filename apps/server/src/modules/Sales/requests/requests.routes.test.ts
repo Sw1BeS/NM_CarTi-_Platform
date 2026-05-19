@@ -10,6 +10,9 @@ const {
     b2bRequest: {
       findUnique: vi.fn()
     },
+    leadActivity: {
+      findMany: vi.fn()
+    },
     botConfig: {
       findUnique: vi.fn(),
       findFirst: vi.fn()
@@ -20,7 +23,14 @@ const {
       update: vi.fn()
     },
     messageLog: {
-      create: vi.fn()
+      create: vi.fn(),
+      findMany: vi.fn()
+    },
+    requestVariant: {
+      findMany: vi.fn()
+    },
+    integrationEventLog: {
+      findMany: vi.fn()
     }
   },
   telegramOutboxMock: {
@@ -109,6 +119,10 @@ describe('requests channel publishing', () => {
       }
     });
     prismaMock.messageLog.create.mockResolvedValue({ id: 'message_1' });
+    prismaMock.messageLog.findMany.mockResolvedValue([]);
+    prismaMock.requestVariant.findMany.mockResolvedValue([]);
+    prismaMock.leadActivity.findMany.mockResolvedValue([]);
+    prismaMock.integrationEventLog.findMany.mockResolvedValue([]);
     telegramOutboxMock.editMessageText.mockResolvedValue({ ok: true });
   });
 
@@ -261,5 +275,46 @@ describe('requests channel publishing', () => {
     expect(payload.text).toContain('&lt;b&gt;X5&lt;/b&gt;');
     expect(payload.text).toContain('&lt;i&gt;центр&lt;/i&gt;');
     expect(payload.text).toContain('&lt;script&gt;x&lt;/script&gt;');
+  });
+
+  it('returns request timeline scoped to the authenticated company', async () => {
+    const timelineRequest = {
+      id: 'request_1',
+      publicId: 'CD-2026-000777',
+      companyId: 'company_1',
+      leadId: 'lead_1',
+      status: 'COLLECTING_VARIANTS',
+      createdAt: new Date('2026-05-12T10:00:00Z')
+    };
+    prismaMock.b2bRequest.findUnique
+      .mockResolvedValueOnce(timelineRequest)
+      .mockResolvedValueOnce(timelineRequest);
+    prismaMock.messageLog.findMany.mockResolvedValueOnce([
+      {
+        id: 'message_1',
+        requestId: 'request_1',
+        variantId: null,
+        direction: 'INCOMING',
+        text: 'Client message',
+        payload: { token: 'secret-token' },
+        createdAt: new Date('2026-05-12T10:01:00Z')
+      }
+    ]);
+
+    const app = await buildApp();
+
+    const res = await request(app)
+      .get('/api/requests/request_1/timeline')
+      .send();
+
+    expect(res.status).toBe(200);
+    expect(prismaMock.b2bRequest.findUnique).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'request_1' }
+    }));
+    expect(res.body.items.map((item: any) => item.type)).toEqual([
+      'REQUEST_CREATED',
+      'MESSAGE_INCOMING'
+    ]);
+    expect(res.body.items[1].payload.meta.token).toBe('[REDACTED]');
   });
 });

@@ -8,6 +8,7 @@ import { RequestRepository } from '../../../repositories/index.js';
 import { renderRequestCard, managerActionsKeyboard, sanitizePublicText } from '../../../services/cardRenderer.js';
 import { telegramOutbox } from '../../Communication/telegram/messaging/outbox/telegramOutbox.js';
 import { IntegrationService } from '../../Integrations/integration.service.js';
+import { buildRequestTimeline } from '../../../services/leadIdentity.service.js';
 
 import { validate } from '../../../middleware/validation.js';
 import { createRequestSchema } from '../../../validation/schemas.js';
@@ -219,6 +220,32 @@ router.post('/:id/link-chat', authenticateToken, requireRole(['OWNER', 'ADMIN', 
     } catch (e: any) {
         logger.error(e);
         errorResponse(res, 500, 'Failed to link chat');
+    }
+});
+
+router.get('/:id/timeline', authenticateToken, requireRole(['OWNER', 'ADMIN', 'MANAGER', 'OPERATOR']), async (req, res) => {
+    try {
+        const { id } = req.params;
+        const user = (req as any).user || {};
+        const isSuperadmin = user.role === 'SUPER_ADMIN';
+        const userCompanyId = user.companyId || user.workspaceId;
+        if (!isSuperadmin && !userCompanyId) return errorResponse(res, 400, 'Company context required', 'COMPANY_REQUIRED');
+
+        const existing = await requestRepo.findById(id);
+        if (!existing) return errorResponse(res, 404, 'Request not found');
+        if (!isSuperadmin) {
+            if (existing.companyId && existing.companyId !== userCompanyId) return errorResponse(res, 403, 'Forbidden');
+            if (!existing.companyId) return errorResponse(res, 403, 'Forbidden');
+        }
+
+        const timeline = await buildRequestTimeline({
+            requestId: existing.id,
+            companyId: existing.companyId || userCompanyId || null
+        });
+        res.json({ items: timeline });
+    } catch (e: any) {
+        logger.error(e);
+        errorResponse(res, 500, 'Failed to fetch request timeline');
     }
 });
 

@@ -4,7 +4,9 @@ const {
   leadIdentityFindUniqueMock,
   leadIdentityUpsertMock,
   leadActivityFindManyMock,
+  leadFindManyMock,
   b2bRequestFindManyMock,
+  b2bRequestFindUniqueMock,
   messageLogFindManyMock,
   requestVariantFindManyMock,
   integrationEventLogFindManyMock
@@ -12,7 +14,9 @@ const {
   leadIdentityFindUniqueMock: vi.fn(),
   leadIdentityUpsertMock: vi.fn(),
   leadActivityFindManyMock: vi.fn(),
+  leadFindManyMock: vi.fn(),
   b2bRequestFindManyMock: vi.fn(),
+  b2bRequestFindUniqueMock: vi.fn(),
   messageLogFindManyMock: vi.fn(),
   requestVariantFindManyMock: vi.fn(),
   integrationEventLogFindManyMock: vi.fn()
@@ -27,8 +31,12 @@ vi.mock('./prisma.js', () => ({
     leadActivity: {
       findMany: leadActivityFindManyMock
     },
+    lead: {
+      findMany: leadFindManyMock
+    },
     b2bRequest: {
-      findMany: b2bRequestFindManyMock
+      findMany: b2bRequestFindManyMock,
+      findUnique: b2bRequestFindUniqueMock
     },
     messageLog: {
       findMany: messageLogFindManyMock
@@ -45,6 +53,7 @@ vi.mock('./prisma.js', () => ({
 import {
   buildLeadIdentityCandidates,
   buildLeadTimeline,
+  buildRequestTimeline,
   resolveLeadByIdentity,
   upsertLeadIdentities
 } from './leadIdentity.service.js';
@@ -54,7 +63,9 @@ beforeEach(() => {
   leadIdentityFindUniqueMock.mockResolvedValue(null);
   leadIdentityUpsertMock.mockResolvedValue({ id: 'identity_1' });
   leadActivityFindManyMock.mockResolvedValue([]);
+  leadFindManyMock.mockResolvedValue([]);
   b2bRequestFindManyMock.mockResolvedValue([]);
+  b2bRequestFindUniqueMock.mockResolvedValue(null);
   messageLogFindManyMock.mockResolvedValue([]);
   requestVariantFindManyMock.mockResolvedValue([]);
   integrationEventLogFindManyMock.mockResolvedValue([]);
@@ -436,5 +447,100 @@ describe('leadIdentity.service', () => {
 
     expect(messageLogFindManyMock).not.toHaveBeenCalled();
     expect(requestVariantFindManyMock).not.toHaveBeenCalled();
+  });
+
+  it('builds a request timeline from request, linked lead activity, messages, variants, and integration logs', async () => {
+    b2bRequestFindUniqueMock.mockResolvedValueOnce({
+      id: 'req_1',
+      publicId: 'CD-2026-000777',
+      companyId: 'comp_1',
+      leadId: 'lead_1',
+      status: 'COLLECTING_VARIANTS',
+      createdAt: new Date('2026-05-12T10:00:00Z')
+    });
+    leadActivityFindManyMock.mockResolvedValueOnce([
+      {
+        id: 'activity_1',
+        createdAt: new Date('2026-05-12T10:01:00Z'),
+        type: 'ADMIN_ACTION',
+        payload: { status: 'assigned', token: 'secret-token' }
+      }
+    ]);
+    messageLogFindManyMock.mockResolvedValueOnce([
+      {
+        id: 'message_1',
+        createdAt: new Date('2026-05-12T10:02:00Z'),
+        requestId: 'req_1',
+        variantId: null,
+        direction: 'INCOMING',
+        text: 'Клієнт питає про Ioniq',
+        payload: { channel: 'telegram', initData: 'raw-init-data' }
+      }
+    ]);
+    requestVariantFindManyMock.mockResolvedValueOnce([
+      {
+        id: 'variant_1',
+        requestId: 'req_1',
+        createdAt: new Date('2026-05-12T10:03:00Z'),
+        status: 'SUBMITTED',
+        requesterDecision: 'PENDING',
+        fitQueueStatus: null,
+        title: 'Hyundai Ioniq 5',
+        price: 16000,
+        location: 'Lviv'
+      }
+    ]);
+    integrationEventLogFindManyMock.mockResolvedValueOnce([
+      {
+        id: 'log_1',
+        createdAt: new Date('2026-05-12T10:04:00Z'),
+        integration: 'SALES_DRIVE',
+        action: 'sync_preview',
+        status: 'FAILED',
+        message: 'SalesDrive unavailable',
+        meta: { accessToken: 'secret-access', safe: true }
+      }
+    ]);
+
+    const timeline = await buildRequestTimeline({ requestId: 'req_1', companyId: 'comp_1' });
+
+    expect(b2bRequestFindUniqueMock).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'req_1' }
+    }));
+    expect(leadActivityFindManyMock).toHaveBeenCalledWith(expect.objectContaining({
+      where: { leadId: 'lead_1' }
+    }));
+    expect(messageLogFindManyMock).toHaveBeenCalledWith(expect.objectContaining({
+      where: { requestId: 'req_1' }
+    }));
+    expect(requestVariantFindManyMock).toHaveBeenCalledWith(expect.objectContaining({
+      where: { requestId: 'req_1' }
+    }));
+    expect(integrationEventLogFindManyMock).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        companyId: 'comp_1',
+        OR: expect.arrayContaining([
+          { entityId: 'req_1' },
+          { entityId: 'variant_1' },
+          { traceId: 'req_1' }
+        ])
+      })
+    }));
+    expect(timeline.map((item) => item.type)).toEqual([
+      'REQUEST_CREATED',
+      'ADMIN_ACTION',
+      'MESSAGE_INCOMING',
+      'REQUEST_VARIANT_SUBMITTED',
+      'INTEGRATION_sync_preview'
+    ]);
+    expect(timeline.find((item) => item.type === 'ADMIN_ACTION')?.payload).toMatchObject({
+      token: '[REDACTED]'
+    });
+    expect(timeline.find((item) => item.type === 'MESSAGE_INCOMING')?.payload).toMatchObject({
+      meta: { initData: '[REDACTED]' }
+    });
+    expect(timeline.find((item) => item.type === 'INTEGRATION_sync_preview')?.payload).toMatchObject({
+      meta: { accessToken: '[REDACTED]', safe: true }
+    });
   });
 });

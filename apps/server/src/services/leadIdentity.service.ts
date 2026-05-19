@@ -49,6 +49,98 @@ const redactTimelinePayload = (value: unknown): unknown => {
 
 const toText = (value: unknown) => String(value || '').trim();
 
+const newestFirstOrder = [{ createdAt: 'desc' as const }, { id: 'desc' as const }];
+
+const typePriority = (type: string) => {
+  if (type === 'REQUEST_CREATED') return 20;
+  if (type.startsWith('MESSAGE_')) return 30;
+  if (type === 'REQUEST_VARIANT_SUBMITTED') return 40;
+  if (type.startsWith('INTEGRATION_')) return 50;
+  return 10;
+};
+
+const sortTimeline = <T extends { at: Date; type: string; _sort: { sourceKey: string } }>(timeline: T[]) => {
+  return timeline
+    .sort((a, b) => {
+      const atDiff = a.at.getTime() - b.at.getTime();
+      if (atDiff) return atDiff;
+      const priorityDiff = typePriority(a.type) - typePriority(b.type);
+      if (priorityDiff) return priorityDiff;
+      const typeDiff = a.type.localeCompare(b.type);
+      if (typeDiff) return typeDiff;
+      return a._sort.sourceKey.localeCompare(b._sort.sourceKey);
+    })
+    .map(({ _sort, ...item }) => item);
+};
+
+const mapMessageTimelineItem = (item: {
+  id?: string | null;
+  requestId?: string | null;
+  variantId?: string | null;
+  direction?: string | null;
+  text?: string | null;
+  payload?: unknown;
+  createdAt: Date;
+}) => {
+  const direction = toText(item.direction).toUpperCase() === 'OUTGOING' ? 'OUTGOING' : 'INCOMING';
+  return {
+    _sort: { sourceKey: toText(item.id || item.requestId || item.variantId) },
+    at: item.createdAt,
+    type: `MESSAGE_${direction}`,
+    label: `message ${direction.toLowerCase()}`,
+    payload: redactTimelinePayload({
+      requestId: item.requestId,
+      variantId: item.variantId,
+      text: item.text,
+      direction,
+      meta: item.payload
+    })
+  };
+};
+
+const mapVariantTimelineItem = (item: {
+  id: string;
+  requestId?: string | null;
+  status?: unknown;
+  requesterDecision?: unknown;
+  fitQueueStatus?: unknown;
+  title?: string | null;
+  price?: number | null;
+  location?: string | null;
+  createdAt: Date;
+}) => ({
+  _sort: { sourceKey: toText(item.id) },
+  at: item.createdAt,
+  type: 'REQUEST_VARIANT_SUBMITTED',
+  label: `variant ${item.title || item.id}`,
+  payload: redactTimelinePayload({
+    requestId: item.requestId,
+    variantId: item.id,
+    status: item.status,
+    requesterDecision: item.requesterDecision,
+    fitQueueStatus: item.fitQueueStatus,
+    title: item.title,
+    price: item.price,
+    location: item.location
+  })
+});
+
+const mapIntegrationTimelineItem = (item: {
+  id?: string | null;
+  integration: string;
+  action: string;
+  status: string;
+  message?: string | null;
+  meta?: unknown;
+  createdAt: Date;
+}) => ({
+  _sort: { sourceKey: toText(item.id || `${item.integration}:${item.action}`) },
+  at: item.createdAt,
+  type: `INTEGRATION_${item.action}`,
+  label: `${item.integration}: ${item.action}`,
+  payload: redactTimelinePayload({ status: item.status, message: item.message, meta: item.meta })
+});
+
 const normalizeProviderExternalId = (provider: LeadIdentityProvider, externalId: string) => {
   const value = toText(externalId);
   if (!value) return undefined;
@@ -160,7 +252,6 @@ export const upsertLeadIdentities = async (params: {
 export const buildLeadTimeline = async (params: { leadId: string; companyId?: string | null }) => {
   const leadId = toText(params.leadId);
   if (!leadId) return [];
-  const newestFirstOrder = [{ createdAt: 'desc' as const }, { id: 'desc' as const }];
 
   const [activities, requests, logs] = await Promise.all([
     prisma.leadActivity.findMany({
@@ -202,14 +293,6 @@ export const buildLeadTimeline = async (params: { leadId: string; companyId?: st
     ])
     : [[], []];
 
-  const typePriority = (type: string) => {
-    if (type === 'REQUEST_CREATED') return 20;
-    if (type.startsWith('MESSAGE_')) return 30;
-    if (type === 'REQUEST_VARIANT_SUBMITTED') return 40;
-    if (type.startsWith('INTEGRATION_')) return 50;
-    return 10;
-  };
-
   const timeline = [
     ...activities.map((item) => ({
       _sort: { sourceKey: toText(item.id) },
@@ -225,56 +308,80 @@ export const buildLeadTimeline = async (params: { leadId: string; companyId?: st
       label: `request ${item.publicId || item.id}`,
       payload: redactTimelinePayload({ requestId: item.id, publicId: item.publicId, status: item.status })
     })),
-    ...messages.map((item) => {
-      const direction = toText(item.direction).toUpperCase() === 'OUTGOING' ? 'OUTGOING' : 'INCOMING';
-      return {
-        _sort: { sourceKey: toText(item.id || item.requestId || item.variantId) },
-        at: item.createdAt,
-        type: `MESSAGE_${direction}`,
-        label: `message ${direction.toLowerCase()}`,
-        payload: redactTimelinePayload({
-          requestId: item.requestId,
-          variantId: item.variantId,
-          text: item.text,
-          direction,
-          meta: item.payload
-        })
-      };
-    }),
-    ...variants.map((item) => ({
-      _sort: { sourceKey: toText(item.id) },
-      at: item.createdAt,
-      type: 'REQUEST_VARIANT_SUBMITTED',
-      label: `variant ${item.title || item.id}`,
-      payload: redactTimelinePayload({
-        requestId: item.requestId,
-        variantId: item.id,
-        status: item.status,
-        requesterDecision: item.requesterDecision,
-        fitQueueStatus: item.fitQueueStatus,
-        title: item.title,
-        price: item.price,
-        location: item.location
-      })
-    })),
-    ...logs.map((item) => ({
-      _sort: { sourceKey: toText(item.id) },
-      at: item.createdAt,
-      type: `INTEGRATION_${item.action}`,
-      label: `${item.integration}: ${item.action}`,
-      payload: redactTimelinePayload({ status: item.status, message: item.message, meta: item.meta })
-    }))
+    ...messages.map(mapMessageTimelineItem),
+    ...variants.map(mapVariantTimelineItem),
+    ...logs.map(mapIntegrationTimelineItem)
   ];
 
-  return timeline
-    .sort((a, b) => {
-      const atDiff = a.at.getTime() - b.at.getTime();
-      if (atDiff) return atDiff;
-      const priorityDiff = typePriority(a.type) - typePriority(b.type);
-      if (priorityDiff) return priorityDiff;
-      const typeDiff = a.type.localeCompare(b.type);
-      if (typeDiff) return typeDiff;
-      return a._sort.sourceKey.localeCompare(b._sort.sourceKey);
+  return sortTimeline(timeline);
+};
+
+export const buildRequestTimeline = async (params: { requestId: string; companyId?: string | null }) => {
+  const requestId = toText(params.requestId);
+  if (!requestId) return [];
+
+  const request = await prisma.b2bRequest.findUnique({ where: { id: requestId } });
+  if (!request) return [];
+  if (params.companyId && request.companyId && request.companyId !== params.companyId) return [];
+
+  const [activities, messages, variants] = await Promise.all([
+    request.leadId
+      ? prisma.leadActivity.findMany({
+        where: { leadId: request.leadId },
+        orderBy: newestFirstOrder,
+        take: 100
+      })
+      : Promise.resolve([]),
+    prisma.messageLog.findMany({
+      where: { requestId: request.id },
+      orderBy: newestFirstOrder,
+      take: 200
+    }),
+    prisma.requestVariant.findMany({
+      where: { requestId: request.id },
+      orderBy: newestFirstOrder,
+      take: 200
     })
-    .map(({ _sort, ...item }) => item);
+  ]);
+
+  const variantIds = variants.map((variant) => variant.id).filter(Boolean);
+  const integrationRefs = [
+    { entityId: request.id },
+    { traceId: request.id },
+    ...variantIds.flatMap((id) => [{ entityId: id }, { traceId: id }])
+  ];
+  const logs = await prisma.integrationEventLog.findMany({
+    where: {
+      ...(request.companyId || params.companyId ? { companyId: request.companyId || params.companyId } : {}),
+      OR: integrationRefs
+    },
+    orderBy: newestFirstOrder,
+    take: 100
+  });
+
+  return sortTimeline([
+    {
+      _sort: { sourceKey: toText(request.id || request.publicId) },
+      at: request.createdAt,
+      type: 'REQUEST_CREATED',
+      label: `request ${request.publicId || request.id}`,
+      payload: redactTimelinePayload({
+        requestId: request.id,
+        publicId: request.publicId,
+        status: request.status,
+        leadId: request.leadId,
+        assignedTo: request.assignedTo
+      })
+    },
+    ...activities.map((item) => ({
+      _sort: { sourceKey: toText(item.id) },
+      at: item.createdAt,
+      type: item.type,
+      label: item.type.replace(/_/g, ' ').toLowerCase(),
+      payload: redactTimelinePayload(item.payload)
+    })),
+    ...messages.map(mapMessageTimelineItem),
+    ...variants.map(mapVariantTimelineItem),
+    ...logs.map(mapIntegrationTimelineItem)
+  ]);
 };

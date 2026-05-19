@@ -1,7 +1,7 @@
 
 import { ApiClient } from './apiClient';
 import { appendSuperadminCompanyParam, attachSuperadminCompany } from '../utils/superadminCompany';
-import { B2BRequest, Variant } from '../types';
+import { B2BRequest, RequestTimelineItem, Variant } from '../types';
 
 export interface RequestsFilter {
     page?: number;
@@ -83,6 +83,13 @@ export const RequestsService = {
         const res = await ApiClient.post<B2BRequest>(`requests/${requestId}/link-chat`, attachSuperadminCompany({ chatId } as any));
         if (!res.ok) throw new Error(res.message);
         return res.data as B2BRequest;
+    },
+
+    async getTimeline(requestId: string): Promise<RequestTimelineItem[]> {
+        const queryString = appendSuperadminCompanyParam(new URLSearchParams()).toString();
+        const res = await ApiClient.get<{ items: RequestTimelineItem[] }>(`requests/${requestId}/timeline${queryString ? `?${queryString}` : ''}`);
+        if (!res.ok) throw new Error(res.message);
+        return res.data?.items || [];
     },
 
     async publishToChannel(requestId: string, payload: { botId?: string; channelId: string; text?: string; template?: string }) {
