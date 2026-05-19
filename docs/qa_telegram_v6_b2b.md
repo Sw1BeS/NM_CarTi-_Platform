@@ -69,6 +69,10 @@ This document outlines the testing procedures for the newly implemented Telegram
 7. Verify the **"Обрано авто: N"** bar appears at the bottom.
 8. Tap **"Надіслати запит"** on the floating action bar.
 9. Verify the Request view loads properly. Submit the request and verify the payload type is `lead_submit_multi` with an array of `carIds`.
+10. Verify the MiniApp stays on a success screen after submit instead of auto-closing.
+11. Verify Lead success actions are visible: **"Переглянути мої запити"**, **"Повернутись до каталогу"**, **"Написати менеджеру"**, **"На головну"**.
+12. For B2B MiniApp request submit, verify B2B-specific actions are visible: **"Активність / статуси"**, **"Запити на авто"**, **"Підтримка"**, **"На головну"**.
+13. Tap each action and verify it routes to the expected MiniApp screen without leaving the user in a dead end.
 
 ## 4a. Lead MiniApp "Мої заявки"
 **Objective:** Verify that LeadBot users can see their own request history from the MiniApp without exposing raw contact payloads.

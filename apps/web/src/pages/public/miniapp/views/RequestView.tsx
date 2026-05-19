@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowRight, CheckCircle, ChevronLeft } from 'lucide-react';
+import { ArrowRight, CheckCircle, ChevronLeft, ClipboardList, Home, LayoutGrid, MessageCircle } from 'lucide-react';
 import {
   BODY_TYPES,
   CITY_OPTIONS,
@@ -11,6 +11,7 @@ import {
 } from '../vehicleOptions';
 import { MultiSelectCombobox } from '../components/MultiSelectCombobox';
 import { SearchableSelect, type SearchableSelectOption } from '../components/SearchableSelect';
+import { resolveRequestSuccessContent, type RequestSuccessActionId } from '../requestSuccessActions';
 import type { VehicleTaxonomyResponse } from '../../../../services/miniappApi';
 
 type MiniAppSurfaceMode = 'LEAD' | 'B2B';
@@ -64,6 +65,9 @@ type RequestViewProps = {
   onDismissSubmitError?: () => void;
   onNextStep: () => void;
   onBackStep: () => void;
+  onViewRequests?: () => void;
+  onCatalog?: () => void;
+  onContactManager?: () => void;
   onHome: () => void;
 };
 
@@ -107,6 +111,16 @@ const toSelectOption = (label: string, aliases?: string[]): SearchableSelectOpti
   aliases
 });
 
+const successActionIcons: Record<RequestSuccessActionId, React.ComponentType<{ size?: number }>> = {
+  MY_REQUESTS: ClipboardList,
+  CATALOG: LayoutGrid,
+  MANAGER: MessageCircle,
+  B2B_ACTIVITY: ClipboardList,
+  B2B_REQUESTS: LayoutGrid,
+  B2B_SUPPORT: MessageCircle,
+  HOME: Home
+};
+
 export const RequestView = ({
   reqStep,
   reqData,
@@ -137,6 +151,9 @@ export const RequestView = ({
   onDismissSubmitError,
   onNextStep,
   onBackStep,
+  onViewRequests,
+  onCatalog,
+  onContactManager,
   onHome
 }: RequestViewProps) => {
   const brandSources = (taxonomy?.brands?.length ? taxonomy.brands : VEHICLE_BRANDS.map(item => ({
@@ -182,6 +199,22 @@ export const RequestView = ({
   const title = surfaceMode === 'B2B'
     ? 'Створити B2B запит'
     : (requestType === 'SELL' ? 'Продаж авто' : 'Підбір авто');
+  const successContent = resolveRequestSuccessContent(surfaceMode);
+  const handleSuccessAction = (actionId: RequestSuccessActionId) => {
+    if (actionId === 'MY_REQUESTS' || actionId === 'B2B_ACTIVITY') {
+      onViewRequests?.();
+      return;
+    }
+    if (actionId === 'CATALOG' || actionId === 'B2B_REQUESTS') {
+      onCatalog?.();
+      return;
+    }
+    if (actionId === 'MANAGER' || actionId === 'B2B_SUPPORT') {
+      onContactManager?.();
+      return;
+    }
+    onHome();
+  };
   const allowMultiVehicleChoice = surfaceMode === 'LEAD' && requestType === 'BUY' && selectedCarsCount === 0;
   const pickBrand = (brand: string) => {
     const nextBrands = allowMultiVehicleChoice
@@ -225,15 +258,46 @@ export const RequestView = ({
   return (
     <div className="animate-fade-in h-full overflow-y-auto bg-black px-5 pb-24 pt-16 flex flex-col justify-start">
       {reqStep === 5 ? (
-        <div className="text-center animate-slide-up">
+        <div className="animate-slide-up">
           <div className="w-20 h-20 rounded-full bg-white/10 text-white flex items-center justify-center mx-auto mb-6 border border-white/15">
             <CheckCircle size={42} />
           </div>
-          <h2 className="text-2xl font-bold text-white mb-2">Запит відправлено</h2>
-          <p className="text-white/56 mb-8">Mini App можна закрити. Бот попросить контакт у Telegram-чаті.</p>
-          <button onClick={onHome} className="w-full py-4 rounded-xl font-bold text-lg" style={metallicStyle}>
-            На головну
-          </button>
+          <div className="text-center">
+            <h2 className="text-2xl font-bold text-white mb-2">{successContent.title}</h2>
+            <p className="text-white/56 mb-8">{successContent.message}</p>
+          </div>
+          <div className="space-y-3">
+            {successContent.actions.map(action => {
+              const Icon = successActionIcons[action.id];
+              return (
+                <button
+                  key={action.id}
+                  type="button"
+                  onClick={() => handleSuccessAction(action.id)}
+                  className={`w-full rounded-xl border p-4 text-left transition-transform active:scale-[0.99] ${
+                    action.primary
+                      ? 'border-white/20 text-black'
+                      : 'border-white/10 bg-[#15171a] text-white'
+                  }`}
+                  style={action.primary ? metallicStyle : undefined}
+                >
+                  <span className="flex items-center gap-3">
+                    <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
+                      action.primary ? 'bg-black/10 text-black' : 'bg-white/8 text-white'
+                    }`}>
+                      <Icon size={20} />
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-sm font-bold">{action.label}</span>
+                      <span className={`mt-1 block text-xs ${action.primary ? 'text-black/62' : 'text-white/45'}`}>
+                        {action.description}
+                      </span>
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       ) : (
         <>

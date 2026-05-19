@@ -1115,11 +1115,13 @@ const MiniAppContent = () => {
 
     const closeMiniAppOrShowSuccess = (message = 'Запит відправлено. Відкрийте чат з ботом для передачі контакту.') => {
         const tg = (window as any).Telegram?.WebApp;
-        if (tg?.close) {
-            tg.close();
-            return;
+        try {
+            tg?.HapticFeedback?.notificationOccurred?.('success');
+        } catch {
+            // Telegram haptics are optional and should never block the success state.
         }
         pushToast(message, 'success');
+        setView('REQUEST');
         setReqStep(5);
     };
 
@@ -3534,6 +3536,9 @@ const MiniAppContent = () => {
                 onDismissSubmitError={() => setRequestSubmitError(null)}
                 onNextStep={handleNextStep}
                 onBackStep={() => setReqStep(prev => Math.max(1, prev - 1))}
+                onViewRequests={() => { setReqStep(1); setView('STATUS'); }}
+                onCatalog={() => { setReqStep(1); setView(isB2BMode ? 'B2B_REQUESTS' : 'INVENTORY'); }}
+                onContactManager={() => { setReqStep(1); setView(isB2BMode ? 'SUPPORT' : 'CONTACTS'); }}
                 onHome={() => { setReqStep(1); setView('HOME'); }}
             />
         );
