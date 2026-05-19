@@ -3,7 +3,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Bot, MiniAppConfig, CarListing } from '../../types';
 import { getPublicInventory } from '../../services/publicApi';
-import { createMiniAppLeadIntent, createMiniAppRequest, getMiniAppB2BPartnerPortal, getMiniAppB2bMyRequests, getMiniAppB2bReceivedVariants, getMiniAppCar, getMiniAppConfig, getMiniAppFavorites, getMiniAppRequestStatus, getMiniAppShowcaseInventory, getMiniAppVehicleTaxonomy, setMiniAppB2bVariantDecision, startMiniAppBotFlow, submitMiniAppB2bOffer, toggleMiniAppFavorite, trackMiniAppEvent, type MiniAppB2BPartnerPortalResponse, type MiniAppB2bMyRequestItem, type MiniAppB2bReceivedVariantItem, type MiniAppRequestSubtype, type MiniAppTrackingMeta, type VehicleTaxonomyResponse } from '../../services/miniappApi';
+import { createMiniAppLeadIntent, createMiniAppRequest, getMiniAppB2BPartnerPortal, getMiniAppB2bActiveRequests, getMiniAppB2bMyRequests, getMiniAppB2bReceivedVariants, getMiniAppCar, getMiniAppConfig, getMiniAppFavorites, getMiniAppRequestStatus, getMiniAppShowcaseInventory, getMiniAppVehicleTaxonomy, setMiniAppB2bVariantDecision, startMiniAppBotFlow, submitMiniAppB2bOffer, toggleMiniAppFavorite, trackMiniAppEvent, type MiniAppB2BPartnerPortalResponse, type MiniAppB2bActiveRequestItem, type MiniAppB2bMyRequestItem, type MiniAppB2bReceivedVariantItem, type MiniAppRequestSubtype, type MiniAppTrackingMeta, type VehicleTaxonomyResponse } from '../../services/miniappApi';
 import {
     Search, LayoutGrid, User, Plus, Filter, DollarSign, Car, Truck,
     MessageSquare, Zap, List as ListIcon, Star, Phone, Home, Heart, ClipboardList,
@@ -117,7 +117,7 @@ const PLACEHOLDER_IMAGE = 'https://images.unsplash.com/photo-1533473359331-0135e
 type InventoryTab = 'IN_STOCK' | 'IN_TRANSIT';
 type TelegramWriteState = 'unknown' | 'ready' | 'outside_telegram' | 'missing_initdata' | 'read_only_preview' | 'invalid_initdata';
 type MiniAppSurfaceMode = 'LEAD' | 'B2B';
-type MiniAppView = 'HOME' | 'INVENTORY' | 'LISTING' | 'FAVORITES' | 'REQUEST' | 'STATUS' | 'OFFER' | 'PROFILE' | 'SUPPORT' | 'CONTACTS';
+type MiniAppView = 'HOME' | 'INVENTORY' | 'LISTING' | 'FAVORITES' | 'REQUEST' | 'STATUS' | 'B2B_REQUESTS' | 'OFFER' | 'PROFILE' | 'SUPPORT' | 'CONTACTS';
 type RequestType = 'BUY' | 'SELL';
 type RequestSubtype = MiniAppRequestSubtype;
 type B2BOfferForm = {
@@ -297,6 +297,9 @@ const MiniAppContent = () => {
     const [statusResult, setStatusResult] = useState<any>(null);
     const [b2bPortal, setB2bPortal] = useState<MiniAppB2BPartnerPortalResponse | null>(null);
     const [b2bPortalLoading, setB2bPortalLoading] = useState(false);
+    const [b2bActiveRequests, setB2bActiveRequests] = useState<MiniAppB2bActiveRequestItem[]>([]);
+    const [b2bActiveRequestsLoading, setB2bActiveRequestsLoading] = useState(false);
+    const [b2bActiveRequestsError, setB2bActiveRequestsError] = useState<string | null>(null);
     const [b2bMyRequests, setB2bMyRequests] = useState<MiniAppB2bMyRequestItem[]>([]);
     const [b2bReceivedVariants, setB2bReceivedVariants] = useState<MiniAppB2bReceivedVariantItem[]>([]);
     const [b2bActivityLoading, setB2bActivityLoading] = useState(false);
@@ -1324,6 +1327,29 @@ const MiniAppContent = () => {
         return () => clearTimeout(debounce);
     }, [search, filters, tab, targetSlug]); // Re-fetch on filter change
 
+    const loadB2bActiveRequests = useCallback(async () => {
+        if (config?.surfaceMode !== 'B2B' || !b2bPortal?.approved) return;
+        const activeInitData = initData || readRuntimeTelegramInitData();
+        if (!activeInitData) {
+            setB2bActiveRequestsError('Запити мережі доступні лише із захищеної Telegram Mini App сесії.');
+            return;
+        }
+
+        if (!initData) setInitData(activeInitData);
+        setB2bActiveRequestsLoading(true);
+        setB2bActiveRequestsError(null);
+
+        try {
+            const activitySlug = targetSlug || slug || 'system';
+            const res = await getMiniAppB2bActiveRequests({ slug: activitySlug, initData: activeInitData, limit: 30 });
+            setB2bActiveRequests(Array.isArray(res.items) ? res.items : []);
+        } catch (e) {
+            setB2bActiveRequestsError(resolveMiniAppWriteError(e, 'Не вдалося завантажити запити мережі.'));
+        } finally {
+            setB2bActiveRequestsLoading(false);
+        }
+    }, [b2bPortal?.approved, config?.surfaceMode, initData, slug, targetSlug]);
+
     const loadB2bActivity = useCallback(async () => {
         if (config?.surfaceMode !== 'B2B' || !b2bPortal?.approved) return;
         const activityInitData = initData || readRuntimeTelegramInitData();
@@ -1356,7 +1382,10 @@ const MiniAppContent = () => {
         if (view === 'STATUS') {
             void loadB2bActivity();
         }
-    }, [loadB2bActivity, view]);
+        if (view === 'B2B_REQUESTS') {
+            void loadB2bActiveRequests();
+        }
+    }, [loadB2bActivity, loadB2bActiveRequests, view]);
 
     const handleB2bVariantDecision = useCallback(async (variantId: string, decision: 'FIT' | 'NOT_FIT') => {
         const decisionInitData = initData || readRuntimeTelegramInitData();
@@ -1707,7 +1736,7 @@ const MiniAppContent = () => {
             { id: 'contacts', label: 'Менеджер', hint: 'Написати напряму', icon: 'MessageCircle', onClick: () => setView('CONTACTS') }
         ];
         const b2bQuickActions = [
-            { id: 'requests', label: 'Запити мережі', hint: 'Статуси та ID', icon: 'ClipboardList', onClick: () => setView('STATUS') },
+            { id: 'requests', label: 'Запити мережі', hint: 'Активні запити без контактів', icon: 'ClipboardList', onClick: () => setView('B2B_REQUESTS') },
             { id: 'create', label: 'Створити запит', hint: 'Пошук для партнера', icon: 'Search', onClick: () => openRequest('BUY') },
             { id: 'offer', label: 'Запропонувати авто', hint: 'Варіант по запиту', icon: 'Plus', onClick: () => openB2BOffer() },
             { id: 'stock', label: 'Склад B2B', hint: 'Inventory партнерів', icon: 'LayoutGrid', onClick: () => setView('INVENTORY') }
@@ -2480,6 +2509,126 @@ const MiniAppContent = () => {
                             {b2bOfferSubmitting ? 'Відправляємо' : 'Подати варіант'}
                         </button>
                     </section>
+                </div>
+            </div>
+        );
+    };
+
+    const renderB2BRequests = () => {
+        const formatBudget = (item: MiniAppB2bActiveRequestItem) => {
+            if (item.budgetMin && item.budgetMax) return `$${item.budgetMin.toLocaleString()} - $${item.budgetMax.toLocaleString()}`;
+            if (item.budgetMax) return `до $${item.budgetMax.toLocaleString()}`;
+            if (item.budgetMin) return `від $${item.budgetMin.toLocaleString()}`;
+            return '—';
+        };
+        const formatYear = (item: MiniAppB2bActiveRequestItem) => {
+            if (item.yearMin && item.yearMax) return `${item.yearMin}-${item.yearMax}`;
+            if (item.yearMin) return `${item.yearMin}+`;
+            if (item.yearMax) return `до ${item.yearMax}`;
+            return '—';
+        };
+        const criteriaText = (item: MiniAppB2bActiveRequestItem) => {
+            const requestCriteria = item.criteria?.request && typeof item.criteria.request === 'object'
+                ? item.criteria.request as Record<string, unknown>
+                : item.criteria || {};
+            return [
+                requestCriteria.brand,
+                requestCriteria.model,
+                requestCriteria.bodyType,
+                requestCriteria.fuel
+            ].map(value => String(value || '').trim()).filter(Boolean).join(' · ');
+        };
+
+        return (
+            <div className="animate-fade-in h-full overflow-y-auto bg-[#050608] px-5 pb-24 pt-7 text-white">
+                <div className="flex flex-col gap-4">
+                    <section className="rounded-[24px] border border-white/10 bg-[#111417] p-5">
+                        <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-white/40">Partner network</p>
+                        <h2 className="mt-2 text-[28px] font-black leading-tight text-white">Запити мережі</h2>
+                        <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+                            <div className="rounded-[14px] border border-white/10 bg-black/22 px-2 py-3">
+                                <div className="text-lg font-black text-white">{b2bActiveRequests.length}</div>
+                                <div className="mt-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-white/34">Активні</div>
+                            </div>
+                            <div className="rounded-[14px] border border-white/10 bg-black/22 px-2 py-3">
+                                <div className="text-lg font-black text-white">{b2bPortal?.partner?.role || '—'}</div>
+                                <div className="mt-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-white/34">Роль</div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={loadB2bActiveRequests}
+                                disabled={b2bActiveRequestsLoading}
+                                className="rounded-[14px] border border-white/10 bg-black/22 px-2 py-3 text-center disabled:opacity-50"
+                            >
+                                <div className="text-lg font-black text-white">{b2bActiveRequestsLoading ? '...' : '↻'}</div>
+                                <div className="mt-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-white/34">Оновити</div>
+                            </button>
+                        </div>
+                    </section>
+
+                    {b2bActiveRequestsError && (
+                        <div className="rounded-[16px] border border-red-400/20 bg-red-500/10 p-3 text-sm text-red-50">
+                            {b2bActiveRequestsError}
+                        </div>
+                    )}
+
+                    {b2bActiveRequestsLoading && !b2bActiveRequests.length ? (
+                        <div className="rounded-[18px] border border-white/10 bg-white/[0.045] p-5 text-sm text-white/52">
+                            Завантажуємо запити...
+                        </div>
+                    ) : b2bActiveRequests.length ? (
+                        b2bActiveRequests.map(item => (
+                            <article key={item.id} className="rounded-[20px] border border-white/10 bg-[#111417] p-4">
+                                <div className="flex items-start justify-between gap-3">
+                                    <div className="min-w-0">
+                                        <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-white/35">
+                                            {item.publicId || item.id}
+                                        </div>
+                                        <h3 className="mt-1 line-clamp-2 text-lg font-black leading-tight text-white">
+                                            {item.title || 'B2B запит'}
+                                        </h3>
+                                    </div>
+                                    <div className="shrink-0 rounded-full border border-white/10 bg-white/[0.055] px-2 py-1 text-[10px] font-bold text-white/62">
+                                        {item.status || 'OPEN'}
+                                    </div>
+                                </div>
+
+                                <div className="mt-3 grid grid-cols-3 gap-2 text-[11px]">
+                                    <div className="rounded-[14px] border border-white/10 bg-black/22 p-2">
+                                        <div className="text-white/34">Бюджет</div>
+                                        <div className="mt-0.5 font-black text-white">{formatBudget(item)}</div>
+                                    </div>
+                                    <div className="rounded-[14px] border border-white/10 bg-black/22 p-2">
+                                        <div className="text-white/34">Рік</div>
+                                        <div className="mt-0.5 font-black text-white">{formatYear(item)}</div>
+                                    </div>
+                                    <div className="rounded-[14px] border border-white/10 bg-black/22 p-2">
+                                        <div className="text-white/34">Варіанти</div>
+                                        <div className="mt-0.5 font-black text-white">{item.variantsCount ?? 0}</div>
+                                    </div>
+                                </div>
+
+                                {(criteriaText(item) || item.city || item.description) && (
+                                    <div className="mt-3 rounded-[14px] border border-white/10 bg-black/18 p-3 text-xs leading-relaxed text-white/50">
+                                        {[criteriaText(item), item.city, item.description].filter(Boolean).join(' · ')}
+                                    </div>
+                                )}
+
+                                <button
+                                    type="button"
+                                    onClick={() => openB2BOffer(item.publicId || item.id)}
+                                    className="mt-4 w-full rounded-[16px] py-3 text-sm font-black"
+                                    style={premiumCtaStyle}
+                                >
+                                    Запропонувати авто
+                                </button>
+                            </article>
+                        ))
+                    ) : (
+                        <div className="rounded-[18px] border border-white/10 bg-white/[0.045] p-5 text-sm text-white/52">
+                            Активних запитів мережі поки немає.
+                        </div>
+                    )}
                 </div>
             </div>
         );
@@ -3326,6 +3475,7 @@ const MiniAppContent = () => {
                 {view === 'LISTING' && renderListing()}
                 {view === 'REQUEST' && renderRequest()}
                 {view === 'STATUS' && renderStatus()}
+                {view === 'B2B_REQUESTS' && renderB2BRequests()}
                 {view === 'OFFER' && renderB2BOffer()}
                 {view === 'PROFILE' && renderProfile()}
                 {view === 'SUPPORT' && renderSupport()}

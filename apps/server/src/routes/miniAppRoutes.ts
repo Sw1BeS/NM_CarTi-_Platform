@@ -286,6 +286,26 @@ const mapB2BMiniAppVariantOutput = (variant: any, request?: { publicId?: string 
   createdAt: variant.createdAt
 });
 
+const mapB2BMiniAppNetworkRequestOutput = (request: any) => {
+  const safeDescription = sanitizeB2BPublicSpecs(request.description);
+  return {
+    id: request.id,
+    publicId: request.publicId || request.id,
+    title: request.title,
+    description: typeof safeDescription === 'string' ? safeDescription : '',
+    status: request.status,
+    budgetMin: request.budgetMin,
+    budgetMax: request.budgetMax,
+    yearMin: request.yearMin,
+    yearMax: request.yearMax,
+    city: request.city,
+    channelPostUrl: request.channelPostUrl,
+    variantsCount: Number(request?._count?.variants || 0),
+    criteria: sanitizeB2BPublicSpecs(request.payload || {}) || {},
+    createdAt: request.createdAt
+  };
+};
+
 const buildInitDataDiagnostics = (initData?: string) => {
   if (!initData) return { hasInitData: false };
   const params = new URLSearchParams(initData);
@@ -870,6 +890,48 @@ router.get('/b2b/requests/my', async (req, res) => {
     });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : 'Failed to load requests';
+    errorResponse(res, 500, message);
+  }
+});
+
+router.get('/b2b/requests/active', async (req, res) => {
+  try {
+    const slug = readString(req.query.slug);
+    const initData = readString(req.query.initData);
+    if (!slug) return errorResponse(res, 400, 'slug is required');
+    if (!initData) return errorResponse(res, 400, 'initData is required');
+
+    const config = await miniAppService.getConfig(slug);
+    if (!isB2BMiniAppConfig(config as Record<string, any>)) {
+      return b2bPortalUnavailableResponse(res);
+    }
+
+    const initCheck = await requireInitData(initData, config.companyId, config.botId);
+    if (!initCheck.ok) return errorResponse(res, 401, initCheck.message || 'Unauthorized');
+
+    const partnerState = await resolveB2BMiniAppPartner(config as Record<string, any>, initData);
+    if (!partnerState.approved) return b2bPartnerNotApprovedResponse(res);
+
+    const limit = Math.min(50, Math.max(1, readNumber(req.query.limit) || 20));
+    const requests = await prisma.b2bRequest.findMany({
+      where: {
+        companyId: config.companyId,
+        status: { in: ['PUBLISHED', 'COLLECTING_VARIANTS'] },
+        requesterPartnerId: { not: partnerState.partner.partnerId }
+      },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+      include: {
+        _count: { select: { variants: true } }
+      }
+    });
+
+    res.json({
+      ok: true,
+      items: requests.map(mapB2BMiniAppNetworkRequestOutput)
+    });
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'Failed to load active requests';
     errorResponse(res, 500, message);
   }
 });

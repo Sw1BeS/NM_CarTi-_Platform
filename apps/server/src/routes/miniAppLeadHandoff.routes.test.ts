@@ -1172,6 +1172,91 @@ describe('MiniApp Lead handoff routes', () => {
     expect(prismaMock.b2bRequest.findMany).not.toHaveBeenCalled();
   });
 
+  it('lists active B2B network requests without exposing requester contacts', async () => {
+    miniAppServiceMock.getConfig.mockResolvedValueOnce({
+      companyId: 'company_1',
+      botId: 'bot_b2b',
+      publicSlug: 'cardealer_lviv_bot',
+      template: 'B2B',
+      miniapp: { surfaceMode: 'B2B' }
+    });
+    prismaMock.partnerUser.findFirst.mockResolvedValueOnce({
+      partnerId: 'seller_partner_1',
+      role: 'MANAGER',
+      partner: {
+        id: 'seller_partner_1',
+        name: 'Dealer Seller',
+        partnerCode: 'DS1',
+        showcaseSlug: 'dealer-seller'
+      }
+    });
+    prismaMock.b2bRequest.findMany.mockResolvedValueOnce([{
+      id: 'request_1',
+      publicId: 'CD-2026-000123',
+      companyId: 'company_1',
+      requesterPartnerId: 'requester_partner_1',
+      title: 'Hyundai IONIQ 5 до 20000$',
+      description: 'Потрібен IONIQ 5, contact +380671234567, requester@example.com',
+      status: 'COLLECTING_VARIANTS',
+      budgetMin: 12000,
+      budgetMax: 20000,
+      yearMin: 2022,
+      yearMax: 2024,
+      city: 'Lviv',
+      payload: {
+        phone: '+380671234567',
+        request: {
+          brand: 'Hyundai',
+          model: 'IONIQ 5',
+          email: 'requester@example.com',
+          comment: 'Без контактів у network list'
+        }
+      },
+      _count: { variants: 2 },
+      createdAt: new Date('2026-05-18T10:00:00.000Z')
+    }]);
+    const app = await buildApp();
+
+    const res = await request(app)
+      .get('/api/miniapp/b2b/requests/active')
+      .query({
+        slug: 'cardealer_lviv_bot',
+        initData: 'signed-init-data'
+      });
+
+    expect(res.status).toBe(200);
+    expect(prismaMock.b2bRequest.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        companyId: 'company_1',
+        status: { in: ['PUBLISHED', 'COLLECTING_VARIANTS'] },
+        requesterPartnerId: { not: 'seller_partner_1' }
+      })
+    }));
+    expect(res.body.items).toHaveLength(1);
+    expect(res.body.items[0]).toMatchObject({
+      id: 'request_1',
+      publicId: 'CD-2026-000123',
+      title: 'Hyundai IONIQ 5 до 20000$',
+      status: 'COLLECTING_VARIANTS',
+      variantsCount: 2,
+      budgetMax: 20000,
+      yearMin: 2022,
+      yearMax: 2024,
+      city: 'Lviv',
+      criteria: {
+        request: {
+          brand: 'Hyundai',
+          model: 'IONIQ 5',
+          comment: 'Без контактів у network list'
+        }
+      }
+    });
+    const serialized = JSON.stringify(res.body.items[0]);
+    expect(serialized).not.toContain('+380671234567');
+    expect(serialized).not.toContain('requester@example.com');
+    expect(res.body.items[0]).not.toHaveProperty('contact');
+  });
+
   it('does not expose contacts in approved B2B received variants', async () => {
     miniAppServiceMock.getConfig.mockResolvedValueOnce({
       companyId: 'company_1',

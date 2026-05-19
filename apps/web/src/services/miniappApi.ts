@@ -114,6 +114,23 @@ export type MiniAppB2bMyRequestItem = {
   createdAt?: string;
 };
 
+export type MiniAppB2bActiveRequestItem = {
+  id: string;
+  publicId?: string;
+  title?: string;
+  description?: string;
+  status?: string;
+  budgetMin?: number;
+  budgetMax?: number;
+  yearMin?: number;
+  yearMax?: number;
+  city?: string;
+  channelPostUrl?: string;
+  variantsCount?: number;
+  criteria?: Record<string, unknown>;
+  createdAt?: string;
+};
+
 export type MiniAppB2bReceivedVariantItem = {
   id: string;
   requestId?: string;
@@ -385,6 +402,21 @@ export function buildMiniAppB2bMyRequestsPath(params: { slug: string; initData: 
 
 export async function getMiniAppB2bMyRequests(params: { slug: string; initData: string }): Promise<MiniAppB2bListResponse<MiniAppB2bMyRequestItem>> {
   return await apiFetch(buildMiniAppB2bMyRequestsPath(params), {
+    method: 'GET',
+    skipAuth: true
+  });
+}
+
+export function buildMiniAppB2bActiveRequestsPath(params: { slug: string; initData: string; limit?: number }) {
+  const query = new URLSearchParams();
+  query.append('slug', params.slug);
+  query.append('initData', params.initData);
+  if (params.limit) query.append('limit', String(params.limit));
+  return `/miniapp/b2b/requests/active?${query.toString()}`;
+}
+
+export async function getMiniAppB2bActiveRequests(params: { slug: string; initData: string; limit?: number }): Promise<MiniAppB2bListResponse<MiniAppB2bActiveRequestItem>> {
+  return await apiFetch(buildMiniAppB2bActiveRequestsPath(params), {
     method: 'GET',
     skipAuth: true
   });
