@@ -8,6 +8,7 @@ import {
   toSafeSalesDriveConfig,
   type SalesDriveOrderListOptions
 } from './salesdrive.connector.js';
+import { processSalesDriveRequestSyncQueue } from './salesdriveSync.service.js';
 
 const mapStatus = (status: string): IntegrationLogStatus => status === 'OK' ? 'OK' : status === 'CONFIG_MISSING' ? 'WARN' : 'ERROR';
 
@@ -86,6 +87,14 @@ export class SalesDriveService {
       count: items.length,
       items
     };
+  }
+
+  async processRequestSyncs(companyId: string | null | undefined, options: { requestId?: string; limit?: number } = {}) {
+    return processSalesDriveRequestSyncQueue({
+      companyId: companyId || undefined,
+      requestId: options.requestId,
+      limit: options.limit
+    });
   }
 }
 

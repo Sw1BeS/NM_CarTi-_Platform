@@ -51,4 +51,15 @@ router.post('/preview', requireRole(roles), async (req: any, res) => {
   }
 });
 
+router.post('/sync/process', requireRole(['OWNER', 'ADMIN']), async (req: any, res) => {
+  try {
+    const limit = parsePositiveInt(req.body?.limit, 25, 50);
+    const requestId = typeof req.body?.requestId === 'string' ? req.body.requestId : undefined;
+    const result = await salesDriveService.processRequestSyncs(req.companyId, { requestId, limit });
+    res.json(result);
+  } catch (e: any) {
+    return errorResponse(res, 400, e.message || 'SalesDrive sync processing error', 'SALESDRIVE_SYNC_PROCESS');
+  }
+});
+
 export default router;

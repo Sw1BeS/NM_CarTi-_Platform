@@ -1,6 +1,7 @@
 export const SALESDRIVE_INTEGRATION = 'SALESDRIVE';
 
 const DEFAULT_ORDER_LIST_PATH = '/api/order/list/';
+const DEFAULT_ORDER_CREATE_PATH = '/handler/';
 const DEFAULT_STATUSES_PATH = '/api/statuses/';
 const DEFAULT_TIMEOUT_MS = 8000;
 
@@ -9,6 +10,7 @@ type EnvLike = Record<string, string | undefined>;
 export type SalesDriveConfig = {
   baseUrl: string;
   apiKey: string;
+  orderCreatePath: string;
   orderListPath: string;
   statusesPath: string;
   syncEnabled: boolean;
@@ -73,7 +75,50 @@ export type SalesDriveImportPreview = {
   warnings: string[];
 };
 
-type FetchLike = (url: string, init?: RequestInit) => Promise<{
+export type SalesDriveOrderProductInput = {
+  id?: string | number | null;
+  name?: string | null;
+  costPerItem?: string | number | null;
+  amount?: string | number | null;
+  description?: string | null;
+  discount?: string | number | null;
+  sku?: string | null;
+};
+
+export type SalesDriveOrderAddInput = {
+  externalId: string;
+  name?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+  middleName?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  company?: string | null;
+  title?: string | null;
+  comment?: string | null;
+  site?: string | null;
+  products?: SalesDriveOrderProductInput[];
+  utm?: {
+    sourceFull?: string | null;
+    source?: string | null;
+    medium?: string | null;
+    campaign?: string | null;
+    content?: string | null;
+    term?: string | null;
+    page?: string | null;
+  } | null;
+};
+
+export type SalesDriveOrderCreateResult = {
+  success: boolean;
+  externalId: string;
+  orderId?: string | number;
+  userId?: string | number;
+  httpStatus: number;
+  raw: unknown;
+};
+
+export type SalesDriveFetchLike = (url: string, init?: RequestInit) => Promise<{
   ok: boolean;
   status: number;
   statusText?: string;
@@ -130,7 +175,7 @@ const safeMessage = (value: unknown, config: SalesDriveConfig) => {
   return message.replace(/(?:\+?\d[\d\s()\-]{6,}\d)/g, '[redacted-phone]');
 };
 
-const buildUrl = (config: SalesDriveConfig, path: string, params: Record<string, string | number | undefined>) => {
+const buildUrl = (config: SalesDriveConfig, path: string, params: Record<string, string | number | undefined> = {}) => {
   const url = new URL(`${config.baseUrl}${normalizePath(path, DEFAULT_ORDER_LIST_PATH)}`);
   Object.entries(params).forEach(([key, value]) => {
     if (value === undefined || value === null || value === '') return;
@@ -164,6 +209,31 @@ const joinName = (...parts: unknown[]) => parts.map(text).filter(Boolean).join('
 
 const firstArrayItem = (value: unknown) => Array.isArray(value) && value.length ? value[0] : undefined;
 
+const compactObject = <T extends Record<string, unknown>>(value: T) => Object.fromEntries(
+  Object.entries(value).filter(([, item]) => item !== undefined && item !== null && item !== '')
+) as Partial<T>;
+
+const splitName = (input: SalesDriveOrderAddInput) => {
+  const explicitFirst = text(input.firstName);
+  const explicitLast = text(input.lastName);
+  const name = text(input.name);
+  if (explicitFirst || explicitLast) {
+    return {
+      fName: explicitFirst || undefined,
+      lName: explicitLast || undefined,
+      mName: text(input.middleName) || undefined
+    };
+  }
+
+  const parts = name.split(/\s+/).filter(Boolean);
+  if (!parts.length) return {};
+  return {
+    fName: parts[0],
+    lName: parts.length > 1 ? parts.slice(1).join(' ') : undefined,
+    mName: text(input.middleName) || undefined
+  };
+};
+
 export const readSalesDriveConfig = (env: EnvLike = process.env): SalesDriveConfig => {
   const baseUrl = normalizeBaseUrl(env.SALESDRIVE_API_BASE_URL || env.SALESDRIVE_API_URL);
   const apiKey = text(env.SALESDRIVE_API_KEY || env.SALESDRIVE_FORM_API_KEY);
@@ -175,6 +245,7 @@ export const readSalesDriveConfig = (env: EnvLike = process.env): SalesDriveConf
   return {
     baseUrl,
     apiKey,
+    orderCreatePath: normalizePath(env.SALESDRIVE_ORDER_CREATE_PATH, DEFAULT_ORDER_CREATE_PATH),
     orderListPath: normalizePath(env.SALESDRIVE_ORDER_LIST_PATH, DEFAULT_ORDER_LIST_PATH),
     statusesPath: normalizePath(env.SALESDRIVE_STATUSES_PATH, DEFAULT_STATUSES_PATH),
     syncEnabled: isEnabled(env.SALESDRIVE_SYNC_ENABLED, false),
@@ -186,6 +257,7 @@ export const readSalesDriveConfig = (env: EnvLike = process.env): SalesDriveConf
 
 export const toSafeSalesDriveConfig = (config: SalesDriveConfig): SafeSalesDriveConfig => ({
   baseUrl: config.baseUrl,
+  orderCreatePath: config.orderCreatePath,
   orderListPath: config.orderListPath,
   statusesPath: config.statusesPath,
   syncEnabled: config.syncEnabled,
@@ -201,15 +273,15 @@ export const salesDriveHeaders = (config: SalesDriveConfig) => ({
   'Form-Api-Key': config.apiKey
 });
 
-const getFetcher = (fetcher?: FetchLike): FetchLike => {
+const getFetcher = (fetcher?: SalesDriveFetchLike): SalesDriveFetchLike => {
   if (fetcher) return fetcher;
-  if (typeof fetch === 'function') return fetch as FetchLike;
+  if (typeof fetch === 'function') return fetch as SalesDriveFetchLike;
   throw new Error('Fetch API is not available in this runtime');
 };
 
 export const checkSalesDriveHealth = async (
   config = readSalesDriveConfig(),
-  fetcher?: FetchLike
+  fetcher?: SalesDriveFetchLike
 ): Promise<SalesDriveHealth> => {
   const checkedAt = new Date().toISOString();
   const safeConfig = toSafeSalesDriveConfig(config);
@@ -277,7 +349,7 @@ export const checkSalesDriveHealth = async (
 export const fetchSalesDriveOrderList = async (
   options: SalesDriveOrderListOptions = {},
   config = readSalesDriveConfig(),
-  fetcher?: FetchLike
+  fetcher?: SalesDriveFetchLike
 ): Promise<SalesDriveOrderListResult> => {
   ensureConfigured(config);
   const page = normalizeInt(options.page, 1, 1, 100000);
@@ -310,6 +382,91 @@ export const fetchSalesDriveOrderList = async (
       : [];
 
   return { page, limit, rows, raw };
+};
+
+export const buildSalesDriveOrderAddPayload = (
+  input: SalesDriveOrderAddInput,
+  config: SalesDriveConfig
+) => {
+  const products = (input.products || [])
+    .map((product) => compactObject({
+      id: text(product.id) || undefined,
+      name: text(product.name) || undefined,
+      costPerItem: product.costPerItem ?? undefined,
+      amount: product.amount ?? undefined,
+      description: text(product.description) || undefined,
+      discount: product.discount ?? undefined,
+      sku: text(product.sku) || undefined
+    }))
+    .filter((product) => Object.keys(product).length > 0);
+  const name = splitName(input);
+  const phone = normalizePhone(input.phone);
+  const email = normalizeEmail(input.email);
+  const comment = [
+    text(input.title),
+    text(input.comment)
+  ].filter(Boolean).join('\n') || undefined;
+  const utm = input.utm || {};
+
+  return compactObject({
+    form: config.apiKey,
+    getResultData: 1,
+    ...name,
+    phone,
+    email,
+    company: text(input.company) || undefined,
+    products: products.length ? products : undefined,
+    comment,
+    sajt: text(input.site) || undefined,
+    externalId: text(input.externalId),
+    prodex24source_full: text(utm.sourceFull) || undefined,
+    prodex24source: text(utm.source) || undefined,
+    prodex24medium: text(utm.medium) || undefined,
+    prodex24campaign: text(utm.campaign) || undefined,
+    prodex24content: text(utm.content) || undefined,
+    prodex24term: text(utm.term) || undefined,
+    prodex24page: text(utm.page) || undefined
+  });
+};
+
+const assertWriteEnabled = (config: SalesDriveConfig) => {
+  ensureConfigured(config);
+  if (!config.syncEnabled) throw new Error('SalesDrive sync is disabled');
+  if (!config.writeEnabled) throw new Error('SalesDrive writes are disabled');
+};
+
+export const createSalesDriveOrder = async (
+  input: SalesDriveOrderAddInput,
+  config = readSalesDriveConfig(),
+  fetcher?: SalesDriveFetchLike
+): Promise<SalesDriveOrderCreateResult> => {
+  assertWriteEnabled(config);
+  const externalId = text(input.externalId);
+  if (!externalId) throw new Error('SalesDrive externalId is required');
+
+  const url = buildUrl(config, config.orderCreatePath);
+  const response = await getFetcher(fetcher)(url.toString(), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(buildSalesDriveOrderAddPayload(input, config)),
+    signal: AbortSignal.timeout(config.timeoutMs)
+  });
+  const body = await response.text();
+  const raw = parseJson(body);
+  const record = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {};
+  if (!response.ok || record.status === 'error' || record.success === false) {
+    throw new Error(safeMessage(raw || response.statusText || 'SalesDrive order create failed', config));
+  }
+
+  const data = record.data && typeof record.data === 'object' ? record.data as Record<string, unknown> : {};
+  return {
+    success: true,
+    externalId,
+    orderId: data.orderId as string | number | undefined,
+    userId: data.userId as string | number | undefined,
+    httpStatus: response.status,
+    raw
+  };
 };
 
 export const mapSalesDriveOrderToPreview = (order: Record<string, unknown>): SalesDriveImportPreview => {

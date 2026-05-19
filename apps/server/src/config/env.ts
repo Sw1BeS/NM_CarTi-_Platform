@@ -34,6 +34,7 @@ const envSchema = z.object({
     SALESDRIVE_API_URL: z.string().optional(),
     SALESDRIVE_API_KEY: z.string().optional(),
     SALESDRIVE_FORM_API_KEY: z.string().optional(),
+    SALESDRIVE_ORDER_CREATE_PATH: z.string().optional(),
     SALESDRIVE_ORDER_LIST_PATH: z.string().optional(),
     SALESDRIVE_STATUSES_PATH: z.string().optional(),
     SALESDRIVE_SYNC_ENABLED: z.string().optional(),
@@ -67,6 +68,7 @@ export interface ValidatedEnv {
     SALESDRIVE_API_URL?: string;
     SALESDRIVE_API_KEY?: string;
     SALESDRIVE_FORM_API_KEY?: string;
+    SALESDRIVE_ORDER_CREATE_PATH?: string;
     SALESDRIVE_ORDER_LIST_PATH?: string;
     SALESDRIVE_STATUSES_PATH?: string;
     SALESDRIVE_SYNC_ENABLED?: string;

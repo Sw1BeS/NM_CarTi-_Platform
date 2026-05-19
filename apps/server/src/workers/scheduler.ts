@@ -7,6 +7,7 @@ import { logIntegrationEvent } from '../services/integrationEventLog.service.js'
 import { logger } from '../utils/logger.js';
 import { skillPackService } from '../modules/Orchestration/skillPack.service.js';
 import { importService } from '../modules/Orchestration/import.service.js';
+import { processSalesDriveRequestSyncQueue } from '../modules/Integrations/salesdrive/salesdriveSync.service.js';
 
 const prisma = new PrismaClient();
 let scheduledJobsTableAvailable = true;
@@ -80,7 +81,20 @@ export const startScheduler = () => {
         }
     });
 
-    logger.info('⏰ Scheduler: Started. Jobs: [sync_telegram_channels, mtproto_import_jobs, parsing_jobs, scheduled_jobs, orchestration_refresh, import_analysis]');
+    // Process SalesDrive request sync intents every minute. Writes remain gated by SALESDRIVE_SYNC_ENABLED and SALESDRIVE_WRITE_ENABLED.
+    cron.schedule('* * * * *', async () => {
+        logger.info('⏰ Scheduler: Starting Job [salesdrive_request_sync]');
+        try {
+            const result = await processSalesDriveRequestSyncQueue();
+            if (result.processed || result.failed) {
+                logger.info('⏰ Scheduler: SalesDrive request sync result', result);
+            }
+        } catch (e) {
+            logger.error('⏰ Scheduler: Job [salesdrive_request_sync] Failed', e);
+        }
+    });
+
+    logger.info('⏰ Scheduler: Started. Jobs: [sync_telegram_channels, mtproto_import_jobs, parsing_jobs, scheduled_jobs, orchestration_refresh, import_analysis, salesdrive_request_sync]');
 };
 
 async function syncAllChannels() {

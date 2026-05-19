@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   buildSalesDriveImportPreview,
+  buildSalesDriveOrderAddPayload,
   checkSalesDriveHealth,
+  createSalesDriveOrder,
   fetchSalesDriveOrderList,
   readSalesDriveConfig,
   salesDriveHeaders,
@@ -24,6 +26,7 @@ describe('SalesDrive connector', () => {
 
     expect(config.baseUrl).toBe('https://demo.salesdrive.me');
     expect(config.orderListPath).toBe('/api/order/list/');
+    expect(config.orderCreatePath).toBe('/handler/');
     expect(config.statusesPath).toBe('/api/statuses/');
     expect(config.syncEnabled).toBe(false);
     expect(config.writeEnabled).toBe(false);
@@ -91,6 +94,100 @@ describe('SalesDrive connector', () => {
     expect(url.searchParams.get('limit')).toBe('25');
     expect(url.searchParams.get('filter[updateAt][from]')).toBe('2026-05-01 00:00:00');
     expect(url.searchParams.get('filter[statusId]')).toBe('3');
+  });
+
+  it('builds SalesDrive add-order payload without leaking empty fields', () => {
+    const config = readSalesDriveConfig({
+      SALESDRIVE_API_BASE_URL: 'https://demo.salesdrive.me',
+      SALESDRIVE_API_KEY: 'secret-key'
+    });
+
+    const payload = buildSalesDriveOrderAddPayload({
+      externalId: 'REQ-123',
+      name: 'Ivan Client',
+      phone: '+380635055252',
+      title: 'Запит: Hyundai Ioniq 5',
+      comment: 'Source: LeadBot',
+      utm: {
+        source: 'facebook',
+        campaign: 'spring'
+      },
+      products: [
+        { id: 'car_1', name: 'Hyundai Ioniq 5', costPerItem: 16000, amount: 1 }
+      ]
+    }, config);
+
+    expect(payload).toMatchObject({
+      form: 'secret-key',
+      getResultData: 1,
+      externalId: 'REQ-123',
+      fName: 'Ivan',
+      lName: 'Client',
+      phone: '+380635055252',
+      comment: expect.stringContaining('Source: LeadBot'),
+      prodex24source: 'facebook',
+      prodex24campaign: 'spring',
+      products: [
+        expect.objectContaining({
+          id: 'car_1',
+          name: 'Hyundai Ioniq 5',
+          costPerItem: 16000,
+          amount: 1
+        })
+      ]
+    });
+    expect(payload).not.toHaveProperty('email');
+  });
+
+  it('posts add-order payload only when SalesDrive sync and writes are enabled', async () => {
+    const config = readSalesDriveConfig({
+      SALESDRIVE_API_BASE_URL: 'https://demo.salesdrive.me',
+      SALESDRIVE_API_KEY: 'secret-key',
+      SALESDRIVE_SYNC_ENABLED: 'true',
+      SALESDRIVE_WRITE_ENABLED: 'true'
+    });
+    const fetcher = vi.fn().mockResolvedValue(await okResponse({
+      success: true,
+      data: { orderId: 37193, userId: 8 }
+    }));
+
+    const result = await createSalesDriveOrder({
+      externalId: 'REQ-123',
+      name: 'Ivan Client',
+      phone: '+380635055252',
+      title: 'Запит: Hyundai Ioniq 5'
+    }, config, fetcher);
+
+    expect(result).toMatchObject({
+      success: true,
+      orderId: 37193,
+      userId: 8,
+      externalId: 'REQ-123'
+    });
+    expect(fetcher).toHaveBeenCalledWith(
+      'https://demo.salesdrive.me/handler/',
+      expect.objectContaining({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: expect.stringContaining('"externalId":"REQ-123"')
+      })
+    );
+  });
+
+  it('blocks SalesDrive add-order calls when write flag is disabled', async () => {
+    const config = readSalesDriveConfig({
+      SALESDRIVE_API_BASE_URL: 'https://demo.salesdrive.me',
+      SALESDRIVE_API_KEY: 'secret-key',
+      SALESDRIVE_SYNC_ENABLED: 'true',
+      SALESDRIVE_WRITE_ENABLED: 'false'
+    });
+    const fetcher = vi.fn();
+
+    await expect(createSalesDriveOrder({
+      externalId: 'REQ-123',
+      phone: '+380635055252'
+    }, config, fetcher)).rejects.toThrow('SalesDrive writes are disabled');
+    expect(fetcher).not.toHaveBeenCalled();
   });
 
   it('builds dry-run import preview candidates without writing data', () => {
