@@ -84,6 +84,18 @@ Expected:
 - якщо SalesDrive env не налаштований, UI показує missing config без падіння сторінки;
 - якщо sync/write flags вимкнені, write дії з цієї сторінки недоступні.
 
+## 4.2) Meta tracking admin visibility
+
+1. Відкрити CRM `/integrations/meta` під роллю OWNER/ADMIN.
+2. Перевірити блок `Meta Tracking Debug`.
+3. Натиснути `Refresh`.
+
+Expected:
+- UI показує CAPI enabled/disabled, dedup key, last send, last error;
+- counts by status/action відповідають `IntegrationEventLog` для `META_PIXEL`;
+- raw access token, phone/email або інша PII не показуються;
+- при відсутності подій блок залишається читабельним і не блокує редагування Meta config.
+
 ## 5) Lead SELL + admin actions
 
 1. Пройти SELL wizard (кроки + review).

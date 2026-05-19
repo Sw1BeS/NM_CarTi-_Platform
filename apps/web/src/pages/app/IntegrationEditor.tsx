@@ -14,6 +14,12 @@ import {
     type SalesDriveSyncStatus,
     type SalesDriveTone
 } from './integrations/salesdriveStatus';
+import {
+    resolveMetaDebugRows,
+    summarizeMetaDebug,
+    type MetaDebugSummary,
+    type MetaDebugTone
+} from './integrations/metaDebugStatus';
 
 /* -------------------------------------------------------------------------- */
 /*                                CONSTANTS                                   */
@@ -127,6 +133,8 @@ export const IntegrationEditor = () => {
     const [salesDrivePreview, setSalesDrivePreview] = useState<SalesDrivePreview | null>(null);
     const [salesDriveLoading, setSalesDriveLoading] = useState(false);
     const [salesDrivePreviewLoading, setSalesDrivePreviewLoading] = useState(false);
+    const [metaDebug, setMetaDebug] = useState<MetaDebugSummary | null>(null);
+    const [metaDebugLoading, setMetaDebugLoading] = useState(false);
 
     useEffect(() => {
         const def = INTEGRATION_DEFS.find(d => d.path === type);
@@ -139,6 +147,9 @@ export const IntegrationEditor = () => {
             }
             loadSettings();
             loadConfig(def.type);
+            if (def.type === 'META_PIXEL') {
+                loadMetaDebug();
+            }
         }
     }, [type]);
 
@@ -192,6 +203,18 @@ export const IntegrationEditor = () => {
             showToast(e.message || 'SalesDrive preview unavailable', 'error');
         } finally {
             setSalesDrivePreviewLoading(false);
+        }
+    };
+
+    const loadMetaDebug = async () => {
+        setMetaDebugLoading(true);
+        try {
+            const summary = await apiGet<MetaDebugSummary>('integrations/meta/debug');
+            setMetaDebug(summary);
+        } catch (e: any) {
+            showToast(e.message || 'Meta debug unavailable', 'error');
+        } finally {
+            setMetaDebugLoading(false);
         }
     };
 
@@ -304,7 +327,7 @@ export const IntegrationEditor = () => {
     if (!definition) return <div>Integration not found</div>;
 
     const Icon = definition.icon;
-    const toneClass = (tone: SalesDriveTone) => {
+    const toneClass = (tone: SalesDriveTone | MetaDebugTone) => {
         if (tone === 'success') return 'border-green-500/25 bg-green-500/10 text-green-400';
         if (tone === 'warn') return 'border-amber-500/25 bg-amber-500/10 text-amber-300';
         if (tone === 'danger') return 'border-red-500/25 bg-red-500/10 text-red-300';
@@ -469,7 +492,7 @@ export const IntegrationEditor = () => {
     }
 
     return (
-        <div className="max-w-3xl mx-auto p-6">
+        <div className="max-w-3xl mx-auto p-6 space-y-6">
             <div className="flex items-center gap-4 mb-8">
                 <button onClick={() => navigate('/integrations')} className="btn-ghost p-2">
                     <ArrowLeft size={20} />
@@ -540,6 +563,67 @@ export const IntegrationEditor = () => {
                     )}
                 </div>
             </div>
+
+            {definition.type === 'META_PIXEL' && (() => {
+                const rows = resolveMetaDebugRows(metaDebug || {});
+                const summary = summarizeMetaDebug(metaDebug || {});
+
+                return (
+                    <section className="panel p-6 space-y-5">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                            <div>
+                                <h2 className="text-lg font-bold text-[var(--text-primary)]">Meta Tracking Debug</h2>
+                                <p className="text-sm text-[var(--text-secondary)]">Safe CAPI dispatch and dedup summary.</p>
+                            </div>
+                            <button onClick={loadMetaDebug} disabled={metaDebugLoading} className="btn-ghost px-4 py-2 flex items-center gap-2 border border-[var(--border-color)]">
+                                <RefreshCw size={16} className={metaDebugLoading ? 'animate-spin' : ''} />
+                                Refresh
+                            </button>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            {rows.map(row => (
+                                <div key={row.label} className={`rounded-lg border p-3 ${toneClass(row.tone)}`}>
+                                    <div className="text-[10px] font-bold uppercase tracking-wider opacity-70">{row.label}</div>
+                                    <div className="mt-1 text-sm font-semibold">{row.value}</div>
+                                </div>
+                            ))}
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div className="rounded-lg border border-[var(--border-color)] p-3">
+                                <div className="text-xs font-bold uppercase text-[var(--text-secondary)]">By status</div>
+                                <div className="mt-2 flex flex-wrap gap-2">
+                                    {summary.statusTotals.length ? summary.statusTotals.map(item => (
+                                        <span key={item.label} className={`rounded-full border px-3 py-1 text-xs font-bold uppercase ${toneClass(item.tone)}`}>
+                                            {item.label}: {item.value}
+                                        </span>
+                                    )) : (
+                                        <span className="text-sm text-[var(--text-secondary)]">No events yet</span>
+                                    )}
+                                </div>
+                            </div>
+                            <div className="rounded-lg border border-[var(--border-color)] p-3">
+                                <div className="text-xs font-bold uppercase text-[var(--text-secondary)]">By action</div>
+                                <div className="mt-2 flex flex-wrap gap-2">
+                                    {summary.actionTotals.length ? summary.actionTotals.slice(0, 8).map(item => (
+                                        <span key={item.label} className={`rounded-full border px-3 py-1 text-xs font-bold ${toneClass(item.tone)}`}>
+                                            {item.label}: {item.value}
+                                        </span>
+                                    )) : (
+                                        <span className="text-sm text-[var(--text-secondary)]">No events yet</span>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="rounded-lg border border-[var(--border-color)] p-3">
+                            <div className="text-xs font-bold uppercase text-[var(--text-secondary)]">Dedup</div>
+                            <div className="mt-1 text-sm text-[var(--text-primary)]">{summary.dedupLabel}</div>
+                        </div>
+                    </section>
+                );
+            })()}
         </div>
     );
 };
