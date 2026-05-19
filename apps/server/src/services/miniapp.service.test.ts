@@ -260,4 +260,62 @@ describe('miniapp.service', () => {
     expect(request.payload.requestType).toBe('SELL');
     expect(request.leadId).toBeUndefined();
   });
+
+  it('lists Lead MiniApp request history by Telegram identity without exposing raw contact payload', async () => {
+    mockPrisma.b2bRequest.findMany.mockResolvedValueOnce([
+      {
+        id: 'req_1',
+        publicId: 'RQ-1',
+        title: 'Підбір авто',
+        status: 'NEW',
+        type: 'BUY',
+        chatId: '1001',
+        companyId: 'cmp_1',
+        payload: {
+          source: 'miniapp_intent',
+          phone: '+380635055252',
+          telegram: {
+            userId: '1001'
+          },
+          request: {
+            intentType: 'REQUEST',
+            phone: '+380635055252'
+          }
+        },
+        createdAt: new Date('2026-05-18T10:00:00.000Z'),
+        updatedAt: new Date('2026-05-18T10:15:00.000Z')
+      }
+    ]);
+
+    const history = await miniAppService.listMyRequests('cartie', {
+      telegramUserId: '1001',
+      limit: 5
+    });
+
+    expect(mockPrisma.b2bRequest.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        companyId: 'cmp_1',
+        OR: expect.arrayContaining([
+          { chatId: '1001' },
+          { lead: { is: { userTgId: '1001' } } },
+          { payload: { path: ['telegram', 'userId'], equals: '1001' } }
+        ])
+      }),
+      orderBy: { createdAt: 'desc' },
+      take: 5
+    }));
+    expect(history).toEqual([
+      expect.objectContaining({
+        id: 'req_1',
+        publicId: 'RQ-1',
+        title: 'Підбір авто',
+        status: 'NEW',
+        type: 'BUY',
+        source: 'miniapp_intent',
+        intentType: 'REQUEST'
+      })
+    ]);
+    expect(JSON.stringify(history)).not.toContain('+380635055252');
+    expect(JSON.stringify(history)).not.toContain('payload');
+  });
 });

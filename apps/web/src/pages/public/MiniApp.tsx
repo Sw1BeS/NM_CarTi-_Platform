@@ -3,7 +3,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Bot, MiniAppConfig, CarListing } from '../../types';
 import { getPublicInventory } from '../../services/publicApi';
-import { createMiniAppLeadIntent, createMiniAppRequest, getMiniAppB2BPartnerPortal, getMiniAppB2bActiveRequests, getMiniAppB2bMyRequests, getMiniAppB2bReceivedVariants, getMiniAppCar, getMiniAppConfig, getMiniAppFavorites, getMiniAppRequestStatus, getMiniAppShowcaseInventory, getMiniAppVehicleTaxonomy, requestMiniAppB2BAccess, setMiniAppB2bVariantDecision, startMiniAppBotFlow, submitMiniAppB2bOffer, toggleMiniAppFavorite, trackMiniAppEvent, type MiniAppB2BPartnerPortalResponse, type MiniAppB2bActiveRequestItem, type MiniAppB2bMyRequestItem, type MiniAppB2bReceivedVariantItem, type MiniAppRequestSubtype, type MiniAppTrackingMeta, type VehicleTaxonomyResponse } from '../../services/miniappApi';
+import { createMiniAppLeadIntent, createMiniAppRequest, getMiniAppB2BPartnerPortal, getMiniAppB2bActiveRequests, getMiniAppB2bMyRequests, getMiniAppB2bReceivedVariants, getMiniAppCar, getMiniAppConfig, getMiniAppFavorites, getMiniAppMyRequests, getMiniAppRequestStatus, getMiniAppShowcaseInventory, getMiniAppVehicleTaxonomy, requestMiniAppB2BAccess, setMiniAppB2bVariantDecision, startMiniAppBotFlow, submitMiniAppB2bOffer, toggleMiniAppFavorite, trackMiniAppEvent, type MiniAppB2BPartnerPortalResponse, type MiniAppB2bActiveRequestItem, type MiniAppB2bMyRequestItem, type MiniAppB2bReceivedVariantItem, type MiniAppLeadRequestItem, type MiniAppRequestSubtype, type MiniAppTrackingMeta, type VehicleTaxonomyResponse } from '../../services/miniappApi';
 import {
     Search, LayoutGrid, User, Plus, Filter, DollarSign, Car, Truck,
     MessageSquare, Zap, List as ListIcon, Star, Phone, Home, Heart, ClipboardList,
@@ -295,6 +295,9 @@ const MiniAppContent = () => {
     const [requestSubmitError, setRequestSubmitError] = useState<{ message: string; openBotUrl?: string } | null>(null);
     const [statusQuery, setStatusQuery] = useState({ publicId: '' });
     const [statusResult, setStatusResult] = useState<any>(null);
+    const [leadMyRequests, setLeadMyRequests] = useState<MiniAppLeadRequestItem[]>([]);
+    const [leadMyRequestsLoading, setLeadMyRequestsLoading] = useState(false);
+    const [leadMyRequestsError, setLeadMyRequestsError] = useState<string | null>(null);
     const [b2bPortal, setB2bPortal] = useState<MiniAppB2BPartnerPortalResponse | null>(null);
     const [b2bPortalLoading, setB2bPortalLoading] = useState(false);
     const [b2bAccessRequesting, setB2bAccessRequesting] = useState(false);
@@ -722,6 +725,8 @@ const MiniAppContent = () => {
             setInitError(null);
             setRequiresTelegram(false);
             setTelegramWriteState('unknown');
+            setLeadMyRequests([]);
+            setLeadMyRequestsError(null);
             setB2bPortal(null);
             setB2bPortalLoading(false);
             setB2bAccessRequestStatus(null);
@@ -1371,6 +1376,33 @@ const MiniAppContent = () => {
         }
     }, [initData, pushToast, slug, targetSlug, telegramWriteState, trackEvent]);
 
+    const loadLeadMyRequests = useCallback(async () => {
+        if (config?.surfaceMode === 'B2B') return;
+        const historyInitData = initData || readRuntimeTelegramInitData();
+        if (!historyInitData) {
+            setLeadMyRequestsError('Історія заявок доступна лише із захищеної Telegram Mini App сесії.');
+            return;
+        }
+
+        if (!initData) setInitData(historyInitData);
+        setLeadMyRequestsLoading(true);
+        setLeadMyRequestsError(null);
+
+        try {
+            const historySlug = targetSlug || slug || 'system';
+            const res = await getMiniAppMyRequests({
+                slug: historySlug,
+                initData: historyInitData,
+                limit: 20
+            });
+            setLeadMyRequests(Array.isArray(res.items) ? res.items : []);
+        } catch (e) {
+            setLeadMyRequestsError(resolveMiniAppWriteError(e, 'Не вдалося завантажити історію заявок.'));
+        } finally {
+            setLeadMyRequestsLoading(false);
+        }
+    }, [config?.surfaceMode, initData, slug, targetSlug]);
+
     const loadB2bActiveRequests = useCallback(async () => {
         if (config?.surfaceMode !== 'B2B' || !b2bPortal?.approved) return;
         const activeInitData = initData || readRuntimeTelegramInitData();
@@ -1424,12 +1456,16 @@ const MiniAppContent = () => {
 
     useEffect(() => {
         if (view === 'STATUS') {
-            void loadB2bActivity();
+            if (config?.surfaceMode === 'B2B') {
+                void loadB2bActivity();
+            } else {
+                void loadLeadMyRequests();
+            }
         }
         if (view === 'B2B_REQUESTS') {
             void loadB2bActiveRequests();
         }
-    }, [loadB2bActivity, loadB2bActiveRequests, view]);
+    }, [config?.surfaceMode, loadB2bActivity, loadB2bActiveRequests, loadLeadMyRequests, view]);
 
     const handleB2bVariantDecision = useCallback(async (variantId: string, decision: 'FIT' | 'NOT_FIT') => {
         const decisionInitData = initData || readRuntimeTelegramInitData();
@@ -2795,6 +2831,79 @@ const MiniAppContent = () => {
                                     </div>
                                 </div>
                             )}
+                        </section>
+                    )}
+
+                    {!isB2BMode && (
+                        <section className="rounded-[22px] border border-white/10 bg-white/[0.045] p-4 text-white">
+                            <div className="flex items-center justify-between gap-3">
+                                <div>
+                                    <h3 className="text-lg font-black text-white">Історія заявок</h3>
+                                    <p className="mt-1 text-xs leading-relaxed text-white/44">Останні запити з цього Telegram профілю.</p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={loadLeadMyRequests}
+                                    disabled={leadMyRequestsLoading}
+                                    className="shrink-0 rounded-[14px] border border-white/10 px-3 py-2 text-xs font-black text-white/70 disabled:opacity-50"
+                                >
+                                    {leadMyRequestsLoading ? 'Оновлення' : 'Оновити'}
+                                </button>
+                            </div>
+
+                            {leadMyRequestsError && (
+                                <div className="mt-4 rounded-[16px] border border-red-400/20 bg-red-500/10 p-3 text-sm text-red-50">
+                                    {leadMyRequestsError}
+                                </div>
+                            )}
+
+                            <div className="mt-4 flex flex-col gap-3">
+                                {leadMyRequestsLoading && !leadMyRequests.length ? (
+                                    <div className="rounded-[16px] border border-white/10 bg-black/22 p-4 text-sm text-white/52">Завантажуємо заявки...</div>
+                                ) : leadMyRequests.length ? (
+                                    leadMyRequests.slice(0, 8).map(item => (
+                                        <article key={item.id} className="rounded-[16px] border border-white/10 bg-black/24 p-3">
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div className="min-w-0">
+                                                    <div className="truncate text-sm font-black text-white">{item.publicId || item.id}</div>
+                                                    <div className="mt-1 line-clamp-2 text-xs leading-relaxed text-white/50">{item.title || 'Запит по авто'}</div>
+                                                </div>
+                                                <div className="shrink-0 rounded-full border border-white/10 bg-white/[0.055] px-2 py-1 text-[10px] font-bold text-white/62">
+                                                    {item.status || '—'}
+                                                </div>
+                                            </div>
+                                            <div className="mt-3 grid grid-cols-3 gap-2 text-[11px]">
+                                                <div className="rounded-[14px] border border-white/10 bg-black/22 p-2">
+                                                    <div className="text-white/34">Тип</div>
+                                                    <div className="mt-0.5 truncate font-black text-white">{item.intentType || item.type || 'BUY'}</div>
+                                                </div>
+                                                <div className="rounded-[14px] border border-white/10 bg-black/22 p-2">
+                                                    <div className="text-white/34">Джерело</div>
+                                                    <div className="mt-0.5 truncate font-black text-white">{item.source || 'LeadBot'}</div>
+                                                </div>
+                                                <div className="rounded-[14px] border border-white/10 bg-black/22 p-2">
+                                                    <div className="text-white/34">Дата</div>
+                                                    <div className="mt-0.5 truncate font-black text-white">{formatActivityDate(item.createdAt)}</div>
+                                                </div>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setStatusQuery({ publicId: item.publicId || item.id });
+                                                    setStatusResult(item);
+                                                }}
+                                                className="mt-3 w-full rounded-[14px] border border-white/10 bg-white/[0.055] py-3 text-xs font-black text-white/72"
+                                            >
+                                                Показати статус
+                                            </button>
+                                        </article>
+                                    ))
+                                ) : (
+                                    <div className="rounded-[16px] border border-white/10 bg-black/22 p-4 text-sm text-white/52">
+                                        Історія поки порожня. Створи запит з каталогу або через підбір авто.
+                                    </div>
+                                )}
+                            </div>
                         </section>
                     )}
 

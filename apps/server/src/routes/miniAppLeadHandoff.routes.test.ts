@@ -18,7 +18,8 @@ const {
   miniAppServiceMock: {
     getConfig: vi.fn(),
     createRequest: vi.fn(),
-    getRequestStatus: vi.fn()
+    getRequestStatus: vi.fn(),
+    listMyRequests: vi.fn()
   },
   requestContractServiceMock: {
     createPendingLeadIntent: vi.fn(),
@@ -262,6 +263,16 @@ describe('MiniApp Lead handoff routes', () => {
       title: 'Підбір авто',
       createdAt: new Date('2026-05-18T10:00:00.000Z')
     });
+    miniAppServiceMock.listMyRequests.mockResolvedValue([
+      {
+        id: 'request_1',
+        publicId: 'REQ-1',
+        status: 'NEW',
+        title: 'Підбір авто',
+        type: 'BUY',
+        createdAt: new Date('2026-05-18T10:00:00.000Z')
+      }
+    ]);
     vehicleTaxonomyServiceMock.getTaxonomy.mockResolvedValue({
       brands: [
         { id: 'bmw', label: 'BMW', aliases: [], models: [{ id: 'x5', label: 'X5', brandId: 'bmw', aliases: [] }] }
@@ -1807,6 +1818,59 @@ describe('MiniApp Lead handoff routes', () => {
     expect(miniAppServiceMock.getRequestStatus).toHaveBeenCalledWith('cartie', {
       requestId: 'REQ-1',
       telegramUserId: '1001'
+    });
+  });
+
+  it('rejects MiniApp request history reads without initData instead of trusting query identity', async () => {
+    const app = await buildApp();
+
+    const res = await request(app)
+      .get('/api/miniapp/requests/my')
+      .query({
+        slug: 'cartie',
+        telegramUserId: 'spoofed_user'
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({
+      code: 'TELEGRAM_INITDATA_REQUIRED'
+    });
+    expect(verifyInitDataMock).not.toHaveBeenCalled();
+    expect(miniAppServiceMock.listMyRequests).not.toHaveBeenCalled();
+  });
+
+  it('uses verified initData Telegram identity for MiniApp request history reads', async () => {
+    const app = await buildApp();
+
+    const res = await request(app)
+      .get('/api/miniapp/requests/my')
+      .query({
+        slug: 'cartie',
+        initData: 'signed-init-data',
+        telegramUserId: 'spoofed_user',
+        limit: 5
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      ok: true,
+      items: [
+        {
+          id: 'request_1',
+          publicId: 'REQ-1',
+          status: 'NEW',
+          title: 'Підбір авто',
+          type: 'BUY'
+        }
+      ]
+    });
+    expect(verifyInitDataMock).toHaveBeenCalledWith('signed-init-data', {
+      companyId: 'company_1',
+      botId: 'bot_1'
+    });
+    expect(miniAppServiceMock.listMyRequests).toHaveBeenCalledWith('cartie', {
+      telegramUserId: '1001',
+      limit: 5
     });
   });
 

@@ -2090,6 +2090,36 @@ router.post('/events', async (req, res) => {
   }
 });
 
+router.get('/requests/my', async (req, res) => {
+  try {
+    const slug = readString(req.query.slug);
+    if (!slug) return errorResponse(res, 400, 'slug is required');
+    const initData = readString(req.query.initData);
+    if (!initData) return errorResponse(res, 400, 'initData is required', MINIAPP_ERROR_CODES.INITDATA_REQUIRED);
+
+    const config = await miniAppService.getConfig(slug);
+    if (!config?.companyId) return errorResponse(res, 404, 'Company not found');
+    if (isB2BMiniAppConfig(config as Record<string, any>)) {
+      return errorResponse(res, 400, 'Lead request history is not available for B2B MiniApp', MINIAPP_ERROR_CODES.BOT_FLOW_UNAVAILABLE);
+    }
+
+    const initCheck = await requireInitData(initData, config.companyId, config.botId);
+    if (!initCheck.ok) return errorResponse(res, 401, initCheck.message || 'Unauthorized', MINIAPP_ERROR_CODES.INITDATA_INVALID);
+    const telegram = parseMiniAppTelegramIdentity(initData);
+    if (!telegram.userId) return errorResponse(res, 400, 'Telegram user not found', MINIAPP_ERROR_CODES.INITDATA_INVALID);
+
+    const items = await miniAppService.listMyRequests(slug, {
+      telegramUserId: telegram.userId,
+      limit: readNumber(req.query.limit)
+    });
+
+    res.json({ ok: true, items });
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'Failed to fetch request history';
+    errorResponse(res, 500, message);
+  }
+});
+
 router.get('/requests/status', async (req, res) => {
   try {
     const slug = readString(req.query.slug);

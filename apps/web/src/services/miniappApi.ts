@@ -114,6 +114,18 @@ export type MiniAppB2BAccessRequestResponse = {
   } | null;
 };
 
+export type MiniAppLeadRequestItem = {
+  id: string;
+  publicId?: string;
+  title?: string;
+  status?: string;
+  type?: string;
+  source?: string;
+  intentType?: string;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
 export type MiniAppB2bMyRequestItem = {
   id: string;
   publicId?: string;
@@ -288,6 +300,24 @@ export function buildMiniAppRequestStatusPath(params: { slug: string; initData: 
 
 export async function getMiniAppRequestStatus(params: { slug: string; initData: string; requestId?: string }) {
   return await apiFetch(buildMiniAppRequestStatusPath(params), {
+    method: 'GET',
+    skipAuth: true
+  });
+}
+
+export function buildMiniAppMyRequestsPath(params: { slug: string; initData: string; limit?: number }) {
+  const query = new URLSearchParams();
+  query.append('slug', params.slug);
+  query.append('initData', params.initData);
+  if (params.limit) query.append('limit', String(params.limit));
+  return `/miniapp/requests/my?${query.toString()}`;
+}
+
+export async function getMiniAppMyRequests(params: { slug: string; initData: string; limit?: number }): Promise<{
+  ok: boolean;
+  items: MiniAppLeadRequestItem[];
+}> {
+  return await apiFetch(buildMiniAppMyRequestsPath(params), {
     method: 'GET',
     skipAuth: true
   });

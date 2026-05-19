@@ -45,6 +45,11 @@ export type MiniAppRequestStatusQuery = {
   telegramUserId?: string;
 };
 
+export type MiniAppRequestHistoryQuery = {
+  telegramUserId?: string;
+  limit?: number;
+};
+
 const showcaseService = new ShowcaseService();
 
 const isRecord = (value: unknown): value is Record<string, unknown> => {
@@ -517,6 +522,49 @@ export class MiniAppService {
       title: request.title,
       createdAt: request.createdAt
     };
+  }
+
+  async listMyRequests(slug: string, query: MiniAppRequestHistoryQuery) {
+    const companyId = await resolveCompanyIdBySlug(slug);
+    if (!companyId) throw new Error('Company not found');
+
+    const telegramUserId = toOptionalString(query.telegramUserId);
+    if (!telegramUserId) throw new Error('telegramUserId is required');
+
+    const limit = Math.max(1, Math.min(query.limit || 20, 50));
+    const requests = await prisma.b2bRequest.findMany({
+      where: {
+        companyId,
+        OR: [
+          { chatId: telegramUserId },
+          { lead: { is: { userTgId: telegramUserId } } },
+          { payload: { path: ['telegramUserId'], equals: telegramUserId } },
+          { payload: { path: ['telegram', 'userId'], equals: telegramUserId } },
+          { payload: { path: ['telegram', 'id'], equals: telegramUserId } }
+        ]
+      },
+      orderBy: { createdAt: 'desc' },
+      take: limit
+    });
+
+    return requests.map((request) => {
+      const payload = isRecord(request.payload) ? request.payload : {};
+      const requestPayload = isRecord(payload.request) ? payload.request : {};
+      const source = toOptionalString(payload.source) || toOptionalString(payload.sourceContext);
+      const intentType = toOptionalString(requestPayload.intentType);
+
+      return {
+        id: request.id,
+        publicId: request.publicId || request.id,
+        title: request.title,
+        status: request.status,
+        type: request.type,
+        source,
+        intentType,
+        createdAt: request.createdAt,
+        updatedAt: request.updatedAt
+      };
+    });
   }
 
   async getConfig(slug: string) {

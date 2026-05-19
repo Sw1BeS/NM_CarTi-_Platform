@@ -70,6 +70,18 @@ This document outlines the testing procedures for the newly implemented Telegram
 8. Tap **"Надіслати запит"** on the floating action bar.
 9. Verify the Request view loads properly. Submit the request and verify the payload type is `lead_submit_multi` with an array of `carIds`.
 
+## 4a. Lead MiniApp "Мої заявки"
+**Objective:** Verify that LeadBot users can see their own request history from the MiniApp without exposing raw contact payloads.
+
+**Steps:**
+1. Open the Lead MiniApp from Telegram with a user that has at least one existing request.
+2. Go to **"Мої заявки"** / status screen.
+3. Verify the MiniApp calls `/api/miniapp/requests/my` with signed `initData`.
+4. Verify recent requests render as cards with public ID, title, status, type/source, and date.
+5. Tap **"Показати статус"** and verify the selected request appears in the status panel.
+6. Open the same screen outside Telegram or without valid `initData`; verify it shows a user-facing error and does not trust query `telegramUserId`.
+7. Confirm the response does not include raw `payload`, phone, or contact fields.
+
 ## 5. Support Tickets
 **Objective:** Verify that `SupportTicket` creation works seamlessly behind the scenes.
 
