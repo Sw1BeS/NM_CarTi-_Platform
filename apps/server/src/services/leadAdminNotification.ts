@@ -114,6 +114,29 @@ const tokenizedRequestStatusMenuCallback = async (params: {
   return token ? buildCallbackData('aa', token) : undefined;
 };
 
+const tokenizedRequestCommentCallback = async (params: {
+  requestId?: string | null;
+  botId?: string | null;
+  companyId?: string | null;
+}) => {
+  const requestId = toText(params.requestId);
+  if (!requestId) return undefined;
+  let token: string | undefined;
+  try {
+    token = await createAdminActionToken({
+      action: 'request.ADD_COMMENT',
+      targetType: 'request',
+      targetId: requestId,
+      botId: params.botId || null,
+      companyId: params.companyId || null,
+      requestId
+    });
+  } catch {
+    return undefined;
+  }
+  return token ? buildCallbackData('aa', token) : undefined;
+};
+
 const requestSearchUrl = (request?: { id?: string | null; publicId?: string | null } | null) => {
   const value = toText(request?.publicId) || toText(request?.id);
   if (!value) return undefined;
@@ -140,7 +163,7 @@ const buildLeadAdminActionMarkupWithCallback = (params: {
   request?: { id?: string | null; publicId?: string | null } | null;
   telegramUserId?: string | null;
   selectedCars?: Array<{ id?: string | null; title?: string | null; publicUrl?: string | null }> | null;
-}, contacted?: string, assign?: string, statusMenu?: string) => {
+}, contacted?: string, assign?: string, statusMenu?: string, comment?: string) => {
   const rows: any[][] = [];
   const crmUrl = requestSearchUrl(params.request) || leadSearchUrl(params.lead);
   if (crmUrl) {
@@ -163,12 +186,15 @@ const buildLeadAdminActionMarkupWithCallback = (params: {
   }
 
   const userId = toText(params.telegramUserId);
-  const actionRow = [
+  const actionButtons = [
     assign ? { text: '👤 Взяти в роботу', callback_data: assign } : null,
     statusMenu ? { text: '📌 Змінити статус', callback_data: statusMenu } : null,
+    comment ? { text: '💬 Додати коментар', callback_data: comment } : null,
     contacted ? { text: '✅ Позначити контакт', callback_data: contacted } : null
   ].filter(Boolean);
-  if (actionRow.length) rows.push(actionRow);
+  for (let i = 0; i < actionButtons.length; i += 2) {
+    rows.push(actionButtons.slice(i, i + 2));
+  }
   if (userId) {
     rows.push([{ text: 'Написати клієнту', url: `tg://user?id=${encodeURIComponent(userId)}` }]);
   }
@@ -189,13 +215,18 @@ export const buildLeadAdminActionMarkupAsync = async (params: {
   };
 }) => {
   const requestId = params.tokenContext?.requestId || params.request?.id;
-  const [assign, statusMenu, contacted, salesDriveSync] = await Promise.all([
+  const [assign, statusMenu, comment, contacted, salesDriveSync] = await Promise.all([
     tokenizedRequestAssignCallback({
       requestId,
       botId: params.tokenContext?.botId,
       companyId: params.tokenContext?.companyId
     }),
     tokenizedRequestStatusMenuCallback({
+      requestId,
+      botId: params.tokenContext?.botId,
+      companyId: params.tokenContext?.companyId
+    }),
+    tokenizedRequestCommentCallback({
       requestId,
       botId: params.tokenContext?.botId,
       companyId: params.tokenContext?.companyId
@@ -212,7 +243,7 @@ export const buildLeadAdminActionMarkupAsync = async (params: {
       companyId: params.tokenContext?.companyId
     })
   ]);
-  const markup = buildLeadAdminActionMarkupWithCallback(params, contacted, assign, statusMenu);
+  const markup = buildLeadAdminActionMarkupWithCallback(params, contacted, assign, statusMenu, comment);
   if (!salesDriveSync) return markup;
   const inline_keyboard = [...(markup?.inline_keyboard || [])];
   inline_keyboard.push([{ text: 'SalesDrive sync', callback_data: salesDriveSync }]);

@@ -248,6 +248,128 @@ const updateSession = async (ctx: PipelineContext, state: string, variables: Rec
   });
 };
 
+const readObject = (value: unknown): Record<string, any> =>
+  value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, any> : {};
+
+const truncateAdminComment = (value: string) => String(value || '').trim().slice(0, 1200);
+
+const handlePendingAdminComment = async (ctx: PipelineContext, text: string) => {
+  if (!ctx.bot || !ctx.session) return false;
+  const vars = readObject(ctx.session.variables);
+  const pending = readObject(vars.adminCommentDraft);
+  const requestId = String(pending.requestId || '').trim();
+  if (!requestId) return false;
+
+  const message = ctx.update?.message;
+  const chatId = String(message?.chat?.id || ctx.chatId || '').trim();
+  const expectedChatId = String(pending.chatId || '').trim();
+  if (expectedChatId && chatId !== expectedChatId) return false;
+
+  const promptMessageId = Number(pending.promptMessageId || 0);
+  const replyMessageId = Number(message?.reply_to_message?.message_id || 0);
+  if (promptMessageId && replyMessageId !== promptMessageId) return false;
+
+  const adminTgUserId = String(message?.from?.id || ctx.userId || '').trim();
+  const expectedAdminTgUserId = String(pending.adminTgUserId || '').trim();
+  if (expectedAdminTgUserId && adminTgUserId !== expectedAdminTgUserId) {
+    await sendMessage(ctx, '⛔️ Цей коментар очікується від адміністратора, який натиснув кнопку.', undefined, chatId);
+    return true;
+  }
+
+  const comment = truncateAdminComment(text);
+  if (!comment) {
+    await sendMessage(ctx, 'Напишіть текст коментаря відповіддю на повідомлення.', undefined, chatId);
+    return true;
+  }
+
+  const request = await prisma.b2bRequest.findUnique({
+    where: { id: requestId },
+    select: { id: true, companyId: true, botId: true, publicId: true, internalNotes: true }
+  });
+  if (
+    !request ||
+    (ctx.companyId && String((request as any).companyId || '') !== String(ctx.companyId)) ||
+    ((request as any).botId && String((request as any).botId) !== String(ctx.bot.id || ''))
+  ) {
+    await updateSession(ctx, ctx.session.state || 'CL_MENU', { ...vars, adminCommentDraft: null });
+    await sendMessage(ctx, '⚠️ Заявку не знайдено або дія недоступна.', undefined, chatId);
+    return true;
+  }
+
+  const adminUsername = String(message?.from?.username || pending.adminUsername || '').trim();
+  const adminLabel = adminUsername ? `@${adminUsername}` : (adminTgUserId ? `tg:${adminTgUserId}` : 'telegram_admin');
+  const noteLine = `[${new Date().toISOString()} ${adminLabel}] ${comment}`;
+  const existingNotes = String((request as any).internalNotes || '').trim();
+  const internalNotes = existingNotes ? `${existingNotes}\n${noteLine}` : noteLine;
+  const messageId = Number(message?.message_id || 0);
+  const idempotencyKey = [
+    'telegram:request-comment',
+    request.id,
+    messageId > 0 ? String(messageId) : adminTgUserId || 'manual'
+  ].join(':');
+
+  await prisma.b2bRequest.update({
+    where: { id: request.id },
+    data: { internalNotes }
+  });
+
+  await prisma.messageLog.create({
+    data: {
+      requestId: request.id,
+      botId: ctx.bot.id,
+      chatId: chatId || ctx.chatId || '',
+      direction: 'INCOMING',
+      text: `[ADMIN COMMENT] ${comment}`,
+      payload: {
+        adminTgUserId: adminTgUserId || null,
+        adminUsername: adminUsername || null,
+        promptMessageId: promptMessageId || null,
+        messageId: messageId || null,
+        source: 'telegram_admin_comment'
+      } as any
+    }
+  }).catch(() => null);
+
+  await prisma.integrationEventLog.upsert({
+    where: { idempotencyKey },
+    create: {
+      companyId: ctx.companyId || (request as any).companyId || null,
+      integration: 'telegram',
+      action: 'request.comment_added',
+      status: 'SUCCESS',
+      entityType: 'request',
+      entityId: request.id,
+      idempotencyKey,
+      message: 'Request comment added from Telegram admin chat',
+      meta: {
+        botId: ctx.bot.id,
+        requestPublicId: (request as any).publicId || null,
+        adminTgUserId: adminTgUserId || null,
+        adminUsername: adminUsername || null,
+        messageId: messageId || null,
+        chatId: chatId || null
+      } as any
+    },
+    update: {
+      status: 'SUCCESS',
+      message: 'Request comment added from Telegram admin chat',
+      meta: {
+        botId: ctx.bot.id,
+        requestPublicId: (request as any).publicId || null,
+        adminTgUserId: adminTgUserId || null,
+        adminUsername: adminUsername || null,
+        messageId: messageId || null,
+        chatId: chatId || null,
+        repeatedAt: new Date().toISOString()
+      } as any
+    }
+  }).catch(() => null);
+
+  await updateSession(ctx, ctx.session.state || 'CL_MENU', { ...vars, adminCommentDraft: null });
+  await sendMessage(ctx, `✅ Коментар додано до заявки ${(request as any).publicId || request.id}.`, undefined, chatId);
+  return true;
+};
+
 export const showMenu = async (ctx: PipelineContext, lang: Lang, template: string, notice?: string) => {
   if (!ctx.bot) return;
   const botName = ctx.bot?.name || 'CarTie';
@@ -1691,6 +1813,9 @@ export const routeMessage = async (ctx: PipelineContext) => {
     const isDynamicHandled = await handleDynamicMenu(ctx, text);
     if (isDynamicHandled) return true;
   }
+
+  const handledAdminComment = await handlePendingAdminComment(ctx, text);
+  if (handledAdminComment) return true;
 
   // 3. Legacy Templates (Fallback)
   if (ctx.bot.template === 'CLIENT_LEAD') return handleClientLead(ctx, text);

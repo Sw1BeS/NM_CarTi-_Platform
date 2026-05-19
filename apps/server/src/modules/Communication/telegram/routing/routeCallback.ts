@@ -88,7 +88,7 @@ const sendMessage = async (ctx: PipelineContext, text: string, replyMarkup?: any
     chatType: effectiveChatType,
     chatId
   });
-  await telegramOutbox.sendMessage({
+  return await telegramOutbox.sendMessage({
     botId: ctx.bot.id,
     token: ctx.bot.token,
     chatId,
@@ -1194,6 +1194,124 @@ const handleRequestSetStatusTokenAction = async (
   }
 };
 
+const handleRequestAddCommentTokenAction = async (
+  ctx: PipelineContext,
+  cb: any,
+  tokenPayload: NonNullable<Awaited<ReturnType<typeof resolveAdminActionToken>>>
+) => {
+  if (tokenPayload.action !== 'request.ADD_COMMENT' || tokenPayload.targetType !== 'request' || !tokenPayload.targetId) {
+    return false;
+  }
+
+  const request = await prisma.b2bRequest.findUnique({
+    where: { id: tokenPayload.targetId },
+    select: { id: true, companyId: true, botId: true, publicId: true }
+  });
+  if (
+    !request ||
+    (ctx.companyId && String((request as any).companyId || '') !== String(ctx.companyId)) ||
+    ((request as any).botId && String((request as any).botId) !== String(ctx.bot?.id || ''))
+  ) {
+    await telegramOutbox.answerCallback({
+      token: ctx.bot!.token,
+      callbackId: cb.id,
+      text: 'Action unavailable'
+    }).catch(() => null);
+    return true;
+  }
+
+  const message = cb.message;
+  const chatId = message?.chat?.id ? String(message.chat.id) : String(ctx.chatId || '');
+  const adminTgUserId = String(cb.from?.id || ctx.userId || '').trim();
+  const adminUsername = String(cb.from?.username || '').trim() || null;
+  const consumedBy = {
+    adminTgUserId: adminTgUserId || null,
+    adminUsername,
+    callbackId: cb.id || null
+  };
+  const claimed = await claimAdminActionToken(tokenPayload, consumedBy);
+  if (!claimed) {
+    await telegramOutbox.answerCallback({
+      token: ctx.bot!.token,
+      callbackId: cb.id,
+      text: 'Action already processed'
+    }).catch(() => null);
+    return true;
+  }
+
+  try {
+    const sent: any = await sendMessage(
+      ctx,
+      [
+        '💬 Додайте коментар до заявки',
+        `Request ID: ${(request as any).publicId || request.id}`,
+        '',
+        'Відповідь на це повідомлення буде збережена у CRM.'
+      ].join('\n'),
+      {
+        force_reply: true,
+        selective: true
+      },
+      chatId
+    );
+    const promptMessageId = Number(sent?.message_id || sent?.messageId || 0) || null;
+    const currentVars = (ctx.session?.variables as any) || {};
+    await prisma.botSession.update({
+      where: { id: ctx.session!.id },
+      data: {
+        state: ctx.session!.state || 'CL_MENU',
+        variables: {
+          ...currentVars,
+          adminCommentDraft: {
+            requestId: tokenPayload.targetId,
+            companyId: tokenPayload.companyId || ctx.companyId || (request as any).companyId || null,
+            botId: tokenPayload.botId || ctx.bot?.id || (request as any).botId || null,
+            chatId,
+            promptMessageId,
+            adminTgUserId: adminTgUserId || null,
+            adminUsername,
+            createdAt: new Date().toISOString()
+          }
+        } as any,
+        lastActive: new Date()
+      }
+    });
+
+    try {
+      await markAdminActionTokenConsumed(tokenPayload, consumedBy);
+    } catch {
+      await releaseAdminActionTokenClaim(tokenPayload, {
+        message: 'Request comment token finalization failed',
+        failedAt: new Date().toISOString()
+      });
+      await telegramOutbox.answerCallback({
+        token: ctx.bot!.token,
+        callbackId: cb.id,
+        text: 'Action completed, but log finalization failed.'
+      }).catch(() => null);
+      return true;
+    }
+
+    await telegramOutbox.answerCallback({
+      token: ctx.bot!.token,
+      callbackId: cb.id,
+      text: 'Reply with comment'
+    }).catch(() => null);
+    return true;
+  } catch {
+    await releaseAdminActionTokenClaim(tokenPayload, {
+      message: 'Request comment prompt failed',
+      failedAt: new Date().toISOString()
+    });
+    await telegramOutbox.answerCallback({
+      token: ctx.bot!.token,
+      callbackId: cb.id,
+      text: 'Action failed. Please retry.'
+    }).catch(() => null);
+    return true;
+  }
+};
+
 const salesDriveSyncAnswerText = (result: Awaited<ReturnType<typeof processSalesDriveRequestSyncQueue>>) => {
   if (result.reason) return `SalesDrive sync: ${result.reason}`;
   if (result.sent) return `SalesDrive sync: sent ${result.sent}`;
@@ -1398,6 +1516,9 @@ export const routeCallback = async (ctx: PipelineContext) => {
 
       const handledRequestSetStatusAction = await handleRequestSetStatusTokenAction(ctx, cb, tokenPayload);
       if (handledRequestSetStatusAction) return true;
+
+      const handledRequestCommentAction = await handleRequestAddCommentTokenAction(ctx, cb, tokenPayload);
+      if (handledRequestCommentAction) return true;
 
       const handledSalesDriveSyncAction = await handleSalesDriveRequestSyncTokenAction(ctx, cb, tokenPayload);
       if (handledSalesDriveSyncAction) return true;

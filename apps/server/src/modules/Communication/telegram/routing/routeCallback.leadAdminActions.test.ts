@@ -137,6 +137,7 @@ describe('lead admin callback actions', () => {
     prismaMock.leadActivity.create.mockResolvedValue({});
     prismaMock.b2bRequest.findUnique.mockResolvedValue({
       id: 'request_1',
+      publicId: 'REQ-1',
       companyId: 'company_1',
       botId: 'bot_lead',
       status: RequestStatus.DRAFT,
@@ -507,7 +508,7 @@ describe('lead admin callback actions', () => {
     expect(menuMessage).toEqual(expect.objectContaining({
       botId: 'bot_lead',
       chatId: '-100999',
-      text: expect.stringContaining('request_1')
+      text: expect.stringContaining('REQ-1')
     }));
     const buttons = menuMessage.replyMarkup.inline_keyboard.flat();
     expect(buttons).toEqual(expect.arrayContaining([
@@ -607,6 +608,77 @@ describe('lead admin callback actions', () => {
         })
       })
     });
+  });
+
+  it('opens a ForceReply prompt for adding a request comment from an admin chat action', async () => {
+    prismaMock.integrationEventLog.findUnique.mockResolvedValueOnce({
+      id: 'event_token_comment',
+      companyId: 'company_1',
+      integration: 'telegram',
+      action: 'admin.action_token_created',
+      status: 'PENDING',
+      entityType: 'request',
+      entityId: 'request_1',
+      idempotencyKey: 'telegram:admin-action-token:tok_comment',
+      meta: {
+        action: 'request.ADD_COMMENT',
+        targetType: 'request',
+        targetId: 'request_1',
+        botId: 'bot_lead',
+        companyId: 'company_1',
+        requestId: 'request_1'
+      }
+    });
+    telegramOutboxMock.sendMessage.mockResolvedValueOnce({ message_id: 55 });
+    const { routeCallback } = await import('./routeCallback.js');
+
+    const handled = await routeCallback(buildCtx('🟢 [LEAD] MiniApp запит\nRequest ID: REQ-1', 'v1:aa:tok_comment'));
+
+    expect(handled).toBe(true);
+    expect(prismaMock.b2bRequest.findUnique).toHaveBeenCalledWith({
+      where: { id: 'request_1' },
+      select: { id: true, companyId: true, botId: true, publicId: true }
+    });
+    expect(telegramOutboxMock.sendMessage).toHaveBeenCalledWith(expect.objectContaining({
+      botId: 'bot_lead',
+      chatId: '-100999',
+      text: expect.stringContaining('Додайте коментар'),
+      replyMarkup: expect.objectContaining({
+        force_reply: true,
+        selective: true
+      })
+    }));
+    expect(prismaMock.botSession.update).toHaveBeenCalledWith({
+      where: { id: 'session_admin' },
+      data: expect.objectContaining({
+        state: 'CL_MENU',
+        variables: expect.objectContaining({
+          adminCommentDraft: expect.objectContaining({
+            requestId: 'request_1',
+            promptMessageId: 55,
+            adminTgUserId: '7001',
+            chatId: '-100999'
+          })
+        })
+      })
+    });
+    expect(prismaMock.integrationEventLog.update).toHaveBeenCalledWith({
+      where: { id: 'event_token_comment' },
+      data: expect.objectContaining({
+        status: 'SUCCESS',
+        meta: expect.objectContaining({
+          consumed: true,
+          consumedBy: expect.objectContaining({
+            adminTgUserId: '7001',
+            callbackId: 'callback_1'
+          })
+        })
+      })
+    });
+    expect(telegramOutboxMock.answerCallback).toHaveBeenCalledWith(expect.objectContaining({
+      callbackId: 'callback_1',
+      text: 'Reply with comment'
+    }));
   });
 
   it('rejects a token scoped to a different bot or company without updating the lead', async () => {

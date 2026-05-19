@@ -18,6 +18,7 @@ describe('lead admin notification actions', () => {
     createAdminActionTokenMock
       .mockResolvedValueOnce('tok_assign')
       .mockResolvedValueOnce('tok_status')
+      .mockResolvedValueOnce('tok_comment')
       .mockResolvedValueOnce('tok_contacted')
       .mockResolvedValueOnce('tok_salesdrive');
     const { buildLeadAdminActionMarkupAsync } = await import('./leadAdminNotification.js');
@@ -36,6 +37,7 @@ describe('lead admin notification actions', () => {
     const buttons = markup?.inline_keyboard.flat() || [];
     const assign = buttons.find((button: any) => String(button.text || '').includes('роботу'));
     const status = buttons.find((button: any) => String(button.text || '').includes('статус'));
+    const comment = buttons.find((button: any) => String(button.text || '').includes('коментар'));
     const contacted = buttons.find((button: any) => String(button.text || '').includes('контакт'));
 
     expect(assign?.callback_data).toMatch(/^v1:aa:/);
@@ -44,6 +46,9 @@ describe('lead admin notification actions', () => {
     expect(status?.callback_data).toMatch(/^v1:aa:/);
     expect(Buffer.byteLength(status.callback_data, 'utf8')).toBeLessThanOrEqual(64);
     expect(status.callback_data).not.toContain('request_1');
+    expect(comment?.callback_data).toMatch(/^v1:aa:/);
+    expect(Buffer.byteLength(comment.callback_data, 'utf8')).toBeLessThanOrEqual(64);
+    expect(comment.callback_data).not.toContain('request_1');
     expect(contacted?.callback_data).toMatch(/^v1:aa:/);
     expect(Buffer.byteLength(contacted.callback_data, 'utf8')).toBeLessThanOrEqual(64);
     expect(contacted.callback_data).not.toContain('lead_1');
@@ -64,6 +69,14 @@ describe('lead admin notification actions', () => {
       requestId: 'request_1'
     });
     expect(createAdminActionTokenMock).toHaveBeenCalledWith({
+      action: 'request.ADD_COMMENT',
+      targetType: 'request',
+      targetId: 'request_1',
+      botId: 'bot_1',
+      companyId: 'company_1',
+      requestId: 'request_1'
+    });
+    expect(createAdminActionTokenMock).toHaveBeenCalledWith({
       action: 'lead.CONTACTED',
       targetType: 'lead',
       targetId: 'lead_1',
@@ -77,6 +90,7 @@ describe('lead admin notification actions', () => {
     createAdminActionTokenMock
       .mockResolvedValueOnce('tok_assign')
       .mockResolvedValueOnce('tok_status')
+      .mockResolvedValueOnce('tok_comment')
       .mockResolvedValueOnce('tok_contacted')
       .mockResolvedValueOnce('tok_salesdrive');
     const { buildLeadAdminActionMarkupAsync } = await import('./leadAdminNotification.js');

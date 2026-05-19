@@ -55,14 +55,16 @@ Expected:
 2. Перевірити, що адмін-чат отримує повідомлення з `Request ID`.
 3. Натиснути `Взяти в роботу`.
 4. Натиснути `Змінити статус` і вибрати `Контакт`.
-5. Натиснути `Позначити контакт`.
-6. Якщо SalesDrive sync увімкнений прапорцями, натиснути `SalesDrive sync`.
-7. Повторити клік по вже використаній tokenized дії.
+5. Натиснути `Додати коментар`, відповісти на ForceReply повідомлення короткою нотаткою.
+6. Натиснути `Позначити контакт`.
+7. Якщо SalesDrive sync увімкнений прапорцями, натиснути `SalesDrive sync`.
+8. Повторити клік по вже використаній tokenized дії.
 
 Expected:
 - `Відкрити в CRM` веде на пошук заявки.
 - `Взяти в роботу` оновлює `assignedTo` на Telegram admin id і додає `ASSIGNED` у повідомлення.
 - `Змінити статус` відкриває окреме tokenized меню, вибір статусу оновлює `B2bRequest.status` і логується.
+- `Додати коментар` відкриває ForceReply prompt; відповідь адміна додається в `B2bRequest.internalNotes`, `MessageLog` і `IntegrationEventLog`.
 - `Позначити контакт` ставить lead status `CONTACTED`.
 - Повторний tokenized клік відповідає як already processed без дублювання side effects.
 - SalesDrive action не пише в SalesDrive, якщо write/sync flags вимкнені.
