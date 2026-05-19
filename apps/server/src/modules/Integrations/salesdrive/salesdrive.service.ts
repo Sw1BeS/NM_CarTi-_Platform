@@ -13,6 +13,46 @@ import {
 import { processSalesDriveRequestSyncQueue } from './salesdriveSync.service.js';
 
 const mapStatus = (status: string): IntegrationLogStatus => status === 'OK' ? 'OK' : status === 'CONFIG_MISSING' ? 'WARN' : 'ERROR';
+const syncActions = ['REQUEST_SYNC_QUEUED', 'REQUEST_SYNC_SENT', 'REQUEST_SYNC_SKIPPED'];
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value && typeof value === 'object' && !Array.isArray(value));
+
+const toText = (value: unknown) => String(value || '').trim();
+
+const redactSalesDriveStatusText = (value: unknown) => {
+  const config = readSalesDriveConfig();
+  const apiKey = toText((config as any).apiKey);
+  let text = toText(value);
+  if (apiKey) text = text.replaceAll(apiKey, '[redacted-salesdrive-key]');
+  return text
+    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[redacted-email]')
+    .replace(/(?:\+?\d[\d\s()\-]{6,}\d)/g, '[redacted-phone]');
+};
+
+const toIso = (value: unknown) => {
+  if (value instanceof Date) return value.toISOString();
+  const text = toText(value);
+  return text || undefined;
+};
+
+const toSyncStatusItem = (log: any) => {
+  const meta = isRecord(log?.meta) ? log.meta : {};
+  return {
+    requestId: toText(log?.entityId) || undefined,
+    requestPublicId: toText(meta.requestPublicId) || undefined,
+    action: toText(log?.action) || undefined,
+    status: toText(log?.status) || undefined,
+    reason: toText(meta.reason) || undefined,
+    attempts: Number.isFinite(Number(meta.attempts)) ? Number(meta.attempts) : undefined,
+    salesDriveOrderId: toText(meta.salesDriveOrderId) || undefined,
+    httpStatus: Number.isFinite(Number(meta.httpStatus)) ? Number(meta.httpStatus) : undefined,
+    message: redactSalesDriveStatusText(log?.message),
+    createdAt: toIso(log?.createdAt),
+    sentAt: toIso(meta.sentAt),
+    lastErrorAt: toIso(meta.lastErrorAt)
+  };
+};
 
 const annotateExistingSalesDriveIdentities = async (
   companyId: string | null | undefined,
@@ -52,6 +92,35 @@ const annotateExistingSalesDriveIdentities = async (
 export class SalesDriveService {
   getConfig() {
     return toSafeSalesDriveConfig(readSalesDriveConfig());
+  }
+
+  async syncStatus(companyId: string | null | undefined) {
+    const logs = await prisma.integrationEventLog.findMany({
+      where: {
+        ...(companyId ? { companyId } : {}),
+        integration: SALESDRIVE_INTEGRATION,
+        action: { in: syncActions }
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 100
+    });
+
+    const items = logs.map(toSyncStatusItem);
+    const counts = items.reduce((acc, item) => {
+      if (item.action === 'REQUEST_SYNC_SENT' && item.status === 'OK') acc.sent += 1;
+      else if (item.action === 'REQUEST_SYNC_QUEUED' && item.status === 'ERROR') acc.failed += 1;
+      else if (item.action === 'REQUEST_SYNC_SKIPPED') acc.skipped += 1;
+      else if (item.action === 'REQUEST_SYNC_QUEUED') acc.queued += 1;
+      return acc;
+    }, { queued: 0, sent: 0, failed: 0, skipped: 0 });
+
+    return {
+      integration: SALESDRIVE_INTEGRATION,
+      counts,
+      lastSent: items.find((item) => item.action === 'REQUEST_SYNC_SENT' && item.status === 'OK') || null,
+      lastError: items.find((item) => item.status === 'ERROR') || null,
+      recent: items.slice(0, 20)
+    };
   }
 
   async health(companyId?: string | null) {

@@ -51,6 +51,15 @@ router.post('/preview', requireRole(roles), async (req: any, res) => {
   }
 });
 
+router.get('/sync/status', requireRole(roles), async (req: any, res) => {
+  try {
+    const result = await salesDriveService.syncStatus(req.companyId);
+    res.json(result);
+  } catch (e: any) {
+    return errorResponse(res, 400, e.message || 'SalesDrive sync status error', 'SALESDRIVE_SYNC_STATUS');
+  }
+});
+
 router.post('/sync/process', requireRole(['OWNER', 'ADMIN']), async (req: any, res) => {
   try {
     const limit = parsePositiveInt(req.body?.limit, 25, 50);
