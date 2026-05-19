@@ -3,7 +3,7 @@ import { normalizePhone } from '../modules/Inventory/normalization/normalizePhon
 import { generateULID } from '../utils/ulid.js';
 import { prisma } from './prisma.js';
 
-export type LeadIdentityProvider = 'TELEGRAM' | 'PHONE' | 'WEBSITE' | 'META';
+export type LeadIdentityProvider = 'TELEGRAM' | 'PHONE' | 'WEBSITE' | 'META' | 'SALESDRIVE';
 
 export type LeadIdentityCandidate = {
   provider: LeadIdentityProvider;

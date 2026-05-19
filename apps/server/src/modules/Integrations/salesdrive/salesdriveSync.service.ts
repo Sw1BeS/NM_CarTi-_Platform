@@ -6,6 +6,7 @@ import {
   toSafeSalesDriveConfig,
   type SalesDriveConfig,
   type SalesDriveFetchLike,
+  type SalesDriveOrderCreateResult,
   type SalesDriveOrderAddInput
 } from './salesdrive.connector.js';
 
@@ -116,6 +117,50 @@ const salesDriveOrderInputFromRequest = (request: any): SalesDriveOrderAddInput 
   };
 };
 
+const persistSalesDriveLeadIdentity = async (
+  params: {
+    companyId?: string | null;
+    request: any;
+    result: SalesDriveOrderCreateResult;
+  }
+) => {
+  const externalId = toText(params.result.orderId);
+  const companyId = toText(params.companyId || params.request?.companyId);
+  const leadId = toText(params.request?.leadId || params.request?.lead?.id);
+  if (!externalId || !companyId || !leadId) return;
+
+  await prisma.leadIdentity.upsert({
+    where: {
+      companyId_provider_externalId: {
+        companyId,
+        provider: 'SALESDRIVE',
+        externalId
+      }
+    },
+    create: {
+      companyId,
+      leadId,
+      provider: 'SALESDRIVE',
+      externalId,
+      confidence: 'HIGH',
+      payload: {
+        source: 'salesdrive.request_sync',
+        requestId: toText(params.request?.id) || undefined,
+        requestPublicId: toText(params.request?.publicId) || undefined
+      }
+    },
+    update: {
+      leadId,
+      confidence: 'HIGH',
+      payload: {
+        source: 'salesdrive.request_sync',
+        requestId: toText(params.request?.id) || undefined,
+        requestPublicId: toText(params.request?.publicId) || undefined
+      }
+    }
+  });
+};
+
 export const enqueueSalesDriveRequestSync = async (
   input: SalesDriveRequestSyncInput,
   config = readSalesDriveConfig()
@@ -196,6 +241,11 @@ export const processSalesDriveRequestSyncQueue = async (
       if (!request) throw new Error(`Request not found: ${String(log.entityId)}`);
 
       const result = await createSalesDriveOrder(salesDriveOrderInputFromRequest(request), config, fetcher);
+      await persistSalesDriveLeadIdentity({
+        companyId: log.companyId,
+        request,
+        result
+      }).catch(() => null);
       await prisma.integrationEventLog.update({
         where: { id: log.id },
         data: {

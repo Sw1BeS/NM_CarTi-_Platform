@@ -4,12 +4,14 @@ const {
   b2bRequestFindUniqueMock,
   integrationEventLogCreateMock,
   integrationEventLogFindManyMock,
-  integrationEventLogUpdateMock
+  integrationEventLogUpdateMock,
+  leadIdentityUpsertMock
 } = vi.hoisted(() => ({
   b2bRequestFindUniqueMock: vi.fn(),
   integrationEventLogCreateMock: vi.fn(),
   integrationEventLogFindManyMock: vi.fn(),
-  integrationEventLogUpdateMock: vi.fn()
+  integrationEventLogUpdateMock: vi.fn(),
+  leadIdentityUpsertMock: vi.fn()
 }));
 
 vi.mock('../../../services/prisma.js', () => ({
@@ -21,6 +23,9 @@ vi.mock('../../../services/prisma.js', () => ({
       create: integrationEventLogCreateMock,
       findMany: integrationEventLogFindManyMock,
       update: integrationEventLogUpdateMock
+    },
+    leadIdentity: {
+      upsert: leadIdentityUpsertMock
     }
   }
 }));
@@ -34,6 +39,7 @@ describe('salesdriveSync.service', () => {
     integrationEventLogCreateMock.mockResolvedValue({ id: 'log_1' });
     integrationEventLogFindManyMock.mockResolvedValue([]);
     integrationEventLogUpdateMock.mockResolvedValue({});
+    leadIdentityUpsertMock.mockResolvedValue({});
   });
 
   it('logs a safe skipped sync intent when SalesDrive is not configured', async () => {
@@ -138,6 +144,7 @@ describe('salesdriveSync.service', () => {
     ]);
     b2bRequestFindUniqueMock.mockResolvedValueOnce({
       id: 'request_1',
+      leadId: 'lead_1',
       publicId: 'REQ-1',
       title: 'Запит: Hyundai Ioniq 5',
       description: 'Коментар: цікавить авто',
@@ -198,6 +205,30 @@ describe('salesdriveSync.service', () => {
     });
     expect(JSON.stringify(integrationEventLogUpdateMock.mock.calls[0][0])).not.toContain('secret-key');
     expect(JSON.stringify(integrationEventLogUpdateMock.mock.calls[0][0])).not.toContain('+380635055252');
+    expect(leadIdentityUpsertMock).toHaveBeenCalledWith({
+      where: {
+        companyId_provider_externalId: {
+          companyId: 'company_1',
+          provider: 'SALESDRIVE',
+          externalId: '37193'
+        }
+      },
+      create: expect.objectContaining({
+        companyId: 'company_1',
+        leadId: 'lead_1',
+        provider: 'SALESDRIVE',
+        externalId: '37193',
+        confidence: 'HIGH',
+        payload: expect.objectContaining({
+          source: 'salesdrive.request_sync',
+          requestId: 'request_1'
+        })
+      }),
+      update: expect.objectContaining({
+        leadId: 'lead_1',
+        confidence: 'HIGH'
+      })
+    });
   });
 
   it('does not process queued request sync intents when write flag is disabled', async () => {
