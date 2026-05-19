@@ -7,6 +7,7 @@ import { IntegrationService } from './integration.service.js';
 import { authenticateToken, requireRole } from '../../middleware/auth.js';
 import { companyContext } from '../../middleware/companyContext.js';
 import { prisma } from '../../services/prisma.js';
+import { isEnvFlagEnabled } from '../../services/featureFlags.js';
 import { errorResponse } from '../../utils/errorResponse.js';
 
 const router = Router();
@@ -65,6 +66,91 @@ router.get('/logs', requireRole(['OWNER', 'ADMIN', 'MANAGER', 'OPERATOR']), asyn
         res.json(logs);
     } catch (e: any) {
         return errorResponse(res, 500, e.message || 'Integration logs error', 'INTEGRATION_LOGS');
+    }
+});
+
+const toCountMap = (rows: Array<Record<string, any>>, key: string) => Object.fromEntries(
+    rows.map((row) => [String(row[key] || 'UNKNOWN'), Number(row._count?._all || 0)])
+);
+
+const redactDebugText = (value: unknown) => String(value || '')
+    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[redacted-email]')
+    .replace(/(?:\+?\d[\d\s()\-]{6,}\d)/g, '[redacted-phone]')
+    .replace(/(?:access[_-]?token|token|authorization)["':=]+[^"',\s}]+/gi, '[redacted-token]');
+
+const safeMetaDebugPayload = (meta: unknown) => {
+    const record = meta && typeof meta === 'object' && !Array.isArray(meta) ? meta as Record<string, unknown> : {};
+    return {
+        ...(typeof record.eventId === 'string' ? { eventId: record.eventId } : {}),
+        ...(typeof record.hasPhone === 'boolean' ? { hasPhone: record.hasPhone } : {}),
+        ...(typeof record.hasEmail === 'boolean' ? { hasEmail: record.hasEmail } : {}),
+        ...(typeof record.hasExternalId === 'boolean' ? { hasExternalId: record.hasExternalId } : {}),
+        ...(typeof record.hasFbp === 'boolean' ? { hasFbp: record.hasFbp } : {}),
+        ...(typeof record.hasFbc === 'boolean' ? { hasFbc: record.hasFbc } : {})
+    };
+};
+
+const safeMetaDebugLog = (log: any) => {
+    if (!log) return null;
+    return {
+        action: log.action,
+        status: log.status,
+        entityType: log.entityType,
+        entityId: log.entityId,
+        idempotencyKey: log.idempotencyKey,
+        message: redactDebugText(log.message),
+        createdAt: log.createdAt instanceof Date ? log.createdAt.toISOString() : log.createdAt,
+        meta: safeMetaDebugPayload(log.meta)
+    };
+};
+
+/**
+ * GET /api/integrations/meta/debug
+ * Safe Meta CAPI tracking summary for admin/debug screens.
+ */
+router.get('/meta/debug', requireRole(['OWNER', 'ADMIN', 'MANAGER', 'OPERATOR']), async (req: any, res) => {
+    try {
+        const companyId = req.companyId;
+        if (!companyId) return errorResponse(res, 400, 'Company context required', 'META_DEBUG');
+
+        const where = { companyId, integration: 'META_PIXEL' };
+        const [lastSent, lastError, byStatusRows, byActionRows] = await Promise.all([
+            prisma.integrationEventLog.findFirst({
+                where: { ...where, status: 'SUCCESS' },
+                orderBy: { createdAt: 'desc' }
+            }),
+            prisma.integrationEventLog.findFirst({
+                where: { ...where, status: 'ERROR' },
+                orderBy: { createdAt: 'desc' }
+            }),
+            prisma.integrationEventLog.groupBy({
+                by: ['status'],
+                where,
+                _count: { _all: true }
+            }),
+            prisma.integrationEventLog.groupBy({
+                by: ['action'],
+                where,
+                _count: { _all: true }
+            })
+        ]);
+
+        res.json({
+            integration: 'META_PIXEL',
+            capiEnabled: isEnvFlagEnabled('META_CAPI_ENABLED', false),
+            counts: {
+                byStatus: toCountMap(byStatusRows as any, 'status'),
+                byAction: toCountMap(byActionRows as any, 'action')
+            },
+            lastSent: safeMetaDebugLog(lastSent),
+            lastError: safeMetaDebugLog(lastError),
+            dedup: {
+                eventIdField: 'event_id',
+                idempotencyKey: 'IntegrationEventLog.idempotencyKey'
+            }
+        });
+    } catch (e: any) {
+        return errorResponse(res, 500, e.message || 'Meta debug error', 'META_DEBUG');
     }
 });
 
