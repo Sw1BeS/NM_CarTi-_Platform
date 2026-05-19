@@ -95,8 +95,10 @@ describe('templatePreset.service', () => {
     expect(byId.get('btn_pick')?.value).toContain('type=BUY');
     expect(byId.get('btn_stock')?.value).toContain('entry=inventory');
     expect(byId.get('btn_stock')?.value).toContain('status=AVAILABLE');
+    expect(byId.get('btn_stock')?.value).toContain('availabilityState=IN_STOCK');
     expect(byId.get('btn_transit')?.value).toContain('entry=inventory');
     expect(byId.get('btn_transit')?.value).toContain('status=PENDING');
+    expect(byId.get('btn_transit')?.value).toContain('availabilityState=IN_TRANSIT');
     expect(byId.get('btn_sell')?.type).toBe('SCENARIO');
     expect(byId.get('btn_sell')?.value).toBe('scenario_sell');
     expect(byId.get('btn_support')?.type).toBe('WEB_APP');
@@ -154,6 +156,7 @@ describe('templatePreset.service', () => {
     expect(url.pathname).toBe('/p/app/cartie');
     expect(url.searchParams.get('entry')).toBe('inventory');
     expect(url.searchParams.get('status')).toBe('PENDING');
+    expect(url.searchParams.get('availabilityState')).toBe('IN_TRANSIT');
     expect(url.searchParams.get('utm_source')).toBe('menu');
   });
 

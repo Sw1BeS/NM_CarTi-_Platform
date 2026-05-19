@@ -7,7 +7,7 @@ import { execSync } from 'node:child_process';
 type BotTemplate = 'CLIENT_LEAD' | 'B2B' | 'CATALOG' | string;
 export type PresetStatus = 'ready' | 'partial' | 'missing';
 
-export const TEMPLATE_PRESET_VERSION = '2026.02.18-r9';
+export const TEMPLATE_PRESET_VERSION = '2026.02.18-r10';
 
 const LEGACY_LEAD_WELCOME_EN = '👋 Welcome to CarTié! Choose an option below:';
 const LEGACY_B2B_WELCOME_EN = '🤝 CarDealer Lviv B2B\n\nCreate a structured request and get offers from partner dealers.';
@@ -362,8 +362,8 @@ const buildB2BMiniAppConfig = (url: string, showcaseSlug: string): MiniAppConfig
 const baseLeadButtons = (scenarioIds: Record<string, string>, miniAppUrl: string): MenuButton[] => [
   { id: 'btn_pick', label: '⏱ Підібрати авто за 1 хвилину', label_uk: '⏱ Підібрати авто за 1 хвилину', label_ru: '⏱ Підібрати авто за 1 хвилину', type: 'WEB_APP', value: appendMiniAppQuery(miniAppUrl, { entry: 'request', type: 'BUY' }), row: 0, col: 0 },
   { id: 'btn_sell', label: '💰 Продати своє авто', label_uk: '💰 Продати своє авто', label_ru: '💰 Продати своє авто', type: 'SCENARIO', value: scenarioIds.sell || 'sell', row: 0, col: 1 },
-  { id: 'btn_stock', label: '🚘 Авто в наявності', label_uk: '🚘 Авто в наявності', label_ru: '🚘 Авто в наявності', type: 'WEB_APP', value: appendMiniAppQuery(miniAppUrl, { entry: 'inventory', status: 'AVAILABLE' }), row: 1, col: 0 },
-  { id: 'btn_transit', label: '🚚 Авто в дорозі', label_uk: '🚚 Авто в дорозі', label_ru: '🚚 Авто в дорозі', type: 'WEB_APP', value: appendMiniAppQuery(miniAppUrl, { entry: 'inventory', status: 'PENDING' }), row: 1, col: 1 },
+  { id: 'btn_stock', label: '🚘 Авто в наявності', label_uk: '🚘 Авто в наявності', label_ru: '🚘 Авто в наявності', type: 'WEB_APP', value: appendMiniAppQuery(miniAppUrl, { entry: 'inventory', status: 'AVAILABLE', availabilityState: 'IN_STOCK' }), row: 1, col: 0 },
+  { id: 'btn_transit', label: '🚚 Авто в дорозі', label_uk: '🚚 Авто в дорозі', label_ru: '🚚 Авто в дорозі', type: 'WEB_APP', value: appendMiniAppQuery(miniAppUrl, { entry: 'inventory', status: 'PENDING', availabilityState: 'IN_TRANSIT' }), row: 1, col: 1 },
   { id: 'btn_favorites', label: '⭐ Обране', label_uk: '⭐ Обране', label_ru: '⭐ Избранное', type: 'WEB_APP', value: appendMiniAppQuery(miniAppUrl, { entry: 'favorites' }), row: 2, col: 0 },
   { id: 'btn_support', label: '🆘 Підтримка', label_uk: '🆘 Підтримка', label_ru: '🆘 Підтримка', type: 'WEB_APP', value: appendMiniAppQuery(miniAppUrl, { entry: 'support' }), row: 2, col: 1 }
 ];
