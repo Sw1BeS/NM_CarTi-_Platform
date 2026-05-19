@@ -61,13 +61,13 @@ const normalizeStartParamFilters = (value?: string | null): MiniAppFilters => {
     home: { entry: 'home' },
     app: { entry: 'home' },
     miniapp: { entry: 'home' },
-    view_inventory: { entry: 'inventory', status: 'AVAILABLE' },
+    view_inventory: { entry: 'inventory', status: 'AVAILABLE', availabilityState: 'IN_STOCK' },
     inventory: { entry: 'inventory' },
-    stock: { entry: 'inventory', status: 'AVAILABLE' },
-    view_stock: { entry: 'inventory', status: 'AVAILABLE' },
-    view_transit: { entry: 'inventory', status: 'PENDING' },
-    transit: { entry: 'inventory', status: 'PENDING' },
-    pending: { entry: 'inventory', status: 'PENDING' },
+    stock: { entry: 'inventory', status: 'AVAILABLE', availabilityState: 'IN_STOCK' },
+    view_stock: { entry: 'inventory', status: 'AVAILABLE', availabilityState: 'IN_STOCK' },
+    view_transit: { entry: 'inventory', status: 'PENDING', availabilityState: 'IN_TRANSIT' },
+    transit: { entry: 'inventory', status: 'PENDING', availabilityState: 'IN_TRANSIT' },
+    pending: { entry: 'inventory', status: 'PENDING', availabilityState: 'IN_TRANSIT' },
     view_request: { entry: 'request', type: 'BUY' },
     request: { entry: 'request', type: 'BUY' },
     buy: { entry: 'request', type: 'BUY' },
@@ -174,10 +174,12 @@ export const buildMiniAppEntryUrl = (
   switch (entry) {
     case 'inventory':
       filters.status = 'AVAILABLE';
+      filters.availabilityState = 'IN_STOCK';
       break;
     case 'in_transit':
       filters.entry = 'inventory';
       filters.status = 'PENDING';
+      filters.availabilityState = 'IN_TRANSIT';
       break;
     case 'sell':
       filters.entry = 'request';

@@ -34,11 +34,20 @@ describe('miniappUrl', () => {
     expect(url.searchParams.get('carId')).toBe('car-123');
   });
 
-  it('normalizes transit entry helper to inventory with PENDING status', () => {
+  it('normalizes transit entry helper to inventory with explicit availability state', () => {
     const url = new URL(buildMiniAppEntryUrl(bot, 'in_transit'));
 
     expect(url.searchParams.get('entry')).toBe('inventory');
     expect(url.searchParams.get('status')).toBe('PENDING');
+    expect(url.searchParams.get('availabilityState')).toBe('IN_TRANSIT');
+  });
+
+  it('normalizes inventory entry helper to in-stock availability state', () => {
+    const url = new URL(buildMiniAppEntryUrl(bot, 'inventory'));
+
+    expect(url.searchParams.get('entry')).toBe('inventory');
+    expect(url.searchParams.get('status')).toBe('AVAILABLE');
+    expect(url.searchParams.get('availabilityState')).toBe('IN_STOCK');
   });
 
   it('replaces stale build tags while preserving navigation params', () => {
@@ -104,6 +113,7 @@ describe('miniappUrl', () => {
     expect(url.pathname).toBe('/p/app/cartie');
     expect(url.searchParams.get('entry')).toBe('inventory');
     expect(url.searchParams.get('status')).toBe('PENDING');
+    expect(url.searchParams.get('availabilityState')).toBe('IN_TRANSIT');
   });
 
   it('caches fallback git build SHA lookup across repeated URL builds', async () => {

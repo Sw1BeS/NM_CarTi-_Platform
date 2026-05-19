@@ -19,8 +19,8 @@ const webAppButton = (text: string, url: string): TelegramKeyboardButton => {
 
 export const buildClientLeadMiniAppKeyboard = (bot: BotConfig, lang: Lang): TelegramReplyKeyboard => {
   const pickUrl = buildMiniAppUrl(bot, { entry: 'request', type: 'BUY' });
-  const stockUrl = buildMiniAppUrl(bot, { entry: 'inventory', status: 'AVAILABLE' });
-  const transitUrl = buildMiniAppUrl(bot, { entry: 'inventory', status: 'PENDING' });
+  const stockUrl = buildMiniAppUrl(bot, { entry: 'inventory', status: 'AVAILABLE', availabilityState: 'IN_STOCK' });
+  const transitUrl = buildMiniAppUrl(bot, { entry: 'inventory', status: 'PENDING', availabilityState: 'IN_TRANSIT' });
   const favoritesUrl = buildMiniAppUrl(bot, { entry: 'favorites' });
   const requestsUrl = buildMiniAppUrl(bot, { entry: 'status' });
   const contactsUrl = buildMiniAppUrl(bot, { entry: 'contacts' });

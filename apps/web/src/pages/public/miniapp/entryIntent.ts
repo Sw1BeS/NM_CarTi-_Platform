@@ -19,6 +19,7 @@ export const parseMiniAppEntryIntent = (
 ): MiniAppEntryIntent => {
   const entry = String(params.get('entry') || '').trim().toLowerCase();
   const status = String(params.get('status') || '').trim().toUpperCase();
+  const availabilityState = String(params.get('availabilityState') || '').trim().toUpperCase();
   const type = String(params.get('type') || params.get('requestType') || '').trim().toUpperCase();
   const start = String(startParam || '').trim().toLowerCase();
   const intent: MiniAppEntryIntent = {};
@@ -35,7 +36,13 @@ export const parseMiniAppEntryIntent = (
   };
 
   if (entry) applyEntry(entry);
-  if (status === 'PENDING' || status === 'IN_TRANSIT') {
+  if (availabilityState === 'IN_TRANSIT' || availabilityState === 'IMPORT_TO_ORDER') {
+    intent.view = 'INVENTORY';
+    intent.tab = 'IN_TRANSIT';
+  } else if (availabilityState === 'IN_STOCK') {
+    intent.view = 'INVENTORY';
+    intent.tab = 'IN_STOCK';
+  } else if (status === 'PENDING' || status === 'IN_TRANSIT') {
     intent.view = 'INVENTORY';
     intent.tab = 'IN_TRANSIT';
   } else if (status === 'AVAILABLE') {
@@ -108,8 +115,8 @@ export const isMiniAppReadOnlyLaunch = (
   if (start === 'sell' || start === 'sell_car' || start === 'request' || start === 'view_request') return false;
   if (['1', 'true', 'readonly', 'read_only', 'admin', 'admin_chat', 'crm'].includes(previewMode)) return true;
   if (hasCarId) return true;
-  return ['home', 'inventory', 'catalog', 'stock', 'contacts', 'contact'].includes(entry)
-    || ['home', 'main', 'app', 'miniapp', 'inventory', 'stock', 'view_inventory', 'view_stock', 'contacts', 'contact'].includes(start);
+  return ['home', 'inventory', 'catalog', 'stock', 'transit', 'contacts', 'contact'].includes(entry)
+    || ['home', 'main', 'app', 'miniapp', 'inventory', 'stock', 'view_inventory', 'view_stock', 'transit', 'view_transit', 'pending', 'contacts', 'contact'].includes(start);
 };
 
 export type MiniAppInternalLinkIntent = {

@@ -160,8 +160,8 @@ describe('CLIENT_LEAD bot menu', () => {
     const runtimeButtons = calls[0].replyMarkup.keyboard.flat();
     expect(runtimeButtons.every((button: any) => button.web_app?.url?.includes('/p/app/cartie'))).toBe(true);
     expect(runtimeButtons.some((button: any) => button.web_app.url.includes('entry=request') && button.web_app.url.includes('type=BUY'))).toBe(true);
-    expect(runtimeButtons.some((button: any) => button.web_app.url.includes('status=AVAILABLE'))).toBe(true);
-    expect(runtimeButtons.some((button: any) => button.web_app.url.includes('status=PENDING'))).toBe(true);
+    expect(runtimeButtons.some((button: any) => button.web_app.url.includes('availabilityState=IN_STOCK'))).toBe(true);
+    expect(runtimeButtons.some((button: any) => button.web_app.url.includes('availabilityState=IN_TRANSIT'))).toBe(true);
     expect(runtimeButtons.some((button: any) => button.web_app.url.includes('entry=status'))).toBe(true);
 
     const storedButtons = ctx.bot.config.menuConfig.buttons;
@@ -178,7 +178,7 @@ describe('CLIENT_LEAD bot menu', () => {
     expect(storedButtons[0].value).toContain('entry=request');
     expect(storedButtons[0].value).toContain('type=BUY');
     expect(storedButtons[1].value).toContain('entry=inventory');
-    expect(storedButtons[1].value).toContain('status=PENDING');
+    expect(storedButtons[1].value).toContain('availabilityState=IN_TRANSIT');
     expect(storedButtons[1].value).toContain('utm_source=menu');
   }, 10000);
 
@@ -231,8 +231,8 @@ describe('CLIENT_LEAD bot menu', () => {
     const flatButtons = calls[0].replyMarkup.keyboard.flat();
     expect(flatButtons.every((button: any) => button.web_app?.url?.includes('/p/app/cartie'))).toBe(true);
     expect(flatButtons.some((button: any) => button.web_app?.url?.includes('entry=request') && button.web_app.url.includes('type=BUY'))).toBe(true);
-    expect(flatButtons.some((button: any) => button.web_app?.url?.includes('status=AVAILABLE'))).toBe(true);
-    expect(flatButtons.some((button: any) => button.web_app?.url?.includes('status=PENDING'))).toBe(true);
+    expect(flatButtons.some((button: any) => button.web_app?.url?.includes('availabilityState=IN_STOCK'))).toBe(true);
+    expect(flatButtons.some((button: any) => button.web_app?.url?.includes('availabilityState=IN_TRANSIT'))).toBe(true);
     expect(flatButtons.some((button: any) => button.web_app?.url?.includes('entry=status'))).toBe(true);
     expect(flatButtons.some((button: any) => button.web_app?.url?.includes('entry=contacts'))).toBe(true);
   }, 10000);

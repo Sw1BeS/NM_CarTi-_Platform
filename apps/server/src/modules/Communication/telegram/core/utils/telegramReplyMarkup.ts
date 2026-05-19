@@ -43,11 +43,12 @@ const resolveIntentFromMiniAppUrl = (rawUrl?: string | null): MiniAppDirectLinkI
 
     const entry = String(url.searchParams.get('entry') || '').trim().toLowerCase();
     const status = String(url.searchParams.get('status') || '').trim().toUpperCase();
+    const availabilityState = String(url.searchParams.get('availabilityState') || '').trim().toUpperCase();
     const type = String(url.searchParams.get('type') || url.searchParams.get('requestType') || '').trim().toUpperCase();
 
     if (entry === 'request' && type === 'SELL') return { startParam: 'sell_car', writeFlow: 'sell' };
     if (entry === 'request') return { startParam: 'view_request', writeFlow: 'request' };
-    if (entry === 'inventory' && status === 'PENDING') return { startParam: 'view_transit' };
+    if (entry === 'inventory' && (availabilityState === 'IN_TRANSIT' || status === 'PENDING')) return { startParam: 'view_transit' };
     if (entry === 'inventory') return { startParam: 'view_inventory' };
     if (entry === 'favorites' || entry === 'favourites') return { startParam: 'view_favorites' };
     if (entry === 'support') return { startParam: 'support', writeFlow: 'support' };

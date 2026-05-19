@@ -19,8 +19,10 @@ describe('clientLeadMiniAppMenu', () => {
     const flat = markup.keyboard.flat();
     expect(flat[0].text).toContain('Авто в наявності');
     expect(flat[0].web_app.url).toContain('status=AVAILABLE');
+    expect(flat[0].web_app.url).toContain('availabilityState=IN_STOCK');
     expect(flat[1].text).toContain('Авто в дорозі');
     expect(flat[1].web_app.url).toContain('status=PENDING');
+    expect(flat[1].web_app.url).toContain('availabilityState=IN_TRANSIT');
     expect(flat[2].web_app.url).toContain('entry=request');
     expect(flat[2].web_app.url).toContain('type=BUY');
     expect(flat[3].web_app.url).toContain('entry=favorites');

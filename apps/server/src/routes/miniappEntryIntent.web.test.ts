@@ -28,6 +28,14 @@ describe('MiniApp entry intent parser', () => {
       view: 'INVENTORY',
       tab: 'IN_TRANSIT'
     });
+    expect(parseMiniAppEntryIntent(new URLSearchParams('entry=inventory&availabilityState=IN_TRANSIT'))).toMatchObject({
+      view: 'INVENTORY',
+      tab: 'IN_TRANSIT'
+    });
+    expect(parseMiniAppEntryIntent(new URLSearchParams('entry=inventory&availabilityState=IN_STOCK'))).toMatchObject({
+      view: 'INVENTORY',
+      tab: 'IN_STOCK'
+    });
     expect(parseMiniAppEntryIntent(new URLSearchParams(), 'contacts')).toMatchObject({
       view: 'CONTACTS',
       consumedStartParam: true
@@ -38,6 +46,8 @@ describe('MiniApp entry intent parser', () => {
     const params = new URLSearchParams('entry=inventory&carId=car_1');
 
     expect(isMiniAppReadOnlyLaunch(params)).toBe(true);
+    expect(isMiniAppReadOnlyLaunch(new URLSearchParams('entry=inventory&availabilityState=IN_TRANSIT'))).toBe(true);
+    expect(isMiniAppReadOnlyLaunch(new URLSearchParams(), 'view_transit')).toBe(true);
     expect(parseMiniAppEntryIntent(params)).toMatchObject({
       view: 'INVENTORY'
     });

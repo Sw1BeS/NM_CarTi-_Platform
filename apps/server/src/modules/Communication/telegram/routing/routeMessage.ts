@@ -518,7 +518,7 @@ const handleClientLead = async (ctx: PipelineContext, text: string) => {
       return true;
     }
     if (startPayload === 'stock' || startPayload === 'available' || startPayload === 'catalog') {
-      const url = buildMiniAppUrl(ctx.bot, { entry: 'inventory', status: 'AVAILABLE' });
+      const url = buildMiniAppUrl(ctx.bot, { entry: 'inventory', status: 'AVAILABLE', availabilityState: 'IN_STOCK' });
       if (url) {
         await sendMessage(ctx, '🚘 Відкрийте каталог авто:', {
           inline_keyboard: [[{ text: button(lang, 'common.openMiniApp'), web_app: { url } }]]
@@ -527,7 +527,7 @@ const handleClientLead = async (ctx: PipelineContext, text: string) => {
       }
     }
     if (startPayload === 'transit' || startPayload === 'pending') {
-      const url = buildMiniAppUrl(ctx.bot, { entry: 'inventory', status: 'PENDING' });
+      const url = buildMiniAppUrl(ctx.bot, { entry: 'inventory', status: 'PENDING', availabilityState: 'IN_TRANSIT' });
       if (url) {
         await sendMessage(ctx, '🚚 Відкрийте авто в дорозі:', {
           inline_keyboard: [[{ text: button(lang, 'common.openMiniApp'), web_app: { url } }]]

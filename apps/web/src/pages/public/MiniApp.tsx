@@ -5,7 +5,7 @@ import { Bot, MiniAppConfig, CarListing } from '../../types';
 import { getPublicInventory } from '../../services/publicApi';
 import { createMiniAppLeadIntent, createMiniAppRequest, getMiniAppB2BPartnerPortal, getMiniAppB2bMyRequests, getMiniAppB2bReceivedVariants, getMiniAppCar, getMiniAppConfig, getMiniAppFavorites, getMiniAppRequestStatus, getMiniAppShowcaseInventory, getMiniAppVehicleTaxonomy, setMiniAppB2bVariantDecision, startMiniAppBotFlow, submitMiniAppB2bOffer, toggleMiniAppFavorite, trackMiniAppEvent, type MiniAppB2BPartnerPortalResponse, type MiniAppB2bMyRequestItem, type MiniAppB2bReceivedVariantItem, type MiniAppRequestSubtype, type MiniAppTrackingMeta, type VehicleTaxonomyResponse } from '../../services/miniappApi';
 import {
-    Search, LayoutGrid, User, Plus, Filter, DollarSign,
+    Search, LayoutGrid, User, Plus, Filter, DollarSign, Car, Truck,
     MessageSquare, Zap, List as ListIcon, Star, Phone, Home, Heart, ClipboardList,
     ChevronRight, MapPin, Calendar, CheckCircle, SlidersHorizontal,
     X, ChevronLeft, ChevronRight as ChevronRightIcon, Image as ImageIcon, Loader2, Share2, Globe, Instagram,
@@ -315,6 +315,7 @@ const MiniAppContent = () => {
             view,
             entry: params.get('entry') || undefined,
             status: params.get('status') || undefined,
+            availabilityState: params.get('availabilityState') || undefined,
             type: params.get('type') || params.get('requestType') || undefined,
             startParam: trackingMeta.startParam,
             hasInitData: Boolean(initData || readRuntimeTelegramInitData()),
@@ -665,7 +666,8 @@ const MiniAppContent = () => {
             primaryColor: PREMIUM_SILVER,
             accentColor: '#111',
             actions: [
-                { id: 'a_inv', label: 'Каталог авто', actionType: 'VIEW', value: 'INVENTORY', icon: 'LayoutGrid' },
+                { id: 'a_stock', label: 'Авто в наявності', actionType: 'VIEW', value: 'INVENTORY_STOCK', icon: 'Car' },
+                { id: 'a_transit', label: 'Авто в дорозі', actionType: 'VIEW', value: 'INVENTORY_TRANSIT', icon: 'Truck' },
                 { id: 'a_req', label: 'Підбір за параметрами', actionType: 'VIEW', value: 'REQUEST', icon: 'Search' },
                 { id: 'a_contacts', label: 'Звʼязатися', actionType: 'VIEW', value: 'CONTACTS', icon: 'MessageCircle' }
             ],
@@ -1574,6 +1576,11 @@ const MiniAppContent = () => {
         return isTransitCar(car) ? 'В дорозі' : 'В наявності';
     };
 
+    const openInventoryTab = (nextTab: InventoryTab) => {
+        setTab(nextTab);
+        setView('INVENTORY');
+    };
+
     const renderCompactCarCard = (
         car: CarListing,
         options: { variant: 'LEAD' | 'B2B'; compact?: boolean }
@@ -1648,10 +1655,11 @@ const MiniAppContent = () => {
         const stockCount = cars.filter(car => !isTransitCar(car)).length;
         const transitCount = cars.filter(isTransitCar).length;
         const leadQuickActions = [
-            { id: 'catalog', label: 'Каталог авто', hint: 'Наявність та дорога', icon: 'LayoutGrid', onClick: () => setView('INVENTORY') },
+            { id: 'stock', label: 'Авто в наявності', hint: 'Готові до перегляду', icon: 'Car', onClick: () => openInventoryTab('IN_STOCK') },
+            { id: 'transit', label: 'Авто в дорозі', hint: 'ETA, стан і ціна', icon: 'Truck', onClick: () => openInventoryTab('IN_TRANSIT') },
             { id: 'pick', label: 'Підібрати авто', hint: 'Запит під бюджет', icon: 'Search', onClick: () => openRequest('BUY') },
-            { id: 'sell', label: 'Продати авто', hint: 'Через бот-сценарій', icon: 'DollarSign', onClick: () => startBotFlow('SELL') },
-            { id: 'contacts', label: 'Контакти', hint: 'Канали та менеджер', icon: 'MessageCircle', onClick: () => setView('CONTACTS') }
+            { id: 'requests', label: 'Мої запити', hint: 'Статуси і історія', icon: 'ClipboardList', onClick: () => setView('STATUS') },
+            { id: 'contacts', label: 'Менеджер', hint: 'Написати напряму', icon: 'MessageCircle', onClick: () => setView('CONTACTS') }
         ];
         const b2bQuickActions = [
             { id: 'requests', label: 'Запити мережі', hint: 'Статуси та ID', icon: 'ClipboardList', onClick: () => setView('STATUS') },
@@ -1959,7 +1967,7 @@ const MiniAppContent = () => {
                     <div>
                         <div className="flex justify-between items-center mb-3">
                             <h3 className="font-bold text-white text-lg">Рекомендовані авто</h3>
-                            <button onClick={() => setView('INVENTORY')} className="text-xs font-bold text-white/62">Дивитись всі</button>
+                            <button onClick={() => openInventoryTab('IN_STOCK')} className="text-xs font-bold text-white/62">Дивитись всі</button>
                         </div>
                         <div className="flex flex-col gap-3">
                             {cars.slice(0, 4).map(car => renderCompactCarCard(car, { variant: 'LEAD', compact: true }))}
@@ -3204,6 +3212,8 @@ const MiniAppContent = () => {
         const props = { size };
         switch (name) {
             case 'Home': return <Home {...props} />;
+            case 'Car': return <Car {...props} />;
+            case 'Truck': return <Truck {...props} />;
             case 'Search': return <Search {...props} />;
             case 'Zap': return <Zap {...props} />;
             case 'DollarSign': return <DollarSign {...props} />;
