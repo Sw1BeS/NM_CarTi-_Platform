@@ -55,6 +55,10 @@ export type SalesDriveImportPreview = {
   source: typeof SALESDRIVE_INTEGRATION;
   externalId: string;
   idempotencyKey: string;
+  duplicate?: {
+    provider: typeof SALESDRIVE_INTEGRATION;
+    leadId: string;
+  };
   contactCandidate: {
     name?: string;
     phone?: string;

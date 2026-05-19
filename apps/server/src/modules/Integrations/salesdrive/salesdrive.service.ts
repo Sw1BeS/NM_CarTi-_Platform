@@ -1,4 +1,5 @@
 import { logIntegrationEvent, type IntegrationLogStatus } from '../../../services/integrationEventLog.service.js';
+import { prisma } from '../../../services/prisma.js';
 import {
   SALESDRIVE_INTEGRATION,
   buildSalesDriveImportPreview,
@@ -6,11 +7,47 @@ import {
   fetchSalesDriveOrderList,
   readSalesDriveConfig,
   toSafeSalesDriveConfig,
+  type SalesDriveImportPreview,
   type SalesDriveOrderListOptions
 } from './salesdrive.connector.js';
 import { processSalesDriveRequestSyncQueue } from './salesdriveSync.service.js';
 
 const mapStatus = (status: string): IntegrationLogStatus => status === 'OK' ? 'OK' : status === 'CONFIG_MISSING' ? 'WARN' : 'ERROR';
+
+const annotateExistingSalesDriveIdentities = async (
+  companyId: string | null | undefined,
+  items: SalesDriveImportPreview[]
+) => {
+  if (!companyId || !items.length) return { items, duplicateCount: 0 };
+  const externalIds = [...new Set(items.map((item) => item.externalId).filter((id) => id && id !== 'unknown'))];
+  if (!externalIds.length) return { items, duplicateCount: 0 };
+
+  const identities = await prisma.leadIdentity.findMany({
+    where: {
+      companyId,
+      provider: SALESDRIVE_INTEGRATION,
+      externalId: { in: externalIds }
+    },
+    select: { externalId: true, leadId: true }
+  });
+  const byExternalId = new Map(identities.map((identity) => [identity.externalId, identity.leadId]));
+  let duplicateCount = 0;
+  const annotated = items.map((item) => {
+    const leadId = byExternalId.get(item.externalId);
+    if (!leadId) return item;
+    duplicateCount += 1;
+    return {
+      ...item,
+      duplicate: {
+        provider: SALESDRIVE_INTEGRATION,
+        leadId
+      },
+      warnings: [...new Set([...(item.warnings || []), 'existing_salesdrive_identity'])]
+    };
+  });
+
+  return { items: annotated, duplicateCount };
+};
 
 export class SalesDriveService {
   getConfig() {
@@ -62,7 +99,8 @@ export class SalesDriveService {
     }
 
     const result = await fetchSalesDriveOrderList(options, config);
-    const items = buildSalesDriveImportPreview(result.rows);
+    const preview = buildSalesDriveImportPreview(result.rows);
+    const { items, duplicateCount } = await annotateExistingSalesDriveIdentities(companyId, preview);
     await logIntegrationEvent({
       companyId,
       integration: SALESDRIVE_INTEGRATION,
@@ -73,6 +111,7 @@ export class SalesDriveService {
         page: result.page,
         limit: result.limit,
         count: items.length,
+        duplicateCount,
         dryRun: true
       }
     });
