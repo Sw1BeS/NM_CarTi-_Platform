@@ -1161,7 +1161,7 @@ class RequestContractService {
     const requests = await prisma.b2bRequest.findMany({
       where: {
         companyId: params.companyId,
-        ...(params.partnerId ? { requesterPartnerId: params.partnerId } : {})
+        ...(params.partnerId ? { requesterPartnerId: params.partnerId } : { requesterPartnerId: { not: null } })
       },
       orderBy: { createdAt: 'desc' },
       include: {
@@ -1176,7 +1176,7 @@ class RequestContractService {
     const requests = await prisma.b2bRequest.findMany({
       where: {
         companyId: params.companyId,
-        ...(params.partnerId ? { requesterPartnerId: params.partnerId } : {})
+        ...(params.partnerId ? { requesterPartnerId: params.partnerId } : { requesterPartnerId: { not: null } })
       },
       select: { id: true, publicId: true }
     });

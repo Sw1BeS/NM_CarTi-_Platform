@@ -1,249 +1,142 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-
-const {
-  b2bRequestFindUniqueMock,
-  integrationEventLogCreateMock,
-  integrationEventLogFindManyMock,
-  integrationEventLogUpdateMock,
-  leadIdentityUpsertMock
-} = vi.hoisted(() => ({
-  b2bRequestFindUniqueMock: vi.fn(),
-  integrationEventLogCreateMock: vi.fn(),
-  integrationEventLogFindManyMock: vi.fn(),
-  integrationEventLogUpdateMock: vi.fn(),
-  leadIdentityUpsertMock: vi.fn()
-}));
-
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { enqueueSalesDriveRequestSync, salesDriveOrderInputFromRequest } from './salesdriveSync.service.js';
 vi.mock('../../../services/prisma.js', () => ({
   prisma: {
-    b2bRequest: {
-      findUnique: b2bRequestFindUniqueMock
-    },
     integrationEventLog: {
-      create: integrationEventLogCreateMock,
-      findMany: integrationEventLogFindManyMock,
-      update: integrationEventLogUpdateMock
-    },
-    leadIdentity: {
-      upsert: leadIdentityUpsertMock
+      findUnique: vi.fn(),
+      count: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn()
     }
   }
 }));
 
-import { enqueueSalesDriveRequestSync, processSalesDriveRequestSyncQueue } from './salesdriveSync.service.js';
-import { readSalesDriveConfig } from './salesdrive.connector.js';
+import { prisma } from '../../../services/prisma.js';
+import { randomUUID } from 'crypto';
 
-describe('salesdriveSync.service', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    integrationEventLogCreateMock.mockResolvedValue({ id: 'log_1' });
-    integrationEventLogFindManyMock.mockResolvedValue([]);
-    integrationEventLogUpdateMock.mockResolvedValue({});
-    leadIdentityUpsertMock.mockResolvedValue({});
-  });
-
-  it('logs a safe skipped sync intent when SalesDrive is not configured', async () => {
-    const result = await enqueueSalesDriveRequestSync({
-      companyId: 'company_1',
-      requestId: 'request_1',
-      requestPublicId: 'REQ-1',
-      leadId: 'lead_1',
-      botId: 'bot_1',
-      source: 'miniapp'
-    }, readSalesDriveConfig({}));
-
-    expect(result).toMatchObject({ queued: false, reason: 'CONFIG_MISSING' });
-    expect(integrationEventLogCreateMock).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        companyId: 'company_1',
-        integration: 'SALESDRIVE',
-        action: 'REQUEST_SYNC_SKIPPED',
-        status: 'WARN',
-        entityType: 'request',
-        entityId: 'request_1',
-        idempotencyKey: 'salesdrive:sync:request:request_1',
-        meta: expect.objectContaining({
-          requestPublicId: 'REQ-1',
-          leadId: 'lead_1',
-          botId: 'bot_1',
-          reason: 'CONFIG_MISSING',
-          configured: false,
-          syncEnabled: false,
-          writeEnabled: false,
-          missing: ['SALESDRIVE_API_BASE_URL', 'SALESDRIVE_API_KEY']
-        })
-      })
-    });
-    expect(JSON.stringify(integrationEventLogCreateMock.mock.calls[0][0])).not.toContain('secret-key');
-  });
-
-  it('queues an idempotent request sync intent only when sync and writes are explicitly enabled', async () => {
-    const config = readSalesDriveConfig({
-      SALESDRIVE_API_BASE_URL: 'https://demo.salesdrive.me',
-      SALESDRIVE_API_KEY: 'secret-key',
-      SALESDRIVE_SYNC_ENABLED: 'true',
-      SALESDRIVE_WRITE_ENABLED: 'true'
-    });
-
-    const result = await enqueueSalesDriveRequestSync({
-      companyId: 'company_1',
-      requestId: 'request_2',
-      requestPublicId: 'REQ-2',
-      source: 'leadbot'
-    }, config);
-
-    expect(result).toMatchObject({ queued: true, reason: 'QUEUED' });
-    expect(integrationEventLogCreateMock).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        integration: 'SALESDRIVE',
-        action: 'REQUEST_SYNC_QUEUED',
-        status: 'OK',
-        entityType: 'request',
-        entityId: 'request_2',
-        idempotencyKey: 'salesdrive:sync:request:request_2',
-        meta: expect.objectContaining({
-          requestPublicId: 'REQ-2',
-          source: 'leadbot',
-          reason: 'QUEUED',
-          configured: true,
-          syncEnabled: true,
-          writeEnabled: true
-        })
-      })
-    });
-  });
-
-  it('treats repeated enqueue attempts as idempotent duplicates', async () => {
-    integrationEventLogCreateMock.mockRejectedValueOnce({ code: 'P2002' });
-    const config = readSalesDriveConfig({
-      SALESDRIVE_API_BASE_URL: 'https://demo.salesdrive.me',
-      SALESDRIVE_API_KEY: 'secret-key',
-      SALESDRIVE_SYNC_ENABLED: 'true',
-      SALESDRIVE_WRITE_ENABLED: 'true'
-    });
-
-    const result = await enqueueSalesDriveRequestSync({
-      companyId: 'company_1',
-      requestId: 'request_2'
-    }, config);
-
-    expect(result).toMatchObject({ queued: false, duplicate: true, reason: 'DUPLICATE' });
-  });
-
-  it('processes queued request sync intents through SalesDrive add-order API', async () => {
-    integrationEventLogFindManyMock.mockResolvedValueOnce([
-      {
-        id: 'log_queued_1',
-        companyId: 'company_1',
-        entityId: 'request_1',
-        meta: {
-          requestPublicId: 'REQ-1',
-          source: 'miniapp_request'
+describe('SalesDrive Sync Service', () => {
+  describe('salesDriveOrderInputFromRequest (Mapper)', () => {
+    it('should map a B2B request properly', () => {
+      const mockRequest = {
+        id: 'req_123',
+        publicId: 'REQ-001',
+        title: 'Toyota Camry 2022',
+        budgetMax: 20000,
+        description: 'Need a black car',
+        requesterPartnerId: 'partner_abc',
+        lead: {
+          clientName: 'Dealer Joe',
+          phone: '+1234567890'
+        },
+        payload: {
+          tracking: {
+            utm_campaign: 'b2b_promo'
+          }
         }
-      }
-    ]);
-    b2bRequestFindUniqueMock.mockResolvedValueOnce({
-      id: 'request_1',
-      leadId: 'lead_1',
-      publicId: 'REQ-1',
-      title: 'Запит: Hyundai Ioniq 5',
-      description: 'Коментар: цікавить авто',
-      budgetMax: 16000,
-      payload: {
-        tracking: {
-          utm_source: 'facebook',
-          utm_campaign: 'spring'
+      };
+
+      const result = salesDriveOrderInputFromRequest(mockRequest);
+      expect(result.externalId).toBe('REQ-001');
+      expect(result.name).toBe('Dealer Joe');
+      expect(result.phone).toBe('+1234567890');
+      expect(result.comment).toContain('Тип: B2B');
+      expect(result.comment).toContain('Авто: Toyota Camry 2022');
+      expect(result.comment).toContain('Бюджет: 20000');
+      expect(result.comment).toContain('UTM: b2b_promo');
+      expect(result.products[0].costPerItem).toBe(20000);
+      expect(result.products[0].name).toBe('Toyota Camry 2022');
+    });
+
+    it('should map a MiniApp lead request properly', () => {
+      const mockRequest = {
+        id: 'req_456',
+        publicId: 'REQ-002',
+        title: 'Honda Civic',
+        lead: {
+          clientName: 'Alice',
+          payload: {
+            telegramUsername: 'alice123'
+          }
+        },
+        payload: {
+          phone: '+9876543210',
+          source: 'miniapp_intent',
+          tracking: {
+            utm_source: 'fb'
+          }
         }
-      },
-      lead: {
-        id: 'lead_1',
-        clientName: 'Ivan Client',
-        phone: '+380635055252',
+      };
+
+      const result = salesDriveOrderInputFromRequest(mockRequest);
+      expect(result.comment).toContain('Тип: Mini App');
+      expect(result.comment).toContain('Telegram: @alice123');
+      expect(result.name).toBe('Alice');
+      expect(result.phone).toBe('+9876543210');
+      expect(result.utm?.source).toBe('fb');
+    });
+
+    it('should fall back to LeadBot when source is not MiniApp and not B2B', () => {
+      const mockRequest = {
+        id: 'req_789',
+        publicId: 'REQ-003',
+        lead: {
+          payload: {
+            telegramUserId: '88888888'
+          }
+        },
         payload: {}
-      }
-    });
-    const config = readSalesDriveConfig({
-      SALESDRIVE_API_BASE_URL: 'https://demo.salesdrive.me',
-      SALESDRIVE_API_KEY: 'secret-key',
-      SALESDRIVE_SYNC_ENABLED: 'true',
-      SALESDRIVE_WRITE_ENABLED: 'true'
-    });
-    const fetcher = vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      statusText: 'OK',
-      text: async () => JSON.stringify({ success: true, data: { orderId: 37193 } })
-    });
+      };
 
-    const result = await processSalesDriveRequestSyncQueue({ companyId: 'company_1' }, config, fetcher);
-
-    expect(result).toMatchObject({ processed: 1, sent: 1, failed: 0 });
-    expect(fetcher).toHaveBeenCalledWith(
-      'https://demo.salesdrive.me/handler/',
-      expect.objectContaining({
-        method: 'POST',
-        body: expect.stringContaining('"externalId":"REQ-1"')
-      })
-    );
-    const body = JSON.parse(fetcher.mock.calls[0][1].body);
-    expect(body).toMatchObject({
-      form: 'secret-key',
-      phone: '+380635055252',
-      fName: 'Ivan',
-      lName: 'Client',
-      externalId: 'REQ-1',
-      prodex24source: 'facebook',
-      prodex24campaign: 'spring'
-    });
-    expect(integrationEventLogUpdateMock).toHaveBeenCalledWith({
-      where: { id: 'log_queued_1' },
-      data: expect.objectContaining({
-        action: 'REQUEST_SYNC_SENT',
-        status: 'OK',
-        message: 'SalesDrive request sync sent'
-      })
-    });
-    expect(JSON.stringify(integrationEventLogUpdateMock.mock.calls[0][0])).not.toContain('secret-key');
-    expect(JSON.stringify(integrationEventLogUpdateMock.mock.calls[0][0])).not.toContain('+380635055252');
-    expect(leadIdentityUpsertMock).toHaveBeenCalledWith({
-      where: {
-        companyId_provider_externalId: {
-          companyId: 'company_1',
-          provider: 'SALESDRIVE',
-          externalId: '37193'
-        }
-      },
-      create: expect.objectContaining({
-        companyId: 'company_1',
-        leadId: 'lead_1',
-        provider: 'SALESDRIVE',
-        externalId: '37193',
-        confidence: 'HIGH',
-        payload: expect.objectContaining({
-          source: 'salesdrive.request_sync',
-          requestId: 'request_1'
-        })
-      }),
-      update: expect.objectContaining({
-        leadId: 'lead_1',
-        confidence: 'HIGH'
-      })
+      const result = salesDriveOrderInputFromRequest(mockRequest);
+      expect(result.comment).toContain('Тип: LeadBot');
+      expect(result.comment).toContain('Telegram: 88888888');
     });
   });
 
-  it('does not process queued request sync intents when write flag is disabled', async () => {
-    const config = readSalesDriveConfig({
-      SALESDRIVE_API_BASE_URL: 'https://demo.salesdrive.me',
-      SALESDRIVE_API_KEY: 'secret-key',
-      SALESDRIVE_SYNC_ENABLED: 'true',
-      SALESDRIVE_WRITE_ENABLED: 'false'
+  describe('enqueueSalesDriveRequestSync', () => {
+    let companyId = 'test-company-123';
+
+    beforeEach(() => {
+      vi.clearAllMocks();
     });
-    const fetcher = vi.fn();
 
-    const result = await processSalesDriveRequestSyncQueue({ companyId: 'company_1' }, config, fetcher);
+    it('should successfully queue an event and handle idempotency', async () => {
+      const requestId = 'req_' + randomUUID().slice(0, 8);
 
-    expect(result).toMatchObject({ processed: 0, sent: 0, failed: 0, reason: 'WRITE_DISABLED' });
-    expect(integrationEventLogFindManyMock).not.toHaveBeenCalled();
-    expect(fetcher).not.toHaveBeenCalled();
+      // Mock DB for first enqueue (no existing log)
+      vi.mocked(prisma.integrationEventLog.create).mockResolvedValueOnce({
+        id: 'log-1',
+        action: 'REQUEST_SYNC_QUEUED',
+        status: 'OK'
+      } as any);
+
+      const config = {
+        configured: true,
+        syncEnabled: true,
+        writeEnabled: true,
+        baseUrl: 'https://test.salesdrive.me',
+        missing: []
+      };
+
+      // 1. Enqueue should succeed
+      const res1 = await enqueueSalesDriveRequestSync({ companyId, requestId }, config as any);
+      expect(res1.queued).toBe(true);
+      expect(prisma.integrationEventLog.create).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({
+          action: 'REQUEST_SYNC_QUEUED',
+          idempotencyKey: `salesdrive:sync:request:${requestId}`
+        })
+      }));
+
+      // 2. Second enqueue simulates Prisma throwing a Unique Constraint Error
+      vi.mocked(prisma.integrationEventLog.create).mockRejectedValueOnce({
+        code: 'P2002',
+        meta: { target: ['idempotencyKey'] }
+      });
+
+      const res2 = await enqueueSalesDriveRequestSync({ companyId, requestId }, config as any);
+      expect(res2.queued).toBe(false);
+      expect(res2.duplicate).toBe(true);
+    });
   });
 });

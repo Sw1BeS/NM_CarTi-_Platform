@@ -74,7 +74,7 @@ const numberOrUndefined = (value: unknown) => {
   return Number.isFinite(parsed) ? parsed : undefined;
 };
 
-const salesDriveOrderInputFromRequest = (request: any): SalesDriveOrderAddInput => {
+export const salesDriveOrderInputFromRequest = (request: any): SalesDriveOrderAddInput => {
   const payload = isRecord(request?.payload) ? request.payload : {};
   const tracking = isRecord(payload.tracking) ? payload.tracking : {};
   const leadPayload = isRecord(request?.lead?.payload) ? request.lead.payload : {};
@@ -84,18 +84,36 @@ const salesDriveOrderInputFromRequest = (request: any): SalesDriveOrderAddInput 
   const title = toText(request?.title) || `CarTié request ${publicId}`;
   const description = toText(request?.description);
   const budgetMax = numberOrUndefined(request?.budgetMax);
+  const typeStr = request?.requesterPartnerId ? 'B2B' : (payload.source === 'miniapp_intent' ? 'Mini App' : 'LeadBot');
+  const name = toText(request?.lead?.clientName) || toText(leadPayload.name) || undefined;
+  const phone = toText(request?.lead?.phone) || toText(payload.phone) || toText(readPath(payload, ['request', 'phone'])) || undefined;
+  const tgUsername = toText(leadPayload.telegramUsername) || toText(payload.telegramUsername);
+  const tgUserId = toText(leadPayload.telegramUserId) || toText(payload.telegramUserId) || toText(request?.lead?.userTgId);
+  const tgUser = tgUsername ? `@${tgUsername.replace(/^@/, '')}` : (tgUserId || undefined);
+  const sourceContext = toText(payload.sourceContext) || toText(payload.source) || 'Telegram';
+
+  const commentText = [
+    'CarTié Lead',
+    `Тип: ${typeStr}`,
+    `Заявка: ${publicId}`,
+    name ? `Клиент: ${name}` : null,
+    phone ? `Телефон: ${phone}` : null,
+    tgUser ? `Telegram: ${tgUser}` : null,
+    title ? `Авто: ${title}` : null,
+    budgetMax ? `Бюджет: ${budgetMax}` : null,
+    description ? `Комментарий клиента: ${description}` : null,
+    `Источник: ${sourceContext}`,
+    tracking.utm_campaign ? `UTM: ${tracking.utm_campaign}` : null,
+    `Internal requestId: ${toText(request?.id)}`
+  ].filter(Boolean).join('\n');
 
   return {
     externalId: publicId,
-    name: toText(request?.lead?.clientName) || undefined,
-    phone: toText(request?.lead?.phone) || toText(payload.phone) || toText(readPath(payload, ['request', 'phone'])) || undefined,
+    name,
+    phone,
     email: toText(leadPayload.email) || toText(payload.email) || undefined,
     title,
-    comment: [
-      description,
-      `CarTié requestId: ${toText(request?.id)}`,
-      toText(request?.botId) ? `Bot ID: ${toText(request.botId)}` : ''
-    ].filter(Boolean).join('\n'),
+    comment: commentText,
     site: toText(tracking.eventSourceUrl) || toText(tracking.event_source_url) || undefined,
     products: [{
       id: carListingId || publicId,

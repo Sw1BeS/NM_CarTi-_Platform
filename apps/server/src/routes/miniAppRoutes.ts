@@ -1006,7 +1006,10 @@ router.get('/b2b/requests/active', async (req, res) => {
       where: {
         companyId: config.companyId,
         status: { in: ['PUBLISHED', 'COLLECTING_VARIANTS'] },
-        requesterPartnerId: { not: partnerState.partner.partnerId }
+        requesterPartnerId: { not: null },
+        NOT: {
+          requesterPartnerId: partnerState.partner.partnerId
+        }
       },
       orderBy: { createdAt: 'desc' },
       take: limit,

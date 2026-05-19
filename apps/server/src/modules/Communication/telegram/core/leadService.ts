@@ -6,6 +6,7 @@ import { emitPlatformEvent } from './events/eventEmitter.js';
 import { generatePublicId, mapRequestInput } from '../../../../services/dto.js';
 import { IntegrationService } from '../../../Integrations/integration.service.js';
 import { logger } from '../../../../utils/logger.js';
+import { enqueueSalesDriveRequestSync } from '../../../Integrations/salesdrive/salesdriveSync.service.js';
 import { logIntegrationEvent } from '../../../../services/integrationEventLog.service.js';
 import {
   buildLeadIdentityCandidates,
@@ -198,7 +199,45 @@ export const createOrMergeLead = async (input: LeadCreateInput, botConfig?: any)
       }
     });
 
-    return { lead: mergedLead, isDuplicate: true, request: null };
+    let createdRequest: any = null;
+    if (input.createRequest) {
+      const reqInput = mapRequestInput({
+        title: input.requestData?.title || input.request || 'Request',
+        budgetMin: input.requestData?.budgetMin ?? undefined,
+        budgetMax: input.requestData?.budgetMax ?? undefined,
+        yearMin: input.requestData?.yearMin ?? undefined,
+        yearMax: input.requestData?.yearMax ?? undefined,
+        city: input.requestData?.city ?? undefined,
+        description: input.requestData?.description || undefined,
+        status: 'COLLECTING_VARIANTS',
+        language: input.requestData?.language || undefined
+      });
+
+      createdRequest = await requestRepo.createRequest({
+        ...reqInput,
+        publicId: generatePublicId(),
+        chatId: input.chatId || undefined,
+        leadId: mergedLead.id,
+        botId: input.botId,
+        companyId
+      });
+
+      await leadRepo.updatePayload(mergedLead.id, {
+        ...(mergedLead.payload as any || {}),
+        linkedRequestId: createdRequest.publicId || createdRequest.id
+      }).catch(() => null);
+
+      await enqueueSalesDriveRequestSync({
+        companyId,
+        botId: input.botId || undefined,
+        leadId: mergedLead.id,
+        requestId: createdRequest.id,
+        requestPublicId: createdRequest.publicId || undefined,
+        source: 'leadbot_request'
+      }).catch((error) => logger.warn('[SalesDrive] request sync enqueue failed', error?.message || error));
+    }
+
+    return { lead: mergedLead, isDuplicate: true, request: createdRequest };
   }
 
   const lead = await leadRepo.createLead({
@@ -256,6 +295,15 @@ export const createOrMergeLead = async (input: LeadCreateInput, botConfig?: any)
       ...(lead.payload as any || {}),
       linkedRequestId: createdRequest.publicId || createdRequest.id
     });
+
+    await enqueueSalesDriveRequestSync({
+      companyId,
+      botId: input.botId || undefined,
+      leadId: lead.id,
+      requestId: createdRequest.id,
+      requestPublicId: createdRequest.publicId || undefined,
+      source: 'leadbot_request'
+    }).catch((error) => logger.warn('[SalesDrive] request sync enqueue failed', error?.message || error));
   }
 
   await emitPlatformEvent({
