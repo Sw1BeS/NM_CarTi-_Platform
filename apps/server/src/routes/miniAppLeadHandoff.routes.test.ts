@@ -1605,6 +1605,43 @@ describe('MiniApp Lead handoff routes', () => {
     expect(JSON.stringify(platformPayload)).not.toContain('+380635055252');
   });
 
+  it('allows LeadFormStart telemetry without initData for read-only preview sessions', async () => {
+    const app = await buildApp();
+
+    const res = await request(app)
+      .post('/api/miniapp/events')
+      .send({
+        slug: 'cartie',
+        eventType: 'LeadFormStart',
+        visitorId: 'visitor_request_start_1',
+        view: 'REQUEST',
+        tracking: {
+          meta: {
+            eventId: 'lead_form_start_preview_1'
+          }
+        },
+        payload: {
+          source: 'preview_request'
+        }
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      eventId: 'lead_form_start_preview_1',
+      meta: { enabled: false, eventName: 'SubmitApplication' }
+    });
+    expect(emitPlatformEventMock).toHaveBeenCalledWith(expect.objectContaining({
+      eventType: 'miniapp.LeadFormStart',
+      userId: 'visitor_request_start_1',
+      payload: expect.objectContaining({
+        visitorId: 'visitor_request_start_1',
+        tgUserId: undefined,
+        view: 'REQUEST'
+      })
+    }));
+    expect(metaPixelTrackEventMock).not.toHaveBeenCalled();
+  });
+
   it('allows launch diagnostics without initData and strips sensitive launch payload fields', async () => {
     const app = await buildApp();
 

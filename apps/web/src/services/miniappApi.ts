@@ -23,6 +23,7 @@ export type MiniAppTrackingMeta = {
   submitId?: string;
   requestType?: 'BUY' | 'SELL';
   eventId?: string;
+  fbclid?: string;
   fbp?: string;
   fbc?: string;
   eventSourceUrl?: string;

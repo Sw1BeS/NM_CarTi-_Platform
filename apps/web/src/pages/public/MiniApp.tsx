@@ -28,7 +28,7 @@ import { RequestView, type RequestFormData } from './miniapp/views/RequestView';
 import { MiniAppImage } from './miniapp/components/MiniAppImage';
 import { isMiniAppReadOnlyLaunch, parseMiniAppEntryIntent, resolveMiniAppInternalLinkIntent, type MiniAppEntryIntent } from './miniapp/entryIntent';
 import { resolveLeadIntentOutcome } from './miniapp/leadIntentOutcome';
-import { resolveMiniAppSubmitEventType, resolveMiniAppViewEventType } from './miniapp/trackingEvents';
+import { resolveMiniAppMetaTracking, resolveMiniAppSubmitEventType, resolveMiniAppViewEventType, type MiniAppMetaCookieWrite } from './miniapp/trackingEvents';
 
 const emitMiniAppEvent = (level: 'info' | 'warn' | 'error', message: string, meta?: Record<string, unknown>) => {
     try {
@@ -52,6 +52,14 @@ const readCookie = (name: string) => {
         .map(part => part.trim())
         .find(part => part.startsWith(`${name}=`));
     return match ? decodeURIComponent(match.slice(name.length + 1)) : undefined;
+};
+
+const persistMetaTrackingCookies = (cookies: MiniAppMetaCookieWrite[]) => {
+    if (typeof document === 'undefined' || !cookies.length) return;
+    const secure = typeof window !== 'undefined' && window.location.protocol === 'https:' ? '; Secure' : '';
+    for (const cookie of cookies) {
+        document.cookie = `${cookie.name}=${encodeURIComponent(cookie.value)}; Max-Age=7776000; Path=/; SameSite=Lax${secure}`;
+    }
 };
 
 const hasTelegramUserAgent = () => {
@@ -782,6 +790,13 @@ const MiniAppContent = () => {
             const openEventId = window.crypto?.randomUUID
                 ? window.crypto.randomUUID()
                 : `miniapp_open_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+            const fbclid = urlParams.get('fbclid') || undefined;
+            const metaTracking = resolveMiniAppMetaTracking({
+                fbclid,
+                existingFbp: readCookie('_fbp'),
+                existingFbc: readCookie('_fbc')
+            });
+            persistMetaTrackingCookies(metaTracking.cookiesToPersist);
             const baseTrackingMeta: MiniAppTrackingMeta = {
                 startParam: startParam || undefined,
                 utm,
@@ -790,8 +805,9 @@ const MiniAppContent = () => {
                 referrer: document.referrer || undefined,
                 miniappVersion: buildVersion,
                 buildSha: buildVersion,
-                fbp: readCookie('_fbp'),
-                fbc: readCookie('_fbc'),
+                fbclid: metaTracking.fbclid,
+                fbp: metaTracking.fbp,
+                fbc: metaTracking.fbc,
                 eventSourceUrl: window.location.href,
                 actionSource: 'website'
             };

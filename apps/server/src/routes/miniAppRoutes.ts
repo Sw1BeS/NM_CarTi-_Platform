@@ -423,6 +423,8 @@ const READ_ONLY_PREVIEW_EVENT_TYPES = new Set([
   'view_showcase',
   'viewshowcase',
   'search',
+  'lead_form_start',
+  'leadformstart',
   'car_shared',
   'carshared',
   'favorite_added',
