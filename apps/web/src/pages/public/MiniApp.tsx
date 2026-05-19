@@ -3,7 +3,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Bot, MiniAppConfig, CarListing } from '../../types';
 import { getPublicInventory } from '../../services/publicApi';
-import { createMiniAppLeadIntent, createMiniAppRequest, getMiniAppB2BPartnerPortal, getMiniAppB2bActiveRequests, getMiniAppB2bMyRequests, getMiniAppB2bReceivedVariants, getMiniAppCar, getMiniAppConfig, getMiniAppFavorites, getMiniAppRequestStatus, getMiniAppShowcaseInventory, getMiniAppVehicleTaxonomy, setMiniAppB2bVariantDecision, startMiniAppBotFlow, submitMiniAppB2bOffer, toggleMiniAppFavorite, trackMiniAppEvent, type MiniAppB2BPartnerPortalResponse, type MiniAppB2bActiveRequestItem, type MiniAppB2bMyRequestItem, type MiniAppB2bReceivedVariantItem, type MiniAppRequestSubtype, type MiniAppTrackingMeta, type VehicleTaxonomyResponse } from '../../services/miniappApi';
+import { createMiniAppLeadIntent, createMiniAppRequest, getMiniAppB2BPartnerPortal, getMiniAppB2bActiveRequests, getMiniAppB2bMyRequests, getMiniAppB2bReceivedVariants, getMiniAppCar, getMiniAppConfig, getMiniAppFavorites, getMiniAppRequestStatus, getMiniAppShowcaseInventory, getMiniAppVehicleTaxonomy, requestMiniAppB2BAccess, setMiniAppB2bVariantDecision, startMiniAppBotFlow, submitMiniAppB2bOffer, toggleMiniAppFavorite, trackMiniAppEvent, type MiniAppB2BPartnerPortalResponse, type MiniAppB2bActiveRequestItem, type MiniAppB2bMyRequestItem, type MiniAppB2bReceivedVariantItem, type MiniAppRequestSubtype, type MiniAppTrackingMeta, type VehicleTaxonomyResponse } from '../../services/miniappApi';
 import {
     Search, LayoutGrid, User, Plus, Filter, DollarSign, Car, Truck,
     MessageSquare, Zap, List as ListIcon, Star, Phone, Home, Heart, ClipboardList,
@@ -297,6 +297,8 @@ const MiniAppContent = () => {
     const [statusResult, setStatusResult] = useState<any>(null);
     const [b2bPortal, setB2bPortal] = useState<MiniAppB2BPartnerPortalResponse | null>(null);
     const [b2bPortalLoading, setB2bPortalLoading] = useState(false);
+    const [b2bAccessRequesting, setB2bAccessRequesting] = useState(false);
+    const [b2bAccessRequestStatus, setB2bAccessRequestStatus] = useState<string | null>(null);
     const [b2bActiveRequests, setB2bActiveRequests] = useState<MiniAppB2bActiveRequestItem[]>([]);
     const [b2bActiveRequestsLoading, setB2bActiveRequestsLoading] = useState(false);
     const [b2bActiveRequestsError, setB2bActiveRequestsError] = useState<string | null>(null);
@@ -722,6 +724,7 @@ const MiniAppContent = () => {
             setTelegramWriteState('unknown');
             setB2bPortal(null);
             setB2bPortalLoading(false);
+            setB2bAccessRequestStatus(null);
             const requestId = Math.random().toString(36).substring(7);
             emitMiniAppEvent('info', 'MiniApp init started', { requestId, slug });
             setConfigWarning(null);
@@ -1327,6 +1330,47 @@ const MiniAppContent = () => {
         return () => clearTimeout(debounce);
     }, [search, filters, tab, targetSlug]); // Re-fetch on filter change
 
+    const requestB2BAccess = useCallback(async () => {
+        const accessInitData = initData || readRuntimeTelegramInitData();
+        if (!accessInitData) {
+            const message = 'Запит на B2B доступ можна надіслати лише із захищеної Telegram Mini App сесії.';
+            setTelegramWriteState(telegramWriteState === 'outside_telegram' ? 'outside_telegram' : 'missing_initdata');
+            setConfigWarning(message);
+            pushToast(message, 'error');
+            return;
+        }
+
+        if (!initData) setInitData(accessInitData);
+        setB2bAccessRequesting(true);
+        setB2bAccessRequestStatus(null);
+
+        try {
+            const accessSlug = targetSlug || slug || 'system';
+            const res = await requestMiniAppB2BAccess({
+                slug: accessSlug,
+                initData: accessInitData
+            });
+            if (res.approved) {
+                setB2bPortal(prev => prev ? { ...prev, approved: true } : { ok: true, approved: true });
+                setB2bAccessRequestStatus('Доступ уже активний. Оновіть портал, щоб побачити робочий кабінет.');
+                pushToast('B2B доступ уже активний.', 'success');
+                return;
+            }
+
+            const status = res.accessRequest?.status || 'NEW';
+            const id = res.accessRequest?.id ? `ID ${res.accessRequest.id}` : 'Запит створено';
+            setB2bAccessRequestStatus(`${id} · ${status}`);
+            pushToast('Запит на B2B доступ надіслано адміністратору.', 'success');
+            trackEvent('B2BAccessRequest', { status, hasAccessRequestId: Boolean(res.accessRequest?.id) });
+        } catch (e) {
+            const message = resolveMiniAppWriteError(e, 'Не вдалося надіслати запит на B2B доступ.');
+            setB2bAccessRequestStatus(message);
+            pushToast(message, 'error');
+        } finally {
+            setB2bAccessRequesting(false);
+        }
+    }, [initData, pushToast, slug, targetSlug, telegramWriteState, trackEvent]);
+
     const loadB2bActiveRequests = useCallback(async () => {
         if (config?.surfaceMode !== 'B2B' || !b2bPortal?.approved) return;
         const activeInitData = initData || readRuntimeTelegramInitData();
@@ -1797,9 +1841,25 @@ const MiniAppContent = () => {
                             <div className="relative z-10 mt-5 grid grid-cols-1 gap-3">
                                 <button
                                     type="button"
-                                    onClick={() => setView('SUPPORT')}
+                                    onClick={requestB2BAccess}
+                                    disabled={b2bAccessRequesting}
                                     className="rounded-[16px] py-4 text-sm font-black"
                                     style={premiumCtaStyle}
+                                >
+                                    <span className="inline-flex items-center justify-center gap-2">
+                                        {b2bAccessRequesting ? <Loader2 size={17} className="animate-spin" /> : <ShieldCheck size={17} />}
+                                        {b2bAccessRequesting ? 'Надсилаємо запит' : 'Надіслати запит на доступ'}
+                                    </span>
+                                </button>
+                                {b2bAccessRequestStatus && (
+                                    <div className="rounded-[14px] border border-white/10 bg-white/[0.045] px-4 py-3 text-xs font-bold leading-relaxed text-white/62">
+                                        {b2bAccessRequestStatus}
+                                    </div>
+                                )}
+                                <button
+                                    type="button"
+                                    onClick={() => setView('SUPPORT')}
+                                    className="rounded-[16px] border border-white/10 py-3 text-sm font-bold text-white/72"
                                 >
                                     Звʼязатися з адміністратором
                                 </button>

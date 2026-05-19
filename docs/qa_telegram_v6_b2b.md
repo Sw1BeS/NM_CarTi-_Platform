@@ -22,6 +22,18 @@ This document outlines the testing procedures for the newly implemented Telegram
 3. Verify that the bot identifies the user and automatically creates/links a `PartnerUser` associated with the correct `PartnerCompany`.
 4. Send a text message in the B2B bot, fill out the Request form, and verify that the `b2bRequest` generated has the company's `partnerId`.
 
+## 2a. B2B MiniApp Access Request Gate
+**Objective:** Verify that a non-approved Telegram user can request B2B access from the MiniApp without receiving partner data.
+
+**Steps:**
+1. Open the B2B MiniApp from Telegram with a Telegram user that is not linked to an approved `PartnerUser`.
+2. Verify the restricted screen says access is awaiting approval and does not show requests, variants, partner inventory, or contacts.
+3. Tap **"Надіслати запит на доступ"**.
+4. Verify the MiniApp shows a submitted status with the access request ID/status.
+5. Verify the admin chat receives a `[B2B ACCESS]` notification with short inline callbacks for approve/reject.
+6. Tap the same action again and verify the flow stays idempotent through `b2bWhitelistService.ensureAccess`.
+7. Open the same URL outside Telegram or without valid `initData`; verify it shows a user-facing error and does not create a real access request.
+
 ## 3. B2B Variant Submissions
 **Objective:** Verify that dealers can submit vehicle variants correctly via inline keyboards and the author of the request gets notified.
 
@@ -33,6 +45,16 @@ This document outlines the testing procedures for the newly implemented Telegram
 5. The bot should reply "Варіант надіслано автору запиту".
 6. Verify that a `RequestVariant` row is created in the DB with status `SUBMITTED`.
 7. Verify that the author of the `b2bRequest` receives an inline message with the variant text and buttons ["✅ Підходить", "❌ Не підходить"].
+
+## 3a. B2B MiniApp Active Request Feed
+**Objective:** Verify that an approved partner can browse active network requests and submit an offer without seeing requester contact data.
+
+**Steps:**
+1. Open the B2B MiniApp with an approved partner Telegram user.
+2. Tap **"Запити мережі"**.
+3. Verify active requests load from `/api/miniapp/b2b/requests/active`.
+4. Verify the partner's own requests are excluded and requester contacts are redacted.
+5. Tap **"Запропонувати авто"** on a request, submit a variant, and verify it enters admin/requester review.
 
 ## 4. Web MiniApp Enhancements
 **Objective:** Verify that users can toggle Favorites (now using the Star icon) and multi-select vehicles in the MiniApp.

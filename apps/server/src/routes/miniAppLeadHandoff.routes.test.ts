@@ -9,6 +9,7 @@ const {
   verifyInitDataMock,
   parseTelegramUserMock,
   startLeadSellWizardMock,
+  b2bWhitelistServiceMock,
   emitPlatformEventMock,
   metaPixelTrackEventMock,
   vehicleTaxonomyServiceMock,
@@ -34,6 +35,9 @@ const {
   verifyInitDataMock: vi.fn(),
   parseTelegramUserMock: vi.fn(),
   startLeadSellWizardMock: vi.fn(),
+  b2bWhitelistServiceMock: {
+    ensureAccess: vi.fn()
+  },
   emitPlatformEventMock: vi.fn(),
   metaPixelTrackEventMock: vi.fn(),
   vehicleTaxonomyServiceMock: {
@@ -120,6 +124,10 @@ vi.mock('../services/prisma.js', () => ({
 
 vi.mock('../modules/Communication/telegram/routing/wizards/leadSellWizard.js', () => ({
   startLeadSellWizard: startLeadSellWizardMock
+}));
+
+vi.mock('../services/b2bWhitelist.service.js', () => ({
+  b2bWhitelistService: b2bWhitelistServiceMock
 }));
 
 vi.mock('../modules/Communication/telegram/core/events/eventEmitter.js', () => ({
@@ -238,6 +246,13 @@ describe('MiniApp Lead handoff routes', () => {
     telegramOutboxMock.sendMessage.mockResolvedValue({ message_id: 10 });
     prismaMock.integrationEventLog.create.mockResolvedValue({});
     startLeadSellWizardMock.mockResolvedValue(undefined);
+    b2bWhitelistServiceMock.ensureAccess.mockResolvedValue({
+      allowed: false,
+      accessRequest: {
+        id: 'access_request_1',
+        status: 'NEW'
+      }
+    });
     emitPlatformEventMock.mockResolvedValue(undefined);
     metaPixelTrackEventMock.mockResolvedValue({ success: true, eventId: 'event_1' });
     miniAppServiceMock.getRequestStatus.mockResolvedValue({
@@ -878,6 +893,64 @@ describe('MiniApp Lead handoff routes', () => {
     expect(prismaMock.requestVariant.findMany).not.toHaveBeenCalled();
     expect(prismaMock.b2bRequest.count).not.toHaveBeenCalled();
     expect(prismaMock.requestVariant.count).not.toHaveBeenCalled();
+  });
+
+  it('creates a B2B access request from pending MiniApp state and notifies admin chat', async () => {
+    miniAppServiceMock.getConfig.mockResolvedValueOnce({
+      companyId: 'company_1',
+      botId: 'bot_b2b',
+      publicSlug: 'cardealer_lviv_bot',
+      template: 'B2B',
+      miniapp: { surfaceMode: 'B2B' }
+    });
+    prismaMock.botConfig.findFirst.mockResolvedValueOnce({
+      id: 'bot_b2b',
+      token: 'telegram-token',
+      companyId: 'company_1',
+      adminChatId: '-100999',
+      config: {
+        botUsername: 'CarDealer_Lviv_Bot'
+      }
+    });
+    const app = await buildApp();
+
+    const res = await request(app)
+      .post('/api/miniapp/b2b/access/request')
+      .send({
+        slug: 'cardealer_lviv_bot',
+        initData: 'signed-init-data'
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      ok: true,
+      approved: false,
+      accessRequest: {
+        id: 'access_request_1',
+        status: 'NEW'
+      }
+    });
+    expect(b2bWhitelistServiceMock.ensureAccess).toHaveBeenCalledWith({
+      tgUserId: '1001',
+      username: 'client_one',
+      fullName: 'Ivan Client'
+    }, {
+      companyId: 'company_1',
+      botId: 'bot_b2b'
+    }, expect.stringContaining('source=miniapp'));
+    const adminMessage = telegramOutboxMock.sendMessage.mock.calls
+      .map((call: any[]) => call[0])
+      .find((payload: any) => payload.chatId === '-100999');
+    expect(adminMessage).toEqual(expect.objectContaining({
+      botId: 'bot_b2b',
+      chatId: '-100999',
+      text: expect.stringContaining('[B2B ACCESS]')
+    }));
+    expect(adminMessage.text).toContain('access_request_1');
+    expect(adminMessage.replyMarkup.inline_keyboard[0]).toEqual(expect.arrayContaining([
+      expect.objectContaining({ text: expect.stringContaining('Підтвердити'), callback_data: expect.stringMatching(/^v1:ba_ap:/) }),
+      expect.objectContaining({ text: expect.stringContaining('Відхилити'), callback_data: expect.stringMatching(/^v1:ba_rj:/) })
+    ]));
   });
 
   it('returns approved B2B partner summary and counts using verified Telegram identity', async () => {

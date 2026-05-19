@@ -105,6 +105,15 @@ export type MiniAppB2BPartnerPortalResponse = {
   };
 };
 
+export type MiniAppB2BAccessRequestResponse = {
+  ok: boolean;
+  approved: boolean;
+  accessRequest?: {
+    id: string;
+    status?: string;
+  } | null;
+};
+
 export type MiniAppB2bMyRequestItem = {
   id: string;
   publicId?: string;
@@ -295,6 +304,14 @@ export async function getMiniAppB2BPartnerPortal(params: { slug: string; initDat
   return await apiFetch(buildMiniAppB2BPartnerPortalPath(params), {
     method: 'GET',
     skipAuth: true
+  });
+}
+
+export async function requestMiniAppB2BAccess(payload: { slug: string; initData: string }): Promise<MiniAppB2BAccessRequestResponse> {
+  return await apiFetch('/miniapp/b2b/access/request', {
+    method: 'POST',
+    skipAuth: true,
+    body: JSON.stringify(payload)
   });
 }
 

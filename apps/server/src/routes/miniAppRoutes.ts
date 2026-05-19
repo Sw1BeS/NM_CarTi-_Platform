@@ -18,6 +18,8 @@ import { buildLeadAdminActionMarkupAsync, buildLeadAdminNotificationText } from 
 import { buildB2BVariantAdminActionMarkupAsync, buildB2BVariantAdminNotificationText } from '../services/b2bAdminNotification.js';
 import { isEnvFlagEnabled } from '../services/featureFlags.js';
 import { vehicleTaxonomyService } from '../services/vehicleTaxonomy.service.js';
+import { b2bWhitelistService } from '../services/b2bWhitelist.service.js';
+import { buildCallbackData } from '../modules/Communication/telegram/core/utils/callbackUtils.js';
 
 const router = Router();
 const showcaseService = new ShowcaseService();
@@ -847,6 +849,93 @@ router.get('/b2b/me', async (req, res) => {
     });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : 'Failed to load B2B partner portal';
+    errorResponse(res, 500, message);
+  }
+});
+
+router.post('/b2b/access/request', async (req, res) => {
+  try {
+    const body = (req.body || {}) as Record<string, unknown>;
+    const slug = readString(body.slug);
+    const initData = readString(body.initData);
+    if (!slug) return errorResponse(res, 400, 'slug is required');
+    if (!initData) return errorResponse(res, 400, 'initData is required');
+
+    const config = await miniAppService.getConfig(slug);
+    if (!isB2BMiniAppConfig(config as Record<string, any>)) {
+      return b2bPortalUnavailableResponse(res);
+    }
+
+    const initCheck = await requireInitData(initData, config.companyId, config.botId);
+    if (!initCheck.ok) return errorResponse(res, 401, initCheck.message || 'Unauthorized');
+
+    const telegram = parseMiniAppTelegramIdentity(initData);
+    if (!telegram.userId) {
+      return errorResponse(res, 400, 'Telegram user not found', MINIAPP_ERROR_CODES.INITDATA_INVALID);
+    }
+
+    const result = await b2bWhitelistService.ensureAccess({
+      tgUserId: telegram.userId,
+      username: telegram.username || null,
+      fullName: telegram.name || null
+    }, {
+      companyId: config.companyId,
+      botId: config.botId || null
+    }, [
+      'source=miniapp',
+      `slug=${slug}`,
+      `chatId=${telegram.userId}`
+    ].join(';'));
+
+    const accessRequestId = result.accessRequest?.id || '';
+    if (!result.allowed && accessRequestId) {
+      const bot = await getMiniAppBotForSend(config.botId, config.companyId);
+      if (bot?.token && bot.adminChatId) {
+        const requesterLink = telegram.username
+          ? `https://t.me/${telegram.username.replace(/^@+/, '')}`
+          : `tg://user?id=${telegram.userId}`;
+        await telegramOutbox.sendMessage({
+          botId: bot.id,
+          token: bot.token,
+          chatId: String(bot.adminChatId),
+          text: [
+            '🟡 [B2B ACCESS] Новий запит на доступ',
+            `ID: ${accessRequestId}`,
+            `source: MiniApp`,
+            `tgUserId: ${telegram.userId}`,
+            `username: ${telegram.username ? `@${telegram.username}` : '—'}`,
+            `name: ${telegram.name || '—'}`,
+            `🔗 ${requesterLink}`
+          ].join('\n'),
+          replyMarkup: {
+            inline_keyboard: [[
+              { text: '✅ Підтвердити', callback_data: buildCallbackData('ba_ap', accessRequestId) },
+              { text: '❌ Відхилити', callback_data: buildCallbackData('ba_rj', accessRequestId) }
+            ]]
+          },
+          companyId: bot.companyId || config.companyId,
+          userId: telegram.userId
+        }).catch((e: unknown) => {
+          logger.warn('[MiniApp] failed to send B2B access admin notification', {
+            slug,
+            botId: bot.id,
+            accessRequestId,
+            error: e instanceof Error ? e.message : String(e)
+          });
+        });
+      }
+    }
+
+    res.json({
+      ok: true,
+      approved: result.allowed,
+      accessRequest: result.accessRequest ? {
+        id: result.accessRequest.id,
+        status: result.accessRequest.status
+      } : null
+    });
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'Failed to request B2B access';
     errorResponse(res, 500, message);
   }
 });
