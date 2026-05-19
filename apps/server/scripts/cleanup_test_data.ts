@@ -109,6 +109,15 @@ const countCompany = async (company: CompanyScope): Promise<CleanupCounts> => {
     counts.integrationEventLogs = await prisma.integrationEventLog.count({ where: { companyId: company.id } });
   }
 
+  if (options.includeCrm) {
+    counts.crmContacts = await prisma.contact.count({ where: { workspace_id: company.id } });
+    counts.crmCases = await prisma.case.count({ where: { workspace_id: company.id } });
+    counts.crmCaseContactLinks = await prisma.caseContactLink.count({ where: { workspace_id: company.id } });
+    counts.crmConversations = await prisma.conversation.count({ where: { workspace_id: company.id } });
+    counts.crmMessages = await prisma.message.count({ where: { workspace_id: company.id } });
+    counts.crmMessageDeliveries = await prisma.messageDelivery.count({ where: { workspace_id: company.id } });
+  }
+
   return counts;
 };
 
@@ -124,6 +133,15 @@ const deleteCompany = async (company: CompanyScope) => {
     deleted.platformEvents = (await prisma.platformEvent.deleteMany({ where: { companyId: company.id } })).count;
     deleted.telegramUpdates = (await prisma.telegramUpdate.deleteMany({ where: { botId: botIdFilter } })).count;
     deleted.integrationEventLogs = (await prisma.integrationEventLog.deleteMany({ where: { companyId: company.id } })).count;
+  }
+
+  if (options.includeCrm) {
+    deleted.crmMessageDeliveries = (await prisma.messageDelivery.deleteMany({ where: { workspace_id: company.id } })).count;
+    deleted.crmMessages = (await prisma.message.deleteMany({ where: { workspace_id: company.id } })).count;
+    deleted.crmConversations = (await prisma.conversation.deleteMany({ where: { workspace_id: company.id } })).count;
+    deleted.crmCaseContactLinks = (await prisma.caseContactLink.deleteMany({ where: { workspace_id: company.id } })).count;
+    deleted.crmCases = (await prisma.case.deleteMany({ where: { workspace_id: company.id } })).count;
+    deleted.crmContacts = (await prisma.contact.deleteMany({ where: { workspace_id: company.id } })).count;
   }
 
   deleted.messageLogs = (await prisma.messageLog.deleteMany({
@@ -167,7 +185,7 @@ async function main() {
   }
 
   log(`mode=${options.execute ? 'EXECUTE' : 'DRY_RUN'}`);
-  log(`includePartners=${options.includePartners ? 'yes' : 'no'} includeLogs=${options.includeLogs ? 'yes' : 'no'}`);
+  log(`includePartners=${options.includePartners ? 'yes' : 'no'} includeLogs=${options.includeLogs ? 'yes' : 'no'} includeCrm=${options.includeCrm ? 'yes' : 'no'}`);
   log('preserved: inventory/car listings, showcases, bot configs, admin users, memberships');
 
   const companies = await resolveCompanies();

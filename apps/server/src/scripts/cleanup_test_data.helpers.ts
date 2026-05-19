@@ -6,6 +6,7 @@ export type CleanupTestDataOptions = {
   allCompanies: boolean;
   includePartners: boolean;
   includeLogs: boolean;
+  includeCrm: boolean;
   confirm?: string;
 };
 
@@ -21,6 +22,7 @@ export const parseCleanupTestDataArgs = (args: string[]): CleanupTestDataOptions
   allCompanies: args.includes('--all-companies'),
   includePartners: args.includes('--include-partners'),
   includeLogs: args.includes('--include-logs'),
+  includeCrm: args.includes('--include-crm'),
   confirm: readValueArg(args, 'confirm')
 });
 
@@ -49,10 +51,10 @@ export const validateCleanupTestDataOptions = (options: CleanupTestDataOptions) 
 export const buildCleanupTestDataUsage = () => [
   'Usage:',
   '  npm run cleanup:test-data -- --companyId=<workspaceId>',
-  '  npm run cleanup:test-data -- --companyId=<workspaceId> --include-partners --include-logs',
+  '  npm run cleanup:test-data -- --companyId=<workspaceId> --include-partners --include-logs --include-crm',
   `  npm run cleanup:test-data -- --companyId=<workspaceId> --execute --confirm=${CLEANUP_CONFIRM_PHRASE}`,
   '',
   'Default mode is DRY_RUN.',
   'Preserved by design: inventory/car listings, showcases, bot configs, admin users/memberships.',
-  'Optional destructive scopes: --include-partners, --include-logs.'
+  'Optional destructive scopes: --include-partners, --include-logs, --include-crm.'
 ].join('\n');

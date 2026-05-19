@@ -96,6 +96,16 @@ Expected:
 - raw access token, phone/email або інша PII не показуються;
 - при відсутності подій блок залишається читабельним і не блокує редагування Meta config.
 
+## 4.3) Test data cleanup dry-run
+
+1. Запустити `npm run cleanup:test-data -- --all-companies --include-partners --include-logs --include-crm`.
+
+Expected:
+- default mode `DRY_RUN`, без видалення даних;
+- counts включають B2B requests, leads, partner records, logs і CRM v2 contacts/cases/messages;
+- destructive mode не запускається без `--companyId`, `--execute` і `--confirm=RESET_TEST_DATA`;
+- inventory, showcases, bot configs, admin users/memberships зберігаються.
+
 ## 5) Lead SELL + admin actions
 
 1. Пройти SELL wizard (кроки + review).

@@ -28,7 +28,8 @@ describe('cleanup test data helpers', () => {
       '--execute',
       `--confirm=${CLEANUP_CONFIRM_PHRASE}`,
       '--include-partners',
-      '--include-logs'
+      '--include-logs',
+      '--include-crm'
     ]);
 
     expect(options).toEqual({
@@ -37,6 +38,7 @@ describe('cleanup test data helpers', () => {
       allCompanies: false,
       includePartners: true,
       includeLogs: true,
+      includeCrm: true,
       confirm: CLEANUP_CONFIRM_PHRASE
     });
     expect(validateCleanupTestDataOptions(options)).toEqual([]);
