@@ -28,6 +28,7 @@ import { RequestView, type RequestFormData } from './miniapp/views/RequestView';
 import { MiniAppImage } from './miniapp/components/MiniAppImage';
 import { isMiniAppReadOnlyLaunch, parseMiniAppEntryIntent, resolveMiniAppInternalLinkIntent, type MiniAppEntryIntent } from './miniapp/entryIntent';
 import { resolveLeadIntentOutcome } from './miniapp/leadIntentOutcome';
+import { resolveMiniAppSubmitEventType, resolveMiniAppViewEventType } from './miniapp/trackingEvents';
 
 const emitMiniAppEvent = (level: 'info' | 'warn' | 'error', message: string, meta?: Record<string, unknown>) => {
     try {
@@ -778,7 +779,10 @@ const MiniAppContent = () => {
                 term: urlParams.get('utm_term') || undefined
             };
             const ref = urlParams.get('ref') || urlParams.get('source') || undefined;
-            setTrackingMeta({
+            const openEventId = window.crypto?.randomUUID
+                ? window.crypto.randomUUID()
+                : `miniapp_open_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+            const baseTrackingMeta: MiniAppTrackingMeta = {
                 startParam: startParam || undefined,
                 utm,
                 ref,
@@ -790,12 +794,30 @@ const MiniAppContent = () => {
                 fbc: readCookie('_fbc'),
                 eventSourceUrl: window.location.href,
                 actionSource: 'website'
-            });
+            };
+            setTrackingMeta(baseTrackingMeta);
 
             // 2. Determine Target Slug (priority: URL slug > non-entry start_param > system)
             const rawSlug = slug || (rawEntryIntent.consumedStartParam ? '' : startParam) || 'system';
             const resolvedSlug = normalizeSlug(rawSlug) || 'system';
             emitMiniAppEvent('info', 'Resolved target slug', { ...safeLaunchMeta, resolvedSlug, rawSlug });
+            trackMiniAppEvent({
+                slug: resolvedSlug,
+                eventType: 'MiniAppOpen',
+                initData: telegramContext.initData || undefined,
+                visitorId,
+                tgUserId: resolvedUser?.id ? String(resolvedUser.id) : undefined,
+                view: 'HOME',
+                payload: { ...safeLaunchMeta, resolvedSlug, requestId },
+                tracking: {
+                    ...baseTrackingMeta,
+                    eventId: openEventId
+                }
+            }).catch((error) => {
+                emitMiniAppEvent('warn', 'Failed to track MiniApp open', {
+                    error: error instanceof Error ? error.message : String(error)
+                });
+            });
             trackMiniAppEvent({
                 slug: resolvedSlug,
                 eventType: 'miniapp_launch_diagnostics',
@@ -805,13 +827,7 @@ const MiniAppContent = () => {
                 view: 'HOME',
                 payload: { ...safeLaunchMeta, resolvedSlug, requestId },
                 tracking: {
-                    startParam: startParam || undefined,
-                    entrypoint: window.location.pathname,
-                    referrer: document.referrer || undefined,
-                    miniappVersion: buildVersion,
-                    buildSha: buildVersion,
-                    eventSourceUrl: window.location.href,
-                    actionSource: 'website'
+                    ...baseTrackingMeta
                 }
             }).catch((error) => {
                 emitMiniAppEvent('warn', 'Failed to track MiniApp launch diagnostics', {
@@ -978,8 +994,15 @@ const MiniAppContent = () => {
 
     useEffect(() => {
         if (isConfigLoading) return;
-        trackEvent('view_opened', { view });
-    }, [isConfigLoading, trackEvent, view]);
+        if (view === 'HOME') return;
+        const eventType = resolveMiniAppViewEventType(view);
+        const carListingId = eventType === 'ViewInventoryItem' && selectedCar ? getCarId(selectedCar) : undefined;
+        trackEvent(eventType, {
+            view,
+            legacyEventType: 'view_opened',
+            ...(carListingId ? { carListingId } : {})
+        });
+    }, [isConfigLoading, selectedCar, trackEvent, view]);
 
     useEffect(() => {
         const tg = (window as any).Telegram?.WebApp;
@@ -1142,7 +1165,10 @@ const MiniAppContent = () => {
                 }
             });
             if (!ok) return;
-            trackEvent('lead_intent_price_terms_submitted', { carListingId: carId });
+            trackEvent('LeadSubmit', {
+                carListingId: carId,
+                legacyEventType: 'lead_intent_price_terms_submitted'
+            });
             closeMiniAppOrShowSuccess();
         } catch (e) {
             emitMiniAppEvent('error', 'MiniApp price intent submit failed', buildSafeRuntimeDiagnostics({
@@ -1208,7 +1234,10 @@ const MiniAppContent = () => {
                 }
             });
             if (!ok) return;
-            trackEvent('lead_intent_selected_cars_submitted', { selectedCarsCount: selectedRequestCarIds.length });
+            trackEvent('LeadSubmit', {
+                selectedCarsCount: selectedRequestCarIds.length,
+                legacyEventType: 'lead_intent_selected_cars_submitted'
+            });
             clearRequestSelection();
             closeMiniAppOrShowSuccess();
         } catch (e) {
@@ -3043,9 +3072,10 @@ const MiniAppContent = () => {
                         tracking: { ...trackingMeta, submitId, requestType: 'BUY' }
                     });
                     const shouldClose = handleLeadIntentOutcome(response);
-                    trackEvent('lead_intent_pick_submitted', {
+                    trackEvent('LeadSubmit', {
                         requestSubtype: effectiveRequestSubtype,
-                        selectedCarsCount: selectedListingIds.length
+                        selectedCarsCount: selectedListingIds.length,
+                        legacyEventType: 'lead_intent_pick_submitted'
                     });
                     clearRequestSelection();
                     requestSubmitIdRef.current = null;
@@ -3101,10 +3131,11 @@ const MiniAppContent = () => {
                 };
 
                 await createMiniAppRequest(requestPayload);
-                trackEvent('request_submitted', {
+                trackEvent(resolveMiniAppSubmitEventType({ isB2BMode, requestType }), {
                     requestType,
                     requestSubtype: effectiveRequestSubtype,
-                    selectedCarsCount: selectedListingIds.length
+                    selectedCarsCount: selectedListingIds.length,
+                    legacyEventType: 'request_submitted'
                 });
                 clearRequestSelection();
                 requestSubmitIdRef.current = null;
