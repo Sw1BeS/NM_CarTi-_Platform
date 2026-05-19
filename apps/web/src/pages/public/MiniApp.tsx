@@ -1023,7 +1023,7 @@ const MiniAppContent = () => {
         if (isConfigLoading) return;
         if (view === 'HOME') return;
         const eventType = resolveMiniAppViewEventType(view);
-        const carListingId = eventType === 'ViewInventoryItem' && selectedCar ? getCarId(selectedCar) : undefined;
+        const carListingId = (eventType === 'ViewCar' || eventType === 'ViewInventoryItem') && selectedCar ? getCarId(selectedCar) : undefined;
         trackEvent(eventType, {
             view,
             legacyEventType: 'view_opened',

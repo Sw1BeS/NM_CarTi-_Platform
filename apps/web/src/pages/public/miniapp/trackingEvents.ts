@@ -1,6 +1,8 @@
 export type MiniAppBusinessEvent =
     | 'MiniAppOpen'
+    | 'ViewInventory'
     | 'ViewShowcase'
+    | 'ViewCar'
     | 'ViewInventoryItem'
     | 'LeadFormStart'
     | 'LeadSubmit'
@@ -31,8 +33,9 @@ const createMetaRandomPart = () => Math.floor(Math.random() * 1_000_000_000_000)
 
 export const resolveMiniAppViewEventType = (view: string): MiniAppBusinessEvent => {
     const normalized = String(view || '').trim().toUpperCase();
-    if (normalized === 'CATALOG' || normalized === 'FAVORITES' || normalized === 'STATUS') return 'ViewShowcase';
-    if (normalized === 'LISTING') return 'ViewInventoryItem';
+    if (normalized === 'INVENTORY' || normalized === 'CATALOG' || normalized === 'FAVORITES') return 'ViewInventory';
+    if (normalized === 'B2B_REQUESTS' || normalized === 'STATUS') return 'ViewShowcase';
+    if (normalized === 'LISTING') return 'ViewCar';
     if (normalized === 'REQUEST') return 'LeadFormStart';
     return 'MiniAppOpen';
 };
