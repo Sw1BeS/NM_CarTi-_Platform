@@ -32,6 +32,7 @@ const hash = (value: string) => crypto.createHash('sha256').update(value).digest
 describe('MetaCapiService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubEnv('META_CAPI_ENABLED', 'true');
     prismaMock.integration.findUnique.mockResolvedValue({
       id: 'int_meta',
       companyId: 'company_1',
@@ -46,6 +47,26 @@ describe('MetaCapiService', () => {
     prismaMock.integrationEventLog.findUnique.mockResolvedValue(null);
     prismaMock.integrationEventLog.create.mockResolvedValue({ id: 'log_1' });
     axiosPostMock.mockResolvedValue({ data: { events_received: 1 } });
+  });
+
+  it('does not send when META_CAPI_ENABLED is disabled', async () => {
+    vi.stubEnv('META_CAPI_ENABLED', 'false');
+    const { MetaCapiService } = await import('./metaCapi.service.js');
+    const service = new MetaCapiService();
+
+    const result = await service.trackEvent('company_1', 'Lead', {
+      entityType: 'lead',
+      entityId: 'lead_1'
+    });
+
+    expect(result).toMatchObject({
+      success: false,
+      skipped: true,
+      reason: 'META_CAPI_DISABLED'
+    });
+    expect(prismaMock.integration.findUnique).not.toHaveBeenCalled();
+    expect(axiosPostMock).not.toHaveBeenCalled();
+    expect(prismaMock.integrationEventLog.create).not.toHaveBeenCalled();
   });
 
   it('sends hashed ph and external_id with stable event_id', async () => {

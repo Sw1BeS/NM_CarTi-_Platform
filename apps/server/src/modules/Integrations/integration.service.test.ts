@@ -32,6 +32,7 @@ const sha256 = (value: string) => crypto.createHash('sha256').update(value).dige
 describe('IntegrationService Meta CAPI', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubEnv('META_CAPI_ENABLED', 'true');
     prismaMock.integration.findUnique.mockResolvedValue({
       id: 'int_meta',
       companyId: 'company_1',

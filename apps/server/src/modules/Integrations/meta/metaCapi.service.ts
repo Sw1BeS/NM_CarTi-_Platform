@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import axios from 'axios';
 import { prisma } from '../../../services/prisma.js';
 import { logger } from '../../../utils/logger.js';
+import { isEnvFlagEnabled } from '../../../services/featureFlags.js';
 
 export type MetaActionSource = 'email' | 'website' | 'app' | 'phone_call' | 'chat' | 'physical_store' | 'system_generated' | 'business_messaging' | string;
 
@@ -75,6 +76,10 @@ export const buildMetaEventId = (companyId: string, eventName: string, input: Me
 
 export class MetaCapiService {
   async trackEvent(companyId: string, eventName: string, input: MetaCapiTrackInput = {}) {
+    if (!isEnvFlagEnabled('META_CAPI_ENABLED', false)) {
+      return { success: false, skipped: true, reason: 'META_CAPI_DISABLED' };
+    }
+
     const integration = await prisma.integration.findUnique({
       where: {
         companyId_type: {
