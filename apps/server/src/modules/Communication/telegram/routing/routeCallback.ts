@@ -114,6 +114,15 @@ const appendPlainStatusLineOnce = (text: string, status: string) => {
   return `${value}\n\n${statusLine}`.trim();
 };
 
+const appendAssignmentLineOnce = (text: string, assignee: string) => {
+  const value = String(text || '').trimEnd();
+  const label = String(assignee || '').trim();
+  if (!label) return value;
+  const statusLine = `👤 ASSIGNED: ${label}`;
+  if (value.includes(statusLine)) return value;
+  return `${value}\n\n${statusLine}`.trim();
+};
+
 const appendVariantStatusHistory = (variant: any, status: string, by?: string | null) => {
   const existing = Array.isArray(variant?.statusHistory) ? variant.statusHistory : [];
   return [
@@ -778,6 +787,154 @@ const handleLeadStatusCallback = async (ctx: PipelineContext, cb: any, status: L
   return true;
 };
 
+const handleRequestAssignToMeTokenAction = async (
+  ctx: PipelineContext,
+  cb: any,
+  tokenPayload: NonNullable<Awaited<ReturnType<typeof resolveAdminActionToken>>>
+) => {
+  if (tokenPayload.action !== 'request.ASSIGN_TO_ME' || tokenPayload.targetType !== 'request' || !tokenPayload.targetId) {
+    return false;
+  }
+
+  const request = await prisma.b2bRequest.findUnique({
+    where: { id: tokenPayload.targetId },
+    select: { id: true, companyId: true, botId: true, assignedTo: true }
+  });
+  if (
+    !request ||
+    (ctx.companyId && String((request as any).companyId || '') !== String(ctx.companyId)) ||
+    ((request as any).botId && String((request as any).botId) !== String(ctx.bot?.id || ''))
+  ) {
+    await telegramOutbox.answerCallback({
+      token: ctx.bot!.token,
+      callbackId: cb.id,
+      text: 'Action unavailable'
+    }).catch(() => null);
+    return true;
+  }
+
+  const adminTgUserId = String(cb.from?.id || ctx.userId || '').trim();
+  const adminUsername = String(cb.from?.username || '').trim() || null;
+  const assignedTo = adminTgUserId ? `tg:${adminTgUserId}` : (adminUsername ? `tg_username:${adminUsername}` : 'telegram_admin');
+  const consumedBy = {
+    adminTgUserId: adminTgUserId || null,
+    adminUsername,
+    callbackId: cb.id || null
+  };
+
+  const claimed = await claimAdminActionToken(tokenPayload, consumedBy);
+  if (!claimed) {
+    await telegramOutbox.answerCallback({
+      token: ctx.bot!.token,
+      callbackId: cb.id,
+      text: 'Action already processed'
+    }).catch(() => null);
+    return true;
+  }
+
+  const message = cb.message;
+  const chatId = message?.chat?.id ? String(message.chat.id) : String(ctx.chatId || '');
+  const messageId = Number(message?.message_id || 0);
+  const idempotencyKey = [
+    'telegram:request-assign',
+    tokenPayload.targetId,
+    messageId > 0 ? String(messageId) : cb.id || adminTgUserId || 'manual'
+  ].join(':');
+
+  try {
+    await prisma.b2bRequest.update({
+      where: { id: tokenPayload.targetId },
+      data: { assignedTo }
+    });
+
+    await prisma.integrationEventLog.upsert({
+      where: { idempotencyKey },
+      create: {
+        companyId: ctx.companyId || (request as any).companyId || null,
+        integration: 'telegram',
+        action: 'request.assigned',
+        status: 'SUCCESS',
+        entityType: 'request',
+        entityId: tokenPayload.targetId,
+        idempotencyKey,
+        message: 'Request assigned from Telegram admin action',
+        meta: {
+          assignedTo,
+          previousAssignedTo: (request as any).assignedTo || null,
+          botId: ctx.bot?.id || null,
+          adminTgUserId: adminTgUserId || null,
+          adminUsername,
+          callbackId: cb.id || null,
+          messageId: messageId || null,
+          chatId: chatId || null
+        } as any
+      },
+      update: {
+        status: 'SUCCESS',
+        message: 'Request assigned from Telegram admin action',
+        meta: {
+          assignedTo,
+          previousAssignedTo: (request as any).assignedTo || null,
+          botId: ctx.bot?.id || null,
+          adminTgUserId: adminTgUserId || null,
+          adminUsername,
+          callbackId: cb.id || null,
+          messageId: messageId || null,
+          chatId: chatId || null,
+          repeatedAt: new Date().toISOString()
+        } as any
+      }
+    }).catch(() => null);
+
+    try {
+      await markAdminActionTokenConsumed(tokenPayload, consumedBy);
+    } catch {
+      await releaseAdminActionTokenClaim(tokenPayload, {
+        message: 'Request assignment token finalization failed',
+        failedAt: new Date().toISOString()
+      });
+      await telegramOutbox.answerCallback({
+        token: ctx.bot!.token,
+        callbackId: cb.id,
+        text: 'Action completed, but log finalization failed.'
+      }).catch(() => null);
+      return true;
+    }
+
+    if (chatId && messageId) {
+      const currentText = message.text || message.caption || '';
+      await telegramOutbox.editMessageText({
+        botId: ctx.bot!.id,
+        token: ctx.bot!.token,
+        chatId,
+        messageId,
+        text: appendAssignmentLineOnce(currentText, adminUsername ? `@${adminUsername}` : assignedTo),
+        replyMarkup: message.reply_markup || undefined,
+        companyId: ctx.companyId,
+        userId: ctx.userId || undefined
+      }).catch(() => null);
+    }
+
+    await telegramOutbox.answerCallback({
+      token: ctx.bot!.token,
+      callbackId: cb.id,
+      text: '✅ Assigned to you'
+    }).catch(() => null);
+    return true;
+  } catch {
+    await releaseAdminActionTokenClaim(tokenPayload, {
+      message: 'Request assignment action failed',
+      failedAt: new Date().toISOString()
+    });
+    await telegramOutbox.answerCallback({
+      token: ctx.bot!.token,
+      callbackId: cb.id,
+      text: 'Action failed. Please retry.'
+    }).catch(() => null);
+    return true;
+  }
+};
+
 const salesDriveSyncAnswerText = (result: Awaited<ReturnType<typeof processSalesDriveRequestSyncQueue>>) => {
   if (result.reason) return `SalesDrive sync: ${result.reason}`;
   if (result.sent) return `SalesDrive sync: sent ${result.sent}`;
@@ -973,6 +1130,9 @@ export const routeCallback = async (ctx: PipelineContext) => {
         }
         return true;
       }
+
+      const handledRequestAssignAction = await handleRequestAssignToMeTokenAction(ctx, cb, tokenPayload);
+      if (handledRequestAssignAction) return true;
 
       const handledSalesDriveSyncAction = await handleSalesDriveRequestSyncTokenAction(ctx, cb, tokenPayload);
       if (handledSalesDriveSyncAction) return true;

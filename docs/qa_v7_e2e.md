@@ -49,7 +49,23 @@ Expected:
 Expected:
 - один агрегований адмін-лід з усіма carIds.
 
-## 4) Lead SELL + admin actions
+## 4) Lead MiniApp request + admin actions
+
+1. Відкрити Lead MiniApp catalog/request flow і створити заявку.
+2. Перевірити, що адмін-чат отримує повідомлення з `Request ID`.
+3. Натиснути `Взяти в роботу`.
+4. Натиснути `Позначити контакт`.
+5. Якщо SalesDrive sync увімкнений прапорцями, натиснути `SalesDrive sync`.
+6. Повторити клік по вже використаній tokenized дії.
+
+Expected:
+- `Відкрити в CRM` веде на пошук заявки.
+- `Взяти в роботу` оновлює `assignedTo` на Telegram admin id і додає `ASSIGNED` у повідомлення.
+- `Позначити контакт` ставить lead status `CONTACTED`.
+- Повторний tokenized клік відповідає як already processed без дублювання side effects.
+- SalesDrive action не пише в SalesDrive, якщо write/sync flags вимкнені.
+
+## 5) Lead SELL + admin actions
 
 1. Пройти SELL wizard (кроки + review).
 2. Перевірити review/edit-list/jump.
@@ -64,7 +80,7 @@ Expected:
 - перший клік: create/publish success.
 - повторний клік: idempotent `вже виконано`.
 
-## 5) Support tickets
+## 6) Support tickets
 
 1. Відкрити `Підтримка`.
 2. Якщо OPEN ticket є -> перевірити `Доповнити / Новий`.
@@ -75,7 +91,7 @@ Expected:
 - користувач: `support.received`.
 - адміну: `🆘 [SUPPORT]`.
 
-## 6) B2B `/start` unregistered
+## 7) B2B `/start` unregistered
 
 1. У DM `@CarDealer_Lviv_Bot` -> `/start`.
 2. Перевірити, що до реєстрації НЕ показуються `Створити запит`/`Мій інвентар`.
@@ -87,7 +103,7 @@ Expected:
 - `💳 Тарифи`
 - `🔐 Конфіденційність`
 
-## 7) B2B Registration
+## 8) B2B Registration
 
 1. New partner flow: company/city/name/contact/note + review.
 2. Submit -> admin `🟡 [B2B REG]` з `br_ap/br_rj`.
@@ -98,7 +114,7 @@ Expected:
 - OWNER/AGENT створюються коректно.
 - `lastName` і `role` заповнюються.
 
-## 8) B2B Request/Variant privacy
+## 9) B2B Request/Variant privacy
 
 1. Registered user створює request wizard + review + publish.
 2. Channel пост не містить контактів, кнопка `Є авто`.
@@ -109,7 +125,7 @@ Expected:
 Expected:
 - контакти ніколи не публікуються в channel/post автору.
 
-## 9) MiniApp parity
+## 10) MiniApp parity
 
 1. Відкрити MiniApp з Telegram.
 2. Catalog: toggle favorite.
@@ -156,4 +172,3 @@ B2B channel: 3818257920 -> -1003818257920
 ```
 
 Все 4 контури доступні, bot-admin права підтверджені.
-

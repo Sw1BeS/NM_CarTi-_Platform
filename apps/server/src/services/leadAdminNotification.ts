@@ -68,6 +68,29 @@ const tokenizedSalesDriveSyncCallback = async (params: {
   return token ? buildCallbackData('aa', token) : undefined;
 };
 
+const tokenizedRequestAssignCallback = async (params: {
+  requestId?: string | null;
+  botId?: string | null;
+  companyId?: string | null;
+}) => {
+  const requestId = toText(params.requestId);
+  if (!requestId) return undefined;
+  let token: string | undefined;
+  try {
+    token = await createAdminActionToken({
+      action: 'request.ASSIGN_TO_ME',
+      targetType: 'request',
+      targetId: requestId,
+      botId: params.botId || null,
+      companyId: params.companyId || null,
+      requestId
+    });
+  } catch {
+    return undefined;
+  }
+  return token ? buildCallbackData('aa', token) : undefined;
+};
+
 const requestSearchUrl = (request?: { id?: string | null; publicId?: string | null } | null) => {
   const value = toText(request?.publicId) || toText(request?.id);
   if (!value) return undefined;
@@ -94,7 +117,7 @@ const buildLeadAdminActionMarkupWithCallback = (params: {
   request?: { id?: string | null; publicId?: string | null } | null;
   telegramUserId?: string | null;
   selectedCars?: Array<{ id?: string | null; title?: string | null; publicUrl?: string | null }> | null;
-}, contacted?: string) => {
+}, contacted?: string, assign?: string) => {
   const rows: any[][] = [];
   const crmUrl = requestSearchUrl(params.request) || leadSearchUrl(params.lead);
   if (crmUrl) {
@@ -118,10 +141,13 @@ const buildLeadAdminActionMarkupWithCallback = (params: {
 
   const userId = toText(params.telegramUserId);
   const actionRow = [
-    contacted ? { text: '✅ Позначити контакт', callback_data: contacted } : null,
-    userId ? { text: 'Написати клієнту', url: `tg://user?id=${encodeURIComponent(userId)}` } : null
+    assign ? { text: '👤 Взяти в роботу', callback_data: assign } : null,
+    contacted ? { text: '✅ Позначити контакт', callback_data: contacted } : null
   ].filter(Boolean);
   if (actionRow.length) rows.push(actionRow);
+  if (userId) {
+    rows.push([{ text: 'Написати клієнту', url: `tg://user?id=${encodeURIComponent(userId)}` }]);
+  }
 
   if (!rows.length) return undefined;
   return { inline_keyboard: rows };
@@ -139,7 +165,12 @@ export const buildLeadAdminActionMarkupAsync = async (params: {
   };
 }) => {
   const requestId = params.tokenContext?.requestId || params.request?.id;
-  const [contacted, salesDriveSync] = await Promise.all([
+  const [assign, contacted, salesDriveSync] = await Promise.all([
+    tokenizedRequestAssignCallback({
+      requestId,
+      botId: params.tokenContext?.botId,
+      companyId: params.tokenContext?.companyId
+    }),
     tokenizedLeadContactedCallback({
       leadId: params.lead?.id,
       botId: params.tokenContext?.botId,
@@ -152,7 +183,7 @@ export const buildLeadAdminActionMarkupAsync = async (params: {
       companyId: params.tokenContext?.companyId
     })
   ]);
-  const markup = buildLeadAdminActionMarkupWithCallback(params, contacted);
+  const markup = buildLeadAdminActionMarkupWithCallback(params, contacted, assign);
   if (!salesDriveSync) return markup;
   const inline_keyboard = [...(markup?.inline_keyboard || [])];
   inline_keyboard.push([{ text: 'SalesDrive sync', callback_data: salesDriveSync }]);

@@ -23,6 +23,10 @@ const {
     leadActivity: {
       create: vi.fn()
     },
+    b2bRequest: {
+      findUnique: vi.fn(),
+      update: vi.fn()
+    },
     requestVariant: {
       findUnique: vi.fn(),
       update: vi.fn()
@@ -130,6 +134,18 @@ describe('lead admin callback actions', () => {
       botId: 'bot_lead'
     });
     prismaMock.leadActivity.create.mockResolvedValue({});
+    prismaMock.b2bRequest.findUnique.mockResolvedValue({
+      id: 'request_1',
+      companyId: 'company_1',
+      botId: 'bot_lead',
+      assignedTo: null
+    });
+    prismaMock.b2bRequest.update.mockResolvedValue({
+      id: 'request_1',
+      companyId: 'company_1',
+      botId: 'bot_lead',
+      assignedTo: 'tg:7001'
+    });
     prismaMock.integrationEventLog.upsert.mockResolvedValue({});
     prismaMock.integrationEventLog.findUnique.mockResolvedValue({
       id: 'event_token_1',
@@ -344,6 +360,96 @@ describe('lead admin callback actions', () => {
       callbackId: 'callback_1',
       text: 'SalesDrive sync: sent 1'
     }));
+  });
+
+  it('assigns a request to the Telegram admin from a tokenized admin chat action', async () => {
+    prismaMock.integrationEventLog.findUnique.mockResolvedValueOnce({
+      id: 'event_token_assign',
+      companyId: 'company_1',
+      integration: 'telegram',
+      action: 'admin.action_token_created',
+      status: 'PENDING',
+      entityType: 'request',
+      entityId: 'request_1',
+      idempotencyKey: 'telegram:admin-action-token:tok_abc123',
+      meta: {
+        action: 'request.ASSIGN_TO_ME',
+        targetType: 'request',
+        targetId: 'request_1',
+        botId: 'bot_lead',
+        companyId: 'company_1',
+        requestId: 'request_1'
+      }
+    });
+    const { routeCallback } = await import('./routeCallback.js');
+
+    const handled = await routeCallback(buildCtx('🟢 [LEAD] MiniApp запит\nRequest ID: REQ-1', 'v1:aa:tok_abc123'));
+
+    expect(handled).toBe(true);
+    expect(prismaMock.integrationEventLog.updateMany).toHaveBeenCalledWith({
+      where: { id: 'event_token_assign', status: 'PENDING' },
+      data: expect.objectContaining({
+        status: 'PROCESSING',
+        meta: expect.objectContaining({
+          action: 'request.ASSIGN_TO_ME',
+          targetType: 'request',
+          targetId: 'request_1',
+          claimedBy: expect.objectContaining({
+            adminTgUserId: '7001',
+            callbackId: 'callback_1'
+          })
+        })
+      })
+    });
+    expect(prismaMock.b2bRequest.findUnique).toHaveBeenCalledWith({
+      where: { id: 'request_1' },
+      select: { id: true, companyId: true, botId: true, assignedTo: true }
+    });
+    expect(prismaMock.b2bRequest.update).toHaveBeenCalledWith({
+      where: { id: 'request_1' },
+      data: { assignedTo: 'tg:7001' }
+    });
+    expect(prismaMock.integrationEventLog.upsert).toHaveBeenCalledWith({
+      where: { idempotencyKey: 'telegram:request-assign:request_1:44' },
+      create: expect.objectContaining({
+        companyId: 'company_1',
+        integration: 'telegram',
+        action: 'request.assigned',
+        status: 'SUCCESS',
+        entityType: 'request',
+        entityId: 'request_1',
+        idempotencyKey: 'telegram:request-assign:request_1:44',
+        meta: expect.objectContaining({
+          assignedTo: 'tg:7001',
+          adminUsername: 'manager_one'
+        })
+      }),
+      update: expect.objectContaining({
+        status: 'SUCCESS'
+      })
+    });
+    expect(telegramOutboxMock.editMessageText).toHaveBeenCalledWith(expect.objectContaining({
+      chatId: '-100999',
+      messageId: 44,
+      text: expect.stringContaining('👤 ASSIGNED: @manager_one')
+    }));
+    expect(telegramOutboxMock.answerCallback).toHaveBeenCalledWith(expect.objectContaining({
+      callbackId: 'callback_1',
+      text: '✅ Assigned to you'
+    }));
+    expect(prismaMock.integrationEventLog.update).toHaveBeenCalledWith({
+      where: { id: 'event_token_assign' },
+      data: expect.objectContaining({
+        status: 'SUCCESS',
+        meta: expect.objectContaining({
+          consumed: true,
+          consumedBy: expect.objectContaining({
+            adminTgUserId: '7001',
+            callbackId: 'callback_1'
+          })
+        })
+      })
+    });
   });
 
   it('rejects a token scoped to a different bot or company without updating the lead', async () => {

@@ -14,7 +14,11 @@ describe('lead admin notification actions', () => {
     createAdminActionTokenMock.mockResolvedValue('tok_abc123');
   });
 
-  it('builds short opaque callback data for lead contacted admin action', async () => {
+  it('builds short opaque callback data for lead assignment and contacted admin actions', async () => {
+    createAdminActionTokenMock
+      .mockResolvedValueOnce('tok_assign')
+      .mockResolvedValueOnce('tok_contacted')
+      .mockResolvedValueOnce('tok_salesdrive');
     const { buildLeadAdminActionMarkupAsync } = await import('./leadAdminNotification.js');
 
     const markup = await buildLeadAdminActionMarkupAsync({
@@ -29,11 +33,23 @@ describe('lead admin notification actions', () => {
     });
 
     const buttons = markup?.inline_keyboard.flat() || [];
+    const assign = buttons.find((button: any) => String(button.text || '').includes('роботу'));
     const contacted = buttons.find((button: any) => String(button.text || '').includes('контакт'));
 
+    expect(assign?.callback_data).toMatch(/^v1:aa:/);
+    expect(Buffer.byteLength(assign.callback_data, 'utf8')).toBeLessThanOrEqual(64);
+    expect(assign.callback_data).not.toContain('request_1');
     expect(contacted?.callback_data).toMatch(/^v1:aa:/);
     expect(Buffer.byteLength(contacted.callback_data, 'utf8')).toBeLessThanOrEqual(64);
     expect(contacted.callback_data).not.toContain('lead_1');
+    expect(createAdminActionTokenMock).toHaveBeenCalledWith({
+      action: 'request.ASSIGN_TO_ME',
+      targetType: 'request',
+      targetId: 'request_1',
+      botId: 'bot_1',
+      companyId: 'company_1',
+      requestId: 'request_1'
+    });
     expect(createAdminActionTokenMock).toHaveBeenCalledWith({
       action: 'lead.CONTACTED',
       targetType: 'lead',
@@ -46,6 +62,7 @@ describe('lead admin notification actions', () => {
 
   it('adds a short opaque SalesDrive sync action for request notifications', async () => {
     createAdminActionTokenMock
+      .mockResolvedValueOnce('tok_assign')
       .mockResolvedValueOnce('tok_contacted')
       .mockResolvedValueOnce('tok_salesdrive');
     const { buildLeadAdminActionMarkupAsync } = await import('./leadAdminNotification.js');
