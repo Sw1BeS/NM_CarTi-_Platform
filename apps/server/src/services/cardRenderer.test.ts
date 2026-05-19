@@ -162,4 +162,24 @@ describe('cardRenderer redaction', () => {
     expect(text).not.toContain('@audiseller');
     expect(text).not.toContain('t.me/audi_seller');
   });
+
+  it('renders human Ukrainian status hashtags in channel car posts', () => {
+    const available = renderChannelCarPost({
+      title: 'Hyundai IONIQ 5',
+      year: 2024,
+      status: 'AVAILABLE',
+      specs: {}
+    });
+    const inTransit = renderChannelCarPost({
+      title: 'Hyundai IONIQ 5',
+      year: 2024,
+      status: 'IN_TRANSIT',
+      specs: {}
+    });
+
+    expect(available).toContain('✅ #внаявності');
+    expect(available).not.toContain('#AVAILABLE');
+    expect(inTransit).toContain('⏳ #вдорозі');
+    expect(inTransit).not.toContain('#IN_TRANSIT');
+  });
 });

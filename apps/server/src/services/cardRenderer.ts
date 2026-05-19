@@ -186,12 +186,13 @@ export const renderChannelCarPost = (car: any): string => {
   ) || 'Авто', 120) || 'Авто';
 
   const statusTag = String(car?.status || specs.status || 'AVAILABLE').toUpperCase();
-  const statusText: Record<string, string> = {
-    AVAILABLE: 'в наявності',
-    RESERVED: 'резерв',
-    SOLD: 'продано',
-    PENDING: 'очікування',
-    HIDDEN: 'приховано'
+  const statusDisplay: Record<string, string> = {
+    AVAILABLE: '✅ #внаявності',
+    IN_TRANSIT: '⏳ #вдорозі',
+    PENDING: '⏳ #вдорозі',
+    RESERVED: '🔒 #reserved',
+    SOLD: '✅ #sold',
+    HIDDEN: '🙈 #hidden'
   };
 
   const mileageNum = Number(car?.mileage || specs.mileage || 0);
@@ -210,8 +211,8 @@ export const renderChannelCarPost = (car: any): string => {
   const priceTxt = Number.isFinite(price) && price > 0 ? price.toLocaleString('uk-UA') : '—';
 
   return [
-    `🇺🇸<b>${titleDisplay}</b>`,
-    `⏳#${statusTag} (${statusText[statusTag] || statusTag})`,
+    `🇺🇸 <b>${titleDisplay}</b>`,
+    statusDisplay[statusTag] || `#${statusTag.toLowerCase()}`,
     '',
     `${runTag}`,
     `🚙 пробіг ${mileageTxt}`,
