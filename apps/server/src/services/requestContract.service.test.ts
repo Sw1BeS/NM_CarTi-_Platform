@@ -618,6 +618,7 @@ describe('requestContract.service', () => {
       id: 'variant_1',
       requestId: 'req_1',
       fitQueueStatus: 'NEW',
+      requesterDecision: 'FIT',
       contact: '+380501112233',
       companyName: 'Seller Co',
       sellerPartner: { name: 'Seller Co' },
@@ -652,5 +653,40 @@ describe('requestContract.service', () => {
     expect(result.requesterContact).toBe('+380671234567');
     expect(result.sellerContact).toBe('+380501112233');
     expect(result.requestStatus).toBe('CONTACT_SHARED');
+  });
+
+  it('does not reveal fit queue contacts before requester marks the variant FIT', async () => {
+    mockPrisma.requestVariant.findUnique.mockResolvedValue({
+      id: 'variant_1',
+      requestId: 'req_1',
+      fitQueueStatus: null,
+      requesterDecision: 'PENDING',
+      contact: '+380501112233',
+      companyName: 'Seller Co',
+      sellerPartner: { name: 'Seller Co' },
+      request: {
+        id: 'req_1',
+        companyId: 'cmp_1',
+        publicId: 'REQ-1',
+        status: 'SHORTLIST',
+        payload: {
+          request: {
+            phone: '+380671234567'
+          }
+        }
+      }
+    });
+
+    await expect(requestContractService.shareAdminFitQueueContacts({
+      companyId: 'cmp_1',
+      variantId: 'variant_1'
+    })).rejects.toThrow('Contact reveal requires FIT');
+
+    expect(mockPrisma.b2bRequest.update).not.toHaveBeenCalled();
+    expect(mockPrisma.integrationEventLog.create).not.toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        action: 'fit_queue.contact_shared'
+      })
+    }));
   });
 });

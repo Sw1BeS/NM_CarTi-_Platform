@@ -1185,32 +1185,14 @@ router.get('/b2b/admin/fit-queue', async (req, res) => {
     const adminAllowed = await isMiniAppAdmin(config.companyId, tgUserId, config.botId || undefined);
     if (!adminAllowed) return errorResponse(res, 403, 'Admin access required');
 
-    const status = readString(req.query.status);
-
-    const items = await prisma.requestVariant.findMany({
-      where: {
-        requesterDecision: 'FIT',
-        request: { companyId: config.companyId },
-        ...(status ? { fitQueueStatus: status as any } : {})
-      },
-      include: {
-        request: true,
-        sellerPartner: true
-      },
-      orderBy: { fitQueuedAt: 'desc' }
-    });
+    const status = readString(req.query.status)?.toUpperCase();
 
     res.json({
       ok: true,
-      items: items.map(item => ({
-        id: item.id,
-        requestPublicId: item.request?.publicId || item.requestId,
-        fitQueueStatus: item.fitQueueStatus,
-        title: item.title,
-        sellerCompany: item.sellerPartner?.name || item.companyName,
-        contact: item.contact,
-        fitQueuedAt: item.fitQueuedAt
-      }))
+      items: await requestContractService.listAdminFitQueue({
+        companyId: config.companyId,
+        status
+      })
     });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : 'Failed to load fit queue';
@@ -1244,30 +1226,61 @@ router.patch('/b2b/admin/fit-queue/:variantId', async (req, res) => {
     const adminAllowed = await isMiniAppAdmin(config.companyId, tgUserId, config.botId || undefined);
     if (!adminAllowed) return errorResponse(res, 403, 'Admin access required');
 
-    const variant = await prisma.requestVariant.findUnique({
-      where: { id: variantId },
-      include: { request: true }
-    });
-    if (!variant || variant.request?.companyId !== config.companyId) return errorResponse(res, 404, 'Variant not found');
-
-    const updated = await prisma.requestVariant.update({
-      where: { id: variantId },
-      data: {
-        fitQueueStatus: fitQueueStatus as any,
-        fitClosedAt: String(fitQueueStatus).toUpperCase() === 'CLOSED' ? new Date() : null
-      }
-    });
-
     res.json({
       ok: true,
-      variant: {
-        id: updated.id,
-        fitQueueStatus: updated.fitQueueStatus,
-        fitClosedAt: updated.fitClosedAt
-      }
+      variant: await requestContractService.updateAdminFitQueue({
+        companyId: config.companyId,
+        variantId,
+        fitQueueStatus,
+        location: readString(body.location),
+        meetingAt: readString(body.meetingAt),
+        result: readString(body.result)
+      })
     });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : 'Failed to update fit queue';
+    if (message === 'Invalid fitQueueStatus') return errorResponse(res, 400, message);
+    if (message === 'Variant not found') return errorResponse(res, 404, message);
+    errorResponse(res, 500, message);
+  }
+});
+
+router.post('/b2b/admin/fit-queue/:variantId/contact-share', async (req, res) => {
+  try {
+    const variantId = readString(req.params.variantId);
+    if (!variantId) return errorResponse(res, 400, 'variantId is required');
+    const body = (req.body || {}) as Record<string, unknown>;
+    const slug = readString(body.slug);
+    const initData = readString(body.initData);
+    if (!slug) return errorResponse(res, 400, 'slug is required');
+    if (!initData) return errorResponse(res, 400, 'initData is required');
+
+    const config = await miniAppService.getConfig(slug);
+    if (!isB2BMiniAppConfig(config as Record<string, any>)) {
+      return b2bPortalUnavailableResponse(res);
+    }
+
+    const initCheck = await requireInitData(initData, config.companyId, config.botId);
+    if (!initCheck.ok) return errorResponse(res, 401, initCheck.message || 'Unauthorized');
+
+    const tgUser = parseTelegramUser(initData);
+    const tgUserId = tgUser?.id ? String(tgUser.id) : undefined;
+    if (!tgUserId) return errorResponse(res, 400, 'Telegram user not found');
+    const adminAllowed = await isMiniAppAdmin(config.companyId, tgUserId, config.botId || undefined);
+    if (!adminAllowed) return errorResponse(res, 403, 'Admin access required');
+
+    res.json({
+      ok: true,
+      reveal: await requestContractService.shareAdminFitQueueContacts({
+        companyId: config.companyId,
+        variantId
+      })
+    });
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'Failed to share contacts';
+    if (message === 'Variant not found') return errorResponse(res, 404, message);
+    if (message === 'Contacts unavailable') return errorResponse(res, 400, message);
+    if (message === 'Contact reveal requires FIT') return errorResponse(res, 409, message);
     errorResponse(res, 500, message);
   }
 });

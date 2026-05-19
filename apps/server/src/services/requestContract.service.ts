@@ -1320,6 +1320,12 @@ class RequestContractService {
     const requesterContact = extractRequestContact(variant.request);
     const sellerContact = toOptionalString(variant.contact);
     if (!requesterContact || !sellerContact) throw new Error('Contacts unavailable');
+    if (
+      variant.requesterDecision !== RequesterDecision.FIT &&
+      variant.request?.status !== RequestStatus.CONTACT_SHARED
+    ) {
+      throw new Error('Contact reveal requires FIT');
+    }
 
     const requestPayload = isRecord(variant.request.payload) ? variant.request.payload : {};
     const updatedRequest = await prisma.b2bRequest.update({

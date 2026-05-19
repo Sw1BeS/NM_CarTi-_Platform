@@ -23,7 +23,10 @@ const {
     createPendingLeadIntent: vi.fn(),
     findKnownLeadContact: vi.fn(),
     finalizePendingLeadIntent: vi.fn(),
-    clearPendingLeadIntent: vi.fn()
+    clearPendingLeadIntent: vi.fn(),
+    listAdminFitQueue: vi.fn(),
+    updateAdminFitQueue: vi.fn(),
+    shareAdminFitQueueContacts: vi.fn()
   },
   telegramOutboxMock: {
     sendMessage: vi.fn()
@@ -38,7 +41,8 @@ const {
   },
   prismaMock: {
     botConfig: {
-      findFirst: vi.fn()
+      findFirst: vi.fn(),
+      findUnique: vi.fn()
     },
     botSession: {
       findUnique: vi.fn(),
@@ -166,6 +170,9 @@ describe('MiniApp Lead handoff routes', () => {
         botUsername: 'Cartie_Client_Bot'
       }
     });
+    prismaMock.botConfig.findUnique.mockResolvedValue({ adminChatId: '-100999' });
+    prismaMock.globalUser.findFirst.mockResolvedValue({ id: 'global_user_1' });
+    prismaMock.membership.findFirst.mockResolvedValue({ id: 'membership_1' });
     prismaMock.botSession.findUnique.mockResolvedValue({
       id: 'session_1',
       botId: 'bot_1',
@@ -201,6 +208,21 @@ describe('MiniApp Lead handoff routes', () => {
       isDuplicate: false
     });
     requestContractServiceMock.findKnownLeadContact.mockResolvedValue(null);
+    requestContractServiceMock.listAdminFitQueue.mockResolvedValue([]);
+    requestContractServiceMock.updateAdminFitQueue.mockResolvedValue({
+      id: 'variant_1',
+      fitQueueStatus: 'IN_PROGRESS',
+      fitClosedAt: null
+    });
+    requestContractServiceMock.shareAdminFitQueueContacts.mockResolvedValue({
+      id: 'variant_1',
+      requestId: 'request_1',
+      requestPublicId: 'CD-2026-000123',
+      requestStatus: 'CONTACT_SHARED',
+      requesterContact: '+380671234567',
+      sellerContact: '+380501112233',
+      sellerCompany: 'Dealer Seller'
+    });
     requestContractServiceMock.finalizePendingLeadIntent.mockResolvedValue({
       intentType: 'REQUEST',
       title: 'Підбір авто з Mini App',
@@ -1022,6 +1044,106 @@ describe('MiniApp Lead handoff routes', () => {
     expect(prismaMock.membership.findFirst).not.toHaveBeenCalled();
     expect(prismaMock.requestVariant.findUnique).not.toHaveBeenCalled();
     expect(prismaMock.requestVariant.update).not.toHaveBeenCalled();
+  });
+
+  it('returns MiniApp B2B admin fit queue without raw contacts', async () => {
+    miniAppServiceMock.getConfig.mockResolvedValueOnce({
+      companyId: 'company_1',
+      botId: 'bot_b2b',
+      publicSlug: 'cardealer_lviv_bot',
+      template: 'B2B',
+      miniapp: { surfaceMode: 'B2B' }
+    });
+    requestContractServiceMock.listAdminFitQueue.mockResolvedValueOnce([{
+      id: 'variant_1',
+      requestId: 'request_1',
+      requestPublicId: 'CD-2026-000123',
+      requestStatus: 'SHORTLIST',
+      fitQueueStatus: 'NEW',
+      sellerCompany: 'Dealer Seller',
+      title: 'Hyundai IONIQ 5 2024',
+      contactAvailable: true,
+      requesterContactAvailable: true,
+      sellerContactAvailable: true
+    }]);
+    const app = await buildApp();
+
+    const res = await request(app)
+      .get('/api/miniapp/b2b/admin/fit-queue')
+      .query({
+        slug: 'cardealer_lviv_bot',
+        initData: 'signed-init-data',
+        status: 'new'
+      });
+
+    expect(res.status).toBe(200);
+    expect(requestContractServiceMock.listAdminFitQueue).toHaveBeenCalledWith({
+      companyId: 'company_1',
+      status: 'NEW'
+    });
+    expect(res.body.items[0]).toMatchObject({
+      id: 'variant_1',
+      requestPublicId: 'CD-2026-000123',
+      contactAvailable: true,
+      requesterContactAvailable: true,
+      sellerContactAvailable: true
+    });
+    expect(res.body.items[0]).not.toHaveProperty('contact');
+    expect(JSON.stringify(res.body.items[0])).not.toContain('+380');
+  });
+
+  it('rejects unsupported MiniApp B2B admin fit queue status values', async () => {
+    miniAppServiceMock.getConfig.mockResolvedValueOnce({
+      companyId: 'company_1',
+      botId: 'bot_b2b',
+      publicSlug: 'cardealer_lviv_bot',
+      template: 'B2B',
+      miniapp: { surfaceMode: 'B2B' }
+    });
+    requestContractServiceMock.updateAdminFitQueue.mockRejectedValueOnce(new Error('Invalid fitQueueStatus'));
+    const app = await buildApp();
+
+    const res = await request(app)
+      .patch('/api/miniapp/b2b/admin/fit-queue/variant_1')
+      .send({
+        slug: 'cardealer_lviv_bot',
+        initData: 'signed-init-data',
+        fitQueueStatus: 'CONTACTED'
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('Invalid fitQueueStatus');
+    expect(prismaMock.requestVariant.update).not.toHaveBeenCalled();
+  });
+
+  it('reveals MiniApp B2B fit queue contacts only through an explicit admin action', async () => {
+    miniAppServiceMock.getConfig.mockResolvedValueOnce({
+      companyId: 'company_1',
+      botId: 'bot_b2b',
+      publicSlug: 'cardealer_lviv_bot',
+      template: 'B2B',
+      miniapp: { surfaceMode: 'B2B' }
+    });
+    const app = await buildApp();
+
+    const res = await request(app)
+      .post('/api/miniapp/b2b/admin/fit-queue/variant_1/contact-share')
+      .send({
+        slug: 'cardealer_lviv_bot',
+        initData: 'signed-init-data'
+      });
+
+    expect(res.status).toBe(200);
+    expect(requestContractServiceMock.shareAdminFitQueueContacts).toHaveBeenCalledWith({
+      companyId: 'company_1',
+      variantId: 'variant_1'
+    });
+    expect(res.body.reveal).toMatchObject({
+      requestPublicId: 'CD-2026-000123',
+      requestStatus: 'CONTACT_SHARED',
+      requesterContact: '+380671234567',
+      sellerContact: '+380501112233'
+    });
   });
 
   it('returns structured not-approved error for B2B own requests', async () => {

@@ -8,6 +8,7 @@ const {
   quotaServiceMock,
   telegramSenderMock,
   b2bVariantCallbackMock,
+  requestContractServiceMock,
   enqueueSalesDriveRequestSyncMock,
   processSalesDriveRequestSyncQueueMock
 } = vi.hoisted(() => ({
@@ -51,6 +52,9 @@ const {
     getChatMember: vi.fn()
   },
   b2bVariantCallbackMock: vi.fn(),
+  requestContractServiceMock: {
+    shareAdminFitQueueContacts: vi.fn()
+  },
   enqueueSalesDriveRequestSyncMock: vi.fn(),
   processSalesDriveRequestSyncQueueMock: vi.fn()
 }));
@@ -79,6 +83,10 @@ vi.mock('./wizards/b2bVariantWizard.js', () => ({
   handleB2BVariantCallback: b2bVariantCallbackMock
 }));
 
+vi.mock('../../../../services/requestContract.service.js', () => ({
+  requestContractService: requestContractServiceMock
+}));
+
 vi.mock('../../../../modules/Integrations/salesdrive/salesdriveSync.service.js', () => ({
   enqueueSalesDriveRequestSync: enqueueSalesDriveRequestSyncMock,
   processSalesDriveRequestSyncQueue: processSalesDriveRequestSyncQueueMock
@@ -99,6 +107,16 @@ describe('lead admin callback actions', () => {
     quotaServiceMock.consume.mockResolvedValue({ allowed: true });
     telegramSenderMock.getChatMember.mockResolvedValue({ status: 'administrator' });
     b2bVariantCallbackMock.mockResolvedValue(false);
+    requestContractServiceMock.shareAdminFitQueueContacts.mockResolvedValue({
+      id: 'variant_1',
+      requestId: 'request_1',
+      requestPublicId: 'CD-2026-000123',
+      requestStatus: 'CONTACT_SHARED',
+      fitQueueStatus: 'NEW',
+      sellerCompany: 'Dealer Seller',
+      requesterContact: '+380671234567',
+      sellerContact: '+380501112233'
+    });
     enqueueSalesDriveRequestSyncMock.mockResolvedValue({ queued: true, reason: 'QUEUED' });
     processSalesDriveRequestSyncQueueMock.mockResolvedValue({ processed: 1, sent: 1, failed: 0 });
     prismaMock.lead.update.mockResolvedValue({
@@ -713,6 +731,83 @@ describe('lead admin callback actions', () => {
         status: 'SENT_TO_CLIENT'
       })
     });
+  });
+
+  it('reveals B2B fit contacts only through a tokenized admin action', async () => {
+    const { routeCallback } = await import('./routeCallback.js');
+    prismaMock.integrationEventLog.findUnique.mockResolvedValueOnce({
+      id: 'event_token_b2b_reveal',
+      companyId: 'company_1',
+      integration: 'telegram',
+      action: 'admin.action_token_created',
+      status: 'PENDING',
+      entityType: 'request_variant',
+      entityId: 'variant_1',
+      idempotencyKey: 'telegram:admin-action-token:tok_b2b_reveal',
+      meta: {
+        action: 'b2bVariant.REVEAL_CONTACT',
+        targetType: 'request_variant',
+        targetId: 'variant_1',
+        botId: 'bot_b2b',
+        companyId: 'company_1',
+        requestId: 'request_1'
+      }
+    });
+
+    const handled = await routeCallback({
+      ...buildCtx('🟣 [B2B OFFER]\nRequest ID: CD-2026-000123', 'v1:aa:tok_b2b_reveal'),
+      bot: {
+        id: 'bot_b2b',
+        token: 'token',
+        name: 'B2B',
+        template: 'B2B',
+        adminChatId: '-100999'
+      },
+      session: {
+        id: 'session_admin',
+        state: 'B2B_MENU',
+        variables: {}
+      }
+    } as any);
+
+    expect(handled).toBe(true);
+    expect(requestContractServiceMock.shareAdminFitQueueContacts).toHaveBeenCalledWith({
+      companyId: 'company_1',
+      variantId: 'variant_1'
+    });
+    expect(prismaMock.requestVariant.update).not.toHaveBeenCalled();
+    const adminRevealMessage = telegramOutboxMock.sendMessage.mock.calls
+      .map((call: any[]) => call[0])
+      .find((payload: any) => payload.chatId === '-100999' && String(payload.text || '').includes('Контакти відкрито'));
+    expect(adminRevealMessage).toEqual(expect.objectContaining({
+      botId: 'bot_b2b',
+      chatId: '-100999',
+      text: expect.stringContaining('CD-2026-000123')
+    }));
+    expect(adminRevealMessage.text).toContain('+380671234567');
+    expect(adminRevealMessage.text).toContain('+380501112233');
+    expect(prismaMock.integrationEventLog.update).toHaveBeenCalledWith({
+      where: { id: 'event_token_b2b_reveal' },
+      data: expect.objectContaining({
+        status: 'SUCCESS',
+        meta: expect.objectContaining({
+          consumed: true,
+          consumedBy: expect.objectContaining({
+            adminTgUserId: '7001',
+            callbackId: 'callback_1'
+          })
+        })
+      })
+    });
+    expect(telegramOutboxMock.editMessageText).toHaveBeenCalledWith(expect.objectContaining({
+      chatId: '-100999',
+      messageId: 44,
+      text: expect.stringContaining('✅ CONTACT_SHARED')
+    }));
+    expect(telegramOutboxMock.answerCallback).toHaveBeenCalledWith(expect.objectContaining({
+      callbackId: 'callback_1',
+      text: 'Contacts shared'
+    }));
   });
 
   it('keeps legacy B2BVAR requester callbacks routed to the B2B variant wizard', async () => {

@@ -40,6 +40,7 @@ import {
   enqueueSalesDriveRequestSync,
   processSalesDriveRequestSyncQueue
 } from '../../../../modules/Integrations/salesdrive/salesdriveSync.service.js';
+import { requestContractService } from '../../../../services/requestContract.service.js';
 
 const shouldBypassScenarioEngine = (ctx: PipelineContext) => {
   const template = String(ctx.bot?.template || '').toUpperCase();
@@ -135,7 +136,7 @@ const handleB2BVariantAdminTokenAction = async (
   if (!rawAction.startsWith('b2bVariant.')) return false;
 
   const action = rawAction.slice('b2bVariant.'.length).toUpperCase();
-  const allowedActions = new Set(['APPROVE', 'REJECT', 'SEND_TO_CLIENT', 'MORE']);
+  const allowedActions = new Set(['APPROVE', 'REJECT', 'SEND_TO_CLIENT', 'MORE', 'REVEAL_CONTACT']);
   if (!allowedActions.has(action)) {
     await telegramOutbox.answerCallback({
       token: ctx.bot!.token,
@@ -177,6 +178,74 @@ const handleB2BVariantAdminTokenAction = async (
   const actorId = String(cb.from?.id || ctx.userId || '').trim();
 
   try {
+    if (action === 'REVEAL_CONTACT') {
+      const companyId = tokenPayload.companyId || ctx.companyId;
+      if (!companyId) {
+        await releaseAdminActionTokenClaim(tokenPayload, {
+          message: 'Company context unavailable',
+          failedAt: new Date().toISOString()
+        });
+        await telegramOutbox.answerCallback({
+          token: ctx.bot!.token,
+          callbackId: cb.id,
+          text: 'Action unavailable'
+        }).catch(() => null);
+        return true;
+      }
+
+      const reveal = await requestContractService.shareAdminFitQueueContacts({
+        companyId,
+        variantId: tokenPayload.targetId
+      });
+
+      await sendMessage(
+        ctx,
+        [
+          '🔐 Контакти відкрито',
+          `Request ID: ${reveal.requestPublicId || reveal.requestId}`,
+          `Статус: ${reveal.requestStatus}`,
+          `Партнер-продавець: ${reveal.sellerCompany || '—'}`,
+          '',
+          `Requester: ${reveal.requesterContact}`,
+          `Seller: ${reveal.sellerContact}`
+        ].join('\n'),
+        undefined,
+        callbackChatId
+      );
+
+      try {
+        await markAdminActionTokenConsumed(tokenPayload, consumedBy);
+      } catch {
+        await telegramOutbox.answerCallback({
+          token: ctx.bot!.token,
+          callbackId: cb.id,
+          text: 'Action completed, but log finalization failed.'
+        }).catch(() => null);
+        return true;
+      }
+
+      if (callbackChatId && messageId) {
+        const currentText = message.text || message.caption || '';
+        await telegramOutbox.editMessageText({
+          botId: ctx.bot!.id,
+          token: ctx.bot!.token,
+          chatId: callbackChatId,
+          messageId,
+          text: appendPlainStatusLineOnce(currentText, 'CONTACT_SHARED'),
+          replyMarkup: message.reply_markup || undefined,
+          companyId: ctx.companyId,
+          userId: ctx.userId || undefined
+        }).catch(() => null);
+      }
+
+      await telegramOutbox.answerCallback({
+        token: ctx.bot!.token,
+        callbackId: cb.id,
+        text: 'Contacts shared'
+      }).catch(() => null);
+      return true;
+    }
+
     const variant = await prisma.requestVariant.findUnique({
       where: { id: tokenPayload.targetId },
       include: { request: true, sellerPartner: true }

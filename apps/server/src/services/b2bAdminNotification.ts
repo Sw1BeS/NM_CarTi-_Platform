@@ -55,6 +55,7 @@ export const buildB2BVariantAdminActionMarkupAsync = async (params: {
   const reject = await actionButton({ ...context, text: '❌ Відхилити', action: 'REJECT' });
   const send = await actionButton({ ...context, text: '📤 Надіслати requester', action: 'SEND_TO_CLIENT' });
   const details = await actionButton({ ...context, text: 'ℹ️ Деталі', action: 'MORE' });
+  const revealContact = await actionButton({ ...context, text: '🔐 Контакти після FIT', action: 'REVEAL_CONTACT' });
 
   const rows: any[][] = [];
   const crmUrl = requestSearchUrl(params.request);
@@ -65,6 +66,8 @@ export const buildB2BVariantAdminActionMarkupAsync = async (params: {
 
   const deliveryRow = [send, details].filter(Boolean);
   if (deliveryRow.length) rows.push(deliveryRow);
+
+  if (revealContact) rows.push([revealContact]);
 
   return rows.length ? { inline_keyboard: rows } : undefined;
 };
