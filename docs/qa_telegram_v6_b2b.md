@@ -79,8 +79,9 @@ This document outlines the testing procedures for the newly implemented Telegram
 3. Verify the MiniApp calls `/api/miniapp/requests/my` with signed `initData`.
 4. Verify recent requests render as cards with public ID, title, status, type/source, and date.
 5. Tap **"Показати статус"** and verify the selected request appears in the status panel.
-6. Open the same screen outside Telegram or without valid `initData`; verify it shows a user-facing error and does not trust query `telegramUserId`.
-7. Confirm the response does not include raw `payload`, phone, or contact fields.
+6. Submit a MiniApp lead request from a user without saved phone/contact and verify the history shows a **"Очікує контакт"** pending item until the user shares Telegram contact.
+7. Open the same screen outside Telegram or without valid `initData`; verify it shows a user-facing error and does not trust query `telegramUserId`.
+8. Confirm the response does not include raw `payload`, phone, or contact fields.
 
 ## 5. Support Tickets
 **Objective:** Verify that `SupportTicket` creation works seamlessly behind the scenes.

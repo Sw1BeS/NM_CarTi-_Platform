@@ -2869,9 +2869,14 @@ const MiniAppContent = () => {
                                                     <div className="mt-1 line-clamp-2 text-xs leading-relaxed text-white/50">{item.title || 'Запит по авто'}</div>
                                                 </div>
                                                 <div className="shrink-0 rounded-full border border-white/10 bg-white/[0.055] px-2 py-1 text-[10px] font-bold text-white/62">
-                                                    {item.status || '—'}
+                                                    {item.statusLabel || item.status || '—'}
                                                 </div>
                                             </div>
+                                            {item.requiresContact && (
+                                                <div className="mt-3 rounded-[14px] border border-amber-300/20 bg-amber-400/10 p-3 text-xs font-bold leading-relaxed text-amber-50/80">
+                                                    Заявка збережена як чернетка. Поділіться контактом у чаті бота, щоб менеджер продовжив роботу.
+                                                </div>
+                                            )}
                                             <div className="mt-3 grid grid-cols-3 gap-2 text-[11px]">
                                                 <div className="rounded-[14px] border border-white/10 bg-black/22 p-2">
                                                     <div className="text-white/34">Тип</div>

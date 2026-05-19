@@ -21,6 +21,9 @@ const {
       findFirst: vi.fn(),
       findUnique: vi.fn()
     },
+    botSession: {
+      findUnique: vi.fn()
+    },
     b2bRequest: {
       findFirst: vi.fn(),
       findMany: vi.fn(),
@@ -97,6 +100,7 @@ describe('miniapp.service', () => {
     ]);
     mockPrisma.b2bRequest.findFirst.mockResolvedValue(null);
     mockPrisma.b2bRequest.findMany.mockResolvedValue([]);
+    mockPrisma.botSession.findUnique.mockResolvedValue(null);
     mockPrisma.partnerUser.findFirst.mockResolvedValue({
       id: 'partner_user_1',
       telegramId: '2001',
@@ -317,5 +321,53 @@ describe('miniapp.service', () => {
     ]);
     expect(JSON.stringify(history)).not.toContain('+380635055252');
     expect(JSON.stringify(history)).not.toContain('payload');
+  });
+
+  it('includes pending MiniApp lead intent as waiting-for-contact history item', async () => {
+    mockPrisma.botSession.findUnique.mockResolvedValueOnce({
+      id: 'session_1',
+      botId: 'bot_b2b',
+      chatId: '1001',
+      state: 'CL_MINIAPP_CONTACT',
+      variables: {
+        miniappPendingIntent: {
+          intentType: 'REQUEST',
+          title: 'Підбір авто з Mini App',
+          createdAt: '2026-05-18T11:00:00.000Z',
+          payload: {
+            phone: '+380635055252'
+          }
+        }
+      }
+    });
+    mockPrisma.b2bRequest.findMany.mockResolvedValueOnce([]);
+
+    const history = await miniAppService.listMyRequests('cartie', {
+      telegramUserId: '1001',
+      limit: 20
+    });
+
+    expect(mockPrisma.botSession.findUnique).toHaveBeenCalledWith({
+      where: {
+        botId_chatId: {
+          botId: 'bot_b2b',
+          chatId: '1001'
+        }
+      }
+    });
+    expect(history).toEqual([
+      expect.objectContaining({
+        id: 'pending:bot_b2b:1001',
+        publicId: 'Очікує контакт',
+        title: 'Підбір авто з Mini App',
+        status: 'WAITING_FOR_CONTACT',
+        statusLabel: 'Очікує контакт',
+        source: 'miniapp_pending_intent',
+        intentType: 'REQUEST',
+        pending: true,
+        requiresContact: true
+      })
+    ]);
+    expect(JSON.stringify(history)).not.toContain('+380635055252');
   });
 });

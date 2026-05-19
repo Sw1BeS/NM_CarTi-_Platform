@@ -119,9 +119,12 @@ export type MiniAppLeadRequestItem = {
   publicId?: string;
   title?: string;
   status?: string;
+  statusLabel?: string;
   type?: string;
   source?: string;
   intentType?: string;
+  pending?: boolean;
+  requiresContact?: boolean;
   createdAt?: string;
   updatedAt?: string;
 };

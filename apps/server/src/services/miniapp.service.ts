@@ -525,13 +525,46 @@ export class MiniAppService {
   }
 
   async listMyRequests(slug: string, query: MiniAppRequestHistoryQuery) {
-    const companyId = await resolveCompanyIdBySlug(slug);
+    const trimmed = slug.trim();
+    const resolved = await resolvePublicSlug(trimmed);
+    const companyId = resolved.companyId;
     if (!companyId) throw new Error('Company not found');
 
     const telegramUserId = toOptionalString(query.telegramUserId);
     if (!telegramUserId) throw new Error('telegramUserId is required');
 
+    const botResolution = await resolveBotForSlug(trimmed, companyId, resolved);
     const limit = Math.max(1, Math.min(query.limit || 20, 50));
+    const pendingSession = botResolution.botId
+      ? await prisma.botSession.findUnique({
+          where: {
+            botId_chatId: {
+              botId: botResolution.botId,
+              chatId: telegramUserId
+            }
+          }
+        })
+      : null;
+    const variables = isRecord(pendingSession?.variables) ? pendingSession.variables : {};
+    const pendingIntent = isRecord(variables.miniappPendingIntent) ? variables.miniappPendingIntent : null;
+    const pendingCreatedAt = toOptionalString(pendingIntent?.createdAt);
+    const pendingItem = pendingIntent
+      ? {
+          id: `pending:${botResolution.botId}:${telegramUserId}`,
+          publicId: 'Очікує контакт',
+          title: toOptionalString(pendingIntent.title) || 'Запит з Mini App',
+          status: 'WAITING_FOR_CONTACT',
+          statusLabel: 'Очікує контакт',
+          type: 'BUY',
+          source: 'miniapp_pending_intent',
+          intentType: toOptionalString(pendingIntent.intentType),
+          pending: true,
+          requiresContact: true,
+          createdAt: pendingCreatedAt || pendingSession?.lastActive || new Date(),
+          updatedAt: pendingSession?.lastActive || pendingCreatedAt || new Date()
+        }
+      : null;
+
     const requests = await prisma.b2bRequest.findMany({
       where: {
         companyId,
@@ -547,7 +580,7 @@ export class MiniAppService {
       take: limit
     });
 
-    return requests.map((request) => {
+    const items = requests.map((request) => {
       const payload = isRecord(request.payload) ? request.payload : {};
       const requestPayload = isRecord(payload.request) ? payload.request : {};
       const source = toOptionalString(payload.source) || toOptionalString(payload.sourceContext);
@@ -558,13 +591,18 @@ export class MiniAppService {
         publicId: request.publicId || request.id,
         title: request.title,
         status: request.status,
+        statusLabel: request.status,
         type: request.type,
         source,
         intentType,
+        pending: false,
+        requiresContact: false,
         createdAt: request.createdAt,
         updatedAt: request.updatedAt
       };
     });
+
+    return pendingItem ? [pendingItem, ...items].slice(0, limit) : items;
   }
 
   async getConfig(slug: string) {
