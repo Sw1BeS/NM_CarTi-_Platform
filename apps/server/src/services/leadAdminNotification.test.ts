@@ -44,6 +44,39 @@ describe('lead admin notification actions', () => {
     });
   });
 
+  it('adds a short opaque SalesDrive sync action for request notifications', async () => {
+    createAdminActionTokenMock
+      .mockResolvedValueOnce('tok_contacted')
+      .mockResolvedValueOnce('tok_salesdrive');
+    const { buildLeadAdminActionMarkupAsync } = await import('./leadAdminNotification.js');
+
+    const markup = await buildLeadAdminActionMarkupAsync({
+      lead: { id: 'lead_1', leadCode: 'L-1' },
+      request: { id: 'request_1', publicId: 'REQ-1' },
+      telegramUserId: '1001',
+      tokenContext: {
+        botId: 'bot_1',
+        companyId: 'company_1',
+        requestId: 'request_1'
+      }
+    });
+
+    const buttons = markup?.inline_keyboard.flat() || [];
+    const salesDrive = buttons.find((button: any) => String(button.text || '').includes('SalesDrive'));
+
+    expect(salesDrive?.callback_data).toMatch(/^v1:aa:/);
+    expect(Buffer.byteLength(salesDrive.callback_data, 'utf8')).toBeLessThanOrEqual(64);
+    expect(salesDrive.callback_data).not.toContain('request_1');
+    expect(createAdminActionTokenMock).toHaveBeenCalledWith({
+      action: 'salesdrive.REQUEST_SYNC',
+      targetType: 'request',
+      targetId: 'request_1',
+      botId: 'bot_1',
+      companyId: 'company_1',
+      requestId: 'request_1'
+    });
+  });
+
   it('omits contacted action when token creation returns empty without dropping CRM or user links', async () => {
     createAdminActionTokenMock.mockResolvedValue('');
     const { buildLeadAdminActionMarkupAsync } = await import('./leadAdminNotification.js');

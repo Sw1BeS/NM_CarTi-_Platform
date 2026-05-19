@@ -36,6 +36,10 @@ import {
   resolveScenarioFromPanelState,
   runTestScenario
 } from './testing/adminTestScenarios.js';
+import {
+  enqueueSalesDriveRequestSync,
+  processSalesDriveRequestSyncQueue
+} from '../../../../modules/Integrations/salesdrive/salesdriveSync.service.js';
 
 const shouldBypassScenarioEngine = (ctx: PipelineContext) => {
   const template = String(ctx.bot?.template || '').toUpperCase();
@@ -705,6 +709,70 @@ const handleLeadStatusCallback = async (ctx: PipelineContext, cb: any, status: L
   return true;
 };
 
+const salesDriveSyncAnswerText = (result: Awaited<ReturnType<typeof processSalesDriveRequestSyncQueue>>) => {
+  if (result.reason) return `SalesDrive sync: ${result.reason}`;
+  if (result.sent) return `SalesDrive sync: sent ${result.sent}`;
+  if (result.failed) return `SalesDrive sync: failed ${result.failed}`;
+  return 'SalesDrive sync: queued';
+};
+
+const handleSalesDriveRequestSyncTokenAction = async (
+  ctx: PipelineContext,
+  cb: any,
+  tokenPayload: NonNullable<Awaited<ReturnType<typeof resolveAdminActionToken>>>
+) => {
+  if (tokenPayload.action !== 'salesdrive.REQUEST_SYNC' || tokenPayload.targetType !== 'request' || !tokenPayload.targetId) {
+    return false;
+  }
+
+  const consumedBy = {
+    adminTgUserId: String(cb.from?.id || ctx.userId || '').trim() || null,
+    adminUsername: String(cb.from?.username || '').trim() || null,
+    callbackId: cb.id || null
+  };
+  const claimed = await claimAdminActionToken(tokenPayload, consumedBy);
+  if (!claimed) {
+    await telegramOutbox.answerCallback({
+      token: ctx.bot!.token,
+      callbackId: cb.id,
+      text: 'Action already processed'
+    }).catch(() => null);
+    return true;
+  }
+
+  try {
+    await enqueueSalesDriveRequestSync({
+      companyId: tokenPayload.companyId || ctx.companyId || null,
+      botId: tokenPayload.botId || ctx.bot?.id || null,
+      requestId: tokenPayload.targetId,
+      source: 'telegram_admin_action'
+    });
+    const result = await processSalesDriveRequestSyncQueue({
+      companyId: tokenPayload.companyId || ctx.companyId || null,
+      requestId: tokenPayload.targetId,
+      limit: 1
+    });
+    await markAdminActionTokenConsumed(tokenPayload, consumedBy);
+    await telegramOutbox.answerCallback({
+      token: ctx.bot!.token,
+      callbackId: cb.id,
+      text: salesDriveSyncAnswerText(result)
+    }).catch(() => null);
+    return true;
+  } catch {
+    await releaseAdminActionTokenClaim(tokenPayload, {
+      message: 'SalesDrive sync action failed',
+      failedAt: new Date().toISOString()
+    });
+    await telegramOutbox.answerCallback({
+      token: ctx.bot!.token,
+      callbackId: cb.id,
+      text: 'SalesDrive sync failed'
+    }).catch(() => null);
+    return true;
+  }
+};
+
 export const routeCallback = async (ctx: PipelineContext) => {
   if (!ctx.bot || !ctx.session) return false;
   const cb = ctx.update?.callback_query;
@@ -836,6 +904,9 @@ export const routeCallback = async (ctx: PipelineContext) => {
         }
         return true;
       }
+
+      const handledSalesDriveSyncAction = await handleSalesDriveRequestSyncTokenAction(ctx, cb, tokenPayload);
+      if (handledSalesDriveSyncAction) return true;
 
       const handledB2BVariantAdminAction = await handleB2BVariantAdminTokenAction(ctx, cb, tokenPayload);
       if (handledB2BVariantAdminAction) return true;

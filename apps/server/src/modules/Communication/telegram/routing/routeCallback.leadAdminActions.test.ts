@@ -7,7 +7,9 @@ const {
   scenarioEngineMock,
   quotaServiceMock,
   telegramSenderMock,
-  b2bVariantCallbackMock
+  b2bVariantCallbackMock,
+  enqueueSalesDriveRequestSyncMock,
+  processSalesDriveRequestSyncQueueMock
 } = vi.hoisted(() => ({
   prismaMock: {
     botSession: {
@@ -48,7 +50,9 @@ const {
   telegramSenderMock: {
     getChatMember: vi.fn()
   },
-  b2bVariantCallbackMock: vi.fn()
+  b2bVariantCallbackMock: vi.fn(),
+  enqueueSalesDriveRequestSyncMock: vi.fn(),
+  processSalesDriveRequestSyncQueueMock: vi.fn()
 }));
 
 vi.mock('../../../../services/prisma.js', () => ({
@@ -75,6 +79,11 @@ vi.mock('./wizards/b2bVariantWizard.js', () => ({
   handleB2BVariantCallback: b2bVariantCallbackMock
 }));
 
+vi.mock('../../../../modules/Integrations/salesdrive/salesdriveSync.service.js', () => ({
+  enqueueSalesDriveRequestSync: enqueueSalesDriveRequestSyncMock,
+  processSalesDriveRequestSyncQueue: processSalesDriveRequestSyncQueueMock
+}));
+
 vi.mock('./wizards/b2bRegistrationWizard.js', () => ({
   handleB2BRegCallback: vi.fn()
 }));
@@ -90,6 +99,8 @@ describe('lead admin callback actions', () => {
     quotaServiceMock.consume.mockResolvedValue({ allowed: true });
     telegramSenderMock.getChatMember.mockResolvedValue({ status: 'administrator' });
     b2bVariantCallbackMock.mockResolvedValue(false);
+    enqueueSalesDriveRequestSyncMock.mockResolvedValue({ queued: true, reason: 'QUEUED' });
+    processSalesDriveRequestSyncQueueMock.mockResolvedValue({ processed: 1, sent: 1, failed: 0 });
     prismaMock.lead.update.mockResolvedValue({
       id: 'lead_1',
       companyId: 'company_1',
@@ -246,6 +257,75 @@ describe('lead admin callback actions', () => {
       .toBeLessThan(prismaMock.lead.update.mock.invocationCallOrder[0]);
     expect(prismaMock.integrationEventLog.update.mock.invocationCallOrder[0])
       .toBeLessThan(prismaMock.lead.update.mock.invocationCallOrder[0]);
+  });
+
+  it('runs tokenized SalesDrive request sync action from the admin chat', async () => {
+    prismaMock.integrationEventLog.findUnique.mockResolvedValueOnce({
+      id: 'event_token_sync',
+      companyId: 'company_1',
+      integration: 'telegram',
+      action: 'admin.action_token_created',
+      status: 'PENDING',
+      entityType: 'request',
+      entityId: 'request_1',
+      idempotencyKey: 'telegram:admin-action-token:tok_salesdrive',
+      meta: {
+        action: 'salesdrive.REQUEST_SYNC',
+        targetType: 'request',
+        targetId: 'request_1',
+        botId: 'bot_lead',
+        companyId: 'company_1',
+        requestId: 'request_1'
+      }
+    });
+    const { routeCallback } = await import('./routeCallback.js');
+
+    const handled = await routeCallback(buildCtx(
+      '🟢 [LEAD] MiniApp запит\nRequest ID: REQ-1',
+      'v1:aa:tok_salesdrive'
+    ));
+
+    expect(handled).toBe(true);
+    expect(prismaMock.integrationEventLog.updateMany).toHaveBeenCalledWith({
+      where: { id: 'event_token_sync', status: 'PENDING' },
+      data: expect.objectContaining({
+        status: 'PROCESSING',
+        meta: expect.objectContaining({
+          action: 'salesdrive.REQUEST_SYNC',
+          targetType: 'request',
+          targetId: 'request_1'
+        })
+      })
+    });
+    expect(enqueueSalesDriveRequestSyncMock).toHaveBeenCalledWith(expect.objectContaining({
+      companyId: 'company_1',
+      botId: 'bot_lead',
+      requestId: 'request_1',
+      source: 'telegram_admin_action'
+    }));
+    expect(processSalesDriveRequestSyncQueueMock).toHaveBeenCalledWith(expect.objectContaining({
+      companyId: 'company_1',
+      requestId: 'request_1',
+      limit: 1
+    }));
+    expect(prismaMock.lead.update).not.toHaveBeenCalled();
+    expect(prismaMock.integrationEventLog.update).toHaveBeenCalledWith({
+      where: { id: 'event_token_sync' },
+      data: expect.objectContaining({
+        status: 'SUCCESS',
+        meta: expect.objectContaining({
+          consumed: true,
+          consumedBy: expect.objectContaining({
+            adminTgUserId: '7001',
+            callbackId: 'callback_1'
+          })
+        })
+      })
+    });
+    expect(telegramOutboxMock.answerCallback).toHaveBeenCalledWith(expect.objectContaining({
+      callbackId: 'callback_1',
+      text: 'SalesDrive sync: sent 1'
+    }));
   });
 
   it('rejects a token scoped to a different bot or company without updating the lead', async () => {

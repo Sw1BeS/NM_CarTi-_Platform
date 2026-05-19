@@ -45,6 +45,29 @@ const tokenizedLeadContactedCallback = async (params: {
   return token ? buildCallbackData('aa', token) : undefined;
 };
 
+const tokenizedSalesDriveSyncCallback = async (params: {
+  requestId?: string | null;
+  botId?: string | null;
+  companyId?: string | null;
+}) => {
+  const requestId = toText(params.requestId);
+  if (!requestId) return undefined;
+  let token: string | undefined;
+  try {
+    token = await createAdminActionToken({
+      action: 'salesdrive.REQUEST_SYNC',
+      targetType: 'request',
+      targetId: requestId,
+      botId: params.botId || null,
+      companyId: params.companyId || null,
+      requestId
+    });
+  } catch {
+    return undefined;
+  }
+  return token ? buildCallbackData('aa', token) : undefined;
+};
+
 const requestSearchUrl = (request?: { id?: string | null; publicId?: string | null } | null) => {
   const value = toText(request?.publicId) || toText(request?.id);
   if (!value) return undefined;
@@ -115,13 +138,25 @@ export const buildLeadAdminActionMarkupAsync = async (params: {
     requestId?: string | null;
   };
 }) => {
-  const contacted = await tokenizedLeadContactedCallback({
-    leadId: params.lead?.id,
-    botId: params.tokenContext?.botId,
-    companyId: params.tokenContext?.companyId,
-    requestId: params.tokenContext?.requestId || params.request?.id
-  });
-  return buildLeadAdminActionMarkupWithCallback(params, contacted);
+  const requestId = params.tokenContext?.requestId || params.request?.id;
+  const [contacted, salesDriveSync] = await Promise.all([
+    tokenizedLeadContactedCallback({
+      leadId: params.lead?.id,
+      botId: params.tokenContext?.botId,
+      companyId: params.tokenContext?.companyId,
+      requestId
+    }),
+    tokenizedSalesDriveSyncCallback({
+      requestId,
+      botId: params.tokenContext?.botId,
+      companyId: params.tokenContext?.companyId
+    })
+  ]);
+  const markup = buildLeadAdminActionMarkupWithCallback(params, contacted);
+  if (!salesDriveSync) return markup;
+  const inline_keyboard = [...(markup?.inline_keyboard || [])];
+  inline_keyboard.push([{ text: 'SalesDrive sync', callback_data: salesDriveSync }]);
+  return { inline_keyboard };
 };
 
 export const buildLeadAdminNotificationText = (params: {
