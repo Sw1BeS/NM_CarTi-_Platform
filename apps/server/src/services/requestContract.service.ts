@@ -19,6 +19,7 @@ import { resolvePublicSlug, type PublicSlugResolution } from './publicSlug.servi
 import { buildOperatorRequestPresentation, buildRequestPresentationSnapshot } from './requestPresentation.js';
 import { findRecentMiniAppSelectedCarsDuplicate } from './miniappRequestDedupe.js';
 import { IntegrationService } from '../modules/Integrations/integration.service.js';
+import { enqueueSalesDriveRequestSync } from '../modules/Integrations/salesdrive/salesdriveSync.service.js';
 import { logger } from '../utils/logger.js';
 
 type MiniAppTracking = Record<string, unknown>;
@@ -813,6 +814,15 @@ class RequestContractService {
       }
     }).catch(() => null);
 
+    await enqueueSalesDriveRequestSync({
+      companyId: params.companyId,
+      botId: params.botId,
+      leadId: leadResult.lead?.id || undefined,
+      requestId: request.id,
+      requestPublicId: request.publicId || undefined,
+      source: 'miniapp_lead_intent'
+    }).catch((error) => logger.warn('[SalesDrive] request sync enqueue failed', error?.message || error));
+
     const tracking = isRecord(pendingIntent.tracking) ? pendingIntent.tracking as Record<string, unknown> : {};
     new IntegrationService().metaPixelTrackEvent(params.companyId, 'SubmitApplication', {
       entityType: 'request',
@@ -1036,6 +1046,15 @@ class RequestContractService {
         botId: botId || undefined
       }
     });
+
+    await enqueueSalesDriveRequestSync({
+      companyId,
+      botId: botId || undefined,
+      leadId: leadId || undefined,
+      requestId: request.id,
+      requestPublicId: request.publicId || undefined,
+      source: 'miniapp_request'
+    }).catch((error) => logger.warn('[SalesDrive] request sync enqueue failed', error?.message || error));
 
     platformEvents.emit(EVENTS.MINIAPP_REQUEST_CREATED, {
       requestId: request.id,

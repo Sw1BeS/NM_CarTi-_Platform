@@ -5,7 +5,8 @@ const {
   createOrMergeLeadMock,
   resolvePublicSlugMock,
   platformEventsEmitMock,
-  metaTrackEventMock
+  metaTrackEventMock,
+  enqueueSalesDriveRequestSyncMock
 } = vi.hoisted(() => ({
   mockPrisma: {
     botConfig: {
@@ -39,7 +40,8 @@ const {
   createOrMergeLeadMock: vi.fn(),
   resolvePublicSlugMock: vi.fn(),
   platformEventsEmitMock: vi.fn(),
-  metaTrackEventMock: vi.fn()
+  metaTrackEventMock: vi.fn(),
+  enqueueSalesDriveRequestSyncMock: vi.fn()
 }));
 
 vi.mock('./prisma.js', () => ({
@@ -67,6 +69,10 @@ vi.mock('../modules/Integrations/integration.service.js', () => ({
   IntegrationService: class {
     metaPixelTrackEvent = metaTrackEventMock;
   }
+}));
+
+vi.mock('../modules/Integrations/salesdrive/salesdriveSync.service.js', () => ({
+  enqueueSalesDriveRequestSync: enqueueSalesDriveRequestSyncMock
 }));
 
 import { requestContractService } from './requestContract.service.js';
@@ -107,6 +113,7 @@ describe('requestContract.service', () => {
     mockPrisma.b2bRequest.findMany.mockResolvedValue([]);
     mockPrisma.lead.findFirst.mockResolvedValue(null);
     metaTrackEventMock.mockResolvedValue({ success: true });
+    enqueueSalesDriveRequestSyncMock.mockResolvedValue({ queued: false, reason: 'CONFIG_MISSING' });
   });
 
   it('stores pending lead intent in bot session', async () => {
@@ -327,6 +334,14 @@ describe('requestContract.service', () => {
       })
     }));
     expect(result.request.publicId).toBe('REQ-1');
+    expect(enqueueSalesDriveRequestSyncMock).toHaveBeenCalledWith(expect.objectContaining({
+      companyId: 'cmp_1',
+      botId: 'bot_1',
+      leadId: 'lead_1',
+      requestId: 'req_1',
+      requestPublicId: 'REQ-1',
+      source: 'miniapp_lead_intent'
+    }));
     expect(result.selectedCars[0]).toEqual(expect.objectContaining({
       id: 'car_1',
       title: 'BMW X5 xDrive40i',
@@ -545,6 +560,43 @@ describe('requestContract.service', () => {
     expect(result.request.publicId).toBe('REQ-SAME-CAR');
     expect(createOrMergeLeadMock).not.toHaveBeenCalled();
     expect(mockPrisma.b2bRequest.create).not.toHaveBeenCalled();
+  });
+
+  it('creates MiniApp requests in CRM before enqueueing SalesDrive sync intent', async () => {
+    mockPrisma.carListing.findMany.mockResolvedValue([
+      { id: 'car_1', title: 'BMW X5' }
+    ]);
+    mockPrisma.b2bRequest.create.mockResolvedValueOnce({
+      id: 'request_miniapp_1',
+      publicId: 'REQ-MINIAPP-1',
+      title: 'Запит: BMW X5',
+      payload: {},
+      status: 'NEW'
+    });
+    createOrMergeLeadMock.mockResolvedValueOnce({
+      isDuplicate: false,
+      lead: { id: 'lead_miniapp_1' }
+    });
+
+    const result = await requestContractService.createMiniAppRequest({
+      slug: 'cartie',
+      carListingId: 'car_1',
+      phone: '+380671234567',
+      comment: 'Цікавить авто',
+      telegram: { userId: '1001', username: 'client_one', name: 'Client One' },
+      tracking: { submitId: 'submit_1' }
+    });
+
+    expect(result.id).toBe('request_miniapp_1');
+    expect(mockPrisma.b2bRequest.create).toHaveBeenCalled();
+    expect(enqueueSalesDriveRequestSyncMock).toHaveBeenCalledWith(expect.objectContaining({
+      companyId: 'cmp_1',
+      botId: 'bot_1',
+      leadId: 'lead_miniapp_1',
+      requestId: 'request_miniapp_1',
+      requestPublicId: 'REQ-MINIAPP-1',
+      source: 'miniapp_request'
+    }));
   });
 
   it('reveals fit queue contacts only through explicit admin action and sets CONTACT_SHARED', async () => {
