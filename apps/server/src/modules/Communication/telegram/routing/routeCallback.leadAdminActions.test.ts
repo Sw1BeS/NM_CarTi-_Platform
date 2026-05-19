@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { LeadStatus } from '@prisma/client';
+import { LeadStatus, RequestStatus } from '@prisma/client';
 
 const {
   prismaMock,
@@ -35,6 +35,7 @@ const {
       create: vi.fn()
     },
     integrationEventLog: {
+      create: vi.fn(),
       findUnique: vi.fn(),
       updateMany: vi.fn(),
       update: vi.fn(),
@@ -138,14 +139,17 @@ describe('lead admin callback actions', () => {
       id: 'request_1',
       companyId: 'company_1',
       botId: 'bot_lead',
+      status: RequestStatus.DRAFT,
       assignedTo: null
     });
     prismaMock.b2bRequest.update.mockResolvedValue({
       id: 'request_1',
       companyId: 'company_1',
       botId: 'bot_lead',
+      status: RequestStatus.CONTACT_SHARED,
       assignedTo: 'tg:7001'
     });
+    prismaMock.integrationEventLog.create.mockResolvedValue({});
     prismaMock.integrationEventLog.upsert.mockResolvedValue({});
     prismaMock.integrationEventLog.findUnique.mockResolvedValue({
       id: 'event_token_1',
@@ -439,6 +443,159 @@ describe('lead admin callback actions', () => {
     }));
     expect(prismaMock.integrationEventLog.update).toHaveBeenCalledWith({
       where: { id: 'event_token_assign' },
+      data: expect.objectContaining({
+        status: 'SUCCESS',
+        meta: expect.objectContaining({
+          consumed: true,
+          consumedBy: expect.objectContaining({
+            adminTgUserId: '7001',
+            callbackId: 'callback_1'
+          })
+        })
+      })
+    });
+  });
+
+  it('opens a tokenized request status menu from an admin chat action', async () => {
+    prismaMock.integrationEventLog.findUnique.mockResolvedValueOnce({
+      id: 'event_token_status_menu',
+      companyId: 'company_1',
+      integration: 'telegram',
+      action: 'admin.action_token_created',
+      status: 'PENDING',
+      entityType: 'request',
+      entityId: 'request_1',
+      idempotencyKey: 'telegram:admin-action-token:tok_status_menu',
+      meta: {
+        action: 'request.STATUS_MENU',
+        targetType: 'request',
+        targetId: 'request_1',
+        botId: 'bot_lead',
+        companyId: 'company_1',
+        requestId: 'request_1'
+      }
+    });
+    const { routeCallback } = await import('./routeCallback.js');
+
+    const handled = await routeCallback(buildCtx('🟢 [LEAD] MiniApp запит\nRequest ID: REQ-1', 'v1:aa:tok_status_menu'));
+
+    expect(handled).toBe(true);
+    expect(prismaMock.b2bRequest.findUnique).toHaveBeenCalledWith({
+      where: { id: 'request_1' },
+      select: { id: true, companyId: true, botId: true, publicId: true, status: true }
+    });
+    expect(prismaMock.integrationEventLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        integration: 'telegram',
+        action: 'admin.action_token_created',
+        status: 'PENDING',
+        entityType: 'request',
+        entityId: 'request_1',
+        meta: expect.objectContaining({
+          action: 'request.SET_STATUS:CONTACT_SHARED',
+          targetType: 'request',
+          targetId: 'request_1',
+          botId: 'bot_lead',
+          companyId: 'company_1',
+          requestId: 'request_1'
+        })
+      })
+    });
+    const menuMessage = telegramOutboxMock.sendMessage.mock.calls
+      .map((call: any[]) => call[0])
+      .find((payload: any) => String(payload.text || '').includes('Зміна статусу'));
+    expect(menuMessage).toEqual(expect.objectContaining({
+      botId: 'bot_lead',
+      chatId: '-100999',
+      text: expect.stringContaining('request_1')
+    }));
+    const buttons = menuMessage.replyMarkup.inline_keyboard.flat();
+    expect(buttons).toEqual(expect.arrayContaining([
+      expect.objectContaining({ text: expect.stringContaining('Контакт'), callback_data: expect.stringMatching(/^v1:aa:/) }),
+      expect.objectContaining({ text: expect.stringContaining('Won'), callback_data: expect.stringMatching(/^v1:aa:/) })
+    ]));
+    expect(prismaMock.integrationEventLog.update).toHaveBeenCalledWith({
+      where: { id: 'event_token_status_menu' },
+      data: expect.objectContaining({
+        status: 'SUCCESS',
+        meta: expect.objectContaining({
+          consumed: true,
+          consumedBy: expect.objectContaining({
+            adminTgUserId: '7001',
+            callbackId: 'callback_1'
+          })
+        })
+      })
+    });
+    expect(telegramOutboxMock.answerCallback).toHaveBeenCalledWith(expect.objectContaining({
+      callbackId: 'callback_1',
+      text: 'Choose request status'
+    }));
+  });
+
+  it('sets a request status from a tokenized admin chat action', async () => {
+    prismaMock.integrationEventLog.findUnique.mockResolvedValueOnce({
+      id: 'event_token_status_set',
+      companyId: 'company_1',
+      integration: 'telegram',
+      action: 'admin.action_token_created',
+      status: 'PENDING',
+      entityType: 'request',
+      entityId: 'request_1',
+      idempotencyKey: 'telegram:admin-action-token:tok_status_set',
+      meta: {
+        action: 'request.SET_STATUS:CONTACT_SHARED',
+        targetType: 'request',
+        targetId: 'request_1',
+        botId: 'bot_lead',
+        companyId: 'company_1',
+        requestId: 'request_1'
+      }
+    });
+    const { routeCallback } = await import('./routeCallback.js');
+
+    const handled = await routeCallback(buildCtx('📌 Зміна статусу\nRequest ID: REQ-1', 'v1:aa:tok_status_set'));
+
+    expect(handled).toBe(true);
+    expect(prismaMock.b2bRequest.findUnique).toHaveBeenCalledWith({
+      where: { id: 'request_1' },
+      select: { id: true, companyId: true, botId: true, status: true }
+    });
+    expect(prismaMock.b2bRequest.update).toHaveBeenCalledWith({
+      where: { id: 'request_1' },
+      data: { status: RequestStatus.CONTACT_SHARED }
+    });
+    expect(prismaMock.integrationEventLog.upsert).toHaveBeenCalledWith({
+      where: { idempotencyKey: 'telegram:request-status:request_1:CONTACT_SHARED:44' },
+      create: expect.objectContaining({
+        companyId: 'company_1',
+        integration: 'telegram',
+        action: 'request.status_changed',
+        status: 'SUCCESS',
+        entityType: 'request',
+        entityId: 'request_1',
+        idempotencyKey: 'telegram:request-status:request_1:CONTACT_SHARED:44',
+        meta: expect.objectContaining({
+          previousStatus: RequestStatus.DRAFT,
+          status: RequestStatus.CONTACT_SHARED,
+          adminUsername: 'manager_one'
+        })
+      }),
+      update: expect.objectContaining({
+        status: 'SUCCESS'
+      })
+    });
+    expect(telegramOutboxMock.editMessageText).toHaveBeenCalledWith(expect.objectContaining({
+      chatId: '-100999',
+      messageId: 44,
+      text: expect.stringContaining('✅ REQUEST_STATUS: CONTACT_SHARED')
+    }));
+    expect(telegramOutboxMock.answerCallback).toHaveBeenCalledWith(expect.objectContaining({
+      callbackId: 'callback_1',
+      text: '✅ CONTACT_SHARED'
+    }));
+    expect(prismaMock.integrationEventLog.update).toHaveBeenCalledWith({
+      where: { id: 'event_token_status_set' },
       data: expect.objectContaining({
         status: 'SUCCESS',
         meta: expect.objectContaining({

@@ -1,4 +1,4 @@
-import { LeadStatus } from '@prisma/client';
+import { LeadStatus, RequestStatus } from '@prisma/client';
 import { prisma } from '../../../../services/prisma.js';
 import type { PipelineContext } from '../core/types.js';
 import { ScenarioEngine } from '../../bots/scenario.engine.js';
@@ -27,6 +27,7 @@ import { normalizeBotConfigChatId } from '../core/utils/telegramChatId.js';
 import { assertAdminTestAccess, assertConfiguredAdminActionAccess } from '../core/utils/telegramAdminAccess.js';
 import {
   claimAdminActionToken,
+  createAdminActionToken,
   markAdminActionTokenConsumed,
   releaseAdminActionTokenClaim,
   resolveAdminActionToken
@@ -121,6 +122,22 @@ const appendAssignmentLineOnce = (text: string, assignee: string) => {
   const statusLine = `👤 ASSIGNED: ${label}`;
   if (value.includes(statusLine)) return value;
   return `${value}\n\n${statusLine}`.trim();
+};
+
+const REQUEST_STATUS_SET_PREFIX = 'request.SET_STATUS:';
+const REQUEST_STATUS_CHOICES = [
+  { status: RequestStatus.COLLECTING_VARIANTS, label: '🔎 У роботі' },
+  { status: RequestStatus.SHORTLIST, label: '⭐ Shortlist' },
+  { status: RequestStatus.CONTACT_SHARED, label: '☎️ Контакт' },
+  { status: RequestStatus.WON, label: '✅ Won' },
+  { status: RequestStatus.LOST, label: '❌ Lost' }
+];
+
+const parseRequestStatusAction = (action?: string | null) => {
+  const value = String(action || '').trim();
+  if (!value.startsWith(REQUEST_STATUS_SET_PREFIX)) return null;
+  const status = value.slice(REQUEST_STATUS_SET_PREFIX.length).trim().toUpperCase();
+  return REQUEST_STATUS_CHOICES.find((item) => item.status === status)?.status || null;
 };
 
 const appendVariantStatusHistory = (variant: any, status: string, by?: string | null) => {
@@ -935,6 +952,248 @@ const handleRequestAssignToMeTokenAction = async (
   }
 };
 
+const handleRequestStatusMenuTokenAction = async (
+  ctx: PipelineContext,
+  cb: any,
+  tokenPayload: NonNullable<Awaited<ReturnType<typeof resolveAdminActionToken>>>
+) => {
+  if (tokenPayload.action !== 'request.STATUS_MENU' || tokenPayload.targetType !== 'request' || !tokenPayload.targetId) {
+    return false;
+  }
+
+  const request = await prisma.b2bRequest.findUnique({
+    where: { id: tokenPayload.targetId },
+    select: { id: true, companyId: true, botId: true, publicId: true, status: true }
+  });
+  if (
+    !request ||
+    (ctx.companyId && String((request as any).companyId || '') !== String(ctx.companyId)) ||
+    ((request as any).botId && String((request as any).botId) !== String(ctx.bot?.id || ''))
+  ) {
+    await telegramOutbox.answerCallback({
+      token: ctx.bot!.token,
+      callbackId: cb.id,
+      text: 'Action unavailable'
+    }).catch(() => null);
+    return true;
+  }
+
+  const consumedBy = {
+    adminTgUserId: String(cb.from?.id || ctx.userId || '').trim() || null,
+    adminUsername: String(cb.from?.username || '').trim() || null,
+    callbackId: cb.id || null
+  };
+  const claimed = await claimAdminActionToken(tokenPayload, consumedBy);
+  if (!claimed) {
+    await telegramOutbox.answerCallback({
+      token: ctx.bot!.token,
+      callbackId: cb.id,
+      text: 'Action already processed'
+    }).catch(() => null);
+    return true;
+  }
+
+  try {
+    const buttons = await Promise.all(REQUEST_STATUS_CHOICES.map(async (item) => ({
+      text: item.label,
+      callback_data: buildCallbackData('aa', await createAdminActionToken({
+        action: `${REQUEST_STATUS_SET_PREFIX}${item.status}`,
+        targetType: 'request',
+        targetId: tokenPayload.targetId,
+        botId: tokenPayload.botId || ctx.bot?.id || null,
+        companyId: tokenPayload.companyId || ctx.companyId || (request as any).companyId || null,
+        requestId: tokenPayload.requestId || tokenPayload.targetId
+      }))
+    })));
+
+    await markAdminActionTokenConsumed(tokenPayload, consumedBy);
+
+    const callbackChatId = cb.message?.chat?.id ? String(cb.message.chat.id) : String(ctx.chatId || '');
+    await sendMessage(
+      ctx,
+      [
+        '📌 Зміна статусу',
+        `Request ID: ${(request as any).publicId || request.id}`,
+        `Поточний: ${(request as any).status || '—'}`
+      ].join('\n'),
+      {
+        inline_keyboard: [
+          buttons.slice(0, 2),
+          buttons.slice(2, 4),
+          buttons.slice(4)
+        ].filter((row) => row.length)
+      },
+      callbackChatId
+    );
+
+    await telegramOutbox.answerCallback({
+      token: ctx.bot!.token,
+      callbackId: cb.id,
+      text: 'Choose request status'
+    }).catch(() => null);
+    return true;
+  } catch {
+    await releaseAdminActionTokenClaim(tokenPayload, {
+      message: 'Request status menu action failed',
+      failedAt: new Date().toISOString()
+    });
+    await telegramOutbox.answerCallback({
+      token: ctx.bot!.token,
+      callbackId: cb.id,
+      text: 'Action failed. Please retry.'
+    }).catch(() => null);
+    return true;
+  }
+};
+
+const handleRequestSetStatusTokenAction = async (
+  ctx: PipelineContext,
+  cb: any,
+  tokenPayload: NonNullable<Awaited<ReturnType<typeof resolveAdminActionToken>>>
+) => {
+  const nextStatus = parseRequestStatusAction(tokenPayload.action);
+  if (!nextStatus || tokenPayload.targetType !== 'request' || !tokenPayload.targetId) {
+    return false;
+  }
+
+  const request = await prisma.b2bRequest.findUnique({
+    where: { id: tokenPayload.targetId },
+    select: { id: true, companyId: true, botId: true, status: true }
+  });
+  if (
+    !request ||
+    (ctx.companyId && String((request as any).companyId || '') !== String(ctx.companyId)) ||
+    ((request as any).botId && String((request as any).botId) !== String(ctx.bot?.id || ''))
+  ) {
+    await telegramOutbox.answerCallback({
+      token: ctx.bot!.token,
+      callbackId: cb.id,
+      text: 'Action unavailable'
+    }).catch(() => null);
+    return true;
+  }
+
+  const adminTgUserId = String(cb.from?.id || ctx.userId || '').trim();
+  const adminUsername = String(cb.from?.username || '').trim() || null;
+  const consumedBy = {
+    adminTgUserId: adminTgUserId || null,
+    adminUsername,
+    callbackId: cb.id || null
+  };
+  const claimed = await claimAdminActionToken(tokenPayload, consumedBy);
+  if (!claimed) {
+    await telegramOutbox.answerCallback({
+      token: ctx.bot!.token,
+      callbackId: cb.id,
+      text: 'Action already processed'
+    }).catch(() => null);
+    return true;
+  }
+
+  const message = cb.message;
+  const chatId = message?.chat?.id ? String(message.chat.id) : String(ctx.chatId || '');
+  const messageId = Number(message?.message_id || 0);
+  const idempotencyKey = [
+    'telegram:request-status',
+    tokenPayload.targetId,
+    nextStatus,
+    messageId > 0 ? String(messageId) : cb.id || adminTgUserId || 'manual'
+  ].join(':');
+
+  try {
+    await prisma.b2bRequest.update({
+      where: { id: tokenPayload.targetId },
+      data: { status: nextStatus }
+    });
+
+    await prisma.integrationEventLog.upsert({
+      where: { idempotencyKey },
+      create: {
+        companyId: ctx.companyId || (request as any).companyId || null,
+        integration: 'telegram',
+        action: 'request.status_changed',
+        status: 'SUCCESS',
+        entityType: 'request',
+        entityId: tokenPayload.targetId,
+        idempotencyKey,
+        message: `Request status changed to ${nextStatus} from Telegram admin action`,
+        meta: {
+          previousStatus: (request as any).status || null,
+          status: nextStatus,
+          botId: ctx.bot?.id || null,
+          adminTgUserId: adminTgUserId || null,
+          adminUsername,
+          callbackId: cb.id || null,
+          messageId: messageId || null,
+          chatId: chatId || null
+        } as any
+      },
+      update: {
+        status: 'SUCCESS',
+        message: `Request status changed to ${nextStatus} from Telegram admin action`,
+        meta: {
+          previousStatus: (request as any).status || null,
+          status: nextStatus,
+          botId: ctx.bot?.id || null,
+          adminTgUserId: adminTgUserId || null,
+          adminUsername,
+          callbackId: cb.id || null,
+          messageId: messageId || null,
+          chatId: chatId || null,
+          repeatedAt: new Date().toISOString()
+        } as any
+      }
+    }).catch(() => null);
+
+    try {
+      await markAdminActionTokenConsumed(tokenPayload, consumedBy);
+    } catch {
+      await releaseAdminActionTokenClaim(tokenPayload, {
+        message: 'Request status token finalization failed',
+        failedAt: new Date().toISOString()
+      });
+      await telegramOutbox.answerCallback({
+        token: ctx.bot!.token,
+        callbackId: cb.id,
+        text: 'Action completed, but log finalization failed.'
+      }).catch(() => null);
+      return true;
+    }
+
+    if (chatId && messageId) {
+      const currentText = message.text || message.caption || '';
+      await telegramOutbox.editMessageText({
+        botId: ctx.bot!.id,
+        token: ctx.bot!.token,
+        chatId,
+        messageId,
+        text: appendPlainStatusLineOnce(currentText, `REQUEST_STATUS: ${nextStatus}`),
+        replyMarkup: message.reply_markup || undefined,
+        companyId: ctx.companyId,
+        userId: ctx.userId || undefined
+      }).catch(() => null);
+    }
+
+    await telegramOutbox.answerCallback({
+      token: ctx.bot!.token,
+      callbackId: cb.id,
+      text: `✅ ${nextStatus}`
+    }).catch(() => null);
+    return true;
+  } catch {
+    await releaseAdminActionTokenClaim(tokenPayload, {
+      message: 'Request status action failed',
+      failedAt: new Date().toISOString()
+    });
+    await telegramOutbox.answerCallback({
+      token: ctx.bot!.token,
+      callbackId: cb.id,
+      text: 'Action failed. Please retry.'
+    }).catch(() => null);
+    return true;
+  }
+};
+
 const salesDriveSyncAnswerText = (result: Awaited<ReturnType<typeof processSalesDriveRequestSyncQueue>>) => {
   if (result.reason) return `SalesDrive sync: ${result.reason}`;
   if (result.sent) return `SalesDrive sync: sent ${result.sent}`;
@@ -1133,6 +1392,12 @@ export const routeCallback = async (ctx: PipelineContext) => {
 
       const handledRequestAssignAction = await handleRequestAssignToMeTokenAction(ctx, cb, tokenPayload);
       if (handledRequestAssignAction) return true;
+
+      const handledRequestStatusMenuAction = await handleRequestStatusMenuTokenAction(ctx, cb, tokenPayload);
+      if (handledRequestStatusMenuAction) return true;
+
+      const handledRequestSetStatusAction = await handleRequestSetStatusTokenAction(ctx, cb, tokenPayload);
+      if (handledRequestSetStatusAction) return true;
 
       const handledSalesDriveSyncAction = await handleSalesDriveRequestSyncTokenAction(ctx, cb, tokenPayload);
       if (handledSalesDriveSyncAction) return true;
