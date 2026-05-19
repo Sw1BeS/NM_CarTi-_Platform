@@ -5,8 +5,15 @@ import { useLang } from '../../contexts/LanguageContext';
 import { ApiClient } from '../../services/apiClient';
 import { SystemSettings } from '../../types';
 import {
-    Plug, Mail, Share2, Table, Webhook, TestTube, Save, ArrowLeft
+    Mail, Share2, Table, Webhook, TestTube, Save, ArrowLeft, Database, RefreshCw, Eye
 } from 'lucide-react';
+import {
+    resolveSalesDriveConfigRows,
+    summarizeSalesDriveSyncStatus,
+    type SalesDriveConfigSummary,
+    type SalesDriveSyncStatus,
+    type SalesDriveTone
+} from './integrations/salesdriveStatus';
 
 /* -------------------------------------------------------------------------- */
 /*                                CONSTANTS                                   */
@@ -20,7 +27,37 @@ interface IntegrationConfig {
     configFields: { key: string; label: string; type: string; placeholder?: string }[];
 }
 
+type SalesDriveHealth = {
+    status?: string;
+    configured?: boolean;
+    syncEnabled?: boolean;
+    writeEnabled?: boolean;
+    httpStatus?: number;
+    message?: string;
+};
+
+type SalesDrivePreview = {
+    configured?: boolean;
+    dryRun?: boolean;
+    count?: number;
+    items?: Array<{
+        externalId?: string;
+        title?: string;
+        contact?: { name?: string };
+        duplicate?: { leadId?: string; provider?: string };
+        warnings?: string[];
+    }>;
+};
+
 export const INTEGRATION_DEFS: IntegrationConfig[] = [
+    {
+        type: 'SALESDRIVE',
+        path: 'salesdrive',
+        name: 'SalesDrive',
+        description: 'Read-only CRM reference, import preview and request sync status',
+        icon: Database,
+        configFields: []
+    },
     {
         type: 'SENDPULSE',
         path: 'sendpulse',
@@ -84,11 +121,22 @@ export const IntegrationEditor = () => {
     const [configData, setConfigData] = useState<Record<string, any>>({});
     const [systemSettings, setSystemSettings] = useState<SystemSettings | null>(null);
     const [saving, setSaving] = useState(false);
+    const [salesDriveConfig, setSalesDriveConfig] = useState<SalesDriveConfigSummary | null>(null);
+    const [salesDriveHealth, setSalesDriveHealth] = useState<SalesDriveHealth | null>(null);
+    const [salesDriveSyncStatus, setSalesDriveSyncStatus] = useState<SalesDriveSyncStatus | null>(null);
+    const [salesDrivePreview, setSalesDrivePreview] = useState<SalesDrivePreview | null>(null);
+    const [salesDriveLoading, setSalesDriveLoading] = useState(false);
+    const [salesDrivePreviewLoading, setSalesDrivePreviewLoading] = useState(false);
 
     useEffect(() => {
         const def = INTEGRATION_DEFS.find(d => d.path === type);
         if (def) {
             setDefinition(def);
+            if (def.type === 'SALESDRIVE') {
+                setConfigData({});
+                loadSalesDriveStatus();
+                return;
+            }
             loadSettings();
             loadConfig(def.type);
         }
@@ -110,6 +158,41 @@ export const IntegrationEditor = () => {
         const res = await ApiClient.post<T>(endpoint, body);
         if (!res.ok) throw new Error(res.message || 'Request failed');
         return res.data as T;
+    };
+
+    const loadSalesDriveStatus = async () => {
+        setSalesDriveLoading(true);
+        try {
+            const [configResult, healthResult, syncResult] = await Promise.allSettled([
+                apiGet<SalesDriveConfigSummary>('integrations/salesdrive/config'),
+                apiGet<SalesDriveHealth>('integrations/salesdrive/health'),
+                apiGet<SalesDriveSyncStatus>('integrations/salesdrive/sync/status')
+            ]);
+
+            if (configResult.status === 'fulfilled') setSalesDriveConfig(configResult.value);
+            if (healthResult.status === 'fulfilled') setSalesDriveHealth(healthResult.value);
+            if (syncResult.status === 'fulfilled') setSalesDriveSyncStatus(syncResult.value);
+
+            if ([configResult, healthResult, syncResult].some(result => result.status === 'rejected')) {
+                showToast('SalesDrive status partially unavailable', 'error');
+            }
+        } catch (e: any) {
+            showToast(e.message || 'SalesDrive status unavailable', 'error');
+        } finally {
+            setSalesDriveLoading(false);
+        }
+    };
+
+    const loadSalesDrivePreview = async () => {
+        setSalesDrivePreviewLoading(true);
+        try {
+            const preview = await apiGet<SalesDrivePreview>('integrations/salesdrive/preview?limit=10');
+            setSalesDrivePreview(preview);
+        } catch (e: any) {
+            showToast(e.message || 'SalesDrive preview unavailable', 'error');
+        } finally {
+            setSalesDrivePreviewLoading(false);
+        }
     };
 
     const loadSettings = async () => {
@@ -221,6 +304,169 @@ export const IntegrationEditor = () => {
     if (!definition) return <div>Integration not found</div>;
 
     const Icon = definition.icon;
+    const toneClass = (tone: SalesDriveTone) => {
+        if (tone === 'success') return 'border-green-500/25 bg-green-500/10 text-green-400';
+        if (tone === 'warn') return 'border-amber-500/25 bg-amber-500/10 text-amber-300';
+        if (tone === 'danger') return 'border-red-500/25 bg-red-500/10 text-red-300';
+        return 'border-white/10 bg-white/[0.04] text-[var(--text-secondary)]';
+    };
+
+    if (definition.type === 'SALESDRIVE') {
+        const configRows = resolveSalesDriveConfigRows(salesDriveConfig || {});
+        const syncSummary = summarizeSalesDriveSyncStatus(salesDriveSyncStatus || {});
+        const previewItems = salesDrivePreview?.items || [];
+        const duplicateCount = previewItems.filter(item => item.duplicate).length;
+        const healthTone: SalesDriveTone = salesDriveHealth?.status === 'OK'
+            ? 'success'
+            : salesDriveHealth?.status === 'CONFIG_MISSING'
+                ? 'warn'
+                : salesDriveHealth?.status
+                    ? 'danger'
+                    : 'muted';
+
+        return (
+            <div className="max-w-5xl mx-auto p-6 space-y-6">
+                <div className="flex items-center gap-4">
+                    <button onClick={() => navigate('/integrations')} className="btn-ghost p-2" aria-label="Back to integrations">
+                        <ArrowLeft size={20} />
+                    </button>
+                    <div className="w-12 h-12 rounded-lg bg-gold-500/20 flex items-center justify-center">
+                        <Icon size={24} className="text-gold-500" />
+                    </div>
+                    <div className="flex-1">
+                        <h1 className="text-2xl font-bold text-[var(--text-primary)]">{definition.name}</h1>
+                        <p className="text-sm text-[var(--text-secondary)]">{definition.description}</p>
+                    </div>
+                    <button onClick={loadSalesDriveStatus} disabled={salesDriveLoading} className="btn-ghost px-4 py-2 flex items-center gap-2 border border-[var(--border-color)]">
+                        <RefreshCw size={16} className={salesDriveLoading ? 'animate-spin' : ''} />
+                        Refresh
+                    </button>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    <section className="panel p-5">
+                        <div className="flex items-center justify-between mb-4">
+                            <h2 className="text-lg font-bold text-[var(--text-primary)]">Connector</h2>
+                            <span className={`rounded-full border px-3 py-1 text-xs font-bold uppercase ${toneClass(healthTone)}`}>
+                                {salesDriveHealth?.status || 'Unknown'}
+                            </span>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            {configRows.map(row => (
+                                <div key={row.label} className={`rounded-lg border p-3 ${toneClass(row.tone)}`}>
+                                    <div className="text-[10px] font-bold uppercase tracking-wider opacity-70">{row.label}</div>
+                                    <div className="mt-1 text-sm font-semibold">{row.value}</div>
+                                </div>
+                            ))}
+                        </div>
+                        <div className="mt-4 rounded-lg border border-[var(--border-color)] bg-[var(--bg-panel)] p-3">
+                            <div className="text-xs font-bold uppercase text-[var(--text-secondary)]">Health</div>
+                            <div className="mt-1 text-sm text-[var(--text-primary)]">{salesDriveHealth?.message || 'No health check yet'}</div>
+                            {salesDriveHealth?.httpStatus ? (
+                                <div className="mt-1 text-xs text-[var(--text-secondary)]">HTTP {salesDriveHealth.httpStatus}</div>
+                            ) : null}
+                        </div>
+                    </section>
+
+                    <section className="panel p-5">
+                        <div className="flex items-center justify-between mb-4">
+                            <h2 className="text-lg font-bold text-[var(--text-primary)]">Request Sync</h2>
+                            <span className="rounded-full border border-[var(--border-color)] px-3 py-1 text-xs font-bold uppercase text-[var(--text-secondary)]">Last 100 logs</span>
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                            {syncSummary.totals.map(total => (
+                                <div key={total.label} className={`rounded-lg border p-3 ${toneClass(total.tone)}`}>
+                                    <div className="text-2xl font-black tabular-nums">{total.value}</div>
+                                    <div className="text-[10px] font-bold uppercase tracking-wider opacity-70">{total.label}</div>
+                                </div>
+                            ))}
+                        </div>
+                        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div className="rounded-lg border border-green-500/20 bg-green-500/5 p-3">
+                                <div className="text-xs font-bold uppercase text-green-400">Last sent</div>
+                                <div className="mt-1 text-sm text-[var(--text-primary)]">{syncSummary.lastSentLabel}</div>
+                            </div>
+                            <div className="rounded-lg border border-red-500/20 bg-red-500/5 p-3">
+                                <div className="text-xs font-bold uppercase text-red-300">Last error</div>
+                                <div className="mt-1 text-sm text-[var(--text-primary)]">{syncSummary.lastErrorLabel}</div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+
+                <section className="panel p-5">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+                        <div>
+                            <h2 className="text-lg font-bold text-[var(--text-primary)]">Dry-run Import Preview</h2>
+                            <p className="text-sm text-[var(--text-secondary)]">No SalesDrive writes are triggered from this screen.</p>
+                        </div>
+                        <button onClick={loadSalesDrivePreview} disabled={salesDrivePreviewLoading} className="btn-secondary px-4 py-2 flex items-center justify-center gap-2">
+                            <Eye size={16} />
+                            {salesDrivePreviewLoading ? 'Loading...' : 'Preview 10'}
+                        </button>
+                    </div>
+
+                    {salesDrivePreview ? (
+                        <div className="space-y-3">
+                            <div className="flex flex-wrap gap-2">
+                                <span className={`rounded-full border px-3 py-1 text-xs font-bold uppercase ${toneClass(salesDrivePreview.configured ? 'success' : 'warn')}`}>
+                                    {salesDrivePreview.configured ? 'Configured' : 'Missing config'}
+                                </span>
+                                <span className="rounded-full border border-[var(--border-color)] px-3 py-1 text-xs font-bold uppercase text-[var(--text-secondary)]">
+                                    {salesDrivePreview.count || previewItems.length} item(s)
+                                </span>
+                                <span className={`rounded-full border px-3 py-1 text-xs font-bold uppercase ${toneClass(duplicateCount ? 'warn' : 'success')}`}>
+                                    {duplicateCount} duplicate(s)
+                                </span>
+                            </div>
+
+                            <div className="divide-y divide-[var(--border-color)] rounded-lg border border-[var(--border-color)] overflow-hidden">
+                                {previewItems.length ? previewItems.slice(0, 10).map((item, index) => (
+                                    <div key={`${item.externalId || index}`} className="p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                                        <div>
+                                            <div className="text-sm font-semibold text-[var(--text-primary)]">{item.title || item.externalId || 'SalesDrive order'}</div>
+                                            <div className="text-xs text-[var(--text-secondary)]">{item.contact?.name || 'Contact not provided'} · {item.externalId || 'external id missing'}</div>
+                                        </div>
+                                        <div className="flex flex-wrap gap-2">
+                                            {item.duplicate ? (
+                                                <span className={`rounded-full border px-2 py-1 text-[10px] font-bold uppercase ${toneClass('warn')}`}>duplicate</span>
+                                            ) : null}
+                                            {(item.warnings || []).slice(0, 2).map(warning => (
+                                                <span key={warning} className={`rounded-full border px-2 py-1 text-[10px] font-bold uppercase ${toneClass('muted')}`}>{warning}</span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )) : (
+                                    <div className="p-4 text-sm text-[var(--text-secondary)]">No preview rows returned.</div>
+                                )}
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="rounded-lg border border-[var(--border-color)] p-4 text-sm text-[var(--text-secondary)]">
+                            Run preview to inspect SalesDrive orders before any import decision.
+                        </div>
+                    )}
+                </section>
+
+                <section className="panel p-5">
+                    <h2 className="text-lg font-bold text-[var(--text-primary)] mb-3">Recent Sync Events</h2>
+                    <div className="divide-y divide-[var(--border-color)] rounded-lg border border-[var(--border-color)] overflow-hidden">
+                        {syncSummary.recent.length ? syncSummary.recent.slice(0, 8).map((item, index) => (
+                            <div key={`${item.requestId || item.requestPublicId || index}-${item.createdAt || index}`} className="p-3">
+                                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+                                    <div className="text-sm font-semibold text-[var(--text-primary)]">{item.label}</div>
+                                    <div className="text-xs text-[var(--text-secondary)]">{item.createdAt || item.sentAt || item.lastErrorAt || ''}</div>
+                                </div>
+                                {item.detail ? <div className="mt-1 text-xs text-[var(--text-secondary)]">{item.detail}</div> : null}
+                            </div>
+                        )) : (
+                            <div className="p-4 text-sm text-[var(--text-secondary)]">No SalesDrive sync events recorded yet.</div>
+                        )}
+                    </div>
+                </section>
+            </div>
+        );
+    }
 
     return (
         <div className="max-w-3xl mx-auto p-6">

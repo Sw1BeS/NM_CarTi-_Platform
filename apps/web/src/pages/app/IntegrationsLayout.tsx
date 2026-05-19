@@ -2,7 +2,7 @@ import React from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useLang } from '../../contexts/LanguageContext';
 import {
-    Share2, Mail, Webhook, Table, MessageCircle
+    Share2, Mail, Webhook, Table, MessageCircle, Database
 } from 'lucide-react';
 
 export const IntegrationsLayout = () => {
@@ -11,6 +11,7 @@ export const IntegrationsLayout = () => {
     const navItems = [
         { path: '/integrations', end: true, label: t('integrations.all') || 'All', icon: null },
         { path: '/telegram', label: 'Telegram', icon: MessageCircle }, // Cross-link
+        { path: '/integrations/salesdrive', label: 'SalesDrive', icon: Database },
         { path: '/integrations/meta', label: 'Meta Pixel', icon: Share2 },
         { path: '/integrations/sendpulse', label: 'SendPulse', icon: Mail },
         { path: '/integrations/webhook', label: 'Webhooks', icon: Webhook },

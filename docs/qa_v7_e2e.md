@@ -71,6 +71,19 @@ Expected:
 - Повторний tokenized клік відповідає як already processed без дублювання side effects.
 - SalesDrive action не пише в SalesDrive, якщо write/sync flags вимкнені.
 
+## 4.1) SalesDrive admin visibility
+
+1. Відкрити CRM `/integrations/salesdrive` під роллю OWNER/ADMIN/MANAGER/OPERATOR.
+2. Перевірити блок `Connector`: configured/API key/sync queue/write access/missing env.
+3. Перевірити блок `Request Sync`: queued/sent/failed/skipped, last sent, last error.
+4. Натиснути `Preview 10`.
+
+Expected:
+- сторінка не показує raw API key, phone, email або інші секрети;
+- `Preview 10` виконує тільки dry-run read-only preview;
+- якщо SalesDrive env не налаштований, UI показує missing config без падіння сторінки;
+- якщо sync/write flags вимкнені, write дії з цієї сторінки недоступні.
+
 ## 5) Lead SELL + admin actions
 
 1. Пройти SELL wizard (кроки + review).
