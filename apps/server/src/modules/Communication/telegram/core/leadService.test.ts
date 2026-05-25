@@ -13,6 +13,7 @@ const {
   botConfigFindUniqueMock,
   emitPlatformEventMock,
   metaCompanyTrackMock,
+  metaB2CBotCrmLifecycleEventMock,
   metaSendEventMock
 } = vi.hoisted(() => ({
   findDuplicateMock: vi.fn(),
@@ -27,6 +28,7 @@ const {
   botConfigFindUniqueMock: vi.fn(async () => null),
   emitPlatformEventMock: vi.fn(async () => undefined),
   metaCompanyTrackMock: vi.fn(async () => ({ success: true })),
+  metaB2CBotCrmLifecycleEventMock: vi.fn(async () => ({ success: true })),
   metaSendEventMock: vi.fn(async () => undefined)
 }));
 
@@ -66,6 +68,12 @@ vi.mock('../../../Integrations/meta/meta.service.js', () => ({
   MetaService: { getInstance: () => ({ sendEvent: metaSendEventMock }) }
 }));
 
+vi.mock('../../../Integrations/meta/metaCapi.service.js', () => ({
+  MetaCapiService: class {
+    trackB2CBotCrmLifecycleEvent = metaB2CBotCrmLifecycleEventMock;
+  }
+}));
+
 vi.mock('../../../Integrations/integration.service.js', () => ({
   IntegrationService: class {
     metaPixelTrackEvent = metaCompanyTrackMock;
@@ -87,6 +95,7 @@ beforeEach(() => {
   createRequestMock.mockResolvedValue({ id: 'req_default', publicId: 'REQ-DEFAULT' } as any);
   botConfigFindUniqueMock.mockResolvedValue(null as any);
   metaCompanyTrackMock.mockResolvedValue({ success: true });
+  metaB2CBotCrmLifecycleEventMock.mockResolvedValue({ success: true });
   leadIdentityFindUniqueMock.mockResolvedValue(null as any);
   leadIdentityUpsertMock.mockResolvedValue({ id: 'identity_1' } as any);
 });
@@ -146,6 +155,21 @@ describe('createOrMergeLead', () => {
         request_type: 'client_auto_selection',
         destination_key: 'b2c_bot_sandbox',
         cartie_request_id: expect.any(String)
+      })
+    }));
+    expect(metaB2CBotCrmLifecycleEventMock).toHaveBeenCalledWith('comp_1', 'Lead', expect.objectContaining({
+      entityType: 'request',
+      entityId: 'request_b2c',
+      eventId: 'cartie:RQ-B2C-1:Lead:b2c_bot_sandbox',
+      externalId: 'telegram:1001',
+      phone: '+380635055252',
+      name: 'B2C Client',
+      customData: expect.objectContaining({
+        crm_status: 'raw_lead',
+        source: 'b2c_bot',
+        request_type: 'client_auto_selection',
+        destination_key: 'b2c_bot_sandbox',
+        cartie_request_id: 'RQ-B2C-1'
       })
     }));
   });

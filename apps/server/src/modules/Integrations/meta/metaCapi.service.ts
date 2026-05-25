@@ -39,6 +39,9 @@ export const sha256 = (value: string) =>
   crypto.createHash('sha256').update(value.trim().toLowerCase()).digest('hex');
 
 export const META_B2C_BOT_INTEGRATION = 'META_B2C_BOT';
+export const META_B2C_BOT_CRM_MODE = 'CRM_CONVERSION_LEADS';
+export const META_B2C_BOT_CRM_LEAD_EVENT_SOURCE = 'CarTié SalesDrive';
+const APPROVED_B2C_BOT_CRM_EVENT_NAMES = new Set(['Lead', 'Contacted', 'QualifiedLead', 'Scheduled', 'Won', 'Purchase']);
 
 export const maskMetaAccessToken = (value?: string | null) => {
   const token = toText(value);
@@ -74,6 +77,53 @@ const redactSensitiveText = (value: unknown, accessToken?: string | null) => {
     .replace(/(?:\+?\d[\d\s()\-]{6,}\d)/g, '[redacted-phone]');
 };
 
+const sanitizeMetaResponse = (value: unknown, accessToken?: string | null) => {
+  if (value === undefined || value === null) return value;
+  try {
+    return JSON.parse(redactSensitiveText(JSON.stringify(value), accessToken));
+  } catch {
+    return redactSensitiveText(value, accessToken);
+  }
+};
+
+const toJsonPreviewValue = (value: unknown): string | number | boolean | null => {
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return value;
+  if (value === undefined || value === null) return null;
+  return JSON.stringify(value);
+};
+
+const buildB2CBotCrmPayloadSummary = (payload: any) => {
+  const event = Array.isArray(payload?.data) ? payload.data[0] : undefined;
+  const customData = event?.custom_data && typeof event.custom_data === 'object' ? event.custom_data : {};
+  const userData = event?.user_data && typeof event.user_data === 'object' ? event.user_data : {};
+  const customDataPreview = Object.fromEntries(
+    Object.entries(customData).filter(([key]) => [
+      'event_source',
+      'lead_event_source',
+      'crm_status',
+      'destination_key',
+      'status_id',
+      'status_name',
+      'status_time',
+      'salesdrive_order_id',
+      'salesdrive_lead_id'
+    ].includes(key))
+      .map(([key, value]) => [key, toJsonPreviewValue(value)])
+  );
+
+  return {
+    topLevelHasTestEventCode: Boolean(payload?.test_event_code),
+    topLevelHasData: Array.isArray(payload?.data),
+    eventName: event?.event_name,
+    eventTime: event?.event_time,
+    eventId: event?.event_id,
+    actionSource: event?.action_source,
+    customDataKeys: Object.keys(customData),
+    customDataPreview,
+    userDataKeys: Object.keys(userData)
+  };
+};
+
 const readB2CBotDatasetConfig = () => {
   const datasetId = toText(process.env.META_B2C_BOT_DATASET_ID);
   const destinationKey = toText(process.env.META_B2C_BOT_DESTINATION_KEY) || 'b2c_bot_sandbox';
@@ -106,6 +156,10 @@ export const buildMetaEventId = (companyId: string, eventName: string, input: Me
 
 export class MetaCapiService {
   async trackB2CBotDatasetEvent(companyId: string | null | undefined, eventName: string, input: MetaCapiTrackInput = {}) {
+    return this.trackB2CBotCrmLifecycleEvent(companyId, eventName, input);
+  }
+
+  async trackB2CBotCrmLifecycleEvent(companyId: string | null | undefined, eventName: string, input: MetaCapiTrackInput = {}) {
     if (!isEnvFlagEnabled('META_CAPI_ENABLED', false)) {
       return { success: false, skipped: true, reason: 'META_CAPI_DISABLED' };
     }
@@ -125,6 +179,15 @@ export class MetaCapiService {
         skipped: true,
         reason: 'META_B2C_BOT_CONFIG_MISSING',
         missing: config.missing,
+        destinationKey: config.destinationKey
+      };
+    }
+    if (!APPROVED_B2C_BOT_CRM_EVENT_NAMES.has(eventName)) {
+      return {
+        success: false,
+        skipped: true,
+        reason: 'META_B2C_BOT_CRM_EVENT_NOT_APPROVED',
+        eventName,
         destinationKey: config.destinationKey
       };
     }
@@ -156,11 +219,14 @@ export class MetaCapiService {
 
     const customData = {
       ...(input.customData && typeof input.customData === 'object' ? input.customData : {}),
-      destination_key: config.destinationKey,
       ...(input.value !== undefined && input.value !== null ? { value: input.value, currency: input.currency || 'USD' } : {}),
       ...(Array.isArray(input.contentIds) ? { content_ids: input.contentIds } : {}),
       ...(input.contentName ? { content_name: input.contentName } : {}),
-      ...(input.contentCategory ? { content_category: input.contentCategory } : {})
+      ...(input.contentCategory ? { content_category: input.contentCategory } : {}),
+      crm_status: toText((input.customData as any)?.crm_status) || toText(input.stage) || eventName,
+      event_source: 'crm',
+      lead_event_source: META_B2C_BOT_CRM_LEAD_EVENT_SOURCE,
+      destination_key: config.destinationKey
     };
 
     const payload = {
@@ -169,16 +235,16 @@ export class MetaCapiService {
         event_id: eventId,
         event_time: Math.floor(Date.now() / 1000),
         user_data: userData,
-        action_source: input.actionSource || input.action_source || 'system_generated',
-        ...(input.eventSourceUrl || input.event_source_url ? { event_source_url: String(input.eventSourceUrl || input.event_source_url) } : {}),
+        action_source: 'system_generated',
         ...(Object.keys(customData).length ? { custom_data: customData } : {})
       }],
       ...(config.testMode && config.testEventCode ? { test_event_code: config.testEventCode } : {})
     };
+    const payloadSummary = buildB2CBotCrmPayloadSummary(payload);
 
     try {
-      await axios.post(
-        `https://graph.facebook.com/v19.0/${config.datasetId}/events`,
+      const response = await axios.post(
+        `https://graph.facebook.com/v25.0/${config.datasetId}/events`,
         payload,
         {
           headers: {
@@ -187,6 +253,7 @@ export class MetaCapiService {
           }
         }
       );
+      const responseData = sanitizeMetaResponse(response?.data, config.accessToken) as any;
 
       await prisma.integrationEventLog.create({
         data: {
@@ -199,9 +266,13 @@ export class MetaCapiService {
           message: `Meta B2C bot event ${eventName} sent`,
           idempotencyKey,
           meta: {
+            mode: META_B2C_BOT_CRM_MODE,
             eventId,
             destinationKey: config.destinationKey,
             testEventCodeUsed: Boolean(config.testMode && config.testEventCode),
+            payloadSummary,
+            response: responseData,
+            fbtrace_id: responseData?.fbtrace_id,
             token: undefined,
             tokenMasked: maskMetaAccessToken(config.accessToken),
             hasPhone: Boolean(input.phone),
@@ -218,6 +289,7 @@ export class MetaCapiService {
     } catch (error: any) {
       const rawError = error?.response?.data?.error?.message || error?.message || 'Meta B2C bot CAPI request failed';
       const message = redactSensitiveText(rawError, config.accessToken);
+      const responseData = sanitizeMetaResponse(error?.response?.data, config.accessToken) as any;
       await prisma.integrationEventLog.create({
         data: {
           companyId,
@@ -229,9 +301,13 @@ export class MetaCapiService {
           message,
           idempotencyKey,
           meta: {
+            mode: META_B2C_BOT_CRM_MODE,
             eventId,
             destinationKey: config.destinationKey,
             testEventCodeUsed: Boolean(config.testMode && config.testEventCode),
+            payloadSummary,
+            response: responseData,
+            fbtrace_id: responseData?.fbtrace_id || responseData?.error?.fbtrace_id,
             token: undefined,
             tokenMasked: maskMetaAccessToken(config.accessToken)
           }

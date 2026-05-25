@@ -217,7 +217,7 @@ const resolveB2CBotWebhookContext = async (parsed: ParsedSalesDriveStatus, compa
 const statusDecision = (parsed: ParsedSalesDriveStatus) => {
   const statusId = toText(parsed.statusId);
   if (!statusId) return { send: false, reason: 'missing_status_id' };
-  if (statusId === '13') return { send: true, eventName: 'Contact' };
+  if (statusId === '13') return { send: true, eventName: 'Contacted', crmStatus: 'contacted' };
   if (['2', '9'].includes(statusId)) return { send: false, reason: 'qualified_lead_unconfirmed' };
   if (['5', '11'].includes(statusId)) return { send: false, reason: 'purchase_disabled' };
   return { send: false, reason: 'status_skipped' };
@@ -320,7 +320,7 @@ export const handleSalesDriveWebhook = async (request: WebhookRequestLike) => {
     return { ok: true, sent: false, duplicate: true, eventId };
   }
 
-  const metaResult = await new MetaCapiService().trackB2CBotDatasetEvent(resolvedCompanyId || null, decision.eventName, {
+  const metaResult = await new MetaCapiService().trackB2CBotCrmLifecycleEvent(resolvedCompanyId || null, decision.eventName, {
     entityType: 'salesdrive_status',
     entityId: parsed.orderId,
     eventId,
@@ -331,6 +331,7 @@ export const handleSalesDriveWebhook = async (request: WebhookRequestLike) => {
     currency: parsed.currency,
     actionSource: 'system_generated',
     customData: {
+      crm_status: decision.crmStatus,
       salesdrive_order_id: parsed.orderId,
       salesdrive_lead_id: parsed.leadId,
       status_id: parsed.statusId,

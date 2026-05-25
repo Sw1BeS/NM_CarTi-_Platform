@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
   prismaMock,
-  trackB2CBotDatasetEventMock
+  trackB2CBotCrmLifecycleEventMock
 } = vi.hoisted(() => ({
   prismaMock: {
     integrationEventLog: {
@@ -16,7 +16,7 @@ const {
       findFirst: vi.fn()
     }
   },
-  trackB2CBotDatasetEventMock: vi.fn()
+  trackB2CBotCrmLifecycleEventMock: vi.fn()
 }));
 
 vi.mock('../../../services/prisma.js', () => ({
@@ -25,7 +25,7 @@ vi.mock('../../../services/prisma.js', () => ({
 
 vi.mock('../meta/metaCapi.service.js', () => ({
   MetaCapiService: class {
-    trackB2CBotDatasetEvent = trackB2CBotDatasetEventMock;
+    trackB2CBotCrmLifecycleEvent = trackB2CBotCrmLifecycleEventMock;
   }
 }));
 
@@ -38,7 +38,7 @@ describe('SalesDrive inbound webhook service', () => {
     prismaMock.integrationEventLog.findUnique.mockResolvedValue(null);
     prismaMock.leadIdentity.findFirst.mockResolvedValue(null);
     prismaMock.b2bRequest.findFirst.mockResolvedValue(null);
-    trackB2CBotDatasetEventMock.mockResolvedValue({ success: true });
+    trackB2CBotCrmLifecycleEventMock.mockResolvedValue({ success: true });
   });
 
   it('validates SalesDrive webhook secret from headers without exposing configured secret', async () => {
@@ -95,7 +95,7 @@ describe('SalesDrive inbound webhook service', () => {
     });
 
     expect(result).toMatchObject({ ok: true, sent: false, reason: 'status_skipped' });
-    expect(trackB2CBotDatasetEventMock).not.toHaveBeenCalled();
+    expect(trackB2CBotCrmLifecycleEventMock).not.toHaveBeenCalled();
     expect(prismaMock.integrationEventLog.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({
         integration: 'SALESDRIVE',
@@ -110,7 +110,7 @@ describe('SalesDrive inbound webhook service', () => {
     }));
   });
 
-  it('maps Contact status to B2C bot Contact event with destination-aware dedup key', async () => {
+  it('maps contacted SalesDrive status to B2C bot Contacted CRM stage with destination-aware dedup key', async () => {
     const { handleSalesDriveWebhook } = await import('./salesdriveWebhook.service.js');
 
     const result = await handleSalesDriveWebhook({
@@ -128,15 +128,16 @@ describe('SalesDrive inbound webhook service', () => {
     });
 
     const statusTime = String(Math.floor(new Date('2026-05-25T10:00:00Z').getTime() / 1000));
-    const eventId = `salesdrive:37193:Contact:13:${statusTime}:b2c_bot_sandbox`;
-    expect(result).toMatchObject({ ok: true, sent: true, eventName: 'Contact', eventId });
-    expect(trackB2CBotDatasetEventMock).toHaveBeenCalledWith('company_1', 'Contact', expect.objectContaining({
+    const eventId = `salesdrive:37193:Contacted:13:${statusTime}:b2c_bot_sandbox`;
+    expect(result).toMatchObject({ ok: true, sent: true, eventName: 'Contacted', eventId });
+    expect(trackB2CBotCrmLifecycleEventMock).toHaveBeenCalledWith('company_1', 'Contacted', expect.objectContaining({
       eventId,
       entityType: 'salesdrive_status',
       entityId: '37193',
       phone: '+38 (063) 505-52-52',
       externalId: 'salesdrive:37193',
       customData: expect.objectContaining({
+        crm_status: 'contacted',
         status_id: '13',
         status_name: '📞 Контакт встановлено',
         destination_key: 'b2c_bot_sandbox'
@@ -169,9 +170,9 @@ describe('SalesDrive inbound webhook service', () => {
       }
     });
 
-    expect(trackB2CBotDatasetEventMock).toHaveBeenCalledWith(
+    expect(trackB2CBotCrmLifecycleEventMock).toHaveBeenCalledWith(
       'company_from_identity',
-      'Contact',
+      'Contacted',
       expect.objectContaining({ entityId: '37193' })
     );
   });
@@ -191,9 +192,9 @@ describe('SalesDrive inbound webhook service', () => {
       }
     });
 
-    expect(trackB2CBotDatasetEventMock).toHaveBeenCalledWith(
+    expect(trackB2CBotCrmLifecycleEventMock).toHaveBeenCalledWith(
       null,
-      'Contact',
+      'Contacted',
       expect.objectContaining({ entityId: 'connectivity-test' })
     );
   });
@@ -215,7 +216,7 @@ describe('SalesDrive inbound webhook service', () => {
     });
 
     expect(result).toMatchObject({ ok: true, sent: false, reason: 'qualified_lead_unconfirmed' });
-    expect(trackB2CBotDatasetEventMock).not.toHaveBeenCalled();
+    expect(trackB2CBotCrmLifecycleEventMock).not.toHaveBeenCalled();
   });
 
   it('keeps Purchase disabled by default', async () => {
@@ -237,12 +238,12 @@ describe('SalesDrive inbound webhook service', () => {
     });
 
     expect(result).toMatchObject({ ok: true, sent: false, reason: 'purchase_disabled' });
-    expect(trackB2CBotDatasetEventMock).not.toHaveBeenCalled();
+    expect(trackB2CBotCrmLifecycleEventMock).not.toHaveBeenCalled();
   });
 
   it('does not resend an already successful destination-aware SalesDrive event', async () => {
     const statusTime = String(Math.floor(new Date('2026-05-25T10:00:00Z').getTime() / 1000));
-    const eventId = `salesdrive:37193:Contact:13:${statusTime}:b2c_bot_sandbox`;
+    const eventId = `salesdrive:37193:Contacted:13:${statusTime}:b2c_bot_sandbox`;
     prismaMock.integrationEventLog.findUnique.mockResolvedValueOnce({
       id: 'existing_success',
       status: 'SUCCESS',
@@ -264,6 +265,6 @@ describe('SalesDrive inbound webhook service', () => {
     });
 
     expect(result).toMatchObject({ ok: true, sent: false, duplicate: true, eventId });
-    expect(trackB2CBotDatasetEventMock).not.toHaveBeenCalled();
+    expect(trackB2CBotCrmLifecycleEventMock).not.toHaveBeenCalled();
   });
 });

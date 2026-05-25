@@ -46,7 +46,7 @@ describe('MetaCapiService', () => {
     });
     prismaMock.integrationEventLog.findUnique.mockResolvedValue(null);
     prismaMock.integrationEventLog.create.mockResolvedValue({ id: 'log_1' });
-    axiosPostMock.mockResolvedValue({ data: { events_received: 1 } });
+    axiosPostMock.mockResolvedValue({ data: { events_received: 1, fbtrace_id: 'trace_1' } });
   });
 
   it('does not send when META_CAPI_ENABLED is disabled', async () => {
@@ -182,10 +182,10 @@ describe('MetaCapiService', () => {
     const { MetaCapiService } = await import('./metaCapi.service.js');
     const service = new MetaCapiService();
 
-    const result = await service.trackB2CBotDatasetEvent('company_1', 'Contact', {
+    const result = await service.trackB2CBotDatasetEvent('company_1', 'Lead', {
       entityType: 'salesdrive_status',
       entityId: '37193',
-      eventId: 'salesdrive:37193:Contact:13:1760000000:b2c_bot_sandbox',
+      eventId: 'cartie:lead_1:Lead:b2c_bot_sandbox',
       externalId: 'salesdrive:37193',
       phone: '+380635055252'
     });
@@ -198,7 +198,7 @@ describe('MetaCapiService', () => {
     expect(axiosPostMock).not.toHaveBeenCalled();
   });
 
-  it('sends B2C bot dataset test events with destination key and no token in URL or logs', async () => {
+  it('sends B2C bot dataset test events as CRM Conversion Leads payloads', async () => {
     vi.stubEnv('META_CAPI_ENABLED', 'true');
     vi.stubEnv('META_B2C_BOT_CAPI_ENABLED', 'true');
     vi.stubEnv('META_B2C_BOT_TEST_MODE', 'true');
@@ -208,32 +208,40 @@ describe('MetaCapiService', () => {
     vi.stubEnv('META_B2C_BOT_TEST_EVENT_CODE', 'TEST46105');
     const { MetaCapiService } = await import('./metaCapi.service.js');
     const service = new MetaCapiService();
-    const eventId = 'salesdrive:37193:Contact:13:1760000000:b2c_bot_sandbox';
+    const eventId = 'crm-lead-test:b2c_bot_sandbox:1760000000';
 
-    const result = await service.trackB2CBotDatasetEvent('company_1', 'Contact', {
+    const result = await service.trackB2CBotDatasetEvent('company_1', 'Lead', {
       entityType: 'salesdrive_status',
       entityId: '37193',
       eventId,
       externalId: 'salesdrive:37193',
       phone: '+38 (063) 505-52-52',
-      actionSource: 'system_generated',
+      actionSource: 'website',
       customData: {
-        status_id: '13',
-        destination_key: 'b2c_bot_sandbox'
+        crm_status: 'raw_lead_test',
+        event_source: 'wrong',
+        lead_event_source: 'wrong',
+        destination_key: 'wrong'
       }
     });
 
     expect(result).toMatchObject({ success: true, eventId, destinationKey: 'b2c_bot_sandbox' });
     expect(axiosPostMock).toHaveBeenCalledTimes(1);
     const [url, payload, init] = axiosPostMock.mock.calls[0];
-    expect(url).toBe('https://graph.facebook.com/v19.0/1152615213548168/events');
+    expect(url).toBe('https://graph.facebook.com/v25.0/1152615213548168/events');
     expect(url).not.toContain('secret-b2c-token');
     expect(init.headers.Authorization).toBe('Bearer secret-b2c-token');
     expect(payload.test_event_code).toBe('TEST46105');
     expect(payload.data[0]).toMatchObject({
-      event_name: 'Contact',
+      event_name: 'Lead',
       event_id: eventId,
       action_source: 'system_generated'
+    });
+    expect(payload.data[0].custom_data).toMatchObject({
+      event_source: 'crm',
+      lead_event_source: 'CarTié SalesDrive',
+      crm_status: 'raw_lead_test',
+      destination_key: 'b2c_bot_sandbox'
     });
     expect(payload.data[0].user_data).toMatchObject({
       ph: [hash('380635055252')],
@@ -242,18 +250,61 @@ describe('MetaCapiService', () => {
     expect(prismaMock.integrationEventLog.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({
         integration: 'META_B2C_BOT',
-        action: 'Contact',
+        action: 'Lead',
         status: 'SUCCESS',
         idempotencyKey: eventId,
         meta: expect.objectContaining({
+          mode: 'CRM_CONVERSION_LEADS',
           destinationKey: 'b2c_bot_sandbox',
           testEventCodeUsed: true,
-          token: undefined
+          token: undefined,
+          fbtrace_id: 'trace_1',
+          response: expect.objectContaining({ events_received: 1 }),
+          payloadSummary: expect.objectContaining({
+            topLevelHasTestEventCode: true,
+            topLevelHasData: true,
+            eventName: 'Lead',
+            eventId,
+            actionSource: 'system_generated',
+            customDataKeys: expect.arrayContaining(['event_source', 'lead_event_source', 'crm_status', 'destination_key']),
+            customDataPreview: expect.objectContaining({
+              event_source: 'crm',
+              lead_event_source: 'CarTié SalesDrive',
+              crm_status: 'raw_lead_test',
+              destination_key: 'b2c_bot_sandbox'
+            }),
+            userDataKeys: expect.arrayContaining(['ph', 'external_id'])
+          })
         })
       })
     }));
     const logPayload = JSON.stringify(prismaMock.integrationEventLog.create.mock.calls[0][0].data);
     expect(logPayload).not.toContain('secret-b2c-token');
+    expect(logPayload).not.toContain('+38 (063) 505-52-52');
+  });
+
+  it('does not send unsupported B2C CRM event names such as generic Contact', async () => {
+    vi.stubEnv('META_CAPI_ENABLED', 'true');
+    vi.stubEnv('META_B2C_BOT_CAPI_ENABLED', 'true');
+    vi.stubEnv('META_B2C_BOT_TEST_MODE', 'true');
+    vi.stubEnv('META_B2C_BOT_DATASET_ID', '1152615213548168');
+    vi.stubEnv('META_B2C_BOT_DESTINATION_KEY', 'b2c_bot_sandbox');
+    vi.stubEnv('META_B2C_BOT_ACCESS_TOKEN', 'secret-b2c-token');
+    vi.stubEnv('META_B2C_BOT_TEST_EVENT_CODE', 'TEST46105');
+    const { MetaCapiService } = await import('./metaCapi.service.js');
+
+    const result = await new MetaCapiService().trackB2CBotDatasetEvent('company_1', 'Contact', {
+      entityType: 'salesdrive_status',
+      entityId: '37193',
+      eventId: 'salesdrive:37193:Contact:13:1760000000:b2c_bot_sandbox'
+    });
+
+    expect(result).toMatchObject({
+      success: false,
+      skipped: true,
+      reason: 'META_B2C_BOT_CRM_EVENT_NOT_APPROVED'
+    });
+    expect(axiosPostMock).not.toHaveBeenCalled();
   });
 
   it('stores B2C bot dataset delivery logs without fake company id when company context is unavailable', async () => {
@@ -265,9 +316,9 @@ describe('MetaCapiService', () => {
     vi.stubEnv('META_B2C_BOT_ACCESS_TOKEN', 'secret-b2c-token');
     vi.stubEnv('META_B2C_BOT_TEST_EVENT_CODE', 'TEST46105');
     const { MetaCapiService } = await import('./metaCapi.service.js');
-    const eventId = 'salesdrive:test:Contact:13:1779727000:b2c_bot_sandbox';
+    const eventId = 'crm-lead-test:b2c_bot_sandbox:1779727000';
 
-    await new MetaCapiService().trackB2CBotDatasetEvent(null, 'Contact', {
+    await new MetaCapiService().trackB2CBotDatasetEvent(null, 'Lead', {
       entityType: 'salesdrive_status',
       entityId: 'test',
       eventId

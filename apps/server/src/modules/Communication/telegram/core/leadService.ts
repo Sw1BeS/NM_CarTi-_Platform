@@ -5,6 +5,7 @@ import { normalizePhone } from '../../../Inventory/normalization/normalizePhone.
 import { emitPlatformEvent } from './events/eventEmitter.js';
 import { generatePublicId, mapRequestInput } from '../../../../services/dto.js';
 import { IntegrationService } from '../../../Integrations/integration.service.js';
+import { MetaCapiService } from '../../../Integrations/meta/metaCapi.service.js';
 import { logger } from '../../../../utils/logger.js';
 import { enqueueSalesDriveRequestSync } from '../../../Integrations/salesdrive/salesdriveSync.service.js';
 import { logIntegrationEvent } from '../../../../services/integrationEventLog.service.js';
@@ -152,6 +153,42 @@ const withB2CRequestPayload = (
       cartie_request_id: requestPublicId || undefined
     }
   : payload;
+
+const trackInitialB2CBotLeadStage = (params: {
+  companyId: string;
+  input: LeadCreateInput;
+  attribution: ReturnType<typeof buildB2CBotAttribution>;
+  lead: any;
+  request?: any;
+  normalizedPhone?: string;
+  normalizedName: string;
+  telegramUserId?: string;
+}) => {
+  if (!params.attribution || !params.request) return;
+  const destinationKey = params.attribution.destination_key || process.env.META_B2C_BOT_DESTINATION_KEY || 'b2c_bot_sandbox';
+  const requestKey = String(params.request.publicId || params.request.id || '');
+  if (!requestKey) return;
+
+  new MetaCapiService().trackB2CBotCrmLifecycleEvent(params.companyId, 'Lead', {
+    entityType: 'request',
+    entityId: String(params.request.id || requestKey),
+    eventId: `cartie:${requestKey}:Lead:${destinationKey}`,
+    externalId: params.telegramUserId ? `telegram:${params.telegramUserId}` : `lead:${params.lead?.id}`,
+    phone: params.normalizedPhone || undefined,
+    email: params.input.email || params.input.payload?.email || undefined,
+    name: params.normalizedName,
+    stage: 'raw_lead',
+    customData: {
+      crm_status: 'raw_lead',
+      source: 'b2c_bot',
+      surface: 'telegram_bot',
+      request_type: params.attribution.request_type || 'client_auto_selection',
+      destination_key: destinationKey,
+      cartie_request_id: requestKey,
+      bot_id: params.input.botId
+    }
+  }).catch(() => logger.warn('[Meta CAPI] B2C bot initial Lead stage send failed'));
+};
 
 export const createOrMergeLead = async (input: LeadCreateInput, botConfig?: any) => {
   const normalizedPhone = normalizePhone(input.phone || undefined);
@@ -314,6 +351,17 @@ export const createOrMergeLead = async (input: LeadCreateInput, botConfig?: any)
         requestPublicId: createdRequest.publicId || undefined,
         source: 'leadbot_request'
       }).catch((error) => logger.warn('[SalesDrive] request sync enqueue failed', error?.message || error));
+
+      trackInitialB2CBotLeadStage({
+        companyId,
+        input,
+        attribution: b2cAttribution,
+        lead: mergedLead,
+        request: createdRequest,
+        normalizedPhone,
+        normalizedName,
+        telegramUserId
+      });
     }
 
     return { lead: mergedLead, isDuplicate: true, request: createdRequest };
@@ -388,6 +436,17 @@ export const createOrMergeLead = async (input: LeadCreateInput, botConfig?: any)
       requestPublicId: createdRequest.publicId || undefined,
       source: 'leadbot_request'
     }).catch((error) => logger.warn('[SalesDrive] request sync enqueue failed', error?.message || error));
+
+    trackInitialB2CBotLeadStage({
+      companyId,
+      input,
+      attribution: b2cAttribution,
+      lead,
+      request: createdRequest,
+      normalizedPhone,
+      normalizedName,
+      telegramUserId
+    });
   }
 
   await emitPlatformEvent({
