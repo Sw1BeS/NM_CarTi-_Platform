@@ -9,9 +9,24 @@ import { companyContext } from '../../middleware/companyContext.js';
 import { prisma } from '../../services/prisma.js';
 import { isEnvFlagEnabled } from '../../services/featureFlags.js';
 import { errorResponse } from '../../utils/errorResponse.js';
+import { handleSalesDriveWebhook } from './salesdrive/salesdriveWebhook.service.js';
 
 const router = Router();
 const integrationService = new IntegrationService();
+
+router.post('/salesdrive/webhook', async (req: any, res) => {
+    try {
+        const result = await handleSalesDriveWebhook({
+            headers: req.headers,
+            query: req.query,
+            body: req.body,
+            companyId: req.companyId || null
+        });
+        res.status(result.statusCode || (result.ok ? 200 : 400)).json(result);
+    } catch (e: any) {
+        return errorResponse(res, 500, e.message || 'SalesDrive webhook error', 'SALESDRIVE_WEBHOOK');
+    }
+});
 
 // All routes require authentication
 router.use(authenticateToken);

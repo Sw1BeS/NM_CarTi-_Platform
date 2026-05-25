@@ -4,6 +4,8 @@ import { createAdminActionToken } from './telegramAdminActionToken.service.js';
 const DEFAULT_PUBLIC_BASE_URL = 'https://cartie2.umanoff-analytics.space';
 
 const toText = (value: unknown) => String(value || '').trim();
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value && typeof value === 'object' && !Array.isArray(value));
 
 const publicBaseUrl = () =>
   String(process.env.PUBLIC_BASE_URL || process.env.MINIAPP_URL || DEFAULT_PUBLIC_BASE_URL).replace(/\/+$/, '');
@@ -260,22 +262,36 @@ export const buildLeadAdminNotificationText = (params: {
   requestPresentationText?: string | null;
   fallbackTitle?: string | null;
   selectedCarsText?: string | null;
-  request?: { id?: string | null; publicId?: string | null } | null;
+  request?: { id?: string | null; publicId?: string | null; payload?: unknown } | null;
   source?: string | null;
   duplicate?: boolean;
 }) => {
   const username = toText(params.telegramUsername).replace(/^@+/, '');
   const tgUserId = toText(params.telegramUserId);
   const userLink = username ? `https://t.me/${username}` : (tgUserId ? `tg://user?id=${tgUserId}` : '—');
+  const requestPayload = isRecord(params.request?.payload) ? params.request.payload : {};
+  const externalCrm = isRecord(requestPayload.external_crm) ? requestPayload.external_crm : {};
+  const source = toText(params.source || requestPayload.source);
+  const direction = toText(requestPayload.direction).toUpperCase();
+  const destinationKey = toText(requestPayload.destination_key || requestPayload.destinationKey);
+  const isB2CBot = direction === 'B2C' || source === 'b2c_bot' || destinationKey === 'b2c_bot_sandbox';
+  const surface = toText(requestPayload.surface || requestPayload.surfaceMode);
+  const salesDriveOrderId = toText(requestPayload.salesdrive_order_id || requestPayload.salesdriveOrderId || externalCrm.salesdrive_order_id);
+  const salesDriveSyncStatus = toText(requestPayload.salesdrive_sync_status || externalCrm.salesdrive_sync_status);
   return [
     params.duplicate ? `${params.header} ♻️ Дублікат/оновлення` : params.header,
+    isB2CBot ? 'Sector: B2C' : null,
+    isB2CBot ? 'Source: B2C Bot' : null,
+    isB2CBot ? `Surface: ${surface === 'telegram_bot' || !surface ? 'Telegram Bot' : surface}` : null,
     `👤 ${params.displayName || 'Клієнт'}`,
     `username: ${username ? `@${username}` : '—'}`,
     `tgUserId: ${tgUserId || '—'}`,
     `🔗 ${userLink}`,
     params.phone ? `Контакт: ${params.phone}` : null,
     params.intentLabel ? `Тип: ${params.intentLabel}` : null,
-    params.source ? `Джерело: ${params.source}` : null,
+    !isB2CBot && params.source ? `Джерело: ${params.source}` : null,
+    salesDriveSyncStatus ? `SalesDrive: ${salesDriveSyncStatus}` : null,
+    salesDriveOrderId ? `SalesDrive ID: ${salesDriveOrderId}` : null,
     params.requestPresentationText
       ? `\n${params.requestPresentationText}`
       : (params.fallbackTitle ? `Авто/запит: ${params.fallbackTitle}` : null),

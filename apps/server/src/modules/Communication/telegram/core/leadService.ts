@@ -92,18 +92,92 @@ const normalizeLeadName = (input: LeadCreateInput) => {
   return raw || 'Client';
 };
 
+const isRecord = (value: unknown): value is Record<string, any> =>
+  Boolean(value && typeof value === 'object' && !Array.isArray(value));
+
+const readPayloadText = (payload: Record<string, any>, keys: string[]) => {
+  for (const key of keys) {
+    const value = payload[key];
+    if (value !== undefined && value !== null && String(value).trim()) return String(value).trim();
+  }
+  return undefined;
+};
+
+const buildB2CBotAttribution = (params: {
+  input: LeadCreateInput;
+  botTemplate?: string | null;
+  normalizedPhone?: string;
+  normalizedName: string;
+  telegramUserId?: string;
+}) => {
+  const payload = isRecord(params.input.payload) ? params.input.payload : {};
+  const tracking = isRecord(payload.tracking) ? payload.tracking : {};
+  const source = String(params.input.source || payload.source || '').trim().toLowerCase();
+  const direction = String(payload.direction || '').trim().toUpperCase();
+  const destinationKey = readPayloadText(payload, ['destination_key', 'destinationKey'])
+    || readPayloadText(tracking, ['destination_key', 'destinationKey']);
+  const isB2C = String(params.botTemplate || '').toUpperCase() === 'CLIENT_LEAD'
+    || direction === 'B2C'
+    || source === 'b2c_bot'
+    || destinationKey === 'b2c_bot_sandbox';
+
+  if (!isB2C) return null;
+
+  return {
+    direction: 'B2C',
+    source: 'b2c_bot',
+    surface: 'telegram_bot',
+    request_type: readPayloadText(payload, ['request_type', 'requestType']) || 'client_auto_selection',
+    destination_key: destinationKey || process.env.META_B2C_BOT_DESTINATION_KEY || 'b2c_bot_sandbox',
+    telegram_user_id: params.telegramUserId || undefined,
+    chat_id: params.input.chatId || undefined,
+    start_param: readPayloadText(payload, ['start_param', 'startParam'])
+      || readPayloadText(tracking, ['start_param', 'startParam']) || undefined,
+    campaign_token: readPayloadText(payload, ['campaign_token', 'campaignToken'])
+      || readPayloadText(tracking, ['campaign_token', 'campaignToken']) || undefined,
+    phone: params.normalizedPhone || undefined,
+    name: params.normalizedName,
+    created_at: readPayloadText(payload, ['created_at', 'createdAt']) || new Date().toISOString()
+  };
+};
+
+const withB2CRequestPayload = (
+  payload: Record<string, any> | null | undefined,
+  attribution: ReturnType<typeof buildB2CBotAttribution>,
+  requestPublicId?: string | null
+) => attribution
+  ? {
+      ...(payload || {}),
+      ...attribution,
+      cartie_request_id: requestPublicId || undefined
+    }
+  : payload;
+
 export const createOrMergeLead = async (input: LeadCreateInput, botConfig?: any) => {
   const normalizedPhone = normalizePhone(input.phone || undefined);
   const normalizedName = normalizeLeadName(input);
   const dedupDays = getDedupWindowDays(botConfig);
   const telegramUserId = resolveTelegramUserId(input);
+  const botRecord = await prisma.botConfig.findUnique({
+    where: { id: input.botId },
+    select: { companyId: true, template: true }
+  }).catch(() => null);
   const companyId = input.companyId
-    || (await prisma.botConfig.findUnique({ where: { id: input.botId }, select: { companyId: true } }))?.companyId
+    || botRecord?.companyId
     || null;
 
   if (!companyId) {
     throw new Error('companyId is required to create lead');
   }
+
+  const b2cAttribution = buildB2CBotAttribution({
+    input,
+    botTemplate: botRecord?.template || (botConfig as any)?.template,
+    normalizedPhone,
+    normalizedName,
+    telegramUserId
+  });
+  const leadSource = b2cAttribution?.source || input.source || undefined;
 
   const scope = { companyId };
   const identityCandidates = buildLeadIdentityCandidates({
@@ -134,7 +208,8 @@ export const createOrMergeLead = async (input: LeadCreateInput, botConfig?: any)
       telegramChatId: input.chatId || (dup.payload as any)?.telegramChatId,
       telegramUserId: telegramUserId || (dup.payload as any)?.telegramUserId,
       telegramUsername: input.telegramUsername || (dup.payload as any)?.telegramUsername,
-      telegramName: input.telegramName || (dup.payload as any)?.telegramName  // P0-1 FIX: Add missing telegramName
+      telegramName: input.telegramName || (dup.payload as any)?.telegramName,  // P0-1 FIX: Add missing telegramName
+      ...(b2cAttribution || {})
     };
 
     if (!nextPayload.name || isGenericName((nextPayload as any).name)) {
@@ -146,7 +221,7 @@ export const createOrMergeLead = async (input: LeadCreateInput, botConfig?: any)
         leadId: dup.id,
         type: 'DUPLICATE_MERGED',
         payload: {
-          source: input.source || 'TELEGRAM',
+          source: leadSource || 'TELEGRAM',
           botId: input.botId,
           chatId: input.chatId,
           userId: input.userId,
@@ -212,10 +287,12 @@ export const createOrMergeLead = async (input: LeadCreateInput, botConfig?: any)
         status: 'COLLECTING_VARIANTS',
         language: input.requestData?.language || undefined
       });
+      const publicId = generatePublicId();
+      reqInput.payload = withB2CRequestPayload(input.payload, b2cAttribution, publicId);
 
       createdRequest = await requestRepo.createRequest({
         ...reqInput,
-        publicId: generatePublicId(),
+        publicId,
         chatId: input.chatId || undefined,
         leadId: mergedLead.id,
         botId: input.botId,
@@ -224,7 +301,9 @@ export const createOrMergeLead = async (input: LeadCreateInput, botConfig?: any)
 
       await leadRepo.updatePayload(mergedLead.id, {
         ...(mergedLead.payload as any || {}),
-        linkedRequestId: createdRequest.publicId || createdRequest.id
+        ...(b2cAttribution || {}),
+        linkedRequestId: createdRequest.publicId || createdRequest.id,
+        cartie_request_id: createdRequest.publicId || createdRequest.id
       }).catch(() => null);
 
       await enqueueSalesDriveRequestSync({
@@ -247,11 +326,12 @@ export const createOrMergeLead = async (input: LeadCreateInput, botConfig?: any)
     request: input.request || undefined,
     userTgId: telegramUserId || undefined,
     status: LeadStatus.NEW,
-    source: input.source || undefined,
+    source: leadSource,
     botId: input.botId,
     leadCode: buildLeadCode(),
     payload: {
       ...(input.payload || {}),
+      ...(b2cAttribution || {}),
       name: normalizedName,
       leadType: input.leadType || undefined,
       phone: normalizedPhone || undefined,
@@ -281,10 +361,12 @@ export const createOrMergeLead = async (input: LeadCreateInput, botConfig?: any)
       status: 'COLLECTING_VARIANTS',
       language: input.requestData?.language || undefined
     });
+    const publicId = generatePublicId();
+    reqInput.payload = withB2CRequestPayload(input.payload, b2cAttribution, publicId);
 
     createdRequest = await requestRepo.createRequest({
       ...reqInput,
-      publicId: generatePublicId(),
+      publicId,
       chatId: input.chatId || undefined,
       leadId: lead.id,
       botId: input.botId,
@@ -293,7 +375,9 @@ export const createOrMergeLead = async (input: LeadCreateInput, botConfig?: any)
 
     await leadRepo.updatePayload(lead.id, {
       ...(lead.payload as any || {}),
-      linkedRequestId: createdRequest.publicId || createdRequest.id
+      ...(b2cAttribution || {}),
+      linkedRequestId: createdRequest.publicId || createdRequest.id,
+      cartie_request_id: createdRequest.publicId || createdRequest.id
     });
 
     await enqueueSalesDriveRequestSync({
@@ -348,7 +432,7 @@ export const createOrMergeLead = async (input: LeadCreateInput, botConfig?: any)
     currency: 'USD',
     customData: {
       botId: input.botId,
-      source: input.source || 'TELEGRAM',
+      source: leadSource || 'TELEGRAM',
       leadType: input.leadType || undefined
     }
   }).catch(logger.error);

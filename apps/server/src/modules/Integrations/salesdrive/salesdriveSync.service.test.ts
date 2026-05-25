@@ -1,12 +1,23 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { enqueueSalesDriveRequestSync, salesDriveOrderInputFromRequest } from './salesdriveSync.service.js';
+import { enqueueSalesDriveRequestSync, processSalesDriveRequestSyncQueue, salesDriveOrderInputFromRequest } from './salesdriveSync.service.js';
 vi.mock('../../../services/prisma.js', () => ({
   prisma: {
     integrationEventLog: {
       findUnique: vi.fn(),
+      findMany: vi.fn(),
       count: vi.fn(),
       create: vi.fn(),
       update: vi.fn()
+    },
+    b2bRequest: {
+      findUnique: vi.fn(),
+      update: vi.fn()
+    },
+    lead: {
+      update: vi.fn()
+    },
+    leadIdentity: {
+      upsert: vi.fn()
     }
   }
 }));
@@ -75,6 +86,44 @@ describe('SalesDrive Sync Service', () => {
       expect(result.utm?.source).toBe('fb');
     });
 
+    it('maps B2C bot requests with explicit sector source and request metadata in comment', () => {
+      const mockRequest = {
+        id: 'req_b2c',
+        publicId: 'RQ-B2C-9',
+        title: 'Підбір авто',
+        budgetMax: 25000,
+        requesterPartnerId: null,
+        lead: {
+          clientName: 'Client B2C',
+          phone: '+380635055252',
+          payload: {
+            source: 'b2c_bot'
+          }
+        },
+        payload: {
+          direction: 'B2C',
+          source: 'b2c_bot',
+          surface: 'telegram_bot',
+          request_type: 'client_auto_selection',
+          destination_key: 'b2c_bot_sandbox',
+          cartie_request_id: 'RQ-B2C-9',
+          tracking: {
+            utm_source: 'telegram'
+          }
+        }
+      };
+
+      const result = salesDriveOrderInputFromRequest(mockRequest);
+
+      expect(result.name).toBe('Client B2C');
+      expect(result.phone).toBe('+380635055252');
+      expect(result.comment).toContain('CarTié B2C');
+      expect(result.comment).toContain('source=b2c_bot');
+      expect(result.comment).toContain('request_type=client_auto_selection');
+      expect(result.comment).toContain('cartie_request_id=RQ-B2C-9');
+      expect(result.utm?.source).toBe('telegram');
+    });
+
     it('should fall back to LeadBot when source is not MiniApp and not B2B', () => {
       const mockRequest = {
         id: 'req_789',
@@ -137,6 +186,96 @@ describe('SalesDrive Sync Service', () => {
       const res2 = await enqueueSalesDriveRequestSync({ companyId, requestId }, config as any);
       expect(res2.queued).toBe(false);
       expect(res2.duplicate).toBe(true);
+    });
+  });
+
+  describe('processSalesDriveRequestSyncQueue', () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+    });
+
+    it('stores SalesDrive order id on the synced B2C request and lead payload after successful send', async () => {
+      const config = {
+        baseUrl: 'https://test.salesdrive.me',
+        apiKey: 'form-key',
+        orderCreatePath: '/handler/',
+        orderListPath: '/api/order/list/',
+        statusesPath: '/api/statuses/',
+        syncEnabled: true,
+        writeEnabled: true,
+        timeoutMs: 8000,
+        missing: []
+      };
+      vi.mocked(prisma.integrationEventLog.findMany).mockResolvedValueOnce([{
+        id: 'log_1',
+        companyId: 'company_1',
+        entityType: 'request',
+        entityId: 'req_b2c',
+        meta: {}
+      }] as any);
+      vi.mocked(prisma.b2bRequest.findUnique).mockResolvedValueOnce({
+        id: 'req_b2c',
+        publicId: 'RQ-B2C-9',
+        companyId: 'company_1',
+        leadId: 'lead_1',
+        title: 'Підбір авто',
+        requesterPartnerId: null,
+        payload: {
+          direction: 'B2C',
+          source: 'b2c_bot',
+          destination_key: 'b2c_bot_sandbox'
+        },
+        lead: {
+          id: 'lead_1',
+          clientName: 'Client B2C',
+          phone: '+380635055252',
+          payload: {
+            source: 'b2c_bot'
+          }
+        }
+      } as any);
+      vi.mocked(prisma.integrationEventLog.update).mockResolvedValue({ id: 'log_1' } as any);
+      vi.mocked(prisma.b2bRequest.update).mockResolvedValue({ id: 'req_b2c' } as any);
+      vi.mocked(prisma.lead.update).mockResolvedValue({ id: 'lead_1' } as any);
+      vi.mocked(prisma.leadIdentity.upsert).mockResolvedValue({ id: 'identity_1' } as any);
+      const fetcher = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({ data: { orderId: 37193, userId: 24 } })
+      });
+
+      const result = await processSalesDriveRequestSyncQueue({ companyId: 'company_1', requestId: 'req_b2c' }, config, fetcher);
+
+      expect(result).toMatchObject({ processed: 1, sent: 1, failed: 0 });
+      expect(prisma.b2bRequest.update).toHaveBeenCalledWith(expect.objectContaining({
+        where: { id: 'req_b2c' },
+        data: {
+          payload: expect.objectContaining({
+            source: 'b2c_bot',
+            salesdrive_order_id: '37193',
+            salesdrive_sync_status: 'sent'
+          })
+        }
+      }));
+      expect(prisma.lead.update).toHaveBeenCalledWith(expect.objectContaining({
+        where: { id: 'lead_1' },
+        data: {
+          payload: expect.objectContaining({
+            source: 'b2c_bot',
+            salesdrive_order_id: '37193',
+            salesdrive_sync_status: 'sent'
+          })
+        }
+      }));
+      expect(prisma.leadIdentity.upsert).toHaveBeenCalledWith(expect.objectContaining({
+        where: {
+          companyId_provider_externalId: {
+            companyId: 'company_1',
+            provider: 'SALESDRIVE',
+            externalId: '37193'
+          }
+        }
+      }));
     });
   });
 });

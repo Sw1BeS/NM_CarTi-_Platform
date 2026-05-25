@@ -177,4 +177,38 @@ describe('lead admin notification actions', () => {
     expect(buttons.some((button: any) => button.url === 'tg://user?id=1001')).toBe(true);
     expect(buttons.some((button: any) => String(button.text || '').includes('контакт'))).toBe(false);
   });
+
+  it('uses B2C client wording and SalesDrive state for B2C bot lead notifications', async () => {
+    const { buildLeadAdminNotificationText } = await import('./leadAdminNotification.js');
+
+    const text = buildLeadAdminNotificationText({
+      header: '🟢 [LEAD] Новий запит',
+      displayName: 'Client B2C',
+      telegramUsername: 'client_b2c',
+      telegramUserId: '1001',
+      phone: '+380635055252',
+      intentLabel: 'Підбір авто',
+      source: 'b2c_bot',
+      request: {
+        id: 'request_1',
+        publicId: 'RQ-B2C-9',
+        payload: {
+          direction: 'B2C',
+          source: 'b2c_bot',
+          surface: 'telegram_bot',
+          destination_key: 'b2c_bot_sandbox',
+          salesdrive_order_id: '37193',
+          salesdrive_sync_status: 'sent'
+        }
+      } as any
+    });
+
+    expect(text).toContain('Sector: B2C');
+    expect(text).toContain('Source: B2C Bot');
+    expect(text).toContain('Surface: Telegram Bot');
+    expect(text).toContain('SalesDrive: sent');
+    expect(text).toContain('SalesDrive ID: 37193');
+    expect(text).not.toContain('B2B');
+    expect(text).not.toContain('Partner');
+  });
 });

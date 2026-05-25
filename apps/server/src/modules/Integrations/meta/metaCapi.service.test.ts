@@ -164,4 +164,95 @@ describe('MetaCapiService', () => {
     expect(errorLog.message).not.toContain('+380671234567');
     expect(errorLog.message).not.toContain('CLIENT@EXAMPLE.COM');
   });
+
+  it('masks B2C bot access tokens without exposing the middle', async () => {
+    const { maskMetaAccessToken } = await import('./metaCapi.service.js');
+
+    expect(maskMetaAccessToken('EAAQcYqftYEoBRs18wHbeCJtfYCOHLE95EV74UsDmPd8vAFTrUUFtabAF0nOmS8ZCiqvfqvR3SsvXJjE5g8SoiBnEw2wPuZBLN4ZAU71p5xN7Y9p5TFTN0jswdxmkOhWqc6BnfxgHVBhE05uPxm5sRn0KpvZCeMEYR7xvyfYMyFnuXOqWnBXZBsJBIq6bAZBuQ6PQZDZD'))
+      .toBe('EA***ZDZD');
+  });
+
+  it('does not send B2C bot dataset production events when META_CAPI_ENABLED is disabled', async () => {
+    vi.stubEnv('META_CAPI_ENABLED', 'false');
+    vi.stubEnv('META_B2C_BOT_CAPI_ENABLED', 'true');
+    vi.stubEnv('META_B2C_BOT_DATASET_ID', '1152615213548168');
+    vi.stubEnv('META_B2C_BOT_DESTINATION_KEY', 'b2c_bot_sandbox');
+    vi.stubEnv('META_B2C_BOT_ACCESS_TOKEN', 'secret-b2c-token');
+    vi.stubEnv('META_B2C_BOT_TEST_EVENT_CODE', 'TEST46105');
+    const { MetaCapiService } = await import('./metaCapi.service.js');
+    const service = new MetaCapiService();
+
+    const result = await service.trackB2CBotDatasetEvent('company_1', 'Contact', {
+      entityType: 'salesdrive_status',
+      entityId: '37193',
+      eventId: 'salesdrive:37193:Contact:13:1760000000:b2c_bot_sandbox',
+      externalId: 'salesdrive:37193',
+      phone: '+380635055252'
+    });
+
+    expect(result).toMatchObject({
+      success: false,
+      skipped: true,
+      reason: 'META_CAPI_DISABLED'
+    });
+    expect(axiosPostMock).not.toHaveBeenCalled();
+  });
+
+  it('sends B2C bot dataset test events with destination key and no token in URL or logs', async () => {
+    vi.stubEnv('META_CAPI_ENABLED', 'true');
+    vi.stubEnv('META_B2C_BOT_CAPI_ENABLED', 'true');
+    vi.stubEnv('META_B2C_BOT_TEST_MODE', 'true');
+    vi.stubEnv('META_B2C_BOT_DATASET_ID', '1152615213548168');
+    vi.stubEnv('META_B2C_BOT_DESTINATION_KEY', 'b2c_bot_sandbox');
+    vi.stubEnv('META_B2C_BOT_ACCESS_TOKEN', 'secret-b2c-token');
+    vi.stubEnv('META_B2C_BOT_TEST_EVENT_CODE', 'TEST46105');
+    const { MetaCapiService } = await import('./metaCapi.service.js');
+    const service = new MetaCapiService();
+    const eventId = 'salesdrive:37193:Contact:13:1760000000:b2c_bot_sandbox';
+
+    const result = await service.trackB2CBotDatasetEvent('company_1', 'Contact', {
+      entityType: 'salesdrive_status',
+      entityId: '37193',
+      eventId,
+      externalId: 'salesdrive:37193',
+      phone: '+38 (063) 505-52-52',
+      actionSource: 'system_generated',
+      customData: {
+        status_id: '13',
+        destination_key: 'b2c_bot_sandbox'
+      }
+    });
+
+    expect(result).toMatchObject({ success: true, eventId, destinationKey: 'b2c_bot_sandbox' });
+    expect(axiosPostMock).toHaveBeenCalledTimes(1);
+    const [url, payload, init] = axiosPostMock.mock.calls[0];
+    expect(url).toBe('https://graph.facebook.com/v19.0/1152615213548168/events');
+    expect(url).not.toContain('secret-b2c-token');
+    expect(init.headers.Authorization).toBe('Bearer secret-b2c-token');
+    expect(payload.test_event_code).toBe('TEST46105');
+    expect(payload.data[0]).toMatchObject({
+      event_name: 'Contact',
+      event_id: eventId,
+      action_source: 'system_generated'
+    });
+    expect(payload.data[0].user_data).toMatchObject({
+      ph: [hash('380635055252')],
+      external_id: [hash('salesdrive:37193')]
+    });
+    expect(prismaMock.integrationEventLog.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        integration: 'META_B2C_BOT',
+        action: 'Contact',
+        status: 'SUCCESS',
+        idempotencyKey: eventId,
+        meta: expect.objectContaining({
+          destinationKey: 'b2c_bot_sandbox',
+          testEventCodeUsed: true,
+          token: undefined
+        })
+      })
+    }));
+    const logPayload = JSON.stringify(prismaMock.integrationEventLog.create.mock.calls[0][0].data);
+    expect(logPayload).not.toContain('secret-b2c-token');
+  });
 });

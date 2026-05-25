@@ -92,6 +92,64 @@ beforeEach(() => {
 });
 
 describe('createOrMergeLead', () => {
+  it('marks CLIENT_LEAD bot submissions as B2C bot attribution and carries it to the request payload', async () => {
+    botConfigFindUniqueMock.mockResolvedValue({
+      id: 'bot_b2c',
+      companyId: 'comp_1',
+      template: 'CLIENT_LEAD'
+    } as any);
+    createLeadMock.mockResolvedValueOnce({ id: 'lead_b2c', payload: {}, clientName: 'B2C Client' } as any);
+    createRequestMock.mockResolvedValueOnce({ id: 'request_b2c', publicId: 'RQ-B2C-1', payload: {} } as any);
+
+    await createOrMergeLead({
+      botId: 'bot_b2c',
+      companyId: 'comp_1',
+      chatId: '1001',
+      userId: '1001',
+      name: 'B2C Client',
+      phone: '063 505 52 52',
+      request: 'Підбір авто',
+      source: 'TELEGRAM',
+      payload: {
+        start_param: 'spring_campaign',
+        campaign_token: 'cmp_123'
+      },
+      leadType: 'BUY',
+      createRequest: true,
+      requestData: {
+        title: 'Підбір авто',
+        language: 'UK'
+      }
+    });
+
+    expect(createLeadMock).toHaveBeenCalledWith(expect.objectContaining({
+      source: 'b2c_bot',
+      payload: expect.objectContaining({
+        direction: 'B2C',
+        source: 'b2c_bot',
+        surface: 'telegram_bot',
+        request_type: 'client_auto_selection',
+        destination_key: 'b2c_bot_sandbox',
+        telegram_user_id: '1001',
+        chat_id: '1001',
+        start_param: 'spring_campaign',
+        campaign_token: 'cmp_123',
+        phone: '+380635055252',
+        name: 'B2C Client'
+      })
+    }));
+    expect(createRequestMock).toHaveBeenCalledWith(expect.objectContaining({
+      payload: expect.objectContaining({
+        direction: 'B2C',
+        source: 'b2c_bot',
+        surface: 'telegram_bot',
+        request_type: 'client_auto_selection',
+        destination_key: 'b2c_bot_sandbox',
+        cartie_request_id: expect.any(String)
+      })
+    }));
+  });
+
   it('creates lead with telegram identity populated', async () => {
     const createdLead = { id: 'lead_new', payload: {}, clientName: '' };
     findDuplicateMock.mockResolvedValueOnce(null);

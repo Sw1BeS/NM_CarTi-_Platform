@@ -53,6 +53,11 @@ describe('MiniApp entry intent parser', () => {
     });
   });
 
+  it('treats bare direct /p/app/:slug browser launches as read-only home previews', () => {
+    expect(isMiniAppReadOnlyLaunch(new URLSearchParams())).toBe(true);
+    expect(parseMiniAppEntryIntent(new URLSearchParams())).toEqual({});
+  });
+
   it('treats explicit admin preview links as read-only even when they only carry preview mode', () => {
     expect(isMiniAppReadOnlyLaunch(new URLSearchParams('preview=admin_chat'))).toBe(true);
     expect(isMiniAppReadOnlyLaunch(new URLSearchParams('entry=request&type=BUY&preview=admin_chat'))).toBe(false);

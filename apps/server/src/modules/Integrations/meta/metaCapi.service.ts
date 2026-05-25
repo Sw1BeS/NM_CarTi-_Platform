@@ -38,6 +38,15 @@ export type MetaCapiTrackInput = {
 export const sha256 = (value: string) =>
   crypto.createHash('sha256').update(value.trim().toLowerCase()).digest('hex');
 
+export const META_B2C_BOT_INTEGRATION = 'META_B2C_BOT';
+
+export const maskMetaAccessToken = (value?: string | null) => {
+  const token = toText(value);
+  if (!token) return '';
+  if (token.length <= 8) return `${token.slice(0, 2)}***`;
+  return `${token.slice(0, 2)}***${token.slice(-4)}`;
+};
+
 const toText = (value: unknown) => String(value || '').trim();
 
 const normalizeMetaEmail = (value?: string | null) => {
@@ -65,6 +74,27 @@ const redactSensitiveText = (value: unknown, accessToken?: string | null) => {
     .replace(/(?:\+?\d[\d\s()\-]{6,}\d)/g, '[redacted-phone]');
 };
 
+const readB2CBotDatasetConfig = () => {
+  const datasetId = toText(process.env.META_B2C_BOT_DATASET_ID);
+  const destinationKey = toText(process.env.META_B2C_BOT_DESTINATION_KEY) || 'b2c_bot_sandbox';
+  const accessToken = toText(process.env.META_B2C_BOT_ACCESS_TOKEN);
+  const testEventCode = toText(process.env.META_B2C_BOT_TEST_EVENT_CODE);
+  const missing = [
+    datasetId ? '' : 'META_B2C_BOT_DATASET_ID',
+    accessToken ? '' : 'META_B2C_BOT_ACCESS_TOKEN'
+  ].filter(Boolean);
+
+  return {
+    datasetId,
+    destinationKey,
+    accessToken,
+    testEventCode,
+    testMode: isEnvFlagEnabled('META_B2C_BOT_TEST_MODE', false),
+    capiEnabled: isEnvFlagEnabled('META_B2C_BOT_CAPI_ENABLED', false),
+    missing
+  };
+};
+
 export const buildMetaEventId = (companyId: string, eventName: string, input: MetaCapiTrackInput = {}) => {
   const explicit = toText(input.eventId || input.event_id);
   if (explicit.startsWith('meta:')) return explicit;
@@ -75,6 +105,143 @@ export const buildMetaEventId = (companyId: string, eventName: string, input: Me
 };
 
 export class MetaCapiService {
+  async trackB2CBotDatasetEvent(companyId: string, eventName: string, input: MetaCapiTrackInput = {}) {
+    if (!isEnvFlagEnabled('META_CAPI_ENABLED', false)) {
+      return { success: false, skipped: true, reason: 'META_CAPI_DISABLED' };
+    }
+
+    const config = readB2CBotDatasetConfig();
+    if (!config.capiEnabled) {
+      return {
+        success: false,
+        skipped: true,
+        reason: 'META_B2C_BOT_CAPI_DISABLED',
+        destinationKey: config.destinationKey
+      };
+    }
+    if (config.missing.length) {
+      return {
+        success: false,
+        skipped: true,
+        reason: 'META_B2C_BOT_CONFIG_MISSING',
+        missing: config.missing,
+        destinationKey: config.destinationKey
+      };
+    }
+
+    const eventId = toText(input.eventId || input.event_id)
+      || buildMetaEventId(companyId, eventName, {
+        ...input,
+        stage: toText(input.stage) || config.destinationKey
+      });
+    const idempotencyKey = eventId;
+    const entityType = toText(input.entityType) || 'meta_b2c_bot_event';
+    const entityId = toText(input.entityId) || eventId;
+    const existingLog = await prisma.integrationEventLog.findUnique({
+      where: { idempotencyKey }
+    }).catch(() => null);
+    if (existingLog?.status === 'SUCCESS') {
+      return { success: true, eventId, duplicate: true, destinationKey: config.destinationKey };
+    }
+
+    const userData = {
+      ...(normalizeMetaArrayHash(input.phone, normalizeMetaPhone) ? { ph: normalizeMetaArrayHash(input.phone, normalizeMetaPhone) } : {}),
+      ...(normalizeMetaArrayHash(input.email, normalizeMetaEmail) ? { em: normalizeMetaArrayHash(input.email, normalizeMetaEmail) } : {}),
+      ...(normalizeMetaArrayHash(input.externalId || input.external_id) ? { external_id: normalizeMetaArrayHash(input.externalId || input.external_id) } : {}),
+      ...(input.fbp ? { fbp: String(input.fbp) } : {}),
+      ...(input.fbc ? { fbc: String(input.fbc) } : {}),
+      ...(input.ip || input.clientIpAddress ? { client_ip_address: String(input.ip || input.clientIpAddress) } : {}),
+      ...(input.userAgent || input.clientUserAgent ? { client_user_agent: String(input.userAgent || input.clientUserAgent) } : {})
+    };
+
+    const customData = {
+      ...(input.customData && typeof input.customData === 'object' ? input.customData : {}),
+      destination_key: config.destinationKey,
+      ...(input.value !== undefined && input.value !== null ? { value: input.value, currency: input.currency || 'USD' } : {}),
+      ...(Array.isArray(input.contentIds) ? { content_ids: input.contentIds } : {}),
+      ...(input.contentName ? { content_name: input.contentName } : {}),
+      ...(input.contentCategory ? { content_category: input.contentCategory } : {})
+    };
+
+    const payload = {
+      data: [{
+        event_name: eventName,
+        event_id: eventId,
+        event_time: Math.floor(Date.now() / 1000),
+        user_data: userData,
+        action_source: input.actionSource || input.action_source || 'system_generated',
+        ...(input.eventSourceUrl || input.event_source_url ? { event_source_url: String(input.eventSourceUrl || input.event_source_url) } : {}),
+        ...(Object.keys(customData).length ? { custom_data: customData } : {})
+      }],
+      ...(config.testMode && config.testEventCode ? { test_event_code: config.testEventCode } : {})
+    };
+
+    try {
+      await axios.post(
+        `https://graph.facebook.com/v19.0/${config.datasetId}/events`,
+        payload,
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${config.accessToken}`
+          }
+        }
+      );
+
+      await prisma.integrationEventLog.create({
+        data: {
+          companyId,
+          integration: META_B2C_BOT_INTEGRATION,
+          action: eventName,
+          status: 'SUCCESS',
+          entityType,
+          entityId,
+          message: `Meta B2C bot event ${eventName} sent`,
+          idempotencyKey,
+          meta: {
+            eventId,
+            destinationKey: config.destinationKey,
+            testEventCodeUsed: Boolean(config.testMode && config.testEventCode),
+            token: undefined,
+            tokenMasked: maskMetaAccessToken(config.accessToken),
+            hasPhone: Boolean(input.phone),
+            hasEmail: Boolean(input.email),
+            hasExternalId: Boolean(input.externalId || input.external_id),
+            hasFbp: Boolean(input.fbp),
+            hasFbc: Boolean(input.fbc)
+          }
+        }
+      }).catch(() => null);
+
+      logger.info(`[Meta CAPI] B2C bot event sent: ${eventName}`);
+      return { success: true, eventId, destinationKey: config.destinationKey };
+    } catch (error: any) {
+      const rawError = error?.response?.data?.error?.message || error?.message || 'Meta B2C bot CAPI request failed';
+      const message = redactSensitiveText(rawError, config.accessToken);
+      await prisma.integrationEventLog.create({
+        data: {
+          companyId,
+          integration: META_B2C_BOT_INTEGRATION,
+          action: eventName,
+          status: 'ERROR',
+          entityType,
+          entityId,
+          message,
+          idempotencyKey,
+          meta: {
+            eventId,
+            destinationKey: config.destinationKey,
+            testEventCodeUsed: Boolean(config.testMode && config.testEventCode),
+            token: undefined,
+            tokenMasked: maskMetaAccessToken(config.accessToken)
+          }
+        }
+      }).catch(() => null);
+      logger.error('[Meta CAPI] B2C bot error:', message);
+      return { success: false, eventId, destinationKey: config.destinationKey, error: message };
+    }
+  }
+
   async trackEvent(companyId: string, eventName: string, input: MetaCapiTrackInput = {}) {
     if (!isEnvFlagEnabled('META_CAPI_ENABLED', false)) {
       return { success: false, skipped: true, reason: 'META_CAPI_DISABLED' };

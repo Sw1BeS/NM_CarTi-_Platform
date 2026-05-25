@@ -44,7 +44,18 @@ const envSchema = z.object({
     META_ACCESS_TOKEN: z.string().optional(),
     META_CAPI_ACCESS_TOKEN: z.string().optional(),
     META_TEST_EVENT_CODE: z.string().optional(),
-    META_CAPI_ENABLED: z.string().optional()
+    META_CAPI_ENABLED: z.string().optional(),
+    META_B2C_BOT_DATASET_ID: z.string().optional(),
+    META_B2C_BOT_DESTINATION_KEY: z.string().optional(),
+    META_B2C_BOT_ACCESS_TOKEN: z.string().optional(),
+    META_B2C_BOT_TEST_EVENT_CODE: z.string().optional(),
+    META_B2C_BOT_CAPI_ENABLED: z.string().optional(),
+    META_B2C_BOT_PURCHASE_ENABLED: z.string().optional(),
+    META_B2C_BOT_TEST_MODE: z.string().optional(),
+    SALESDRIVE_WEBHOOK_SECRET: z.string().optional(),
+    SALESDRIVE_WEBHOOK_TOKEN: z.string().optional(),
+    SALESDRIVE_SECRET: z.string().optional(),
+    INTEGRATION_WEBHOOK_SECRET: z.string().optional()
 });
 
 export interface ValidatedEnv {
@@ -79,6 +90,17 @@ export interface ValidatedEnv {
     META_CAPI_ACCESS_TOKEN?: string;
     META_TEST_EVENT_CODE?: string;
     META_CAPI_ENABLED?: string;
+    META_B2C_BOT_DATASET_ID?: string;
+    META_B2C_BOT_DESTINATION_KEY?: string;
+    META_B2C_BOT_ACCESS_TOKEN?: string;
+    META_B2C_BOT_TEST_EVENT_CODE?: string;
+    META_B2C_BOT_CAPI_ENABLED?: string;
+    META_B2C_BOT_PURCHASE_ENABLED?: string;
+    META_B2C_BOT_TEST_MODE?: string;
+    SALESDRIVE_WEBHOOK_SECRET?: string;
+    SALESDRIVE_WEBHOOK_TOKEN?: string;
+    SALESDRIVE_SECRET?: string;
+    INTEGRATION_WEBHOOK_SECRET?: string;
 }
 
 export const validateEnv = (): ValidatedEnv => {
