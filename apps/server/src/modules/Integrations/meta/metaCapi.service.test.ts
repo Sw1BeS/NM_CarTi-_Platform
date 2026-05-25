@@ -255,4 +255,31 @@ describe('MetaCapiService', () => {
     const logPayload = JSON.stringify(prismaMock.integrationEventLog.create.mock.calls[0][0].data);
     expect(logPayload).not.toContain('secret-b2c-token');
   });
+
+  it('stores B2C bot dataset delivery logs without fake company id when company context is unavailable', async () => {
+    vi.stubEnv('META_CAPI_ENABLED', 'true');
+    vi.stubEnv('META_B2C_BOT_CAPI_ENABLED', 'true');
+    vi.stubEnv('META_B2C_BOT_TEST_MODE', 'true');
+    vi.stubEnv('META_B2C_BOT_DATASET_ID', '1152615213548168');
+    vi.stubEnv('META_B2C_BOT_DESTINATION_KEY', 'b2c_bot_sandbox');
+    vi.stubEnv('META_B2C_BOT_ACCESS_TOKEN', 'secret-b2c-token');
+    vi.stubEnv('META_B2C_BOT_TEST_EVENT_CODE', 'TEST46105');
+    const { MetaCapiService } = await import('./metaCapi.service.js');
+    const eventId = 'salesdrive:test:Contact:13:1779727000:b2c_bot_sandbox';
+
+    await new MetaCapiService().trackB2CBotDatasetEvent(null, 'Contact', {
+      entityType: 'salesdrive_status',
+      entityId: 'test',
+      eventId
+    });
+
+    expect(prismaMock.integrationEventLog.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        companyId: null,
+        integration: 'META_B2C_BOT',
+        status: 'SUCCESS',
+        idempotencyKey: eventId
+      })
+    }));
+  });
 });

@@ -176,6 +176,28 @@ describe('SalesDrive inbound webhook service', () => {
     );
   });
 
+  it('does not invent a fake company id for B2C comment-only connectivity webhooks', async () => {
+    const { handleSalesDriveWebhook } = await import('./salesdriveWebhook.service.js');
+
+    await handleSalesDriveWebhook({
+      headers: { 'x-salesdrive-webhook-secret': 'webhook-secret' },
+      query: {},
+      body: {
+        order_id: 'connectivity-test',
+        status_id: 13,
+        status_name: '📞 Контакт встановлено',
+        updated_at: '2026-05-25T10:00:00Z',
+        comment: 'CarTié B2C | source=b2c_bot | request_type=client_auto_selection'
+      }
+    });
+
+    expect(trackB2CBotDatasetEventMock).toHaveBeenCalledWith(
+      null,
+      'Contact',
+      expect.objectContaining({ entityId: 'connectivity-test' })
+    );
+  });
+
   it('does not send candidate QualifiedLead statuses until confirmed', async () => {
     const { handleSalesDriveWebhook } = await import('./salesdriveWebhook.service.js');
 

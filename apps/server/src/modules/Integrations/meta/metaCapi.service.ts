@@ -105,7 +105,7 @@ export const buildMetaEventId = (companyId: string, eventName: string, input: Me
 };
 
 export class MetaCapiService {
-  async trackB2CBotDatasetEvent(companyId: string, eventName: string, input: MetaCapiTrackInput = {}) {
+  async trackB2CBotDatasetEvent(companyId: string | null | undefined, eventName: string, input: MetaCapiTrackInput = {}) {
     if (!isEnvFlagEnabled('META_CAPI_ENABLED', false)) {
       return { success: false, skipped: true, reason: 'META_CAPI_DISABLED' };
     }
@@ -130,7 +130,7 @@ export class MetaCapiService {
     }
 
     const eventId = toText(input.eventId || input.event_id)
-      || buildMetaEventId(companyId, eventName, {
+      || buildMetaEventId(companyId || 'global', eventName, {
         ...input,
         stage: toText(input.stage) || config.destinationKey
       });

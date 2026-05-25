@@ -320,7 +320,7 @@ export const handleSalesDriveWebhook = async (request: WebhookRequestLike) => {
     return { ok: true, sent: false, duplicate: true, eventId };
   }
 
-  const metaResult = await new MetaCapiService().trackB2CBotDatasetEvent(resolvedCompanyId || 'default', decision.eventName, {
+  const metaResult = await new MetaCapiService().trackB2CBotDatasetEvent(resolvedCompanyId || null, decision.eventName, {
     entityType: 'salesdrive_status',
     entityId: parsed.orderId,
     eventId,
