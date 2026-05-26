@@ -1,8 +1,8 @@
 # Cartie Code Map
 
-Generated: 2026-05-26T15:50:52.636Z
+Generated: 2026-05-26T16:09:01.043Z
 Root: `/srv/cartie`
-Git: `360d414`
+Git: `bd69ae0`
 
 This directory is the current machine-generated map of the Cartie workspace.
 It is intentionally factual and path-oriented: use it to decide what is active, what is runtime state, and what should stay out of cleanup scope.

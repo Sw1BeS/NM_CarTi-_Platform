@@ -1,8 +1,8 @@
 # Directory Map
 
-Generated: 2026-05-26T15:50:52.636Z
+Generated: 2026-05-26T16:09:01.043Z
 Root: `/srv/cartie`
-Git: `360d414`
+Git: `bd69ae0`
 
 ## `/srv` resources
 
@@ -81,8 +81,8 @@ Git: `360d414`
 
 | Top | Files |
 | --- | --- |
-| `apps` | 582 |
-| `docs` | 273 |
+| `apps` | 583 |
+| `docs` | 274 |
 | `.agent` | 206 |
 | `infra` | 15 |
 | `scripts` | 11 |

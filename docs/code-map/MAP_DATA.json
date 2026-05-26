@@ -1,13 +1,13 @@
 {
-  "generatedAt": "2026-05-26T15:50:52.636Z",
+  "generatedAt": "2026-05-26T16:09:01.043Z",
   "root": "/srv/cartie",
   "srvRoot": "/srv",
   "git": {
-    "head": "360d414",
-    "status": "## main...origin/main\n M apps/server/src/modules/Integrations/integration.routes.metaDebug.test.ts\n M apps/server/src/modules/Integrations/integration.routes.ts\n M apps/server/src/services/requestContract.service.test.ts\n M apps/server/src/services/requestContract.service.ts\n?? \"NERD-METHOD_\\320\\241arTie_SalesDrive_Meta_Roadmap_.pdf\"\n?? docs/code-map/\n?? docs/project-knowledge/\n?? scripts/inspect/"
+    "head": "bd69ae0",
+    "status": "## main...origin/main\n M apps/server/src/index.ts\n M apps/server/src/modules/Integrations/mtproto/mtproto.lifecycle.ts\n M apps/server/src/modules/Integrations/mtproto/mtproto.service.ts\n?? \"NERD-METHOD_\\320\\241arTie_SalesDrive_Meta_Roadmap_.pdf\"\n?? apps/server/src/modules/Integrations/mtproto/mtproto.lifecycle.test.ts"
   },
   "counts": {
-    "activeFiles": 1133,
+    "activeFiles": 1135,
     "docs": 306,
     "serverRouteFiles": 94,
     "webRoutes": 30,
@@ -117,7 +117,7 @@
       "size": "29M",
       "classification": "git_metadata",
       "note": "Repository metadata; never clean manually.",
-      "mtime": "2026-05-26T15:44:20.485Z"
+      "mtime": "2026-05-26T16:05:02.799Z"
     },
     {
       "path": ".github",
@@ -520,11 +520,11 @@
   "fileCountsByTop": [
     {
       "path": "apps",
-      "files": 582
+      "files": 583
     },
     {
       "path": "docs",
-      "files": 273
+      "files": 274
     },
     {
       "path": ".agent",
@@ -4532,7 +4532,7 @@
     }
   },
   "runtime": {
-    "composePs": "NAME           IMAGE                COMMAND                  SERVICE   CREATED         STATUS                   PORTS\ninfra2-api-1   infra2-api           \"docker-entrypoint.s…\"   api       7 minutes ago   Up 7 minutes (healthy)   127.0.0.1:3002->3001/tcp\ninfra2-db-1    postgres:15-alpine   \"docker-entrypoint.s…\"   db        2 weeks ago     Up 2 weeks (healthy)     127.0.0.1:5433->5432/tcp\ninfra2-web-1   infra2-web           \"caddy run --config …\"   web       21 hours ago    Up 21 hours (healthy)    80/tcp, 443/tcp, 2019/tcp, 443/udp, 127.0.0.1:8082->8080/tcp",
+    "composePs": "NAME           IMAGE                COMMAND                  SERVICE   CREATED          STATUS                    PORTS\ninfra2-api-1   infra2-api           \"docker-entrypoint.s…\"   api       13 minutes ago   Up 13 minutes (healthy)   127.0.0.1:3002->3001/tcp\ninfra2-db-1    postgres:15-alpine   \"docker-entrypoint.s…\"   db        2 weeks ago      Up 2 weeks (healthy)      127.0.0.1:5433->5432/tcp\ninfra2-web-1   infra2-web           \"caddy run --config …\"   web       22 hours ago     Up 22 hours (healthy)     80/tcp, 443/tcp, 2019/tcp, 443/udp, 127.0.0.1:8082->8080/tcp",
     "failedUnits": "UNIT LOAD ACTIVE SUB DESCRIPTION\n\n0 loaded units listed.",
     "nginxSites": [
       {

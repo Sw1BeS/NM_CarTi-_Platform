@@ -135,6 +135,14 @@ export class MTProtoService {
         });
     }
 
+    static async forgetClient(connectorId: string) {
+        const client = this.clients.get(connectorId);
+        if (client) {
+            await client.disconnect().catch(() => undefined);
+            this.clients.delete(connectorId);
+        }
+    }
+
     /**
      * Discovery Logic
      */

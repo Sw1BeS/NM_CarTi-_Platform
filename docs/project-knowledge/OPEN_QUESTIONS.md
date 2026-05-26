@@ -1,8 +1,8 @@
 # Open Questions
 
-Generated: 2026-05-26T15:50:52.636Z
+Generated: 2026-05-26T16:09:01.043Z
 Root: `/srv/cartie`
-Git: `360d414`
+Git: `bd69ae0`
 
 | ID | Area | Question |
 | --- | --- | --- |

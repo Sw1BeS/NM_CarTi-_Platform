@@ -176,11 +176,11 @@ const startServer = async () => {
     // Start Stage 2 Scheduler (Telegram Sync)
     startScheduler();
 
-    // Start MTProto Live Sync
-    mtprotoWorker.startLiveSync();
-
     // Restore persistent MTProto sessions
     await MTProtoLifeCycle.initAll();
+
+    // Start MTProto Live Sync after restore validation so revoked sessions are skipped.
+    mtprotoWorker.startLiveSync();
 
     const server = app.listen(PORT, () => {
       logger.info(`Server running on http://localhost:${PORT}`);

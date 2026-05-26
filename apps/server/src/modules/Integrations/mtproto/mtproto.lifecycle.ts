@@ -2,6 +2,45 @@ import { prisma } from '../../../services/prisma.js';
 import { MTProtoService } from './mtproto.service.js';
 import { logger } from '../../../utils/logger.js';
 
+const MTPROTO_AUTH_REVOKED_MARKERS = [
+    'SESSION_REVOKED',
+    'SESSION_EXPIRED',
+    'AUTH_KEY_UNREGISTERED',
+    'AUTH_KEY_INVALID',
+    'USER_DEACTIVATED'
+];
+
+const errorMessage = (error: unknown) => error instanceof Error
+    ? error.message
+    : String(error || 'MTProto restore failed');
+
+const isAuthRevokedError = (message: string) =>
+    MTPROTO_AUTH_REVOKED_MARKERS.some((marker) => message.toUpperCase().includes(marker));
+
+const markConnectorRestoreFailure = async (connectorId: string, message: string) => {
+    if (isAuthRevokedError(message)) {
+        await MTProtoService.forgetClient(connectorId);
+        await prisma.mTProtoConnector.update({
+            where: { id: connectorId },
+            data: {
+                status: 'ERROR',
+                sessionString: null,
+                lastError: message,
+                lastHealthCheckAt: new Date()
+            }
+        }).catch(() => null);
+        return;
+    }
+
+    await prisma.mTProtoConnector.update({
+        where: { id: connectorId },
+        data: {
+            lastError: message,
+            lastHealthCheckAt: new Date()
+        }
+    }).catch(() => null);
+};
+
 export class MTProtoLifeCycle {
     /**
      * Initializes all active MTProto sessions on server startup.
@@ -36,10 +75,11 @@ export class MTProtoLifeCycle {
                         // but getClient() ensures the client is in the Map.
                     } else {
                         logger.warn(`⚠️ Session invalid for ${connector.id}`);
-                        // Optionally update status to ERROR?
                     }
                 } catch (err: any) {
-                    logger.error(`❌ Failed to restore session ${connector.id}:`, err.message);
+                    const message = errorMessage(err);
+                    logger.error(`❌ Failed to restore session ${connector.id}:`, message);
+                    await markConnectorRestoreFailure(connector.id, message);
                 }
             }
             logger.info('✅ MTProtoLifeCycle: Initialization complete.');

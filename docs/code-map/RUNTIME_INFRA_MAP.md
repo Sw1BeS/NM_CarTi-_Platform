@@ -1,8 +1,8 @@
 # Runtime Infra Map
 
-Generated: 2026-05-26T15:50:52.636Z
+Generated: 2026-05-26T16:09:01.043Z
 Root: `/srv/cartie`
-Git: `360d414`
+Git: `bd69ae0`
 
 ## Runtime shape
 
@@ -32,10 +32,10 @@ Git: `360d414`
 ## Current compose ps snapshot
 
 ```text
-NAME           IMAGE                COMMAND                  SERVICE   CREATED         STATUS                   PORTS
-infra2-api-1   infra2-api           "docker-entrypoint.s…"   api       7 minutes ago   Up 7 minutes (healthy)   127.0.0.1:3002->3001/tcp
-infra2-db-1    postgres:15-alpine   "docker-entrypoint.s…"   db        2 weeks ago     Up 2 weeks (healthy)     127.0.0.1:5433->5432/tcp
-infra2-web-1   infra2-web           "caddy run --config …"   web       21 hours ago    Up 21 hours (healthy)    80/tcp, 443/tcp, 2019/tcp, 443/udp, 127.0.0.1:8082->8080/tcp
+NAME           IMAGE                COMMAND                  SERVICE   CREATED          STATUS                    PORTS
+infra2-api-1   infra2-api           "docker-entrypoint.s…"   api       13 minutes ago   Up 13 minutes (healthy)   127.0.0.1:3002->3001/tcp
+infra2-db-1    postgres:15-alpine   "docker-entrypoint.s…"   db        2 weeks ago      Up 2 weeks (healthy)      127.0.0.1:5433->5432/tcp
+infra2-web-1   infra2-web           "caddy run --config …"   web       22 hours ago     Up 22 hours (healthy)     80/tcp, 443/tcp, 2019/tcp, 443/udp, 127.0.0.1:8082->8080/tcp
 ```
 
 ## Systemd failed units snapshot
