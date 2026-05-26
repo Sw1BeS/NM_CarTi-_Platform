@@ -13,6 +13,7 @@ import { handleSalesDriveWebhook } from './salesdrive/salesdriveWebhook.service.
 
 const router = Router();
 const integrationService = new IntegrationService();
+const META_TRACKING_BOUND_ACTION = 'miniapp.tracking_bound';
 
 router.post('/salesdrive/webhook', async (req: any, res) => {
     try {
@@ -97,6 +98,11 @@ const safeMetaDebugPayload = (meta: unknown) => {
     const record = meta && typeof meta === 'object' && !Array.isArray(meta) ? meta as Record<string, unknown> : {};
     return {
         ...(typeof record.eventId === 'string' ? { eventId: record.eventId } : {}),
+        ...(typeof record.trackingEventId === 'string' ? { trackingEventId: record.trackingEventId } : {}),
+        ...(typeof record.requestId === 'string' ? { requestId: record.requestId } : {}),
+        ...(typeof record.requestPublicId === 'string' ? { requestPublicId: record.requestPublicId } : {}),
+        ...(typeof record.leadId === 'string' ? { leadId: record.leadId } : {}),
+        ...(typeof record.submitId === 'string' ? { submitId: record.submitId } : {}),
         ...(typeof record.hasPhone === 'boolean' ? { hasPhone: record.hasPhone } : {}),
         ...(typeof record.hasEmail === 'boolean' ? { hasEmail: record.hasEmail } : {}),
         ...(typeof record.hasExternalId === 'boolean' ? { hasExternalId: record.hasExternalId } : {}),
@@ -129,9 +135,13 @@ router.get('/meta/debug', requireRole(['OWNER', 'ADMIN', 'MANAGER', 'OPERATOR'])
         if (!companyId) return errorResponse(res, 400, 'Company context required', 'META_DEBUG');
 
         const where = { companyId, integration: 'META_PIXEL' };
-        const [lastSent, lastError, byStatusRows, byActionRows] = await Promise.all([
+        const [lastSent, lastBinding, lastError, byStatusRows, byActionRows, byEntityTypeRows] = await Promise.all([
             prisma.integrationEventLog.findFirst({
-                where: { ...where, status: 'SUCCESS' },
+                where: { ...where, status: 'SUCCESS', action: { not: META_TRACKING_BOUND_ACTION } },
+                orderBy: { createdAt: 'desc' }
+            }),
+            prisma.integrationEventLog.findFirst({
+                where: { ...where, status: 'SUCCESS', action: META_TRACKING_BOUND_ACTION },
                 orderBy: { createdAt: 'desc' }
             }),
             prisma.integrationEventLog.findFirst({
@@ -147,17 +157,32 @@ router.get('/meta/debug', requireRole(['OWNER', 'ADMIN', 'MANAGER', 'OPERATOR'])
                 by: ['action'],
                 where,
                 _count: { _all: true }
+            }),
+            prisma.integrationEventLog.groupBy({
+                by: ['entityType'],
+                where,
+                _count: { _all: true }
             })
         ]);
+        const byAction = toCountMap(byActionRows as any, 'action');
+        const byEntityType = toCountMap(byEntityTypeRows as any, 'entityType');
 
         res.json({
             integration: 'META_PIXEL',
             capiEnabled: isEnvFlagEnabled('META_CAPI_ENABLED', false),
             counts: {
                 byStatus: toCountMap(byStatusRows as any, 'status'),
-                byAction: toCountMap(byActionRows as any, 'action')
+                byAction
+            },
+            binding: {
+                byEntityType,
+                requestBound: byEntityType.request || 0,
+                leadBound: byEntityType.lead || 0,
+                miniappEventUnbound: byEntityType.miniapp_event || 0,
+                trackingBound: byAction[META_TRACKING_BOUND_ACTION] || 0
             },
             lastSent: safeMetaDebugLog(lastSent),
+            lastBinding: safeMetaDebugLog(lastBinding),
             lastError: safeMetaDebugLog(lastError),
             dedup: {
                 eventIdField: 'event_id',

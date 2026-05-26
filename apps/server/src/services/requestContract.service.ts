@@ -127,6 +127,93 @@ const readSubmitId = (tracking: unknown) => {
   return toOptionalString(tracking.submitId) || toOptionalString(tracking.submit_id);
 };
 
+const readTrackingMeta = (tracking: unknown) => {
+  const trackingRecord = isRecord(tracking) ? tracking : {};
+  return isRecord(trackingRecord.meta) ? trackingRecord.meta : {};
+};
+
+const readTrackingText = (tracking: unknown, keys: string[]) => {
+  const trackingRecord = isRecord(tracking) ? tracking : {};
+  const metaRecord = readTrackingMeta(trackingRecord);
+  for (const key of keys) {
+    const value = toOptionalString(trackingRecord[key]) || toOptionalString(metaRecord[key]);
+    if (value) return value;
+  }
+  return undefined;
+};
+
+const flattenMiniAppUtm = (tracking: unknown) => {
+  const trackingRecord = isRecord(tracking) ? tracking : {};
+  const utm = isRecord(trackingRecord.utm) ? trackingRecord.utm : {};
+  return {
+    utm_source: toOptionalString(utm.source) || toOptionalString(trackingRecord.utm_source),
+    utm_medium: toOptionalString(utm.medium) || toOptionalString(trackingRecord.utm_medium),
+    utm_campaign: toOptionalString(utm.campaign) || toOptionalString(trackingRecord.utm_campaign),
+    utm_content: toOptionalString(utm.content) || toOptionalString(trackingRecord.utm_content),
+    utm_term: toOptionalString(utm.term) || toOptionalString(trackingRecord.utm_term)
+  };
+};
+
+const compactObject = <T extends Record<string, unknown>>(value: T) => Object.fromEntries(
+  Object.entries(value).filter(([, item]) => item !== undefined && item !== null && item !== '')
+) as Partial<T>;
+
+const buildMiniAppTrackingBinding = (params: {
+  tracking: unknown;
+  request: any;
+  lead?: any;
+  botId: string;
+  intentType: MiniAppLeadIntentType;
+  submitId?: string;
+}) => {
+  const eventId = readTrackingText(params.tracking, ['eventId', 'event_id']);
+  const fbp = readTrackingText(params.tracking, ['fbp']);
+  const fbc = readTrackingText(params.tracking, ['fbc']);
+  return compactObject({
+    requestId: toOptionalString(params.request?.id),
+    requestPublicId: toOptionalString(params.request?.publicId),
+    leadId: toOptionalString(params.lead?.id),
+    submitId: params.submitId,
+    trackingEventId: eventId,
+    routeSource: readTrackingText(params.tracking, ['routeSource', 'route_source']),
+    startParam: readTrackingText(params.tracking, ['startParam', 'start_param']),
+    ref: readTrackingText(params.tracking, ['ref']),
+    entrypoint: readTrackingText(params.tracking, ['entrypoint']),
+    miniappVersion: readTrackingText(params.tracking, ['miniappVersion', 'miniapp_version']),
+    buildSha: readTrackingText(params.tracking, ['buildSha', 'build_sha']),
+    fbclid: readTrackingText(params.tracking, ['fbclid']),
+    hasFbp: Boolean(fbp),
+    hasFbc: Boolean(fbc),
+    botId: params.botId,
+    intentType: params.intentType,
+    ...flattenMiniAppUtm(params.tracking)
+  });
+};
+
+const logMiniAppTrackingBinding = async (params: {
+  companyId: string;
+  request: any;
+  lead?: any;
+  binding: Record<string, unknown>;
+}) => {
+  const requestId = toOptionalString(params.request?.id);
+  if (!requestId) return;
+  const submitId = toOptionalString(params.binding.submitId) || 'no-submit';
+  await prisma.integrationEventLog.create({
+    data: {
+      companyId: params.companyId,
+      integration: 'META_PIXEL',
+      action: 'miniapp.tracking_bound',
+      status: 'SUCCESS',
+      entityType: 'request',
+      entityId: requestId,
+      idempotencyKey: `miniapp-tracking-bound:${params.companyId}:${requestId}:${submitId}`,
+      message: 'MiniApp tracking bound to finalized request',
+      meta: params.binding as Prisma.InputJsonValue
+    }
+  }).catch(() => null);
+};
+
 export const buildMiniAppSubmitKey = (params: {
   companyId: string;
   botId?: string | null;
@@ -824,6 +911,20 @@ class RequestContractService {
     }).catch((error) => logger.warn('[SalesDrive] request sync enqueue failed', error?.message || error));
 
     const tracking = isRecord(pendingIntent.tracking) ? pendingIntent.tracking as Record<string, unknown> : {};
+    const trackingBinding = buildMiniAppTrackingBinding({
+      tracking,
+      request,
+      lead: leadResult.lead,
+      botId: params.botId,
+      intentType: pendingIntent.intentType,
+      submitId
+    });
+    await logMiniAppTrackingBinding({
+      companyId: params.companyId,
+      request,
+      lead: leadResult.lead,
+      binding: trackingBinding
+    });
     new IntegrationService().metaPixelTrackEvent(params.companyId, 'SubmitApplication', {
       entityType: 'request',
       entityId: request.id,
@@ -831,13 +932,14 @@ class RequestContractService {
       externalId: params.telegramUserId ? `telegram:${params.telegramUserId}` : undefined,
       phone: params.phone,
       actionSource: 'chat',
-      fbp: toOptionalString(tracking.fbp),
-      fbc: toOptionalString(tracking.fbc),
-      eventSourceUrl: toOptionalString(tracking.eventSourceUrl),
+      fbp: readTrackingText(tracking, ['fbp']),
+      fbc: readTrackingText(tracking, ['fbc']),
+      eventSourceUrl: readTrackingText(tracking, ['eventSourceUrl', 'event_source_url']),
       contentName: title,
       contentCategory: 'MiniApp Lead Request',
       contentIds: [request.publicId || request.id],
       customData: {
+        ...trackingBinding,
         botId: params.botId,
         source: 'miniapp_lead_intent',
         intentType: pendingIntent.intentType
@@ -850,13 +952,14 @@ class RequestContractService {
       externalId: params.telegramUserId ? `telegram:${params.telegramUserId}` : undefined,
       phone: params.phone,
       actionSource: 'chat',
-      fbp: toOptionalString(tracking.fbp),
-      fbc: toOptionalString(tracking.fbc),
-      eventSourceUrl: toOptionalString(tracking.eventSourceUrl),
+      fbp: readTrackingText(tracking, ['fbp']),
+      fbc: readTrackingText(tracking, ['fbc']),
+      eventSourceUrl: readTrackingText(tracking, ['eventSourceUrl', 'event_source_url']),
       contentName: title,
       contentCategory: 'MiniApp Contact Share',
       contentIds: [request.publicId || request.id],
       customData: {
+        ...trackingBinding,
         botId: params.botId,
         source: 'telegram_contact_keyboard',
         intentType: pendingIntent.intentType

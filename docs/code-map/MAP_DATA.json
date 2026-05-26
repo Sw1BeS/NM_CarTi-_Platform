@@ -1,0 +1,4582 @@
+{
+  "generatedAt": "2026-05-26T15:50:52.636Z",
+  "root": "/srv/cartie",
+  "srvRoot": "/srv",
+  "git": {
+    "head": "360d414",
+    "status": "## main...origin/main\n M apps/server/src/modules/Integrations/integration.routes.metaDebug.test.ts\n M apps/server/src/modules/Integrations/integration.routes.ts\n M apps/server/src/services/requestContract.service.test.ts\n M apps/server/src/services/requestContract.service.ts\n?? \"NERD-METHOD_\\320\\241arTie_SalesDrive_Meta_Roadmap_.pdf\"\n?? docs/code-map/\n?? docs/project-knowledge/\n?? scripts/inspect/"
+  },
+  "counts": {
+    "activeFiles": 1133,
+    "docs": 306,
+    "serverRouteFiles": 94,
+    "webRoutes": 30,
+    "prismaModels": 90,
+    "prismaEnums": 22
+  },
+  "cartieTop": [
+    {
+      "path": "_archive",
+      "type": "dir",
+      "size": "120K",
+      "classification": "historical_archive",
+      "note": "Historical snapshots; keep out of active architecture graph.",
+      "mtime": "2026-02-10T16:22:06.481Z"
+    },
+    {
+      "path": "_codex_release_backup_20260410_150603",
+      "type": "dir",
+      "size": "4.0K",
+      "classification": "historical_archive",
+      "note": "Historical snapshots; keep out of active architecture graph.",
+      "mtime": "2026-04-10T15:06:03.582Z"
+    },
+    {
+      "path": "_codex_release_backup_20260410_150614",
+      "type": "dir",
+      "size": "672K",
+      "classification": "historical_archive",
+      "note": "Historical snapshots; keep out of active architecture graph.",
+      "mtime": "2026-04-10T15:06:18.223Z"
+    },
+    {
+      "path": "_codex_release_backup_20260410_152017_miniapp_preview",
+      "type": "dir",
+      "size": "140K",
+      "classification": "historical_archive",
+      "note": "Historical snapshots; keep out of active architecture graph.",
+      "mtime": "2026-04-10T15:20:21.438Z"
+    },
+    {
+      "path": "_codex_release_backup_20260411_005957",
+      "type": "dir",
+      "size": "452K",
+      "classification": "historical_archive",
+      "note": "Historical snapshots; keep out of active architecture graph.",
+      "mtime": "2026-04-11T00:59:57.427Z"
+    },
+    {
+      "path": "_codex_release_backup_20260430_114227_miniapp_live_patch",
+      "type": "dir",
+      "size": "100K",
+      "classification": "historical_archive",
+      "note": "Historical snapshots; keep out of active architecture graph.",
+      "mtime": "2026-04-30T11:47:18.728Z"
+    },
+    {
+      "path": "_logs",
+      "type": "dir",
+      "size": "134M",
+      "classification": "runtime_logs",
+      "note": "Application and deployment logs; rotate, do not use as source.",
+      "mtime": "2026-05-19T11:57:56.368Z"
+    },
+    {
+      "path": ".agent",
+      "type": "dir",
+      "size": "2.3M",
+      "classification": "agent_tooling",
+      "note": "Local agent rules, workflows, and operational memory.",
+      "mtime": "2026-05-06T02:13:10.826Z"
+    },
+    {
+      "path": ".deploy",
+      "type": "dir",
+      "size": "13M",
+      "classification": "deployment_state",
+      "note": "Deployment artifacts, rollback evidence, and env-key manifests; protected by default.",
+      "mtime": "2026-05-25T18:36:05.046Z"
+    },
+    {
+      "path": ".dockerignore",
+      "type": "file",
+      "size": "4.0K",
+      "classification": "project_metadata",
+      "note": "Project ignore metadata; keep.",
+      "mtime": "2026-01-20T01:30:08.388Z"
+    },
+    {
+      "path": ".env",
+      "type": "file",
+      "size": "4.0K",
+      "classification": "secret_bearing",
+      "note": "Secret-bearing config; inventory path only, never content.",
+      "mtime": "2026-05-25T17:40:46.252Z"
+    },
+    {
+      "path": ".env.example",
+      "type": "file",
+      "size": "4.0K",
+      "classification": "env_template",
+      "note": "Public environment template; keep scrubbed and versionable.",
+      "mtime": "2026-05-25T16:12:47.101Z"
+    },
+    {
+      "path": ".git",
+      "type": "dir",
+      "size": "29M",
+      "classification": "git_metadata",
+      "note": "Repository metadata; never clean manually.",
+      "mtime": "2026-05-26T15:44:20.485Z"
+    },
+    {
+      "path": ".github",
+      "type": "dir",
+      "size": "12K",
+      "classification": "ci_metadata",
+      "note": "Repository automation metadata.",
+      "mtime": "2026-01-20T01:46:25.638Z"
+    },
+    {
+      "path": ".gitignore",
+      "type": "file",
+      "size": "4.0K",
+      "classification": "project_metadata",
+      "note": "Project ignore metadata; keep.",
+      "mtime": "2026-05-05T23:57:36.998Z"
+    },
+    {
+      "path": "apps",
+      "type": "dir",
+      "size": "555M",
+      "classification": "active_source",
+      "note": "Core server and web apps.",
+      "mtime": "2026-02-03T05:31:36.433Z"
+    },
+    {
+      "path": "ARCHITECTURE_MIGRATION.md",
+      "type": "file",
+      "size": "8.0K",
+      "classification": "operational_doc_review",
+      "note": "Operational or architecture note; reconcile with generated map before using.",
+      "mtime": "2026-01-22T21:34:27.023Z"
+    },
+    {
+      "path": "ARCHITECTURE.md",
+      "type": "file",
+      "size": "4.0K",
+      "classification": "operational_doc_review",
+      "note": "Operational or architecture note; reconcile with generated map before using.",
+      "mtime": "2026-01-22T08:13:55.824Z"
+    },
+    {
+      "path": "CODEX_AUDIT_REPORT.md",
+      "type": "file",
+      "size": "24K",
+      "classification": "historical_doc",
+      "note": "Top-level historical report; review before trusting as current.",
+      "mtime": "2026-01-29T06:46:21.174Z"
+    },
+    {
+      "path": "data",
+      "type": "dir",
+      "size": "89M",
+      "classification": "runtime_data_do_not_delete",
+      "note": "Postgres and imported/runtime data volumes.",
+      "mtime": "2026-01-12T17:53:14.133Z"
+    },
+    {
+      "path": "deploy_output.log",
+      "type": "file",
+      "size": "32K",
+      "classification": "runtime_logs",
+      "note": "Deployment log; rotate or archive with release evidence.",
+      "mtime": "2026-02-24T12:34:33.128Z"
+    },
+    {
+      "path": "DEPLOYMENT.md",
+      "type": "file",
+      "size": "4.0K",
+      "classification": "operational_doc_review",
+      "note": "Operational or architecture note; reconcile with generated map before using.",
+      "mtime": "2026-01-28T13:48:39.889Z"
+    },
+    {
+      "path": "docs",
+      "type": "dir",
+      "size": "12M",
+      "classification": "documentation_mixed",
+      "note": "Current docs plus older audit/release notes; now has generated map and project knowledge.",
+      "mtime": "2026-05-26T13:58:47.290Z"
+    },
+    {
+      "path": "env",
+      "type": "dir",
+      "size": "8.0K",
+      "classification": "secret_bearing_dir",
+      "note": "Environment config directory; path-only inventory, no value inspection.",
+      "mtime": "2026-02-10T16:22:06.484Z"
+    },
+    {
+      "path": "FINAL_PRE_LAUNCH_AUDIT_PLAN.md",
+      "type": "file",
+      "size": "36K",
+      "classification": "historical_doc",
+      "note": "Top-level historical report; review before trusting as current.",
+      "mtime": "2026-05-05T23:55:34.352Z"
+    },
+    {
+      "path": "FINAL_SUMMARY.md",
+      "type": "file",
+      "size": "4.0K",
+      "classification": "historical_doc",
+      "note": "Top-level historical report; review before trusting as current.",
+      "mtime": "2026-01-28T13:48:39.889Z"
+    },
+    {
+      "path": "FINAL_TELEGRAM_MINIAPP_AUDIT.md",
+      "type": "file",
+      "size": "40K",
+      "classification": "historical_doc",
+      "note": "Top-level historical report; review before trusting as current.",
+      "mtime": "2026-05-05T23:55:34.356Z"
+    },
+    {
+      "path": "FIX_PLAN.md",
+      "type": "file",
+      "size": "4.0K",
+      "classification": "operational_doc_review",
+      "note": "Operational or architecture note; reconcile with generated map before using.",
+      "mtime": "2026-01-28T13:48:39.889Z"
+    },
+    {
+      "path": "fix.sql",
+      "type": "file",
+      "size": "4.0K",
+      "classification": "operational_doc_review",
+      "note": "Operational or architecture note; reconcile with generated map before using.",
+      "mtime": "2026-01-20T01:28:39.659Z"
+    },
+    {
+      "path": "FULL_AUDIT_REPORT.md",
+      "type": "file",
+      "size": "48K",
+      "classification": "historical_doc",
+      "note": "Top-level historical report; review before trusting as current.",
+      "mtime": "2026-05-05T23:55:34.357Z"
+    },
+    {
+      "path": "IMPLEMENTATION_PLAN_AUDIT.md",
+      "type": "file",
+      "size": "24K",
+      "classification": "historical_doc",
+      "note": "Top-level historical report; review before trusting as current.",
+      "mtime": "2026-05-05T23:55:34.358Z"
+    },
+    {
+      "path": "incident-response.md",
+      "type": "file",
+      "size": "4.0K",
+      "classification": "misc_review",
+      "note": "Needs owner/classification if it grows or becomes active.",
+      "mtime": "2026-01-22T16:34:06.878Z"
+    },
+    {
+      "path": "infra",
+      "type": "dir",
+      "size": "92K",
+      "classification": "active_infra",
+      "note": "Dockerfiles, compose, Caddy/nginx-adjacent runtime config.",
+      "mtime": "2026-02-23T14:03:10.251Z"
+    },
+    {
+      "path": "MODULE_MAP.md",
+      "type": "file",
+      "size": "4.0K",
+      "classification": "operational_doc_review",
+      "note": "Operational or architecture note; reconcile with generated map before using.",
+      "mtime": "2026-01-28T13:48:39.889Z"
+    },
+    {
+      "path": "NERD-METHOD_СarTie_SalesDrive_Meta_Roadmap_.pdf",
+      "type": "file",
+      "size": "72K",
+      "classification": "product_doc_artifact",
+      "note": "Product/business documentation artifact.",
+      "mtime": "2026-05-25T09:39:07.158Z"
+    },
+    {
+      "path": "node_modules",
+      "type": "dir",
+      "size": "20K",
+      "classification": "generated_dependencies",
+      "note": "Reinstallable dependencies.",
+      "mtime": "2026-05-19T17:24:27.440Z"
+    },
+    {
+      "path": "PATCH_PLAN.md",
+      "type": "file",
+      "size": "4.0K",
+      "classification": "operational_doc_review",
+      "note": "Operational or architecture note; reconcile with generated map before using.",
+      "mtime": "2026-01-28T13:48:39.889Z"
+    },
+    {
+      "path": "README.md",
+      "type": "file",
+      "size": "8.0K",
+      "classification": "current_doc",
+      "note": "Primary project overview; keep near root.",
+      "mtime": "2026-05-05T23:59:20.538Z"
+    },
+    {
+      "path": "RELEASE_BLOCKERS.md",
+      "type": "file",
+      "size": "4.0K",
+      "classification": "operational_doc_review",
+      "note": "Operational or architecture note; reconcile with generated map before using.",
+      "mtime": "2026-01-28T13:48:39.889Z"
+    },
+    {
+      "path": "RELEASE_BLUEPRINT.md",
+      "type": "file",
+      "size": "4.0K",
+      "classification": "operational_doc_review",
+      "note": "Operational or architecture note; reconcile with generated map before using.",
+      "mtime": "2026-01-28T13:48:39.889Z"
+    },
+    {
+      "path": "RELEASE_QA_CHECKLIST.md",
+      "type": "file",
+      "size": "4.0K",
+      "classification": "operational_doc_review",
+      "note": "Operational or architecture note; reconcile with generated map before using.",
+      "mtime": "2026-01-29T06:35:35.840Z"
+    },
+    {
+      "path": "scripts",
+      "type": "dir",
+      "size": "112K",
+      "classification": "ops_tooling",
+      "note": "Operational scripts, smoke checks, deploy helpers, inspection generators.",
+      "mtime": "2026-05-26T13:58:47.288Z"
+    },
+    {
+      "path": "SMOKE_TESTS.md",
+      "type": "file",
+      "size": "4.0K",
+      "classification": "operational_doc_review",
+      "note": "Operational or architecture note; reconcile with generated map before using.",
+      "mtime": "2026-01-28T13:48:39.889Z"
+    },
+    {
+      "path": "stage2-m1-sources-destinations.md",
+      "type": "file",
+      "size": "4.0K",
+      "classification": "historical_doc",
+      "note": "Stage 2 planning/release note; review before trusting as current.",
+      "mtime": "2026-02-02T11:22:27.762Z"
+    },
+    {
+      "path": "stage2-m2-import-by-date.md",
+      "type": "file",
+      "size": "4.0K",
+      "classification": "historical_doc",
+      "note": "Stage 2 planning/release note; review before trusting as current.",
+      "mtime": "2026-02-02T11:22:27.762Z"
+    },
+    {
+      "path": "stage2-m3-ingestion-unification.md",
+      "type": "file",
+      "size": "4.0K",
+      "classification": "historical_doc",
+      "note": "Stage 2 planning/release note; review before trusting as current.",
+      "mtime": "2026-02-02T11:22:27.763Z"
+    },
+    {
+      "path": "stage2-m4-media-mvp.md",
+      "type": "file",
+      "size": "4.0K",
+      "classification": "historical_doc",
+      "note": "Stage 2 planning/release note; review before trusting as current.",
+      "mtime": "2026-02-02T11:22:27.763Z"
+    },
+    {
+      "path": "stage2-m5-miniapp-portal.md",
+      "type": "file",
+      "size": "4.0K",
+      "classification": "historical_doc",
+      "note": "Stage 2 planning/release note; review before trusting as current.",
+      "mtime": "2026-02-02T11:22:27.763Z"
+    },
+    {
+      "path": "stage2-m6-content-calendar.md",
+      "type": "file",
+      "size": "4.0K",
+      "classification": "historical_doc",
+      "note": "Stage 2 planning/release note; review before trusting as current.",
+      "mtime": "2026-02-02T11:22:27.763Z"
+    },
+    {
+      "path": "storage",
+      "type": "dir",
+      "size": "1.5G",
+      "classification": "runtime_media_do_not_delete",
+      "note": "Uploaded/imported media and Telegram media storage.",
+      "mtime": "2026-02-02T11:22:27.764Z"
+    },
+    {
+      "path": "SUMMARY.md",
+      "type": "file",
+      "size": "4.0K",
+      "classification": "operational_doc_review",
+      "note": "Operational or architecture note; reconcile with generated map before using.",
+      "mtime": "2026-01-22T08:13:55.829Z"
+    },
+    {
+      "path": "TELEGRAM_MINIAPP_DEEP_AUDIT.md",
+      "type": "file",
+      "size": "36K",
+      "classification": "historical_doc",
+      "note": "Top-level historical report; review before trusting as current.",
+      "mtime": "2026-05-05T23:55:34.359Z"
+    },
+    {
+      "path": "TEST_CHECKLIST.md",
+      "type": "file",
+      "size": "4.0K",
+      "classification": "operational_doc_review",
+      "note": "Operational or architecture note; reconcile with generated map before using.",
+      "mtime": "2026-01-28T13:48:39.889Z"
+    },
+    {
+      "path": "TEST_PLAN.md",
+      "type": "file",
+      "size": "4.0K",
+      "classification": "operational_doc_review",
+      "note": "Operational or architecture note; reconcile with generated map before using.",
+      "mtime": "2026-01-28T13:48:39.889Z"
+    },
+    {
+      "path": "type_coverage_baseline.json",
+      "type": "file",
+      "size": "128K",
+      "classification": "misc_review",
+      "note": "Needs owner/classification if it grows or becomes active.",
+      "mtime": "2026-02-02T11:22:27.766Z"
+    },
+    {
+      "path": "verification",
+      "type": "dir",
+      "size": "424K",
+      "classification": "misc_review",
+      "note": "Needs owner/classification if it grows or becomes active.",
+      "mtime": "2026-05-04T02:08:28.539Z"
+    },
+    {
+      "path": "verify_b2b.ts",
+      "type": "file",
+      "size": "4.0K",
+      "classification": "misc_review",
+      "note": "Needs owner/classification if it grows or becomes active.",
+      "mtime": "2026-02-09T13:55:13.725Z"
+    },
+    {
+      "path": "verify_bot_create.js",
+      "type": "file",
+      "size": "4.0K",
+      "classification": "misc_review",
+      "note": "Needs owner/classification if it grows or becomes active.",
+      "mtime": "2026-02-02T20:41:06.420Z"
+    }
+  ],
+  "srvTop": [
+    {
+      "path": "/srv/_quarantine",
+      "type": "dir",
+      "size": "4.0K",
+      "classification": "quarantine",
+      "note": "Temporary holding area; should usually stay empty after archive/export/delete."
+    },
+    {
+      "path": "/srv/audit-artifacts",
+      "type": "dir",
+      "size": "676K",
+      "classification": "audit_evidence",
+      "note": "Server and project audit outputs."
+    },
+    {
+      "path": "/srv/backups",
+      "type": "dir",
+      "size": "6.1G",
+      "classification": "backup_retention",
+      "note": "Large backup area; prune only with explicit retention policy."
+    },
+    {
+      "path": "/srv/cartie",
+      "type": "dir",
+      "size": "2.3G",
+      "classification": "active_product_workspace",
+      "note": "Primary workspace for the Cartie product."
+    },
+    {
+      "path": "/srv/cleanup-artifacts",
+      "type": "dir",
+      "size": "1.4G",
+      "classification": "cleanup_evidence",
+      "note": "Cleanup archives, manifests, and transfer evidence."
+    }
+  ],
+  "fileCountsByTop": [
+    {
+      "path": "apps",
+      "files": 582
+    },
+    {
+      "path": "docs",
+      "files": 273
+    },
+    {
+      "path": ".agent",
+      "files": 206
+    },
+    {
+      "path": "infra",
+      "files": 15
+    },
+    {
+      "path": "scripts",
+      "files": 11
+    },
+    {
+      "path": "verification",
+      "files": 6
+    },
+    {
+      "path": ".dockerignore",
+      "files": 1
+    },
+    {
+      "path": ".env",
+      "files": 1
+    },
+    {
+      "path": ".env.example",
+      "files": 1
+    },
+    {
+      "path": ".github",
+      "files": 1
+    },
+    {
+      "path": ".gitignore",
+      "files": 1
+    },
+    {
+      "path": "ARCHITECTURE_MIGRATION.md",
+      "files": 1
+    },
+    {
+      "path": "ARCHITECTURE.md",
+      "files": 1
+    },
+    {
+      "path": "CODEX_AUDIT_REPORT.md",
+      "files": 1
+    },
+    {
+      "path": "deploy_output.log",
+      "files": 1
+    },
+    {
+      "path": "DEPLOYMENT.md",
+      "files": 1
+    },
+    {
+      "path": "env",
+      "files": 1
+    },
+    {
+      "path": "FINAL_PRE_LAUNCH_AUDIT_PLAN.md",
+      "files": 1
+    },
+    {
+      "path": "FINAL_SUMMARY.md",
+      "files": 1
+    },
+    {
+      "path": "FINAL_TELEGRAM_MINIAPP_AUDIT.md",
+      "files": 1
+    },
+    {
+      "path": "FIX_PLAN.md",
+      "files": 1
+    },
+    {
+      "path": "fix.sql",
+      "files": 1
+    },
+    {
+      "path": "FULL_AUDIT_REPORT.md",
+      "files": 1
+    },
+    {
+      "path": "IMPLEMENTATION_PLAN_AUDIT.md",
+      "files": 1
+    },
+    {
+      "path": "incident-response.md",
+      "files": 1
+    },
+    {
+      "path": "MODULE_MAP.md",
+      "files": 1
+    },
+    {
+      "path": "NERD-METHOD_СarTie_SalesDrive_Meta_Roadmap_.pdf",
+      "files": 1
+    },
+    {
+      "path": "PATCH_PLAN.md",
+      "files": 1
+    },
+    {
+      "path": "README.md",
+      "files": 1
+    },
+    {
+      "path": "RELEASE_BLOCKERS.md",
+      "files": 1
+    },
+    {
+      "path": "RELEASE_BLUEPRINT.md",
+      "files": 1
+    },
+    {
+      "path": "RELEASE_QA_CHECKLIST.md",
+      "files": 1
+    },
+    {
+      "path": "SMOKE_TESTS.md",
+      "files": 1
+    },
+    {
+      "path": "stage2-m1-sources-destinations.md",
+      "files": 1
+    },
+    {
+      "path": "stage2-m2-import-by-date.md",
+      "files": 1
+    },
+    {
+      "path": "stage2-m3-ingestion-unification.md",
+      "files": 1
+    },
+    {
+      "path": "stage2-m4-media-mvp.md",
+      "files": 1
+    },
+    {
+      "path": "stage2-m5-miniapp-portal.md",
+      "files": 1
+    },
+    {
+      "path": "stage2-m6-content-calendar.md",
+      "files": 1
+    },
+    {
+      "path": "SUMMARY.md",
+      "files": 1
+    },
+    {
+      "path": "TELEGRAM_MINIAPP_DEEP_AUDIT.md",
+      "files": 1
+    },
+    {
+      "path": "TEST_CHECKLIST.md",
+      "files": 1
+    },
+    {
+      "path": "TEST_PLAN.md",
+      "files": 1
+    },
+    {
+      "path": "type_coverage_baseline.json",
+      "files": 1
+    },
+    {
+      "path": "verify_b2b.ts",
+      "files": 1
+    },
+    {
+      "path": "verify_bot_create.js",
+      "files": 1
+    }
+  ],
+  "packages": [
+    {
+      "path": "apps/server/package.json",
+      "name": "cartie-admin-backend",
+      "version": "1.0.0",
+      "private": false,
+      "type": "module",
+      "scripts": [
+        "dev",
+        "build",
+        "start",
+        "worker:content",
+        "start:worker:content",
+        "prisma:generate",
+        "prisma:migrate",
+        "seed",
+        "preset:sync",
+        "migrate:v4:seed",
+        "migrate:v4:inventory",
+        "migrate:v4:leads",
+        "media:reconcile",
+        "inventory:backfill-normalization",
+        "backfill:partner-codes-showcases",
+        "cleanup:external-hidden-listings",
+        "telegram:normalize-chat-ids",
+        "telegram:backfill-identity",
+        "repair:miniapp-menu-config",
+        "repair:miniapp-request-titles",
+        "cleanup:test-data",
+        "test",
+        "test:watch",
+        "b2b:backfill-partner-admin-groups"
+      ],
+      "dependencies": [
+        "@prisma/client",
+        "axios",
+        "bcryptjs",
+        "big-integer",
+        "cheerio",
+        "cors",
+        "dotenv",
+        "express",
+        "jsonwebtoken",
+        "node-cron",
+        "telegram",
+        "ulid",
+        "zod"
+      ],
+      "devDependencies": [
+        "@types/bcryptjs",
+        "@types/cors",
+        "@types/express",
+        "@types/jsonwebtoken",
+        "@types/node",
+        "@types/node-cron",
+        "@types/supertest",
+        "prisma",
+        "supertest",
+        "ts-node",
+        "ts-node-dev",
+        "tsx",
+        "typescript",
+        "vitest"
+      ]
+    },
+    {
+      "path": "apps/web/package.json",
+      "name": "cartie-b2b-&-telegram-hub_v4.2_fixes",
+      "version": "0.0.0",
+      "private": true,
+      "type": "module",
+      "scripts": [
+        "dev",
+        "build",
+        "preview"
+      ],
+      "dependencies": [
+        "@emoji-mart/data",
+        "@emoji-mart/react",
+        "@lexical/code",
+        "@lexical/link",
+        "@lexical/list",
+        "@lexical/markdown",
+        "@lexical/react",
+        "@lexical/rich-text",
+        "@lexical/utils",
+        "@tailwindcss/postcss",
+        "@types/dompurify",
+        "axios",
+        "clsx",
+        "dompurify",
+        "emoji-mart",
+        "framer-motion",
+        "lexical",
+        "lucide-react",
+        "react",
+        "react-dom",
+        "react-is",
+        "react-router-dom",
+        "reactflow",
+        "recharts",
+        "tailwind-merge"
+      ],
+      "devDependencies": [
+        "@types/node",
+        "@vitejs/plugin-react",
+        "autoprefixer",
+        "postcss",
+        "tailwindcss",
+        "typescript",
+        "vite"
+      ]
+    }
+  ],
+  "serverIndex": {
+    "mounts": [
+      {
+        "path": "/api/webhooks/whatsapp",
+        "handler": "whatsAppRouter"
+      },
+      {
+        "path": "/api/webhooks/viber",
+        "handler": "viberRouter"
+      },
+      {
+        "path": "/api/telegram",
+        "handler": "telegramRoutes"
+      },
+      {
+        "path": "/api/public",
+        "handler": "publicRoutes"
+      },
+      {
+        "path": "/api/miniapp",
+        "handler": "miniAppRoutes"
+      },
+      {
+        "path": "/api/auth",
+        "handler": "authRoutes"
+      },
+      {
+        "path": "/api/system",
+        "handler": "systemRoutes"
+      },
+      {
+        "path": "/api/entities",
+        "handler": "entityRoutes"
+      },
+      {
+        "path": "/api/inventory",
+        "handler": "inventoryRoutes"
+      },
+      {
+        "path": "/api/requests",
+        "handler": "requestsRoutes"
+      },
+      {
+        "path": "/api/companies",
+        "handler": "companyRoutes"
+      },
+      {
+        "path": "/api/templates",
+        "handler": "templateRoutes"
+      },
+      {
+        "path": "/api/integrations",
+        "handler": "integrationRoutes"
+      },
+      {
+        "path": "/api/orchestration",
+        "handler": "orchestrationRoutes"
+      },
+      {
+        "path": "/api/superadmin",
+        "handler": "superadminRoutes"
+      },
+      {
+        "path": "/api/qa",
+        "handler": "qaRoutes"
+      },
+      {
+        "path": "/api/b2b",
+        "handler": "b2bV2Routes"
+      },
+      {
+        "path": "/api/v2",
+        "handler": "apiV2Router"
+      },
+      {
+        "path": "/api",
+        "handler": "apiRoutes"
+      },
+      {
+        "path": "/media/telegram",
+        "handler": "express"
+      },
+      {
+        "path": "/media",
+        "handler": "express"
+      }
+    ],
+    "directRoutes": [
+      {
+        "method": "GET",
+        "path": "/health"
+      },
+      {
+        "method": "GET",
+        "path": "/api/health"
+      },
+      {
+        "method": "GET",
+        "path": "/api/health/platform-readiness"
+      },
+      {
+        "method": "GET",
+        "path": "*"
+      }
+    ],
+    "startupServices": [
+      "Prisma connection",
+      "event handlers",
+      "admin seed",
+      "platform bootstrap",
+      "Telegram bot manager",
+      "content worker",
+      "scheduler",
+      "MTProto worker",
+      "MTProto lifecycle restore"
+    ]
+  },
+  "routeFiles": [
+    {
+      "path": "apps/server/src/routes/miniAppRoutes.ts",
+      "size": 79163,
+      "routeCount": 24,
+      "routes": [
+        "GET /config",
+        "GET /vehicle-taxonomy",
+        "GET /showcases",
+        "GET /showcases/:slug/inventory",
+        "GET /cars/:carId",
+        "POST /cars/:carId/share",
+        "GET /b2b/me",
+        "POST /b2b/access/request",
+        "GET /b2b/requests/my",
+        "GET /b2b/requests/active",
+        "GET /b2b/variants/received",
+        "POST /b2b/variants/:variantId/decision",
+        "POST /b2b/requests/:requestRef/variants",
+        "GET /b2b/admin/fit-queue",
+        "PATCH /b2b/admin/fit-queue/:variantId",
+        "POST /b2b/admin/fit-queue/:variantId/contact-share",
+        "GET /favorites",
+        "POST /favorites/:carListingId",
+        "POST /lead-intents",
+        "POST /bot-flows"
+      ],
+      "exports": []
+    },
+    {
+      "path": "apps/server/src/routes/publicRoutes.ts",
+      "size": 16306,
+      "routeCount": 12,
+      "routes": [
+        "GET /:slug/inventory",
+        "POST /:slug/requests",
+        "GET /:slug/request-status",
+        "POST /leads",
+        "POST /requests",
+        "POST /requests/:id/variants",
+        "POST /dealer/session",
+        "GET /bots",
+        "GET /requests",
+        "GET /proposals/:id",
+        "POST /proposals/:id/view",
+        "POST /proposals/:id/feedback"
+      ],
+      "exports": []
+    },
+    {
+      "path": "apps/server/src/routes/legacyMessaging.routes.ts",
+      "size": 23751,
+      "routeCount": 11,
+      "routes": [
+        "GET /messages",
+        "GET /messages/logs",
+        "POST /messages/logs",
+        "POST /messages",
+        "GET /inbox/macros",
+        "POST /inbox/macros",
+        "PUT /inbox/macros/:id",
+        "DELETE /inbox/macros/:id",
+        "GET /inbox/notes",
+        "POST /inbox/notes",
+        "POST /messages/send"
+      ],
+      "exports": []
+    },
+    {
+      "path": "apps/server/src/routes/legacyContent.routes.ts",
+      "size": 18800,
+      "routeCount": 10,
+      "routes": [
+        "GET /content/templates",
+        "POST /content/templates",
+        "PUT /content/templates/:id",
+        "DELETE /content/templates/:id",
+        "POST /content/templates/preview",
+        "GET /content/publication-jobs",
+        "POST /content/publication-jobs",
+        "POST /content/publication-jobs/:id/retry",
+        "GET /content/publication-jobs/:id/results",
+        "DELETE /content/publication-jobs/:id"
+      ],
+      "exports": []
+    },
+    {
+      "path": "apps/server/src/routes/entityRoutes.ts",
+      "size": 10990,
+      "routeCount": 10,
+      "routes": [
+        "GET /meta",
+        "POST /definitions",
+        "PUT /definitions/:slug",
+        "POST /definitions/:slug/archive",
+        "GET /:slug/records",
+        "POST /:slug/records",
+        "GET /:slug/records/:id",
+        "PATCH /:slug/records/:id",
+        "PUT /:slug/records/:id",
+        "DELETE /:slug/records/:id"
+      ],
+      "exports": []
+    },
+    {
+      "path": "apps/server/src/routes/legacyAdmin.routes.ts",
+      "size": 4739,
+      "routeCount": 8,
+      "routes": [
+        "GET /settings",
+        "POST /settings",
+        "GET /users",
+        "POST /users",
+        "PUT /users/:id",
+        "DELETE /users/:id",
+        "GET /logs",
+        "POST /storage/upload"
+      ],
+      "exports": []
+    },
+    {
+      "path": "apps/server/src/routes/legacyBots.routes.ts",
+      "size": 19618,
+      "routeCount": 7,
+      "routes": [
+        "GET /bots",
+        "POST /bots",
+        "PUT /bots/:id",
+        "POST /bots/:id/webhook",
+        "POST /bots/:id/menu-button/sync",
+        "DELETE /bots/:id/webhook",
+        "DELETE /bots/:id"
+      ],
+      "exports": []
+    },
+    {
+      "path": "apps/server/src/routes/b2bV2.routes.ts",
+      "size": 9205,
+      "routeCount": 7,
+      "routes": [
+        "POST /access/request",
+        "GET /requests/my",
+        "GET /variants/received",
+        "POST /variants/:variantId/decision",
+        "GET /admin/fit-queue",
+        "PATCH /admin/fit-queue/:variantId",
+        "POST /admin/fit-queue/:variantId/contact-share"
+      ],
+      "exports": []
+    },
+    {
+      "path": "apps/server/src/routes/qaRoutes.ts",
+      "size": 6801,
+      "routeCount": 7,
+      "routes": [
+        "GET /parse",
+        "POST /parse/profile",
+        "GET /simulate/start",
+        "POST /simulate/message",
+        "GET /telegram/token",
+        "GET /telegram/webhook",
+        "GET /media/check"
+      ],
+      "exports": []
+    },
+    {
+      "path": "apps/server/src/routes/legacyLeads.routes.ts",
+      "size": 10377,
+      "routeCount": 6,
+      "routes": [
+        "GET /leads",
+        "POST /leads",
+        "PUT /leads/:id",
+        "POST /leads/merge",
+        "GET /leads/:id/timeline",
+        "DELETE /leads/:id"
+      ],
+      "exports": []
+    },
+    {
+      "path": "apps/server/src/routes/legacyAnalytics.routes.ts",
+      "size": 16825,
+      "routeCount": 5,
+      "routes": [
+        "GET /events",
+        "GET /metrics/dashboard",
+        "GET /metrics/telegram",
+        "POST /search/parse",
+        "GET /search/jobs"
+      ],
+      "exports": []
+    },
+    {
+      "path": "apps/server/src/routes/legacyDrafts.routes.ts",
+      "size": 8117,
+      "routeCount": 5,
+      "routes": [
+        "POST /drafts/import",
+        "GET /drafts",
+        "POST /drafts",
+        "PUT /drafts/:id",
+        "DELETE /drafts/:id"
+      ],
+      "exports": []
+    },
+    {
+      "path": "apps/server/src/routes/legacyCampaigns.routes.ts",
+      "size": 13295,
+      "routeCount": 4,
+      "routes": [
+        "GET /campaigns",
+        "POST /campaigns",
+        "GET /destinations",
+        "GET /proxy"
+      ],
+      "exports": []
+    },
+    {
+      "path": "apps/server/src/routes/legacyScenarios.routes.ts",
+      "size": 8237,
+      "routeCount": 4,
+      "routes": [
+        "GET /scenarios/templates",
+        "GET /scenarios",
+        "POST /scenarios",
+        "DELETE /scenarios/:id"
+      ],
+      "exports": []
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/destinations/destination.routes.ts",
+      "size": 1878,
+      "routeCount": 4,
+      "routes": [
+        "GET /",
+        "PATCH /:id/pause",
+        "PATCH /:id/resume",
+        "POST /:id/sync"
+      ],
+      "exports": [
+        "destinationRoutes"
+      ]
+    },
+    {
+      "path": "apps/server/src/routes/legacyTelegramProxy.routes.ts",
+      "size": 12561,
+      "routeCount": 3,
+      "routes": [
+        "POST /telegram/call",
+        "GET /telegram/file",
+        "POST /telegram/file/cache"
+      ],
+      "exports": []
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/core/telegram.routes.ts",
+      "size": 2370,
+      "routeCount": 1,
+      "routes": [
+        "POST /webhook/:botId"
+      ],
+      "exports": []
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/routing/routeMessage.ts",
+      "size": 87652,
+      "routeCount": 0,
+      "routes": [],
+      "exports": [
+        "showMenu",
+        "openB2BInventory",
+        "paginateB2BInventory",
+        "handleDynamicMenu",
+        "routeMessage",
+        "finalizeClientLead",
+        "finalizeCatalogSell",
+        "finalizeB2BRequest"
+      ]
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/routing/routeCallback.ts",
+      "size": 80104,
+      "routeCount": 0,
+      "routes": [],
+      "exports": [
+        "updateSession",
+        "routeCallback"
+      ]
+    },
+    {
+      "path": "apps/server/src/routes/miniAppLeadHandoff.routes.test.ts",
+      "size": 66715,
+      "routeCount": 0,
+      "routes": [],
+      "exports": []
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/routing/wizards/leadBuyWizard.ts",
+      "size": 44713,
+      "routeCount": 0,
+      "routes": [],
+      "exports": [
+        "startLeadBuyWizard",
+        "handleLeadBuyCallback",
+        "handleLeadBuyText"
+      ]
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/routing/routeCallback.leadAdminActions.test.ts",
+      "size": 44418,
+      "routeCount": 0,
+      "routes": [],
+      "exports": []
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/routing/wizards/leadSellWizard.ts",
+      "size": 42334,
+      "routeCount": 0,
+      "routes": [],
+      "exports": [
+        "startLeadSellWizard",
+        "handleLeadSellAdminAction",
+        "handleLeadSellCallback",
+        "handleLeadSellText"
+      ]
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/routing/wizards/b2bSellWizard.ts",
+      "size": 38762,
+      "routeCount": 0,
+      "routes": [],
+      "exports": [
+        "startB2BSellWizard",
+        "handleB2BSellCallback",
+        "handleB2BSellText"
+      ]
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/routing/wizards/b2bVariantWizard.ts",
+      "size": 29462,
+      "routeCount": 0,
+      "routes": [],
+      "exports": [
+        "startB2BVariantWizard",
+        "handleB2BVariantCallback",
+        "handleB2BVariantText"
+      ]
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/routing/wizards/b2bRegistrationWizard.ts",
+      "size": 28158,
+      "routeCount": 0,
+      "routes": [],
+      "exports": [
+        "routeB2BRegStep",
+        "handleB2BRegText",
+        "handleB2BRegCallback"
+      ]
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/routing/wizards/b2bRequestWizard.ts",
+      "size": 25451,
+      "routeCount": 0,
+      "routes": [],
+      "exports": [
+        "startB2BRequestWizard",
+        "handleB2BReqCallback",
+        "handleB2BReqText"
+      ]
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/routing/routeWebApp.ts",
+      "size": 21784,
+      "routeCount": 0,
+      "routes": [],
+      "exports": [
+        "routeWebApp"
+      ]
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/core/leadService.ts",
+      "size": 20086,
+      "routeCount": 0,
+      "routes": [],
+      "exports": [
+        "createOrMergeLead",
+        "recordIncomingLeadMessage"
+      ]
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/routing/testing/adminTestScenarios.ts",
+      "size": 19775,
+      "routeCount": 0,
+      "routes": [],
+      "exports": [
+        "buildTestPanel",
+        "resolveScenarioFromPanelState",
+        "runTestScenario"
+      ]
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/core/utils/telegramText.ts",
+      "size": 17423,
+      "routeCount": 0,
+      "routes": [],
+      "exports": [
+        "normalizeInput",
+        "resolveLang",
+        "t",
+        "button",
+        "isCommand"
+      ]
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/routing/routeMessage.b2bMenu.test.ts",
+      "size": 17080,
+      "routeCount": 0,
+      "routes": [],
+      "exports": []
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/core/leadService.test.ts",
+      "size": 12987,
+      "routeCount": 0,
+      "routes": [],
+      "exports": []
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/routing/routeMessage.clientLeadMenu.test.ts",
+      "size": 12855,
+      "routeCount": 0,
+      "routes": [],
+      "exports": []
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/core/utils/quickPicks.ts",
+      "size": 12381,
+      "routeCount": 0,
+      "routes": [],
+      "exports": [
+        "BRANDS",
+        "BRAND_MODELS",
+        "FUEL_OPTIONS",
+        "TRANS_OPTIONS",
+        "DRIVE_OPTIONS",
+        "COND_OPTIONS",
+        "CITY_OPTIONS",
+        "encodePickToken"
+      ]
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/messaging/outbox/telegramOutbox.ts",
+      "size": 11259,
+      "routeCount": 0,
+      "routes": [],
+      "exports": [
+        "telegramOutbox"
+      ]
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/core/utils/miniappUrl.ts",
+      "size": 6764,
+      "routeCount": 0,
+      "routes": [],
+      "exports": [
+        "buildMiniAppUrl",
+        "normalizeMiniAppButtonUrl",
+        "buildMiniAppEntryUrl"
+      ]
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/core/utils/telegramReplyMarkup.ts",
+      "size": 6702,
+      "routeCount": 0,
+      "routes": [],
+      "exports": [
+        "isPrivateChatType",
+        "isPrivateChatId",
+        "resolveChatTypeFromUpdate",
+        "buildOpenBotAndMiniAppKeyboard",
+        "resolveReplyMarkupForChat"
+      ]
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/routing/routeChannelPost.ts",
+      "size": 6608,
+      "routeCount": 0,
+      "routes": [],
+      "exports": [
+        "routeChannelPost"
+      ]
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/scenarios/middlewares/enrichContext.ts",
+      "size": 6088,
+      "routeCount": 0,
+      "routes": [],
+      "exports": [
+        "enrichContext"
+      ]
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/routing/routeCallback.b2bAccess.test.ts",
+      "size": 5903,
+      "routeCount": 0,
+      "routes": [],
+      "exports": []
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/routing/routeMessage.adminComment.test.ts",
+      "size": 5861,
+      "routeCount": 0,
+      "routes": [],
+      "exports": []
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/routing/wizards/b2bRequestWizard.test.ts",
+      "size": 5604,
+      "routeCount": 0,
+      "routes": [],
+      "exports": []
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/routing/wizards/b2bVariantWizard.test.ts",
+      "size": 5483,
+      "routeCount": 0,
+      "routes": [],
+      "exports": []
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/messaging/telegramSender.ts",
+      "size": 5465,
+      "routeCount": 0,
+      "routes": [],
+      "exports": [
+        "TelegramSender"
+      ]
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/core/utils/telegramAdminAccess.ts",
+      "size": 5460,
+      "routeCount": 0,
+      "routes": [],
+      "exports": [
+        "assertAdminTestAccess",
+        "assertConfiguredAdminActionAccess",
+        "assertConfiguredAdminGroupActionAccess"
+      ]
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/core/utils/miniappUrl.test.ts",
+      "size": 5358,
+      "routeCount": 0,
+      "routes": [],
+      "exports": []
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/core/leadIdentity.test.ts",
+      "size": 5240,
+      "routeCount": 0,
+      "routes": [],
+      "exports": []
+    },
+    {
+      "path": "apps/server/src/routes/telegramLaunch.web.test.ts",
+      "size": 4857,
+      "routeCount": 0,
+      "routes": [],
+      "exports": []
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/core/utils/inputValidators.test.ts",
+      "size": 4469,
+      "routeCount": 0,
+      "routes": [],
+      "exports": []
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/core/utils/inputValidators.ts",
+      "size": 4399,
+      "routeCount": 0,
+      "routes": [],
+      "exports": [
+        "parseYearInput",
+        "parseBudgetUSD",
+        "parseMileageKm",
+        "normalizePhoneUA",
+        "containsForbiddenContacts"
+      ]
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/core/utils/callbackUtils.ts",
+      "size": 4354,
+      "routeCount": 0,
+      "routes": [],
+      "exports": [
+        "ActionTokens",
+        "buildCallbackData",
+        "parseCallbackData"
+      ]
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/core/utils/telegramAdminAccess.test.ts",
+      "size": 4138,
+      "routeCount": 0,
+      "routes": [],
+      "exports": []
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/routing/testing/adminTestScenarios.test.ts",
+      "size": 4098,
+      "routeCount": 0,
+      "routes": [],
+      "exports": []
+    },
+    {
+      "path": "apps/server/src/routes/miniappApi.web.test.ts",
+      "size": 3891,
+      "routeCount": 0,
+      "routes": [],
+      "exports": []
+    },
+    {
+      "path": "apps/server/src/routes/miniappEntryIntent.web.test.ts",
+      "size": 3577,
+      "routeCount": 0,
+      "routes": [],
+      "exports": []
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/core/utils/quickPicks.test.ts",
+      "size": 3466,
+      "routeCount": 0,
+      "routes": [],
+      "exports": []
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/scenarios/middlewares/saveMessage.ts",
+      "size": 3378,
+      "routeCount": 0,
+      "routes": [],
+      "exports": [
+        "saveMessage"
+      ]
+    },
+    {
+      "path": "apps/server/src/routes/miniappTrackingEvents.web.test.ts",
+      "size": 3112,
+      "routeCount": 0,
+      "routes": [],
+      "exports": []
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/routing/routeMessage.dynamicMenu.test.ts",
+      "size": 3067,
+      "routeCount": 0,
+      "routes": [],
+      "exports": []
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/routing/routeMyChatMember.ts",
+      "size": 2879,
+      "routeCount": 0,
+      "routes": [],
+      "exports": [
+        "routeMyChatMember"
+      ]
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/core/utils/telegramChatId.ts",
+      "size": 2803,
+      "routeCount": 0,
+      "routes": [],
+      "exports": [
+        "isTelegramChannelOrSupergroupDialogId",
+        "sanitizeTelegramUsername",
+        "normalizeTelegramChatId",
+        "normalizeBotConfigChatId",
+        "toTelegramChannelInternalId",
+        "buildTelegramChannelPostUrl"
+      ]
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/destinations/destination.service.ts",
+      "size": 2675,
+      "routeCount": 0,
+      "routes": [],
+      "exports": [
+        "TelegramDestinationService",
+        "telegramDestinationService"
+      ]
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/core/utils/telegramReplyMarkup.test.ts",
+      "size": 2643,
+      "routeCount": 0,
+      "routes": [],
+      "exports": []
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/scenarios/pipeline.ts",
+      "size": 2524,
+      "routeCount": 0,
+      "routes": [],
+      "exports": [
+        "runTelegramPipeline"
+      ]
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/core/telegramAdmin.service.ts",
+      "size": 2518,
+      "routeCount": 0,
+      "routes": [],
+      "exports": [
+        "setWebhookForBot",
+        "deleteWebhookForBot"
+      ]
+    },
+    {
+      "path": "apps/server/src/routes/metaDebugStatus.web.test.ts",
+      "size": 2444,
+      "routeCount": 0,
+      "routes": [],
+      "exports": []
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/core/utils/callbackUtils.test.ts",
+      "size": 2328,
+      "routeCount": 0,
+      "routes": [],
+      "exports": []
+    },
+    {
+      "path": "apps/server/src/routes/salesdriveStatus.web.test.ts",
+      "size": 2291,
+      "routeCount": 0,
+      "routes": [],
+      "exports": []
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/core/utils/telegramChatId.test.ts",
+      "size": 2276,
+      "routeCount": 0,
+      "routes": [],
+      "exports": []
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/core/telegramInvite.service.ts",
+      "size": 2211,
+      "routeCount": 0,
+      "routes": [],
+      "exports": [
+        "telegramInviteService"
+      ]
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/routing/routeChatJoinRequest.ts",
+      "size": 2169,
+      "routeCount": 0,
+      "routes": [],
+      "exports": [
+        "routeChatJoinRequest"
+      ]
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/core/telegramAuth.test.ts",
+      "size": 1846,
+      "routeCount": 0,
+      "routes": [],
+      "exports": []
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/scenarios/middlewares/normalize.ts",
+      "size": 1837,
+      "routeCount": 0,
+      "routes": [],
+      "exports": [
+        "normalize"
+      ]
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/core/events/eventEmitter.ts",
+      "size": 1681,
+      "routeCount": 0,
+      "routes": [],
+      "exports": [
+        "emitPlatformEvent",
+        "summarizeText"
+      ]
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/core/utils/clientLeadMiniAppMenu.ts",
+      "size": 1661,
+      "routeCount": 0,
+      "routes": [],
+      "exports": [
+        "buildClientLeadMiniAppKeyboard"
+      ]
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/core/utils/carMedia.ts",
+      "size": 1645,
+      "routeCount": 0,
+      "routes": [],
+      "exports": [
+        "collectCarMediaSources",
+        "buildTelegramPhotoMedia"
+      ]
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/core/utils/clientLeadMiniAppMenu.test.ts",
+      "size": 1599,
+      "routeCount": 0,
+      "routes": [],
+      "exports": []
+    },
+    {
+      "path": "apps/server/src/routes/legacyTelegramProxy.shared.ts",
+      "size": 1588,
+      "routeCount": 0,
+      "routes": [],
+      "exports": [
+        "TELEGRAM_METHODS",
+        "resolveBot",
+        "callTelegram"
+      ]
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/routing/tests/routeChannelPost.test.ts",
+      "size": 1562,
+      "routeCount": 0,
+      "routes": [],
+      "exports": []
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/core/utils/miniappPayload.test.ts",
+      "size": 1470,
+      "routeCount": 0,
+      "routes": [],
+      "exports": []
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/core/utils/carMedia.test.ts",
+      "size": 1458,
+      "routeCount": 0,
+      "routes": [],
+      "exports": []
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/scenarios/middlewares/dedup.ts",
+      "size": 1452,
+      "routeCount": 0,
+      "routes": [],
+      "exports": [
+        "dedup"
+      ]
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/core/telegramAuth.ts",
+      "size": 1420,
+      "routeCount": 0,
+      "routes": [],
+      "exports": [
+        "verifyTelegramInitData",
+        "parseTelegramUser"
+      ]
+    },
+    {
+      "path": "apps/server/src/routes/apiRoutes.ts",
+      "size": 1412,
+      "routeCount": 0,
+      "routes": [],
+      "exports": []
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/core/utils/miniappPayload.ts",
+      "size": 1412,
+      "routeCount": 0,
+      "routes": [],
+      "exports": [
+        "parseMiniAppPayload"
+      ]
+    },
+    {
+      "path": "apps/server/src/routes/miniappRequestSuccessActions.web.test.ts",
+      "size": 1307,
+      "routeCount": 0,
+      "routes": [],
+      "exports": []
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/scenarios/middlewares/emitEvent.ts",
+      "size": 1172,
+      "routeCount": 0,
+      "routes": [],
+      "exports": [
+        "emitEvent"
+      ]
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/core/utils/chatMenuSync.test.ts",
+      "size": 1087,
+      "routeCount": 0,
+      "routes": [],
+      "exports": []
+    },
+    {
+      "path": "apps/server/src/routes/miniappLeadIntentOutcome.web.test.ts",
+      "size": 1053,
+      "routeCount": 0,
+      "routes": [],
+      "exports": []
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/scenarios/middlewares/resolveBotTenant.ts",
+      "size": 1026,
+      "routeCount": 0,
+      "routes": [],
+      "exports": [
+        "resolveBotTenant"
+      ]
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/core/types.ts",
+      "size": 920,
+      "routeCount": 0,
+      "routes": [],
+      "exports": []
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/core/utils/chatMenuSync.ts",
+      "size": 494,
+      "routeCount": 0,
+      "routes": [],
+      "exports": [
+        "extractChatMenuButtonUrl",
+        "assertTelegramApiOk"
+      ]
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/routing/routeInline.ts",
+      "size": 216,
+      "routeCount": 0,
+      "routes": [],
+      "exports": [
+        "routeInline"
+      ]
+    }
+  ],
+  "webRoutes": [
+    {
+      "path": "/login",
+      "element": "Login"
+    },
+    {
+      "path": "/p/request",
+      "element": "PublicRequest"
+    },
+    {
+      "path": "/p/app",
+      "element": "MiniApp"
+    },
+    {
+      "path": "/p/app/:slug",
+      "element": "MiniApp"
+    },
+    {
+      "path": "/p/dealer",
+      "element": "DealerPortal"
+    },
+    {
+      "path": "/p/proposal/:id",
+      "element": "ClientProposal"
+    },
+    {
+      "path": "/",
+      "element": "ProtectedRoute"
+    },
+    {
+      "path": "/inbox",
+      "element": "ProtectedRoute"
+    },
+    {
+      "path": "/requests",
+      "element": "ProtectedRoute"
+    },
+    {
+      "path": "/telegram",
+      "element": "ProtectedRoute"
+    },
+    {
+      "path": "/telegram/sources",
+      "element": "ProtectedRoute"
+    },
+    {
+      "path": "/scenarios",
+      "element": "ProtectedRoute"
+    },
+    {
+      "path": "/leads",
+      "element": "ProtectedRoute"
+    },
+    {
+      "path": "/search",
+      "element": "ProtectedRoute"
+    },
+    {
+      "path": "/inventory",
+      "element": "ProtectedRoute"
+    },
+    {
+      "path": "/companies",
+      "element": "ProtectedRoute"
+    },
+    {
+      "path": "/entities",
+      "element": "ProtectedRoute"
+    },
+    {
+      "path": "/settings",
+      "element": "ProtectedRoute"
+    },
+    {
+      "path": "/content",
+      "element": "ProtectedRoute"
+    },
+    {
+      "path": "/calendar",
+      "element": "ProtectedRoute"
+    },
+    {
+      "path": "/partners",
+      "element": "ProtectedRoute"
+    },
+    {
+      "path": "/company",
+      "element": "ProtectedRoute"
+    },
+    {
+      "path": "/help",
+      "element": "ProtectedRoute"
+    },
+    {
+      "path": "/integrations",
+      "element": "ProtectedRoute"
+    },
+    {
+      "path": "mtproto",
+      "element": "MTProtoIntegration"
+    },
+    {
+      "path": ":type",
+      "element": "IntegrationEditor"
+    },
+    {
+      "path": "/qa",
+      "element": "ProtectedRoute"
+    },
+    {
+      "path": "/health",
+      "element": "ProtectedRoute"
+    },
+    {
+      "path": "/superadmin/*",
+      "element": "ProtectedRoute"
+    },
+    {
+      "path": "*",
+      "element": "NotFound"
+    }
+  ],
+  "prisma": {
+    "datasource": "db",
+    "generator": "client",
+    "models": [
+      "Showcase",
+      "ScenarioTemplate",
+      "CompanyTemplate",
+      "Integration",
+      "BotConfig",
+      "Lead",
+      "LeadIdentity",
+      "LeadActivity",
+      "BotMessage",
+      "ChatMacro",
+      "ChatNote",
+      "B2bRequest",
+      "RequestVariant",
+      "Draft",
+      "Template",
+      "PublicationJob",
+      "PublicationResult",
+      "IntegrationEventLog",
+      "QuotaUsage",
+      "SupportTicket",
+      "B2bAccessRequest",
+      "PublicSequence",
+      "ParsingJob",
+      "CarListing",
+      "MiniAppFavorite",
+      "MTProtoConnector",
+      "ChannelSource",
+      "TelegramDestination",
+      "TelegramImportJob",
+      "ChannelPost",
+      "MessageLog",
+      "ScheduledJob",
+      "OrchestrationPolicy",
+      "AutomationIntake",
+      "AutomationSourceRef",
+      "AutomationSkillPack",
+      "AutomationRun",
+      "AutomationRunStep",
+      "ImportSource",
+      "ImportBatch",
+      "ImportItem",
+      "ImportLinkageCandidate",
+      "ImportRecommendedAction",
+      "ImportWriteCandidate",
+      "AutomationReviewQueue",
+      "PartnerCompany",
+      "PartnerUser",
+      "BotSession",
+      "NormalizationAlias",
+      "PlatformEvent",
+      "TelegramUpdate",
+      "Scenario",
+      "Campaign",
+      "SystemSettings",
+      "SystemLog",
+      "EntityDefinition",
+      "EntityField",
+      "EntityRecord",
+      "Workspace",
+      "GlobalUser",
+      "Account",
+      "Membership",
+      "EntityType",
+      "FieldDefinition",
+      "Record",
+      "RecordSearchIndex",
+      "RelationType",
+      "RecordRelation",
+      "RecordExternalKey",
+      "DictionarySet",
+      "DictionaryEntry",
+      "DictionaryAlias",
+      "Pipeline",
+      "PipelineStage",
+      "Contact",
+      "Case",
+      "CaseContactLink",
+      "Channel",
+      "Identity",
+      "Conversation",
+      "Message",
+      "MessageDelivery",
+      "IngestionSource",
+      "ParserDefinition",
+      "ParserVersion",
+      "IngestionJob",
+      "RawDocument",
+      "ExtractedEntity",
+      "FormDefinition",
+      "ViewDefinition"
+    ],
+    "enums": [
+      "BotTemplate",
+      "BotDeliveryMode",
+      "LeadStatus",
+      "MessageDirection",
+      "RequestStatus",
+      "RequestType",
+      "VariantStatus",
+      "RequesterDecision",
+      "FitQueueStatus",
+      "AccessRequestStatus",
+      "ExternalSourceProvider",
+      "VehicleAvailabilityState",
+      "VehiclePublicationStatus",
+      "PartnerUserRole",
+      "SupportTicketStatus",
+      "DraftSource",
+      "ScenarioStatus",
+      "NormalizationType",
+      "IntegrationType",
+      "CompanyPlan",
+      "UserRole",
+      "FieldType"
+    ]
+  },
+  "prismaGroups": [
+    {
+      "name": "Workspaces/Auth",
+      "models": [
+        "PartnerUser",
+        "BotSession",
+        "Workspace",
+        "GlobalUser",
+        "Membership"
+      ]
+    },
+    {
+      "name": "CRM/Requests",
+      "models": [
+        "Lead",
+        "LeadIdentity",
+        "LeadActivity",
+        "BotMessage",
+        "B2bRequest",
+        "RequestVariant",
+        "B2bAccessRequest",
+        "MessageLog",
+        "Pipeline",
+        "PipelineStage",
+        "Contact",
+        "Case",
+        "CaseContactLink",
+        "Conversation",
+        "Message",
+        "MessageDelivery"
+      ]
+    },
+    {
+      "name": "Inventory/Vehicles",
+      "models": [
+        "CompanyTemplate",
+        "CarListing",
+        "ChannelSource",
+        "AutomationSourceRef",
+        "ImportSource",
+        "PartnerCompany",
+        "RecordExternalKey",
+        "IngestionSource"
+      ]
+    },
+    {
+      "name": "Telegram/MiniApp",
+      "models": [
+        "Showcase",
+        "BotConfig",
+        "BotMessage",
+        "MiniAppFavorite",
+        "MTProtoConnector",
+        "ChannelSource",
+        "TelegramDestination",
+        "TelegramImportJob",
+        "ChannelPost",
+        "BotSession",
+        "TelegramUpdate",
+        "Channel"
+      ]
+    },
+    {
+      "name": "Content/Automation",
+      "models": [
+        "ScenarioTemplate",
+        "CompanyTemplate",
+        "Template",
+        "PlatformEvent",
+        "Scenario",
+        "Campaign",
+        "SystemSettings",
+        "ParserDefinition",
+        "ParserVersion",
+        "RawDocument"
+      ]
+    },
+    {
+      "name": "Other",
+      "models": [
+        "Integration",
+        "ChatMacro",
+        "ChatNote",
+        "Draft",
+        "PublicationJob",
+        "PublicationResult",
+        "IntegrationEventLog",
+        "QuotaUsage",
+        "SupportTicket",
+        "PublicSequence",
+        "ParsingJob",
+        "ScheduledJob",
+        "OrchestrationPolicy",
+        "AutomationIntake",
+        "AutomationSkillPack",
+        "AutomationRun",
+        "AutomationRunStep",
+        "ImportBatch",
+        "ImportItem",
+        "ImportLinkageCandidate",
+        "ImportRecommendedAction",
+        "ImportWriteCandidate",
+        "AutomationReviewQueue",
+        "NormalizationAlias",
+        "SystemLog",
+        "EntityDefinition",
+        "EntityField",
+        "EntityRecord",
+        "Account",
+        "EntityType",
+        "FieldDefinition",
+        "Record",
+        "RecordSearchIndex",
+        "RelationType",
+        "RecordRelation",
+        "DictionarySet",
+        "DictionaryEntry",
+        "DictionaryAlias",
+        "Identity",
+        "IngestionJob",
+        "ExtractedEntity",
+        "FormDefinition",
+        "ViewDefinition"
+      ]
+    }
+  ],
+  "docsCorpus": [
+    {
+      "path": "docs/deploy_runbook.md",
+      "title": "Deploy Runbook — CarTié",
+      "classification": "current_operational",
+      "size": 1813,
+      "mtime": "2026-02-24T11:23:25.431Z"
+    },
+    {
+      "path": "docs/README.md",
+      "title": "Cartie Documentation",
+      "classification": "current_operational",
+      "size": 856,
+      "mtime": "2026-05-05T23:59:20.542Z"
+    },
+    {
+      "path": "README.md",
+      "title": "CarTie Production Platform",
+      "classification": "current_operational",
+      "size": 4741,
+      "mtime": "2026-05-05T23:59:20.538Z"
+    },
+    {
+      "path": "docs/superpowers/plans/2026-05-06-cartie-miniapp-crm-meta-recovery-plan.md",
+      "title": "CarTie MiniApp, Lead CRM, Meta, And Inventory Recovery Plan",
+      "classification": "recent_planning_trace",
+      "size": 32377,
+      "mtime": "2026-05-18T04:22:26.850Z"
+    },
+    {
+      "path": "docs/superpowers/plans/2026-05-06-cartie-miniapp-stabilization-implementation.md",
+      "title": "CarTié MiniApp Stabilization Implementation Plan",
+      "classification": "recent_planning_trace",
+      "size": 6844,
+      "mtime": "2026-05-06T12:17:13.410Z"
+    },
+    {
+      "path": "docs/superpowers/plans/2026-05-06-cartie-platform-phase2-stabilization.md",
+      "title": "CarTie Platform Phase 2 Stabilization Implementation Plan",
+      "classification": "recent_planning_trace",
+      "size": 43764,
+      "mtime": "2026-05-06T00:43:27.179Z"
+    },
+    {
+      "path": "docs/superpowers/plans/2026-05-12-cartie-miniapp-first-plan.md",
+      "title": "CarTie MiniApp-First Recovery Plan",
+      "classification": "recent_planning_trace",
+      "size": 15484,
+      "mtime": "2026-05-12T06:49:47.358Z"
+    },
+    {
+      "path": "docs/superpowers/plans/2026-05-18-cartie-telegram-crm-salesdrive-tracking-plan.md",
+      "title": "CarTie Telegram CRM Connector Stabilization Implementation Plan",
+      "classification": "recent_planning_trace",
+      "size": 13374,
+      "mtime": "2026-05-18T13:58:01.548Z"
+    },
+    {
+      "path": "docs/superpowers/specs/2026-05-06-cartie-miniapp-stabilization-design.md",
+      "title": "CarTié MiniApp Stabilization Design",
+      "classification": "recent_planning_trace",
+      "size": 12299,
+      "mtime": "2026-05-06T12:09:15.925Z"
+    },
+    {
+      "path": "CODEX_AUDIT_REPORT.md",
+      "title": "Cartie Platform Audit & Fix Plan (2025 Edition)",
+      "classification": "top_level_historical_report",
+      "size": 24206,
+      "mtime": "2026-01-29T06:46:21.174Z"
+    },
+    {
+      "path": "docs/audit_lead_b2b_upgrade_2026-02-23.md",
+      "title": "Audit: Lead + B2B Bots & MiniApp Upgrade (2026-02-23)",
+      "classification": "top_level_historical_report",
+      "size": 5971,
+      "mtime": "2026-02-23T20:05:26.146Z"
+    },
+    {
+      "path": "docs/audit_telegram_bots_2026-02-23.md",
+      "title": "Telegram Bots + MiniApp Audit (2026-02-23)",
+      "classification": "top_level_historical_report",
+      "size": 7558,
+      "mtime": "2026-02-23T12:36:11.618Z"
+    },
+    {
+      "path": "docs/audit_telegram_bots_recheck_2026-02-23.md",
+      "title": "Telegram Bots + MiniApp Recheck Audit (2026-02-23)",
+      "classification": "top_level_historical_report",
+      "size": 5277,
+      "mtime": "2026-02-23T14:04:22.624Z"
+    },
+    {
+      "path": "docs/audit_v6_db_models.md",
+      "title": "Database Models Audit (V6)",
+      "classification": "top_level_historical_report",
+      "size": 1673,
+      "mtime": "2026-05-04T02:08:28.487Z"
+    },
+    {
+      "path": "docs/audit_v6_miniapp_submission.md",
+      "title": "MiniApp Submission Mechanism Audit (V6)",
+      "classification": "top_level_historical_report",
+      "size": 1555,
+      "mtime": "2026-05-04T02:08:28.487Z"
+    },
+    {
+      "path": "docs/audit_v6_telegram_ux.md",
+      "title": "Telegram UX Audit (V6)",
+      "classification": "top_level_historical_report",
+      "size": 1998,
+      "mtime": "2026-05-04T02:08:28.487Z"
+    },
+    {
+      "path": "docs/audit_v7_db_gap.md",
+      "title": "Аудит DB gap v7 (Prisma)",
+      "classification": "top_level_historical_report",
+      "size": 3406,
+      "mtime": "2026-02-24T16:48:47.984Z"
+    },
+    {
+      "path": "docs/audit_v7_miniapp.md",
+      "title": "Аудит MiniApp v7 (Lead + B2B)",
+      "classification": "top_level_historical_report",
+      "size": 3212,
+      "mtime": "2026-05-04T02:08:28.487Z"
+    },
+    {
+      "path": "docs/audit_v7_telegram_ux.md",
+      "title": "Аудит Telegram UX v7 (Cartié)",
+      "classification": "top_level_historical_report",
+      "size": 10332,
+      "mtime": "2026-05-04T02:08:28.488Z"
+    },
+    {
+      "path": "docs/AUDIT.md",
+      "title": "Audit Report",
+      "classification": "top_level_historical_report",
+      "size": 3358,
+      "mtime": "2026-01-23T14:13:05.812Z"
+    },
+    {
+      "path": "docs/PHASE_H_REPORT.md",
+      "title": "Phase H: Final Telegram-Ready Release Report",
+      "classification": "top_level_historical_report",
+      "size": 2295,
+      "mtime": "2026-01-29T09:33:26.078Z"
+    },
+    {
+      "path": "docs/PLAN-platform-audit.md",
+      "title": "CARTIE PLATFORM AUDIT PLAN",
+      "classification": "top_level_historical_report",
+      "size": 19111,
+      "mtime": "2026-01-27T02:09:15.334Z"
+    },
+    {
+      "path": "docs/RELEASE_AUDIT_REPORT.md",
+      "title": "RELEASE AUDIT REPORT (Frozen)",
+      "classification": "top_level_historical_report",
+      "size": 290,
+      "mtime": "2026-02-19T18:09:30.289Z"
+    },
+    {
+      "path": "docs/STAGE_2_REPORT.md",
+      "title": "Stage 2: Automation & Intelligence Report",
+      "classification": "top_level_historical_report",
+      "size": 1631,
+      "mtime": "2026-01-29T09:47:52.971Z"
+    },
+    {
+      "path": "docs/STAGE_3_REPORT.md",
+      "title": "Stage 3: Production Hardening Report",
+      "classification": "top_level_historical_report",
+      "size": 1277,
+      "mtime": "2026-01-29T09:54:35.545Z"
+    },
+    {
+      "path": "docs/STAGE_3_VISUAL_MAPPER_REPORT.md",
+      "title": "Stage 3: Interactive Visual Mapper Report",
+      "classification": "top_level_historical_report",
+      "size": 1624,
+      "mtime": "2026-01-29T10:08:22.074Z"
+    },
+    {
+      "path": "FINAL_PRE_LAUNCH_AUDIT_PLAN.md",
+      "title": "🚀 CARTIE PLATFORM: FINAL PRE-LAUNCH AUDIT & ACTION PLAN",
+      "classification": "top_level_historical_report",
+      "size": 33183,
+      "mtime": "2026-05-05T23:55:34.352Z"
+    },
+    {
+      "path": "FINAL_SUMMARY.md",
+      "title": "Final Summary",
+      "classification": "top_level_historical_report",
+      "size": 839,
+      "mtime": "2026-01-28T13:48:39.889Z"
+    },
+    {
+      "path": "FINAL_TELEGRAM_MINIAPP_AUDIT.md",
+      "title": "🚗 CarTié Platform — FINAL TELEGRAM & MINIAPP AUDIT REPORT",
+      "classification": "top_level_historical_report",
+      "size": 39613,
+      "mtime": "2026-05-05T23:55:34.356Z"
+    },
+    {
+      "path": "FULL_AUDIT_REPORT.md",
+      "title": "ПОЛНЫЙ АУДИТ РЕПОЗИТОРИЯ CARTIE PLATFORM",
+      "classification": "top_level_historical_report",
+      "size": 45875,
+      "mtime": "2026-05-05T23:55:34.357Z"
+    },
+    {
+      "path": "IMPLEMENTATION_PLAN_AUDIT.md",
+      "title": "🚀 План внедрения исправлений CarTié Platform",
+      "classification": "top_level_historical_report",
+      "size": 24212,
+      "mtime": "2026-05-05T23:55:34.358Z"
+    },
+    {
+      "path": "TELEGRAM_MINIAPP_DEEP_AUDIT.md",
+      "title": "Углубленный аудит Telegram & MiniApp модулей Cartie Platform",
+      "classification": "top_level_historical_report",
+      "size": 35507,
+      "mtime": "2026-05-05T23:55:34.359Z"
+    },
+    {
+      "path": "docs/audit/01-DISCOVERY.md",
+      "title": "PHASE 1: DISCOVERY & MAPPING",
+      "classification": "historical_audit_or_release",
+      "size": 22105,
+      "mtime": "2026-01-27T02:09:15.335Z"
+    },
+    {
+      "path": "docs/audit/02-PERFORMANCE.md",
+      "title": "PHASE 2: PERFORMANCE ANALYSIS",
+      "classification": "historical_audit_or_release",
+      "size": 21949,
+      "mtime": "2026-01-27T02:09:15.335Z"
+    },
+    {
+      "path": "docs/audit/03-INTEGRATIONS.md",
+      "title": "PHASE 3: INTEGRATION HEALTH",
+      "classification": "historical_audit_or_release",
+      "size": 20442,
+      "mtime": "2026-01-27T02:09:15.336Z"
+    },
+    {
+      "path": "docs/audit/04-CODE-QUALITY.md",
+      "title": "PHASE 4: CODE QUALITY & TECHNICAL DEBT",
+      "classification": "historical_audit_or_release",
+      "size": 22630,
+      "mtime": "2026-01-27T02:09:15.336Z"
+    },
+    {
+      "path": "docs/audit/05-ARCHITECTURE.md",
+      "title": "PHASE 5: ARCHITECTURE & DESIGN PATTERNS",
+      "classification": "historical_audit_or_release",
+      "size": 23251,
+      "mtime": "2026-01-27T02:09:15.336Z"
+    },
+    {
+      "path": "docs/audit/06-SECURITY.md",
+      "title": "PHASE 6: SECURITY & COMPLIANCE",
+      "classification": "historical_audit_or_release",
+      "size": 25881,
+      "mtime": "2026-01-27T02:09:15.337Z"
+    },
+    {
+      "path": "docs/audit/07-DEPLOYMENT.md",
+      "title": "PHASE 7: DEPLOYMENT & DEVOPS",
+      "classification": "historical_audit_or_release",
+      "size": 24501,
+      "mtime": "2026-01-27T02:09:15.337Z"
+    },
+    {
+      "path": "docs/audit/08-10-FINAL-SUMMARY.md",
+      "title": "PHASES 8-10: FINAL AUDIT SUMMARY & ROADMAP",
+      "classification": "historical_audit_or_release",
+      "size": 16688,
+      "mtime": "2026-01-27T02:09:15.338Z"
+    },
+    {
+      "path": "docs/audit/fix-stage1/01_RESULT_SUMMARY.md",
+      "title": "Result Summary: Stage-1 Fix & Ship",
+      "classification": "historical_audit_or_release",
+      "size": 1366,
+      "mtime": "2026-02-02T20:41:06.418Z"
+    },
+    {
+      "path": "docs/audit/fix-stage1/02_P0-1_LEAD_IDENTITY_PROOF.md",
+      "title": "P0-1 Lead Identity Proof",
+      "classification": "historical_audit_or_release",
+      "size": 567,
+      "mtime": "2026-02-02T20:41:06.418Z"
+    },
+    {
+      "path": "docs/audit/fix-stage1/03_P0-3_CHANNEL_POST_PROOF.md",
+      "title": "P0-3 Dual Pipeline Proof",
+      "classification": "historical_audit_or_release",
+      "size": 1131,
+      "mtime": "2026-02-02T20:41:06.418Z"
+    },
+    {
+      "path": "docs/audit/fix-stage1/04_P0-2_MTPROTO_PROOF.md",
+      "title": "P0-2 MTProto E2E Import Proof",
+      "classification": "historical_audit_or_release",
+      "size": 847,
+      "mtime": "2026-02-02T20:41:06.419Z"
+    },
+    {
+      "path": "docs/audit/fix-stage1/BASELINE.md",
+      "title": "BASELINE STATE",
+      "classification": "historical_audit_or_release",
+      "size": 4525,
+      "mtime": "2026-02-02T20:41:06.419Z"
+    },
+    {
+      "path": "docs/audit/fix-stage1/PLAN.md",
+      "title": "Stage-1 Fix & Ship: Implementation Plan",
+      "classification": "historical_audit_or_release",
+      "size": 2724,
+      "mtime": "2026-02-02T20:41:06.420Z"
+    },
+    {
+      "path": "docs/audit/release-20260202T204238Z/00_SUMMARY.md",
+      "title": "Итоговый отчёт по аудиту системы CarTié",
+      "classification": "historical_audit_or_release",
+      "size": 9259,
+      "mtime": "2026-02-02T20:47:28.586Z"
+    },
+    {
+      "path": "docs/audit/release-20260202T204238Z/10_CHECKLIST.md",
+      "title": "Технический чеклист — Stage-1 + Stage-2 (M1-M4)",
+      "classification": "historical_audit_or_release",
+      "size": 8032,
+      "mtime": "2026-02-02T20:47:30.894Z"
+    },
+    {
+      "path": "docs/audit/release-20260202T204238Z/20_FINDINGS.md",
+      "title": "Findings — Ошибки и баги",
+      "classification": "historical_audit_or_release",
+      "size": 10914,
+      "mtime": "2026-02-02T20:49:24.405Z"
+    },
+    {
+      "path": "docs/audit/release-20260202T204238Z/30_FIXES_APPLIED.md",
+      "title": "Fixes Applied During Audit",
+      "classification": "historical_audit_or_release",
+      "size": 7586,
+      "mtime": "2026-02-02T20:49:26.715Z"
+    },
+    {
+      "path": "docs/audit/release-20260202T204238Z/FINAL_AUDIT_SUMMARY.md",
+      "title": "═══════════════════════════════════════════════════════",
+      "classification": "historical_audit_or_release",
+      "size": 12221,
+      "mtime": "2026-02-02T21:06:23.812Z"
+    },
+    {
+      "path": "docs/audit/release-20260202T204238Z/IMPLEMENTATION_RESULTS.md",
+      "title": "Implementation Results — P0/P1/P2 Fixes",
+      "classification": "historical_audit_or_release",
+      "size": 6155,
+      "mtime": "2026-02-02T21:16:03.309Z"
+    },
+    {
+      "path": "docs/audit/release-20260218T152454Z/00_MASTER_MAP.md",
+      "title": "00 MASTER MAP — Cartie Release Audit",
+      "classification": "historical_audit_or_release",
+      "size": 7204,
+      "mtime": "2026-02-19T18:11:03.159Z"
+    },
+    {
+      "path": "docs/audit/release-20260218T152454Z/10_FOLDER_AUDIT.md",
+      "title": "10 FOLDER AUDIT",
+      "classification": "historical_audit_or_release",
+      "size": 7518,
+      "mtime": "2026-02-19T18:12:50.003Z"
+    },
+    {
+      "path": "docs/audit/release-20260218T152454Z/110_MEGA_PROMPT_COMPLIANCE_MATRIX.md",
+      "title": "MEGA Prompt Compliance Matrix (Baseline → Target)",
+      "classification": "historical_audit_or_release",
+      "size": 9765,
+      "mtime": "2026-02-20T14:13:00.471Z"
+    },
+    {
+      "path": "docs/audit/release-20260218T152454Z/120_RUNBOOK_MEGA_PROMPT_ROLLOUT.md",
+      "title": "CarTié MEGA Prompt Runbook",
+      "classification": "historical_audit_or_release",
+      "size": 1932,
+      "mtime": "2026-02-20T14:32:35.453Z"
+    },
+    {
+      "path": "docs/audit/release-20260218T152454Z/130_QA_CHECKLIST_RESULTS.md",
+      "title": "QA Checklist Results (MEGA Prompt)",
+      "classification": "historical_audit_or_release",
+      "size": 3428,
+      "mtime": "2026-02-20T14:34:03.033Z"
+    },
+    {
+      "path": "docs/audit/release-20260218T152454Z/140_ADMIN_PARTNER_GUIDE.md",
+      "title": "Admin + Partner Guide (CarTié MEGA MVP)",
+      "classification": "historical_audit_or_release",
+      "size": 2067,
+      "mtime": "2026-02-20T14:34:15.053Z"
+    },
+    {
+      "path": "docs/audit/release-20260218T152454Z/20_MODULE_AUDIT_BACKEND.md",
+      "title": "20 MODULE AUDIT — BACKEND",
+      "classification": "historical_audit_or_release",
+      "size": 10104,
+      "mtime": "2026-02-18T15:41:47.009Z"
+    },
+    {
+      "path": "docs/audit/release-20260218T152454Z/30_MODULE_AUDIT_FRONTEND.md",
+      "title": "30 MODULE AUDIT — FRONTEND",
+      "classification": "historical_audit_or_release",
+      "size": 5605,
+      "mtime": "2026-02-19T18:12:46.160Z"
+    },
+    {
+      "path": "docs/audit/release-20260218T152454Z/40_SCRIPT_AUDIT.md",
+      "title": "40 SCRIPT AUDIT",
+      "classification": "historical_audit_or_release",
+      "size": 2373,
+      "mtime": "2026-02-19T18:14:15.189Z"
+    },
+    {
+      "path": "docs/audit/release-20260218T152454Z/50_DATA_FLOW_MAP.md",
+      "title": "50 DATA FLOW MAP",
+      "classification": "historical_audit_or_release",
+      "size": 6590,
+      "mtime": "2026-02-18T15:45:18.779Z"
+    },
+    {
+      "path": "docs/audit/release-20260218T152454Z/60_DATA_CONTENT_AUDIT.md",
+      "title": "60 DATA CONTENT AUDIT (`data`, `storage`, `_logs`)",
+      "classification": "historical_audit_or_release",
+      "size": 4979,
+      "mtime": "2026-02-19T18:10:15.825Z"
+    },
+    {
+      "path": "docs/audit/release-20260218T152454Z/70_FINDINGS_AND_RECOMMENDATIONS.md",
+      "title": "70 FINDINGS AND RECOMMENDATIONS",
+      "classification": "historical_audit_or_release",
+      "size": 2552,
+      "mtime": "2026-02-19T18:11:34.335Z"
+    },
+    {
+      "path": "docs/audit/release-20260218T152454Z/80_RELEASE_BACKLOG.md",
+      "title": "80 RELEASE BACKLOG",
+      "classification": "historical_audit_or_release",
+      "size": 28511,
+      "mtime": "2026-02-20T13:22:40.118Z"
+    },
+    {
+      "path": "docs/audit/release-20260218T152454Z/90_RELEASE_GATES_AND_ROLLBACK.md",
+      "title": "90 RELEASE GATES AND ROLLBACK",
+      "classification": "historical_audit_or_release",
+      "size": 6644,
+      "mtime": "2026-02-19T18:12:09.450Z"
+    },
+    {
+      "path": "docs/audit/release-20260218T152454Z/95_TELEGRAM_BOTS_READINESS.md",
+      "title": "95 Telegram Bots Readiness",
+      "classification": "historical_audit_or_release",
+      "size": 8932,
+      "mtime": "2026-02-20T13:33:02.017Z"
+    },
+    {
+      "path": "docs/audit/release-20260218T152454Z/artifacts/api_v2_compatibility_matrix_2026-02-19.md",
+      "title": "API v2 Compatibility Matrix (2026-02-19)",
+      "classification": "historical_audit_or_release",
+      "size": 1287,
+      "mtime": "2026-02-19T14:56:19.347Z"
+    },
+    {
+      "path": "docs/audit/release-20260218T152454Z/artifacts/p0_closure_summary_2026-02-19.md",
+      "title": "P0 Closure Summary (2026-02-19)",
+      "classification": "historical_audit_or_release",
+      "size": 1405,
+      "mtime": "2026-02-19T15:01:21.777Z"
+    },
+    {
+      "path": "docs/audit/release-20260218T152454Z/artifacts/release_cp0_baseline_2026-02-20.md",
+      "title": "CP0 Baseline Release (2026-02-20)",
+      "classification": "historical_audit_or_release",
+      "size": 1382,
+      "mtime": "2026-02-20T14:12:07.560Z"
+    },
+    {
+      "path": "docs/audit/release-20260218T152454Z/artifacts/release_cp5_implementation_2026-02-20.md",
+      "title": "CP5 Implementation Release (2026-02-20)",
+      "classification": "historical_audit_or_release",
+      "size": 1284,
+      "mtime": "2026-02-20T14:42:28.523Z"
+    },
+    {
+      "path": "docs/audit/release-20260218T152454Z/artifacts/tenant_contract_matrix_2026-02-19.md",
+      "title": "Tenant Contract Matrix (2026-02-19)",
+      "classification": "historical_audit_or_release",
+      "size": 1544,
+      "mtime": "2026-02-19T14:56:09.999Z"
+    },
+    {
+      "path": "docs/audit/server/2026-01-30/00_EXEC_SUMMARY.md",
+      "title": "CarTié Server Audit — Executive Summary (Stage-1 Readiness)",
+      "classification": "historical_audit_or_release",
+      "size": 6995,
+      "mtime": "2026-02-02T11:22:27.758Z"
+    },
+    {
+      "path": "docs/audit/server/2026-01-30/10_TELEGRAM_BOTAPI_AUDIT.md",
+      "title": "Telegram Bot API — Detailed Audit (P0)",
+      "classification": "historical_audit_or_release",
+      "size": 14535,
+      "mtime": "2026-02-02T11:22:27.758Z"
+    },
+    {
+      "path": "docs/audit/server/2026-01-30/20_MTPROTO_AUDIT.md",
+      "title": "MTProto — Detailed Audit (P0)",
+      "classification": "historical_audit_or_release",
+      "size": 10630,
+      "mtime": "2026-02-02T11:22:27.759Z"
+    },
+    {
+      "path": "docs/audit/server/2026-01-30/30_CODE_STRUCTURE_AUDIT.md",
+      "title": "Code Structure Audit (P1)",
+      "classification": "historical_audit_or_release",
+      "size": 13052,
+      "mtime": "2026-02-02T11:22:27.759Z"
+    },
+    {
+      "path": "docs/audit/server/2026-01-30/40_BACKLOG_STAGE1_PLAN.md",
+      "title": "Stage-1 Backlog Plan (Execution Roadmap)",
+      "classification": "historical_audit_or_release",
+      "size": 15511,
+      "mtime": "2026-02-02T11:22:27.760Z"
+    },
+    {
+      "path": "docs/audit/server/2026-01-30/FINAL_SUMMARY.md",
+      "title": "CarTié Server Audit — FINAL SUMMARY ✅",
+      "classification": "historical_audit_or_release",
+      "size": 10154,
+      "mtime": "2026-02-02T11:22:27.760Z"
+    },
+    {
+      "path": "docs/audit/server/2026-01-30/P0-1_FIX_LEAD_IDENTITY.md",
+      "title": "P0-1 Fix: Lead TG Identity - COMPLETED ✅",
+      "classification": "historical_audit_or_release",
+      "size": 6845,
+      "mtime": "2026-02-02T11:22:27.760Z"
+    },
+    {
+      "path": "docs/audit/server/2026-01-30/P0-2_MTPROTO_STATUS.md",
+      "title": "P0-2: MTProto Channel Import - STATUS REPORT",
+      "classification": "historical_audit_or_release",
+      "size": 11394,
+      "mtime": "2026-02-02T11:22:27.761Z"
+    },
+    {
+      "path": "docs/audit/server/2026-01-30/P0-3_FIX_DUAL_PIPELINE.md",
+      "title": "P0-3 Fix: Channel Post Dual Pipeline - COMPLETED ✅",
+      "classification": "historical_audit_or_release",
+      "size": 9783,
+      "mtime": "2026-02-02T11:22:27.761Z"
+    },
+    {
+      "path": "docs/stage2/00_STAGE2_EXEC_SUMMARY.md",
+      "title": "Stage 2: Telegram Productization & Scale - Executive Summary",
+      "classification": "historical_audit_or_release",
+      "size": 3573,
+      "mtime": "2026-02-02T20:41:20.161Z"
+    },
+    {
+      "path": "docs/stage2/10_SOURCES_DESTINATIONS.md",
+      "title": "M1: Sources & Destinations Registry",
+      "classification": "historical_audit_or_release",
+      "size": 1512,
+      "mtime": "2026-02-02T20:41:20.162Z"
+    },
+    {
+      "path": "docs/stage2/20_IMPORT_BY_DATE.md",
+      "title": "M2: Import by Date Range (MTProto)",
+      "classification": "historical_audit_or_release",
+      "size": 1267,
+      "mtime": "2026-02-02T20:41:20.162Z"
+    },
+    {
+      "path": "docs/stage2/30_INGESTION_UNIFICATION.md",
+      "title": "M3: Ingestion Unification (Already Implemented ✅)",
+      "classification": "historical_audit_or_release",
+      "size": 2916,
+      "mtime": "2026-02-02T20:41:20.162Z"
+    },
+    {
+      "path": "docs/stage2/30_MEDIA_MVP.md",
+      "title": "30_MEDIA_MVP",
+      "classification": "historical_audit_or_release",
+      "size": 1955,
+      "mtime": "2026-02-02T11:22:27.761Z"
+    },
+    {
+      "path": "docs/stage2/40_MEDIA_MVP.md",
+      "title": "M4: Media MVP",
+      "classification": "historical_audit_or_release",
+      "size": 4551,
+      "mtime": "2026-02-02T20:41:20.162Z"
+    },
+    {
+      "path": "docs/stage2/40_MINIAPP_PORTAL.md",
+      "title": "40_MINIAPP_PORTAL",
+      "classification": "historical_audit_or_release",
+      "size": 2306,
+      "mtime": "2026-02-02T11:22:27.761Z"
+    },
+    {
+      "path": "docs/stage2/50_CONTENT_CALENDAR.md",
+      "title": "50_CONTENT_CALENDAR",
+      "classification": "historical_audit_or_release",
+      "size": 1904,
+      "mtime": "2026-02-02T11:22:27.762Z"
+    },
+    {
+      "path": "docs/stage2/50_MINIAPP_PORTAL.md",
+      "title": "M5: Mini App Portal (Already Implemented ✅)",
+      "classification": "historical_audit_or_release",
+      "size": 4864,
+      "mtime": "2026-02-02T20:41:20.163Z"
+    },
+    {
+      "path": "docs/stage2/60_CONTENT_CALENDAR.md",
+      "title": "M6: Content & Calendar (Already Implemented ✅)",
+      "classification": "historical_audit_or_release",
+      "size": 5326,
+      "mtime": "2026-02-02T20:41:20.163Z"
+    },
+    {
+      "path": "docs/stage2/60_LOGS_OBSERVABILITY.md",
+      "title": "60_LOGS_OBSERVABILITY",
+      "classification": "historical_audit_or_release",
+      "size": 1241,
+      "mtime": "2026-02-02T11:22:27.762Z"
+    },
+    {
+      "path": "docs/stage2/70_OBSERVABILITY.md",
+      "title": "M7: Observability (Already Implemented ✅)",
+      "classification": "historical_audit_or_release",
+      "size": 4228,
+      "mtime": "2026-02-02T20:41:20.164Z"
+    },
+    {
+      "path": "apps/web/docs/DESIGN_SYSTEM.md",
+      "title": "CarTie Platform Design System",
+      "classification": "current_or_unknown",
+      "size": 7236,
+      "mtime": "2026-01-22T17:47:19.360Z"
+    },
+    {
+      "path": "ARCHITECTURE_MIGRATION.md",
+      "title": "Architecture Migration Plan: Unifying to v4.1 Data Model",
+      "classification": "current_or_unknown",
+      "size": 4534,
+      "mtime": "2026-01-22T21:34:27.023Z"
+    },
+    {
+      "path": "ARCHITECTURE.md",
+      "title": "Deprecated",
+      "classification": "current_or_unknown",
+      "size": 57,
+      "mtime": "2026-01-22T08:13:55.824Z"
+    },
+    {
+      "path": "DEPLOYMENT.md",
+      "title": "Deployment Guide",
+      "classification": "current_or_unknown",
+      "size": 1245,
+      "mtime": "2026-01-28T13:48:39.889Z"
+    },
+    {
+      "path": "docs/ARCHITECTURE.md",
+      "title": "CARTIE PLATFORM ARCHITECTURE",
+      "classification": "current_or_unknown",
+      "size": 16281,
+      "mtime": "2026-02-16T12:49:15.850Z"
+    },
+    {
+      "path": "docs/BACKLOG_NEXT.md",
+      "title": "BACKLOG NEXT (Frozen)",
+      "classification": "current_or_unknown",
+      "size": 223,
+      "mtime": "2026-02-19T18:09:13.413Z"
+    },
+    {
+      "path": "docs/BEST_PRACTICES_MATRIX.md",
+      "title": "Telegram Bot Best Practices — Matrix (Node/TS)",
+      "classification": "current_or_unknown",
+      "size": 1382,
+      "mtime": "2026-02-10T19:45:39.369Z"
+    },
+    {
+      "path": "docs/CANONICAL_DOCS_INDEX.md",
+      "title": "Canonical Docs Index",
+      "classification": "current_or_unknown",
+      "size": 1232,
+      "mtime": "2026-02-19T18:09:05.950Z"
+    },
+    {
+      "path": "docs/docs_analysis_CARTIE_PLATFORM_DETAILED_ANALYSIS_diff.md",
+      "title": "🔍 ДЕТАЛЬНИЙ АНАЛІЗ ПЛАТФОРМИ CARTIE",
+      "classification": "current_or_unknown",
+      "size": 33327,
+      "mtime": "2026-05-06T00:31:46.676Z"
+    },
+    {
+      "path": "docs/MODULES/COMMUNICATION.md",
+      "title": "Communication Module",
+      "classification": "current_or_unknown",
+      "size": 1473,
+      "mtime": "2026-02-06T11:08:37.152Z"
+    },
+    {
+      "path": "docs/MODULES/CORE.md",
+      "title": "Core Module",
+      "classification": "current_or_unknown",
+      "size": 1191,
+      "mtime": "2026-01-22T08:18:29.166Z"
+    },
+    {
+      "path": "docs/MODULES/FRONTEND.md",
+      "title": "Frontend Module",
+      "classification": "current_or_unknown",
+      "size": 1140,
+      "mtime": "2026-01-22T08:19:06.532Z"
+    },
+    {
+      "path": "docs/MODULES/INTEGRATIONS.md",
+      "title": "Integrations Module",
+      "classification": "current_or_unknown",
+      "size": 1192,
+      "mtime": "2026-01-22T08:18:39.185Z"
+    },
+    {
+      "path": "docs/MODULES/INVENTORY.md",
+      "title": "Inventory Module",
+      "classification": "current_or_unknown",
+      "size": 782,
+      "mtime": "2026-01-22T08:18:48.147Z"
+    },
+    {
+      "path": "docs/MODULES/SALES.md",
+      "title": "Sales Module",
+      "classification": "current_or_unknown",
+      "size": 606,
+      "mtime": "2026-01-22T08:18:55.272Z"
+    },
+    {
+      "path": "docs/ops_runbook_external_cleanup_join_requests_2026-02-23.md",
+      "title": "Ops Runbook: External Listings TTL + Join Request Fallback (2026-02-23)",
+      "classification": "current_or_unknown",
+      "size": 2159,
+      "mtime": "2026-02-23T21:21:14.104Z"
+    },
+    {
+      "path": "docs/PHASE-A-INVENTORY.md",
+      "title": "Phase A: Telegram Reality Inventory & Risk Map",
+      "classification": "current_or_unknown",
+      "size": 3198,
+      "mtime": "2026-01-29T08:51:58.381Z"
+    },
+    {
+      "path": "docs/PHASE-B-FLOWS.md",
+      "title": "Phase B: End-to-End TG Flow Definition",
+      "classification": "current_or_unknown",
+      "size": 2162,
+      "mtime": "2026-01-29T09:19:13.204Z"
+    },
+    {
+      "path": "docs/plan_lead_b2b_upgrade_2026-02-23.md",
+      "title": "Plan: Lead + B2B Bots & MiniApp Upgrade (2026-02-23)",
+      "classification": "current_or_unknown",
+      "size": 8733,
+      "mtime": "2026-02-23T20:06:01.478Z"
+    },
+    {
+      "path": "docs/plan_telegram_bots_2026-02-23.md",
+      "title": "Plan: Telegram Bots + MiniApp Stabilization (2026-02-23)",
+      "classification": "current_or_unknown",
+      "size": 10500,
+      "mtime": "2026-02-23T14:18:46.835Z"
+    },
+    {
+      "path": "docs/plan_v6_impl.md",
+      "title": "CarTié V6 Implementation Plan",
+      "classification": "current_or_unknown",
+      "size": 3802,
+      "mtime": "2026-05-04T02:08:28.488Z"
+    },
+    {
+      "path": "docs/plan_v7_impl.md",
+      "title": "План реалізації v7 (оновлено після аудиту)",
+      "classification": "current_or_unknown",
+      "size": 5973,
+      "mtime": "2026-05-04T02:08:28.488Z"
+    },
+    {
+      "path": "docs/PLAN-stage-2.md",
+      "title": "Telegram Release Stage 2: Automation & Intelligence",
+      "classification": "current_or_unknown",
+      "size": 1542,
+      "mtime": "2026-01-29T09:47:23.917Z"
+    },
+    {
+      "path": "docs/PLAN-stage-3.md",
+      "title": "Telegram Release Stage 3: Interactive Visual Mapper",
+      "classification": "current_or_unknown",
+      "size": 1387,
+      "mtime": "2026-01-29T09:58:57.073Z"
+    },
+    {
+      "path": "docs/PLAN-telegram-ready.md",
+      "title": "Telegram-Ready Release (Stage 1) - Execution Plan",
+      "classification": "current_or_unknown",
+      "size": 3630,
+      "mtime": "2026-01-29T09:34:10.767Z"
+    },
+    {
+      "path": "docs/PLAN.md",
+      "title": "Master Plan: Stage 2 - Telegram Productization & Scale",
+      "classification": "current_or_unknown",
+      "size": 2692,
+      "mtime": "2026-02-02T20:41:20.160Z"
+    },
+    {
+      "path": "docs/qa_lead_b2b_upgrade_2026-02-23.md",
+      "title": "QA Checklist — Lead + B2B Bots & MiniApp Upgrade (2026-02-23)",
+      "classification": "current_or_unknown",
+      "size": 7075,
+      "mtime": "2026-02-23T21:19:38.822Z"
+    },
+    {
+      "path": "docs/QA_RELEASE_CHECKLIST.md",
+      "title": "QA RELEASE CHECKLIST (Frozen)",
+      "classification": "current_or_unknown",
+      "size": 271,
+      "mtime": "2026-02-19T18:09:23.196Z"
+    },
+    {
+      "path": "docs/qa_telegram_bots_2026-02-23-recheck.md",
+      "title": "QA Report: Telegram Bots + MiniApp Recheck (2026-02-23)",
+      "classification": "current_or_unknown",
+      "size": 2450,
+      "mtime": "2026-02-23T14:18:25.664Z"
+    },
+    {
+      "path": "docs/qa_telegram_bots_2026-02-23.md",
+      "title": "QA Checklist: Telegram Bots + MiniApp Stabilization (2026-02-23)",
+      "classification": "current_or_unknown",
+      "size": 3811,
+      "mtime": "2026-02-23T13:02:25.102Z"
+    },
+    {
+      "path": "docs/qa_telegram_release_gates_2026-02-23.md",
+      "title": "Telegram Release Gates QA (2026-02-23)",
+      "classification": "current_or_unknown",
+      "size": 2343,
+      "mtime": "2026-02-23T14:04:34.859Z"
+    },
+    {
+      "path": "docs/qa_telegram_v6_b2b.md",
+      "title": "QA: Telegram V6 & B2B Flow",
+      "classification": "current_or_unknown",
+      "size": 6762,
+      "mtime": "2026-05-19T11:09:45.668Z"
+    },
+    {
+      "path": "docs/qa_v7_e2e.md",
+      "title": "QA v7 E2E (Lead + B2B + MiniApp)",
+      "classification": "current_or_unknown",
+      "size": 9560,
+      "mtime": "2026-05-19T11:53:10.196Z"
+    },
+    {
+      "path": "docs/REFERENCE.md",
+      "title": "Cartie Platform Reference",
+      "classification": "current_or_unknown",
+      "size": 2452,
+      "mtime": "2026-01-22T08:22:46.418Z"
+    },
+    {
+      "path": "docs/RELEASE_BASELINE.md",
+      "title": "RELEASE BASELINE (Frozen)",
+      "classification": "current_or_unknown",
+      "size": 232,
+      "mtime": "2026-02-19T18:09:36.596Z"
+    },
+    {
+      "path": "docs/RELEASE_NOTES_TELEGRAM_READY.md",
+      "title": "Release Notes: Telegram Integration v1.0",
+      "classification": "current_or_unknown",
+      "size": 1600,
+      "mtime": "2026-01-29T10:18:45.737Z"
+    },
+    {
+      "path": "docs/SETUP_CREDENTIALS.md",
+      "title": "SETTING UP REAL CREDENTIALS",
+      "classification": "current_or_unknown",
+      "size": 8231,
+      "mtime": "2026-01-23T14:13:05.813Z"
+    },
+    {
+      "path": "docs/SMOKE_TEST.md",
+      "title": "Deprecated",
+      "classification": "current_or_unknown",
+      "size": 93,
+      "mtime": "2026-01-22T08:13:55.831Z"
+    },
+    {
+      "path": "FIX_PLAN.md",
+      "title": "Fix Plan: Release 1.0",
+      "classification": "current_or_unknown",
+      "size": 1550,
+      "mtime": "2026-01-28T13:48:39.889Z"
+    },
+    {
+      "path": "incident-response.md",
+      "title": "Incident Response: Critical Production Fixes",
+      "classification": "current_or_unknown",
+      "size": 1746,
+      "mtime": "2026-01-22T16:34:06.878Z"
+    },
+    {
+      "path": "infra/legacy/README.md",
+      "title": "Legacy Infra Artifacts",
+      "classification": "current_or_unknown",
+      "size": 249,
+      "mtime": "2026-02-19T18:03:28.468Z"
+    },
+    {
+      "path": "MODULE_MAP.md",
+      "title": "Module Map",
+      "classification": "current_or_unknown",
+      "size": 2895,
+      "mtime": "2026-01-28T13:48:39.889Z"
+    },
+    {
+      "path": "PATCH_PLAN.md",
+      "title": "Patch Plan",
+      "classification": "current_or_unknown",
+      "size": 1172,
+      "mtime": "2026-01-28T13:48:39.889Z"
+    },
+    {
+      "path": "RELEASE_BLOCKERS.md",
+      "title": "Release Blockers Checklist",
+      "classification": "current_or_unknown",
+      "size": 1012,
+      "mtime": "2026-01-28T13:48:39.889Z"
+    },
+    {
+      "path": "RELEASE_BLUEPRINT.md",
+      "title": "Release Blueprint: MП_Cartie_Final_UA",
+      "classification": "current_or_unknown",
+      "size": 3752,
+      "mtime": "2026-01-28T13:48:39.889Z"
+    },
+    {
+      "path": "RELEASE_QA_CHECKLIST.md",
+      "title": "Release QA Checklist (Stage 1)",
+      "classification": "current_or_unknown",
+      "size": 1079,
+      "mtime": "2026-01-29T06:35:35.840Z"
+    },
+    {
+      "path": "SMOKE_TESTS.md",
+      "title": "Smoke Test Scenarios",
+      "classification": "current_or_unknown",
+      "size": 1780,
+      "mtime": "2026-01-28T13:48:39.889Z"
+    },
+    {
+      "path": "stage2-m1-sources-destinations.md",
+      "title": "Stage-2 M1 — Sources & Destinations Registry",
+      "classification": "current_or_unknown",
+      "size": 1339,
+      "mtime": "2026-02-02T11:22:27.762Z"
+    },
+    {
+      "path": "stage2-m2-import-by-date.md",
+      "title": "Stage-2 M2 — MTProto Import by Date Range + Preview",
+      "classification": "current_or_unknown",
+      "size": 1264,
+      "mtime": "2026-02-02T11:22:27.762Z"
+    },
+    {
+      "path": "stage2-m3-ingestion-unification.md",
+      "title": "Stage-2 M3 — Ingestion Unification (BotAPI + MTProto)",
+      "classification": "current_or_unknown",
+      "size": 1177,
+      "mtime": "2026-02-02T11:22:27.763Z"
+    },
+    {
+      "path": "stage2-m4-media-mvp.md",
+      "title": "Stage-2 M4 — Media MVP (Photos + Albums)",
+      "classification": "current_or_unknown",
+      "size": 1230,
+      "mtime": "2026-02-02T11:22:27.763Z"
+    },
+    {
+      "path": "stage2-m5-miniapp-portal.md",
+      "title": "Stage-2 M5 — Mini App Portal",
+      "classification": "current_or_unknown",
+      "size": 1166,
+      "mtime": "2026-02-02T11:22:27.763Z"
+    },
+    {
+      "path": "stage2-m6-content-calendar.md",
+      "title": "Stage-2 M6 — Content/Calendar",
+      "classification": "current_or_unknown",
+      "size": 918,
+      "mtime": "2026-02-02T11:22:27.763Z"
+    },
+    {
+      "path": "SUMMARY.md",
+      "title": "Deprecated",
+      "classification": "current_or_unknown",
+      "size": 77,
+      "mtime": "2026-01-22T08:13:55.829Z"
+    },
+    {
+      "path": "TEST_CHECKLIST.md",
+      "title": "Release Test Checklist",
+      "classification": "current_or_unknown",
+      "size": 1453,
+      "mtime": "2026-01-28T13:48:39.889Z"
+    },
+    {
+      "path": "TEST_PLAN.md",
+      "title": "Test Plan (Manual)",
+      "classification": "current_or_unknown",
+      "size": 1146,
+      "mtime": "2026-01-28T13:48:39.889Z"
+    },
+    {
+      "path": ".agent/agents/backend-specialist.md",
+      "title": "Backend Development Architect",
+      "classification": "agent_tooling_reference",
+      "size": 8596,
+      "mtime": "2026-01-27T02:09:15.274Z"
+    },
+    {
+      "path": ".agent/agents/code-archaeologist.md",
+      "title": "Code Archaeologist",
+      "classification": "agent_tooling_reference",
+      "size": 3339,
+      "mtime": "2026-01-27T02:09:15.276Z"
+    },
+    {
+      "path": ".agent/agents/database-architect.md",
+      "title": "Database Architect",
+      "classification": "agent_tooling_reference",
+      "size": 6857,
+      "mtime": "2026-01-27T02:09:15.276Z"
+    },
+    {
+      "path": ".agent/agents/debugger.md",
+      "title": "Debugger - Root Cause Analysis Expert",
+      "classification": "agent_tooling_reference",
+      "size": 7833,
+      "mtime": "2026-01-27T02:09:15.278Z"
+    },
+    {
+      "path": ".agent/agents/devops-engineer.md",
+      "title": "DevOps Engineer",
+      "classification": "agent_tooling_reference",
+      "size": 6299,
+      "mtime": "2026-01-27T02:09:15.280Z"
+    },
+    {
+      "path": ".agent/agents/documentation-writer.md",
+      "title": "Documentation Writer",
+      "classification": "agent_tooling_reference",
+      "size": 2545,
+      "mtime": "2026-01-27T02:09:15.281Z"
+    },
+    {
+      "path": ".agent/agents/explorer-agent.md",
+      "title": "Explorer Agent - Advanced Discovery & Research",
+      "classification": "agent_tooling_reference",
+      "size": 3951,
+      "mtime": "2026-01-27T02:09:15.282Z"
+    },
+    {
+      "path": ".agent/agents/frontend-specialist.md",
+      "title": "Senior Frontend Architect",
+      "classification": "agent_tooling_reference",
+      "size": 25365,
+      "mtime": "2026-01-27T02:09:15.284Z"
+    },
+    {
+      "path": ".agent/agents/game-developer.md",
+      "title": "Game Developer Agent",
+      "classification": "agent_tooling_reference",
+      "size": 4696,
+      "mtime": "2026-01-27T02:09:15.284Z"
+    },
+    {
+      "path": ".agent/agents/mobile-developer.md",
+      "title": "Mobile Developer",
+      "classification": "agent_tooling_reference",
+      "size": 12924,
+      "mtime": "2026-01-27T02:09:15.285Z"
+    },
+    {
+      "path": ".agent/agents/orchestrator.md",
+      "title": "Orchestrator - Native Multi-Agent Coordination",
+      "classification": "agent_tooling_reference",
+      "size": 13829,
+      "mtime": "2026-01-27T02:09:15.285Z"
+    },
+    {
+      "path": ".agent/agents/penetration-tester.md",
+      "title": "Penetration Tester",
+      "classification": "agent_tooling_reference",
+      "size": 4807,
+      "mtime": "2026-01-27T02:09:15.285Z"
+    },
+    {
+      "path": ".agent/agents/performance-optimizer.md",
+      "title": "Performance Optimizer",
+      "classification": "agent_tooling_reference",
+      "size": 4384,
+      "mtime": "2026-01-27T02:09:15.285Z"
+    },
+    {
+      "path": ".agent/agents/product-manager.md",
+      "title": "Product Manager",
+      "classification": "agent_tooling_reference",
+      "size": 3154,
+      "mtime": "2026-01-27T02:09:15.288Z"
+    },
+    {
+      "path": ".agent/agents/product-owner.md",
+      "title": "Product Owner",
+      "classification": "agent_tooling_reference",
+      "size": 3889,
+      "mtime": "2026-01-27T02:09:15.288Z"
+    },
+    {
+      "path": ".agent/agents/project-planner.md",
+      "title": "Project Planner - Smart Project Planning",
+      "classification": "agent_tooling_reference",
+      "size": 13705,
+      "mtime": "2026-01-27T02:09:15.288Z"
+    },
+    {
+      "path": ".agent/agents/qa-automation-engineer.md",
+      "title": "QA Automation Engineer",
+      "classification": "agent_tooling_reference",
+      "size": 3202,
+      "mtime": "2026-01-27T02:09:15.288Z"
+    },
+    {
+      "path": ".agent/agents/security-auditor.md",
+      "title": "Security Auditor",
+      "classification": "agent_tooling_reference",
+      "size": 4667,
+      "mtime": "2026-01-27T02:09:15.289Z"
+    },
+    {
+      "path": ".agent/agents/seo-specialist.md",
+      "title": "SEO Specialist",
+      "classification": "agent_tooling_reference",
+      "size": 2729,
+      "mtime": "2026-01-27T02:09:15.289Z"
+    },
+    {
+      "path": ".agent/agents/test-engineer.md",
+      "title": "Test Engineer",
+      "classification": "agent_tooling_reference",
+      "size": 3182,
+      "mtime": "2026-01-27T02:09:15.289Z"
+    },
+    {
+      "path": ".agent/ARCHITECTURE.md",
+      "title": "Antigravity Kit Architecture",
+      "classification": "agent_tooling_reference",
+      "size": 8581,
+      "mtime": "2026-01-27T02:09:15.274Z"
+    },
+    {
+      "path": ".agent/rules/00_CARTIE_OVERRIDES.md",
+      "title": "CarTié — Global Overrides (P0)",
+      "classification": "agent_tooling_reference",
+      "size": 2697,
+      "mtime": "2026-02-02T11:22:27.705Z"
+    },
+    {
+      "path": ".agent/rules/10_CHANGE_PROTOCOL.md",
+      "title": "CarTié — Change Protocol (P0)",
+      "classification": "agent_tooling_reference",
+      "size": 1634,
+      "mtime": "2026-02-02T11:22:27.706Z"
+    },
+    {
+      "path": ".agent/rules/20_CODEBASE_MAP.md",
+      "title": "CarTié — Codebase Map (P1)",
+      "classification": "agent_tooling_reference",
+      "size": 1418,
+      "mtime": "2026-02-02T11:22:27.706Z"
+    },
+    {
+      "path": ".agent/rules/30_TELEGRAM_BOTAPI_MODULE.md",
+      "title": "Telegram Bot API — Rules (P0)",
+      "classification": "agent_tooling_reference",
+      "size": 1513,
+      "mtime": "2026-02-02T11:22:27.706Z"
+    },
+    {
+      "path": ".agent/rules/35_TELEGRAM_LEADS_IDENTITY.md",
+      "title": "Telegram → Leads: Identity & Data (P0)",
+      "classification": "agent_tooling_reference",
+      "size": 1553,
+      "mtime": "2026-02-02T11:22:27.706Z"
+    },
+    {
+      "path": ".agent/rules/40_TG_CHANNELS_INGESTION.md",
+      "title": "Telegram Channels/Chats → Inventory/Content (P0)",
+      "classification": "agent_tooling_reference",
+      "size": 1593,
+      "mtime": "2026-02-02T11:22:27.706Z"
+    },
+    {
+      "path": ".agent/rules/50_MTPROTO_CONNECTOR_RULES.md",
+      "title": "MTProto Connector — Rules (P1)",
+      "classification": "agent_tooling_reference",
+      "size": 936,
+      "mtime": "2026-02-02T11:22:27.706Z"
+    },
+    {
+      "path": ".agent/rules/60_TESTING_RELEASE_GATE.md",
+      "title": "Testing & Release Gate (P0)",
+      "classification": "agent_tooling_reference",
+      "size": 807,
+      "mtime": "2026-02-02T11:22:27.707Z"
+    },
+    {
+      "path": ".agent/rules/GEMINI.md",
+      "title": "GEMINI.md - Antigravity Kit",
+      "classification": "agent_tooling_reference",
+      "size": 11897,
+      "mtime": "2026-01-27T02:09:15.289Z"
+    },
+    {
+      "path": ".agent/skills/api-patterns/api-style.md",
+      "title": "API Style Selection (2025)",
+      "classification": "agent_tooling_reference",
+      "size": 1155,
+      "mtime": "2026-01-27T02:09:15.291Z"
+    },
+    {
+      "path": ".agent/skills/api-patterns/auth.md",
+      "title": "Authentication Patterns",
+      "classification": "agent_tooling_reference",
+      "size": 576,
+      "mtime": "2026-01-27T02:09:15.291Z"
+    },
+    {
+      "path": ".agent/skills/api-patterns/documentation.md",
+      "title": "API Documentation Principles",
+      "classification": "agent_tooling_reference",
+      "size": 549,
+      "mtime": "2026-01-27T02:09:15.291Z"
+    },
+    {
+      "path": ".agent/skills/api-patterns/graphql.md",
+      "title": "GraphQL Principles",
+      "classification": "agent_tooling_reference",
+      "size": 977,
+      "mtime": "2026-01-27T02:09:15.291Z"
+    },
+    {
+      "path": ".agent/skills/api-patterns/rate-limiting.md",
+      "title": "Rate Limiting Principles",
+      "classification": "agent_tooling_reference",
+      "size": 726,
+      "mtime": "2026-01-27T02:09:15.291Z"
+    },
+    {
+      "path": ".agent/skills/api-patterns/response.md",
+      "title": "Response Format Principles",
+      "classification": "agent_tooling_reference",
+      "size": 921,
+      "mtime": "2026-01-27T02:09:15.291Z"
+    },
+    {
+      "path": ".agent/skills/api-patterns/rest.md",
+      "title": "REST Principles",
+      "classification": "agent_tooling_reference",
+      "size": 1280,
+      "mtime": "2026-01-27T02:09:15.291Z"
+    },
+    {
+      "path": ".agent/skills/api-patterns/security-testing.md",
+      "title": "API Security Testing",
+      "classification": "agent_tooling_reference",
+      "size": 2892,
+      "mtime": "2026-01-27T02:09:15.292Z"
+    },
+    {
+      "path": ".agent/skills/api-patterns/SKILL.md",
+      "title": "API Patterns",
+      "classification": "agent_tooling_reference",
+      "size": 2435,
+      "mtime": "2026-01-27T02:09:15.290Z"
+    },
+    {
+      "path": ".agent/skills/api-patterns/trpc.md",
+      "title": "tRPC Principles",
+      "classification": "agent_tooling_reference",
+      "size": 801,
+      "mtime": "2026-01-27T02:09:15.292Z"
+    },
+    {
+      "path": ".agent/skills/api-patterns/versioning.md",
+      "title": "Versioning Strategies",
+      "classification": "agent_tooling_reference",
+      "size": 651,
+      "mtime": "2026-01-27T02:09:15.292Z"
+    },
+    {
+      "path": ".agent/skills/app-builder/agent-coordination.md",
+      "title": "Agent Coordination",
+      "classification": "agent_tooling_reference",
+      "size": 5555,
+      "mtime": "2026-01-27T02:09:15.292Z"
+    },
+    {
+      "path": ".agent/skills/app-builder/feature-building.md",
+      "title": "Feature Building",
+      "classification": "agent_tooling_reference",
+      "size": 1123,
+      "mtime": "2026-01-27T02:09:15.292Z"
+    },
+    {
+      "path": ".agent/skills/app-builder/project-detection.md",
+      "title": "Project Type Detection",
+      "classification": "agent_tooling_reference",
+      "size": 1323,
+      "mtime": "2026-01-27T02:09:15.292Z"
+    },
+    {
+      "path": ".agent/skills/app-builder/scaffolding.md",
+      "title": "Project Scaffolding",
+      "classification": "agent_tooling_reference",
+      "size": 3609,
+      "mtime": "2026-01-27T02:09:15.293Z"
+    },
+    {
+      "path": ".agent/skills/app-builder/SKILL.md",
+      "title": "App Builder - Application Building Orchestrator",
+      "classification": "agent_tooling_reference",
+      "size": 3172,
+      "mtime": "2026-01-27T02:09:15.292Z"
+    },
+    {
+      "path": ".agent/skills/app-builder/tech-stack.md",
+      "title": "Tech Stack Selection (2025)",
+      "classification": "agent_tooling_reference",
+      "size": 886,
+      "mtime": "2026-01-27T02:09:15.293Z"
+    },
+    {
+      "path": ".agent/skills/app-builder/templates/astro-static/TEMPLATE.md",
+      "title": "Astro Static Site Template",
+      "classification": "agent_tooling_reference",
+      "size": 1706,
+      "mtime": "2026-01-27T02:09:15.293Z"
+    },
+    {
+      "path": ".agent/skills/app-builder/templates/chrome-extension/TEMPLATE.md",
+      "title": "Chrome Extension Template",
+      "classification": "agent_tooling_reference",
+      "size": 1966,
+      "mtime": "2026-01-27T02:09:15.293Z"
+    },
+    {
+      "path": ".agent/skills/app-builder/templates/cli-tool/TEMPLATE.md",
+      "title": "CLI Tool Template",
+      "classification": "agent_tooling_reference",
+      "size": 1762,
+      "mtime": "2026-01-27T02:09:15.293Z"
+    },
+    {
+      "path": ".agent/skills/app-builder/templates/electron-desktop/TEMPLATE.md",
+      "title": "Electron Desktop App Template",
+      "classification": "agent_tooling_reference",
+      "size": 1823,
+      "mtime": "2026-01-27T02:09:15.294Z"
+    },
+    {
+      "path": ".agent/skills/app-builder/templates/express-api/TEMPLATE.md",
+      "title": "Express.js API Template",
+      "classification": "agent_tooling_reference",
+      "size": 1759,
+      "mtime": "2026-01-27T02:09:15.294Z"
+    },
+    {
+      "path": ".agent/skills/app-builder/templates/flutter-app/TEMPLATE.md",
+      "title": "Flutter App Template",
+      "classification": "agent_tooling_reference",
+      "size": 1855,
+      "mtime": "2026-01-27T02:09:15.294Z"
+    },
+    {
+      "path": ".agent/skills/app-builder/templates/monorepo-turborepo/TEMPLATE.md",
+      "title": "Turborepo Monorepo Template",
+      "classification": "agent_tooling_reference",
+      "size": 1880,
+      "mtime": "2026-01-27T02:09:15.294Z"
+    },
+    {
+      "path": ".agent/skills/app-builder/templates/nextjs-fullstack/TEMPLATE.md",
+      "title": "Next.js Full-Stack Template",
+      "classification": "agent_tooling_reference",
+      "size": 1620,
+      "mtime": "2026-01-27T02:09:15.294Z"
+    },
+    {
+      "path": ".agent/skills/app-builder/templates/nextjs-saas/TEMPLATE.md",
+      "title": "Next.js SaaS Template",
+      "classification": "agent_tooling_reference",
+      "size": 2266,
+      "mtime": "2026-01-27T02:09:15.295Z"
+    },
+    {
+      "path": ".agent/skills/app-builder/templates/nextjs-static/TEMPLATE.md",
+      "title": "Next.js Static Site Template",
+      "classification": "agent_tooling_reference",
+      "size": 2044,
+      "mtime": "2026-01-27T02:09:15.295Z"
+    },
+    {
+      "path": ".agent/skills/app-builder/templates/nuxt-app/TEMPLATE.md",
+      "title": "Nuxt 3 Full-Stack Template",
+      "classification": "agent_tooling_reference",
+      "size": 2137,
+      "mtime": "2026-01-27T02:09:15.295Z"
+    },
+    {
+      "path": ".agent/skills/app-builder/templates/python-fastapi/TEMPLATE.md",
+      "title": "FastAPI API Template",
+      "classification": "agent_tooling_reference",
+      "size": 1785,
+      "mtime": "2026-01-27T02:09:15.295Z"
+    },
+    {
+      "path": ".agent/skills/app-builder/templates/react-native-app/TEMPLATE.md",
+      "title": "React Native App Template",
+      "classification": "agent_tooling_reference",
+      "size": 1939,
+      "mtime": "2026-01-27T02:09:15.295Z"
+    },
+    {
+      "path": ".agent/skills/app-builder/templates/SKILL.md",
+      "title": "Project Templates",
+      "classification": "agent_tooling_reference",
+      "size": 1585,
+      "mtime": "2026-01-27T02:09:15.293Z"
+    },
+    {
+      "path": ".agent/skills/architecture/context-discovery.md",
+      "title": "Context Discovery",
+      "classification": "agent_tooling_reference",
+      "size": 1591,
+      "mtime": "2026-01-27T02:09:15.296Z"
+    },
+    {
+      "path": ".agent/skills/architecture/examples.md",
+      "title": "Architecture Examples",
+      "classification": "agent_tooling_reference",
+      "size": 2430,
+      "mtime": "2026-01-27T02:09:15.296Z"
+    },
+    {
+      "path": ".agent/skills/architecture/pattern-selection.md",
+      "title": "Pattern Selection Guidelines",
+      "classification": "agent_tooling_reference",
+      "size": 2638,
+      "mtime": "2026-01-27T02:09:15.296Z"
+    },
+    {
+      "path": ".agent/skills/architecture/patterns-reference.md",
+      "title": "Architecture Patterns Reference",
+      "classification": "agent_tooling_reference",
+      "size": 2307,
+      "mtime": "2026-01-27T02:09:15.296Z"
+    },
+    {
+      "path": ".agent/skills/architecture/SKILL.md",
+      "title": "Architecture Decision Framework",
+      "classification": "agent_tooling_reference",
+      "size": 1759,
+      "mtime": "2026-01-27T02:09:15.295Z"
+    },
+    {
+      "path": ".agent/skills/architecture/trade-off-analysis.md",
+      "title": "Trade-off Analysis & ADR",
+      "classification": "agent_tooling_reference",
+      "size": 1579,
+      "mtime": "2026-01-27T02:09:15.296Z"
+    },
+    {
+      "path": ".agent/skills/bash-linux/SKILL.md",
+      "title": "Bash Linux Patterns",
+      "classification": "agent_tooling_reference",
+      "size": 4156,
+      "mtime": "2026-01-27T02:09:15.296Z"
+    },
+    {
+      "path": ".agent/skills/behavioral-modes/SKILL.md",
+      "title": "Behavioral Modes - Adaptive AI Operating Modes",
+      "classification": "agent_tooling_reference",
+      "size": 5379,
+      "mtime": "2026-01-27T02:09:15.297Z"
+    },
+    {
+      "path": ".agent/skills/brainstorming/dynamic-questioning.md",
+      "title": "Dynamic Question Generation",
+      "classification": "agent_tooling_reference",
+      "size": 11619,
+      "mtime": "2026-01-27T02:09:15.297Z"
+    },
+    {
+      "path": ".agent/skills/brainstorming/SKILL.md",
+      "title": "Brainstorming & Communication Protocol",
+      "classification": "agent_tooling_reference",
+      "size": 4660,
+      "mtime": "2026-01-27T02:09:15.297Z"
+    },
+    {
+      "path": ".agent/skills/clean-code/SKILL.md",
+      "title": "Clean Code - Pragmatic AI Coding Standards",
+      "classification": "agent_tooling_reference",
+      "size": 6634,
+      "mtime": "2026-01-27T02:09:15.297Z"
+    },
+    {
+      "path": ".agent/skills/code-review-checklist/SKILL.md",
+      "title": "Code Review Checklist",
+      "classification": "agent_tooling_reference",
+      "size": 2574,
+      "mtime": "2026-01-27T02:09:15.298Z"
+    },
+    {
+      "path": ".agent/skills/database-design/database-selection.md",
+      "title": "Database Selection (2025)",
+      "classification": "agent_tooling_reference",
+      "size": 1137,
+      "mtime": "2026-01-27T02:09:15.298Z"
+    },
+    {
+      "path": ".agent/skills/database-design/indexing.md",
+      "title": "Indexing Principles",
+      "classification": "agent_tooling_reference",
+      "size": 892,
+      "mtime": "2026-01-27T02:09:15.298Z"
+    },
+    {
+      "path": ".agent/skills/database-design/migrations.md",
+      "title": "Migration Principles",
+      "classification": "agent_tooling_reference",
+      "size": 1107,
+      "mtime": "2026-01-27T02:09:15.298Z"
+    },
+    {
+      "path": ".agent/skills/database-design/optimization.md",
+      "title": "Query Optimization",
+      "classification": "agent_tooling_reference",
+      "size": 902,
+      "mtime": "2026-01-27T02:09:15.298Z"
+    },
+    {
+      "path": ".agent/skills/database-design/orm-selection.md",
+      "title": "ORM Selection (2025)",
+      "classification": "agent_tooling_reference",
+      "size": 771,
+      "mtime": "2026-01-27T02:09:15.298Z"
+    },
+    {
+      "path": ".agent/skills/database-design/schema-design.md",
+      "title": "Schema Design Principles",
+      "classification": "agent_tooling_reference",
+      "size": 1470,
+      "mtime": "2026-01-27T02:09:15.299Z"
+    },
+    {
+      "path": ".agent/skills/database-design/SKILL.md",
+      "title": "Database Design",
+      "classification": "agent_tooling_reference",
+      "size": 1527,
+      "mtime": "2026-01-27T02:09:15.298Z"
+    },
+    {
+      "path": ".agent/skills/deployment-procedures/SKILL.md",
+      "title": "Deployment Procedures",
+      "classification": "agent_tooling_reference",
+      "size": 5708,
+      "mtime": "2026-01-27T02:09:15.300Z"
+    },
+    {
+      "path": ".agent/skills/doc.md",
+      "title": "Antigravity Skills",
+      "classification": "agent_tooling_reference",
+      "size": 5417,
+      "mtime": "2026-01-27T02:09:15.300Z"
+    },
+    {
+      "path": ".agent/skills/documentation-templates/SKILL.md",
+      "title": "Documentation Templates",
+      "classification": "agent_tooling_reference",
+      "size": 3312,
+      "mtime": "2026-01-27T02:09:15.300Z"
+    },
+    {
+      "path": ".agent/skills/frontend-design/animation-guide.md",
+      "title": "Animation Guidelines Reference",
+      "classification": "agent_tooling_reference",
+      "size": 8035,
+      "mtime": "2026-01-27T02:09:15.301Z"
+    },
+    {
+      "path": ".agent/skills/frontend-design/color-system.md",
+      "title": "Color System Reference",
+      "classification": "agent_tooling_reference",
+      "size": 9631,
+      "mtime": "2026-01-27T02:09:15.301Z"
+    },
+    {
+      "path": ".agent/skills/frontend-design/decision-trees.md",
+      "title": "Decision Trees & Context Templates",
+      "classification": "agent_tooling_reference",
+      "size": 17265,
+      "mtime": "2026-01-27T02:09:15.301Z"
+    },
+    {
+      "path": ".agent/skills/frontend-design/motion-graphics.md",
+      "title": "Motion Graphics Reference",
+      "classification": "agent_tooling_reference",
+      "size": 7999,
+      "mtime": "2026-01-27T02:09:15.302Z"
+    },
+    {
+      "path": ".agent/skills/frontend-design/SKILL.md",
+      "title": "Frontend Design System",
+      "classification": "agent_tooling_reference",
+      "size": 12519,
+      "mtime": "2026-01-27T02:09:15.301Z"
+    },
+    {
+      "path": ".agent/skills/frontend-design/typography-system.md",
+      "title": "Typography System Reference",
+      "classification": "agent_tooling_reference",
+      "size": 8523,
+      "mtime": "2026-01-27T02:09:15.303Z"
+    },
+    {
+      "path": ".agent/skills/frontend-design/ux-psychology.md",
+      "title": "UX Psychology Reference",
+      "classification": "agent_tooling_reference",
+      "size": 15756,
+      "mtime": "2026-01-27T02:09:15.303Z"
+    },
+    {
+      "path": ".agent/skills/frontend-design/visual-effects.md",
+      "title": "Visual Effects Reference",
+      "classification": "agent_tooling_reference",
+      "size": 8362,
+      "mtime": "2026-01-27T02:09:15.303Z"
+    },
+    {
+      "path": ".agent/skills/game-development/2d-games/SKILL.md",
+      "title": "2D Game Development",
+      "classification": "agent_tooling_reference",
+      "size": 2190,
+      "mtime": "2026-01-27T02:09:15.303Z"
+    },
+    {
+      "path": ".agent/skills/game-development/3d-games/SKILL.md",
+      "title": "3D Game Development",
+      "classification": "agent_tooling_reference",
+      "size": 2563,
+      "mtime": "2026-01-27T02:09:15.303Z"
+    },
+    {
+      "path": ".agent/skills/game-development/game-art/SKILL.md",
+      "title": "Game Art Principles",
+      "classification": "agent_tooling_reference",
+      "size": 5049,
+      "mtime": "2026-01-27T02:09:15.304Z"
+    },
+    {
+      "path": ".agent/skills/game-development/game-audio/SKILL.md",
+      "title": "Game Audio Principles",
+      "classification": "agent_tooling_reference",
+      "size": 5361,
+      "mtime": "2026-01-27T02:09:15.304Z"
+    },
+    {
+      "path": ".agent/skills/game-development/game-design/SKILL.md",
+      "title": "Game Design Principles",
+      "classification": "agent_tooling_reference",
+      "size": 2645,
+      "mtime": "2026-01-27T02:09:15.304Z"
+    },
+    {
+      "path": ".agent/skills/game-development/mobile-games/SKILL.md",
+      "title": "Mobile Game Development",
+      "classification": "agent_tooling_reference",
+      "size": 2282,
+      "mtime": "2026-01-27T02:09:15.304Z"
+    },
+    {
+      "path": ".agent/skills/game-development/multiplayer/SKILL.md",
+      "title": "Multiplayer Game Development",
+      "classification": "agent_tooling_reference",
+      "size": 2813,
+      "mtime": "2026-01-27T02:09:15.305Z"
+    },
+    {
+      "path": ".agent/skills/game-development/pc-games/SKILL.md",
+      "title": "PC/Console Game Development",
+      "classification": "agent_tooling_reference",
+      "size": 2973,
+      "mtime": "2026-01-27T02:09:15.305Z"
+    },
+    {
+      "path": ".agent/skills/game-development/SKILL.md",
+      "title": "Game Development",
+      "classification": "agent_tooling_reference",
+      "size": 4682,
+      "mtime": "2026-01-27T02:09:15.304Z"
+    },
+    {
+      "path": ".agent/skills/game-development/vr-ar/SKILL.md",
+      "title": "VR/AR Development",
+      "classification": "agent_tooling_reference",
+      "size": 2379,
+      "mtime": "2026-01-27T02:09:15.305Z"
+    },
+    {
+      "path": ".agent/skills/game-development/web-games/SKILL.md",
+      "title": "Web Browser Game Development",
+      "classification": "agent_tooling_reference",
+      "size": 3073,
+      "mtime": "2026-01-27T02:09:15.305Z"
+    },
+    {
+      "path": ".agent/skills/geo-fundamentals/SKILL.md",
+      "title": "GEO Fundamentals",
+      "classification": "agent_tooling_reference",
+      "size": 3445,
+      "mtime": "2026-01-27T02:09:15.305Z"
+    },
+    {
+      "path": ".agent/skills/i18n-localization/SKILL.md",
+      "title": "i18n & Localization",
+      "classification": "agent_tooling_reference",
+      "size": 3121,
+      "mtime": "2026-01-27T02:09:15.306Z"
+    },
+    {
+      "path": ".agent/skills/intelligent-routing/SKILL.md",
+      "title": "Intelligent Agent Routing",
+      "classification": "agent_tooling_reference",
+      "size": 10617,
+      "mtime": "2026-01-27T02:09:15.306Z"
+    },
+    {
+      "path": ".agent/skills/lint-and-validate/SKILL.md",
+      "title": "Lint and Validate Skill",
+      "classification": "agent_tooling_reference",
+      "size": 1727,
+      "mtime": "2026-01-27T02:09:15.307Z"
+    },
+    {
+      "path": ".agent/skills/mcp-builder/SKILL.md",
+      "title": "MCP Builder",
+      "classification": "agent_tooling_reference",
+      "size": 3308,
+      "mtime": "2026-05-12T16:05:17.197Z"
+    },
+    {
+      "path": ".agent/skills/mobile-design/decision-trees.md",
+      "title": "Mobile Decision Trees",
+      "classification": "agent_tooling_reference",
+      "size": 16320,
+      "mtime": "2026-01-27T02:09:15.308Z"
+    },
+    {
+      "path": ".agent/skills/mobile-design/mobile-backend.md",
+      "title": "Mobile Backend Patterns",
+      "classification": "agent_tooling_reference",
+      "size": 14686,
+      "mtime": "2026-01-27T02:09:15.308Z"
+    },
+    {
+      "path": ".agent/skills/mobile-design/mobile-color-system.md",
+      "title": "Mobile Color System Reference",
+      "classification": "agent_tooling_reference",
+      "size": 10211,
+      "mtime": "2026-01-27T02:09:15.308Z"
+    },
+    {
+      "path": ".agent/skills/mobile-design/mobile-debugging.md",
+      "title": "Mobile Debugging Guide",
+      "classification": "agent_tooling_reference",
+      "size": 4250,
+      "mtime": "2026-01-27T02:09:15.308Z"
+    },
+    {
+      "path": ".agent/skills/mobile-design/mobile-design-thinking.md",
+      "title": "Mobile Design Thinking",
+      "classification": "agent_tooling_reference",
+      "size": 17227,
+      "mtime": "2026-01-27T02:09:15.309Z"
+    },
+    {
+      "path": ".agent/skills/mobile-design/mobile-navigation.md",
+      "title": "Mobile Navigation Reference",
+      "classification": "agent_tooling_reference",
+      "size": 11855,
+      "mtime": "2026-01-27T02:09:15.309Z"
+    },
+    {
+      "path": ".agent/skills/mobile-design/mobile-performance.md",
+      "title": "Mobile Performance Reference",
+      "classification": "agent_tooling_reference",
+      "size": 19305,
+      "mtime": "2026-01-27T02:09:15.309Z"
+    },
+    {
+      "path": ".agent/skills/mobile-design/mobile-testing.md",
+      "title": "Mobile Testing Patterns",
+      "classification": "agent_tooling_reference",
+      "size": 11027,
+      "mtime": "2026-01-27T02:09:15.309Z"
+    },
+    {
+      "path": ".agent/skills/mobile-design/mobile-typography.md",
+      "title": "Mobile Typography Reference",
+      "classification": "agent_tooling_reference",
+      "size": 10717,
+      "mtime": "2026-01-27T02:09:15.309Z"
+    },
+    {
+      "path": ".agent/skills/mobile-design/platform-android.md",
+      "title": "Android Platform Guidelines",
+      "classification": "agent_tooling_reference",
+      "size": 19541,
+      "mtime": "2026-01-27T02:09:15.310Z"
+    },
+    {
+      "path": ".agent/skills/mobile-design/platform-ios.md",
+      "title": "iOS Platform Guidelines",
+      "classification": "agent_tooling_reference",
+      "size": 17127,
+      "mtime": "2026-01-27T02:09:15.310Z"
+    },
+    {
+      "path": ".agent/skills/mobile-design/SKILL.md",
+      "title": "Mobile Design System",
+      "classification": "agent_tooling_reference",
+      "size": 15455,
+      "mtime": "2026-01-27T02:09:15.307Z"
+    },
+    {
+      "path": ".agent/skills/mobile-design/touch-psychology.md",
+      "title": "Touch Psychology Reference",
+      "classification": "agent_tooling_reference",
+      "size": 16848,
+      "mtime": "2026-01-27T02:09:15.311Z"
+    },
+    {
+      "path": ".agent/skills/nextjs-react-expert/1-async-eliminating-waterfalls.md",
+      "title": "1. Eliminating Waterfalls",
+      "classification": "agent_tooling_reference",
+      "size": 7776,
+      "mtime": "2026-01-27T02:09:15.311Z"
+    },
+    {
+      "path": ".agent/skills/nextjs-react-expert/2-bundle-bundle-size-optimization.md",
+      "title": "2. Bundle Size Optimization",
+      "classification": "agent_tooling_reference",
+      "size": 6269,
+      "mtime": "2026-01-27T02:09:15.311Z"
+    },
+    {
+      "path": ".agent/skills/nextjs-react-expert/3-server-server-side-performance.md",
+      "title": "3. Server-Side Performance",
+      "classification": "agent_tooling_reference",
+      "size": 12860,
+      "mtime": "2026-01-27T02:09:15.311Z"
+    },
+    {
+      "path": ".agent/skills/nextjs-react-expert/4-client-client-side-data-fetching.md",
+      "title": "4. Client-Side Data Fetching",
+      "classification": "agent_tooling_reference",
+      "size": 6818,
+      "mtime": "2026-01-27T02:09:15.312Z"
+    },
+    {
+      "path": ".agent/skills/nextjs-react-expert/5-rerender-re-render-optimization.md",
+      "title": "5. Re-render Optimization",
+      "classification": "agent_tooling_reference",
+      "size": 15871,
+      "mtime": "2026-01-27T02:09:15.312Z"
+    },
+    {
+      "path": ".agent/skills/nextjs-react-expert/6-rendering-rendering-performance.md",
+      "title": "6. Rendering Performance",
+      "classification": "agent_tooling_reference",
+      "size": 10353,
+      "mtime": "2026-01-27T02:09:15.312Z"
+    },
+    {
+      "path": ".agent/skills/nextjs-react-expert/7-js-javascript-performance.md",
+      "title": "7. JavaScript Performance",
+      "classification": "agent_tooling_reference",
+      "size": 17360,
+      "mtime": "2026-01-27T02:09:15.312Z"
+    },
+    {
+      "path": ".agent/skills/nextjs-react-expert/8-advanced-advanced-patterns.md",
+      "title": "8. Advanced Patterns",
+      "classification": "agent_tooling_reference",
+      "size": 3643,
+      "mtime": "2026-01-27T02:09:15.312Z"
+    },
+    {
+      "path": ".agent/skills/nextjs-react-expert/SKILL.md",
+      "title": "Next.js & React Performance Expert",
+      "classification": "agent_tooling_reference",
+      "size": 9173,
+      "mtime": "2026-01-27T02:09:15.313Z"
+    },
+    {
+      "path": ".agent/skills/nodejs-best-practices/SKILL.md",
+      "title": "Node.js Best Practices",
+      "classification": "agent_tooling_reference",
+      "size": 8266,
+      "mtime": "2026-01-27T02:09:15.313Z"
+    },
+    {
+      "path": ".agent/skills/parallel-agents/SKILL.md",
+      "title": "Native Parallel Agents",
+      "classification": "agent_tooling_reference",
+      "size": 5340,
+      "mtime": "2026-01-27T02:09:15.313Z"
+    },
+    {
+      "path": ".agent/skills/performance-profiling/SKILL.md",
+      "title": "Performance Profiling",
+      "classification": "agent_tooling_reference",
+      "size": 3101,
+      "mtime": "2026-01-27T02:09:15.314Z"
+    },
+    {
+      "path": ".agent/skills/plan-writing/SKILL.md",
+      "title": "Plan Writing",
+      "classification": "agent_tooling_reference",
+      "size": 4000,
+      "mtime": "2026-01-27T02:09:15.314Z"
+    },
+    {
+      "path": ".agent/skills/powershell-windows/SKILL.md",
+      "title": "PowerShell Windows Patterns",
+      "classification": "agent_tooling_reference",
+      "size": 3500,
+      "mtime": "2026-01-27T02:09:15.314Z"
+    },
+    {
+      "path": ".agent/skills/python-patterns/SKILL.md",
+      "title": "Python Patterns",
+      "classification": "agent_tooling_reference",
+      "size": 9476,
+      "mtime": "2026-01-27T02:09:15.317Z"
+    },
+    {
+      "path": ".agent/skills/red-team-tactics/SKILL.md",
+      "title": "Red Team Tactics",
+      "classification": "agent_tooling_reference",
+      "size": 4405,
+      "mtime": "2026-01-27T02:09:15.317Z"
+    },
+    {
+      "path": ".agent/skills/seo-fundamentals/SKILL.md",
+      "title": "SEO Fundamentals",
+      "classification": "agent_tooling_reference",
+      "size": 2787,
+      "mtime": "2026-01-27T02:09:15.317Z"
+    },
+    {
+      "path": ".agent/skills/server-management/SKILL.md",
+      "title": "Server Management",
+      "classification": "agent_tooling_reference",
+      "size": 3734,
+      "mtime": "2026-01-27T02:09:15.318Z"
+    },
+    {
+      "path": ".agent/skills/systematic-debugging/SKILL.md",
+      "title": "Systematic Debugging",
+      "classification": "agent_tooling_reference",
+      "size": 2405,
+      "mtime": "2026-01-27T02:09:15.318Z"
+    },
+    {
+      "path": ".agent/skills/tailwind-patterns/SKILL.md",
+      "title": "Tailwind CSS Patterns (v4 - 2025)",
+      "classification": "agent_tooling_reference",
+      "size": 6757,
+      "mtime": "2026-01-27T02:09:15.318Z"
+    },
+    {
+      "path": ".agent/skills/tdd-workflow/SKILL.md",
+      "title": "TDD Workflow",
+      "classification": "agent_tooling_reference",
+      "size": 2813,
+      "mtime": "2026-01-27T02:09:15.318Z"
+    },
+    {
+      "path": ".agent/skills/testing-patterns/SKILL.md",
+      "title": "Testing Patterns",
+      "classification": "agent_tooling_reference",
+      "size": 3488,
+      "mtime": "2026-01-27T02:09:15.321Z"
+    },
+    {
+      "path": ".agent/skills/vulnerability-scanner/checklists.md",
+      "title": "Security Checklists",
+      "classification": "agent_tooling_reference",
+      "size": 2746,
+      "mtime": "2026-01-27T02:09:15.321Z"
+    },
+    {
+      "path": ".agent/skills/vulnerability-scanner/SKILL.md",
+      "title": "Vulnerability Scanner",
+      "classification": "agent_tooling_reference",
+      "size": 7584,
+      "mtime": "2026-01-27T02:09:15.321Z"
+    },
+    {
+      "path": ".agent/skills/web-design-guidelines/SKILL.md",
+      "title": "Web Interface Guidelines",
+      "classification": "agent_tooling_reference",
+      "size": 1771,
+      "mtime": "2026-01-27T02:09:15.322Z"
+    },
+    {
+      "path": ".agent/skills/webapp-testing/SKILL.md",
+      "title": "Web App Testing",
+      "classification": "agent_tooling_reference",
+      "size": 3815,
+      "mtime": "2026-05-12T16:05:17.197Z"
+    },
+    {
+      "path": ".agent/workflows/brainstorm.md",
+      "title": "/brainstorm - Structured Idea Exploration",
+      "classification": "agent_tooling_reference",
+      "size": 1825,
+      "mtime": "2026-01-27T02:09:15.322Z"
+    },
+    {
+      "path": ".agent/workflows/create.md",
+      "title": "/create - Create Application",
+      "classification": "agent_tooling_reference",
+      "size": 1247,
+      "mtime": "2026-01-27T02:09:15.325Z"
+    },
+    {
+      "path": ".agent/workflows/debug.md",
+      "title": "/debug - Systematic Problem Investigation",
+      "classification": "agent_tooling_reference",
+      "size": 1706,
+      "mtime": "2026-01-27T02:09:15.325Z"
+    },
+    {
+      "path": ".agent/workflows/deploy.md",
+      "title": "/deploy - Production Deployment",
+      "classification": "agent_tooling_reference",
+      "size": 3635,
+      "mtime": "2026-01-27T02:09:15.325Z"
+    },
+    {
+      "path": ".agent/workflows/enhance.md",
+      "title": "/enhance - Update Application",
+      "classification": "agent_tooling_reference",
+      "size": 1175,
+      "mtime": "2026-01-27T02:09:15.325Z"
+    },
+    {
+      "path": ".agent/workflows/orchestrate.md",
+      "title": "Multi-Agent Orchestration",
+      "classification": "agent_tooling_reference",
+      "size": 7306,
+      "mtime": "2026-01-27T02:09:15.325Z"
+    },
+    {
+      "path": ".agent/workflows/plan.md",
+      "title": "/plan - Project Planning Mode",
+      "classification": "agent_tooling_reference",
+      "size": 1985,
+      "mtime": "2026-01-27T02:09:15.325Z"
+    },
+    {
+      "path": ".agent/workflows/preview.md",
+      "title": "/preview - Preview Management",
+      "classification": "agent_tooling_reference",
+      "size": 1164,
+      "mtime": "2026-01-27T02:09:15.326Z"
+    },
+    {
+      "path": ".agent/workflows/status.md",
+      "title": "/status - Show Status",
+      "classification": "agent_tooling_reference",
+      "size": 1416,
+      "mtime": "2026-01-27T02:09:15.326Z"
+    },
+    {
+      "path": ".agent/workflows/test.md",
+      "title": "/test - Test Generation and Execution",
+      "classification": "agent_tooling_reference",
+      "size": 2663,
+      "mtime": "2026-01-27T02:09:15.326Z"
+    },
+    {
+      "path": ".agent/workflows/ui-ux-pro-max.md",
+      "title": "ui-ux-pro-max",
+      "classification": "agent_tooling_reference",
+      "size": 10810,
+      "mtime": "2026-01-27T02:09:15.326Z"
+    }
+  ],
+  "largeSourceFiles": [
+    {
+      "path": "apps/web/src/pages/public/MiniApp.tsx",
+      "size": 212812,
+      "mtime": "2026-05-19T11:17:35.099Z"
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/routing/routeMessage.ts",
+      "size": 87652,
+      "mtime": "2026-05-19T06:19:06.557Z"
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/routing/routeCallback.ts",
+      "size": 80104,
+      "mtime": "2026-05-19T06:18:09.300Z"
+    },
+    {
+      "path": "apps/server/src/routes/miniAppRoutes.ts",
+      "size": 79163,
+      "mtime": "2026-05-19T17:22:32.873Z"
+    },
+    {
+      "path": "apps/web/src/pages/app/Inbox.tsx",
+      "size": 70707,
+      "mtime": "2026-02-23T15:22:39.258Z"
+    },
+    {
+      "path": "apps/server/src/routes/miniAppLeadHandoff.routes.test.ts",
+      "size": 66715,
+      "mtime": "2026-05-19T05:11:59.835Z"
+    },
+    {
+      "path": "apps/web/src/pages/app/Inventory.tsx",
+      "size": 62886,
+      "mtime": "2026-02-10T16:38:06.050Z"
+    },
+    {
+      "path": "apps/web/src/services/botEngine.ts",
+      "size": 60606,
+      "mtime": "2026-02-23T15:21:35.608Z"
+    },
+    {
+      "path": "apps/web/src/pages/app/ContentCalendar.tsx",
+      "size": 54435,
+      "mtime": "2026-02-03T13:20:54.133Z"
+    },
+    {
+      "path": "apps/web/src/pages/app/Requests.tsx",
+      "size": 52696,
+      "mtime": "2026-05-19T06:31:25.223Z"
+    },
+    {
+      "path": "apps/server/src/services/requestContract.service.ts",
+      "size": 52480,
+      "mtime": "2026-05-26T15:38:09.611Z"
+    },
+    {
+      "path": "scripts/inspect/generate_code_map.mjs",
+      "size": 46175,
+      "mtime": "2026-05-26T15:50:23.526Z"
+    },
+    {
+      "path": "apps/server/src/services/templatePreset.service.ts",
+      "size": 45792,
+      "mtime": "2026-05-19T03:21:56.076Z"
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/routing/wizards/leadBuyWizard.ts",
+      "size": 44713,
+      "mtime": "2026-05-04T02:08:28.469Z"
+    },
+    {
+      "path": "apps/web/src/translations.ts",
+      "size": 44450,
+      "mtime": "2026-02-02T11:22:27.756Z"
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/routing/routeCallback.leadAdminActions.test.ts",
+      "size": 44418,
+      "mtime": "2026-05-19T06:19:11.728Z"
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/routing/wizards/leadSellWizard.ts",
+      "size": 42334,
+      "mtime": "2026-05-08T13:20:14.986Z"
+    },
+    {
+      "path": "apps/server/src/modules/Communication/telegram/routing/wizards/b2bSellWizard.ts",
+      "size": 38762,
+      "mtime": "2026-05-04T02:08:28.468Z"
+    },
+    {
+      "path": "apps/web/src/pages/app/Content.tsx",
+      "size": 38245,
+      "mtime": "2026-02-03T13:19:06.330Z"
+    },
+    {
+      "path": "apps/web/src/modules/Telegram/MiniAppManager/index.tsx",
+      "size": 37727,
+      "mtime": "2026-05-05T10:31:32.413Z"
+    }
+  ],
+  "secretBearingPaths": [
+    ".deploy/20260224_115917/env_keys.txt",
+    ".deploy/20260224_170459/env_keys.txt",
+    ".deploy/20260518_042327/env_keys.txt",
+    ".deploy/20260518_043122/env_keys.txt",
+    ".deploy/20260518_043503/env_keys.txt",
+    ".deploy/20260518_144042/env_keys.txt",
+    ".deploy/20260518_192744/env_keys.txt",
+    ".deploy/20260518_193817/env_keys.txt",
+    ".deploy/20260518_195113/env_keys.txt",
+    ".deploy/20260518_195834/env_keys.txt",
+    ".deploy/20260519_174538/env_keys.txt",
+    ".deploy/20260525_162320/env_keys.txt",
+    ".deploy/20260525_163729/env_keys.txt",
+    ".deploy/20260525_183604/env_keys.txt",
+    ".env",
+    "apps/server/.env",
+    "apps/web/.env.production",
+    "docs/audit/release-20260218T152454Z/artifacts/logs_secret_keyword_hits.txt",
+    "docs/audit/release-20260218T152454Z/artifacts/runtime_logs_secret_like_hits.txt",
+    "env/prod.env",
+    "infra/.env"
+  ],
+  "integrationEvidence": {
+    "salesDriveMeta": {
+      "present": true,
+      "evidence": [
+        "apps/server/src/modules/Integrations/salesdrive/salesdrive.connector.test.ts",
+        "apps/server/src/modules/Integrations/salesdrive/salesdrive.connector.ts",
+        "apps/server/src/modules/Integrations/meta/meta.service.ts",
+        "apps/server/src/modules/Integrations/meta/metaCapi.service.test.ts"
+      ]
+    }
+  },
+  "runtime": {
+    "composePs": "NAME           IMAGE                COMMAND                  SERVICE   CREATED         STATUS                   PORTS\ninfra2-api-1   infra2-api           \"docker-entrypoint.s…\"   api       7 minutes ago   Up 7 minutes (healthy)   127.0.0.1:3002->3001/tcp\ninfra2-db-1    postgres:15-alpine   \"docker-entrypoint.s…\"   db        2 weeks ago     Up 2 weeks (healthy)     127.0.0.1:5433->5432/tcp\ninfra2-web-1   infra2-web           \"caddy run --config …\"   web       21 hours ago    Up 21 hours (healthy)    80/tcp, 443/tcp, 2019/tcp, 443/udp, 127.0.0.1:8082->8080/tcp",
+    "failedUnits": "UNIT LOAD ACTIVE SUB DESCRIPTION\n\n0 loaded units listed.",
+    "nginxSites": [
+      {
+        "name": "api.umanoff-analytics.space",
+        "target": "/etc/nginx/sites-available/api.umanoff-analytics.space"
+      },
+      {
+        "name": "cartie.umanoff-analytics.space",
+        "target": "/etc/nginx/sites-available/cartie.umanoff-analytics.space"
+      },
+      {
+        "name": "cartie2.umanoff-analytics.space.conf",
+        "target": "/etc/nginx/sites-available/cartie2.umanoff-analytics.space.conf"
+      },
+      {
+        "name": "default",
+        "target": "/etc/nginx/sites-available/default"
+      },
+      {
+        "name": "umanoff-analytics.space",
+        "target": "/etc/nginx/sites-available/umanoff-analytics.space"
+      }
+    ]
+  },
+  "knownOperationalFindings": [
+    {
+      "item": "Post-cleanup Cartie health",
+      "status": "passed in manual assessment",
+      "evidence": "/srv/cleanup-artifacts/cartie-first-20260526/post-cleanup-cartie-assessment-latest/CARTIE_POST_CLEANUP_DAMAGE_ASSESSMENT.md"
+    },
+    {
+      "item": "Web TypeScript check",
+      "status": "known failing with existing tracked type errors",
+      "evidence": "See post-cleanup assessment before treating tsc failures as cleanup damage."
+    },
+    {
+      "item": "MiniApp Telegram menu hash",
+      "status": "availability ok, config drift noted",
+      "evidence": "Live Telegram menu hash and DB expected hash differed during manual assessment; both URLs returned 200."
+    },
+    {
+      "item": "Documentation drift",
+      "status": "confirmed by read-only code exploration",
+      "evidence": "`docs/ARCHITECTURE.md` still describes a much smaller route surface than the current runtime; `docs/CANONICAL_DOCS_INDEX.md` promotes older Feb audit docs as source of truth."
+    }
+  ]
+}

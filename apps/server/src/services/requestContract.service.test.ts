@@ -363,6 +363,102 @@ describe('requestContract.service', () => {
     }));
   });
 
+  it('binds nested MiniApp tracking metadata to finalized request Meta events and debug logs', async () => {
+    mockPrisma.botSession.findUnique.mockResolvedValue({
+      id: 'sess_1',
+      variables: {
+        miniappPendingIntent: {
+          version: 1,
+          intentType: 'REQUEST',
+          slug: 'cartie',
+          title: 'Підбір авто',
+          carIds: ['car_1'],
+          tracking: {
+            submitId: 'submit_meta_1',
+            routeSource: 'telegram_menu',
+            startParam: 'view_request',
+            utm: {
+              source: 'facebook',
+              campaign: 'spring'
+            },
+            meta: {
+              eventId: 'lead_submit_event_1',
+              fbp: 'fb.1.123',
+              fbc: 'fb.1.456',
+              eventSourceUrl: 'https://cartie.test/p/app/cartie'
+            }
+          },
+          createdAt: new Date().toISOString()
+        }
+      }
+    });
+    mockPrisma.carListing.findMany.mockResolvedValue([
+      { id: 'car_1', title: 'BMW X5', mediaUrls: [], mediaItems: null, specs: {}, status: 'AVAILABLE' }
+    ]);
+
+    await requestContractService.finalizePendingLeadIntent({
+      botId: 'bot_1',
+      companyId: 'cmp_1',
+      telegramUserId: '1001',
+      phone: '+380671234567',
+      displayName: 'Client One',
+      telegramUsername: 'client_one',
+      telegramName: 'Client One'
+    });
+
+    expect(metaTrackEventMock).toHaveBeenCalledWith('cmp_1', 'SubmitApplication', expect.objectContaining({
+      entityType: 'request',
+      entityId: 'req_1',
+      fbp: 'fb.1.123',
+      fbc: 'fb.1.456',
+      eventSourceUrl: 'https://cartie.test/p/app/cartie',
+      customData: expect.objectContaining({
+        requestId: 'req_1',
+        requestPublicId: 'REQ-1',
+        leadId: 'lead_1',
+        submitId: 'submit_meta_1',
+        trackingEventId: 'lead_submit_event_1',
+        routeSource: 'telegram_menu',
+        startParam: 'view_request',
+        utm_source: 'facebook',
+        utm_campaign: 'spring',
+        hasFbp: true,
+        hasFbc: true
+      })
+    }));
+    expect(metaTrackEventMock).toHaveBeenCalledWith('cmp_1', 'Contact', expect.objectContaining({
+      fbp: 'fb.1.123',
+      fbc: 'fb.1.456',
+      eventSourceUrl: 'https://cartie.test/p/app/cartie',
+      customData: expect.objectContaining({
+        requestId: 'req_1',
+        leadId: 'lead_1',
+        submitId: 'submit_meta_1',
+        source: 'telegram_contact_keyboard'
+      })
+    }));
+    expect(mockPrisma.integrationEventLog.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        companyId: 'cmp_1',
+        integration: 'META_PIXEL',
+        action: 'miniapp.tracking_bound',
+        status: 'SUCCESS',
+        entityType: 'request',
+        entityId: 'req_1',
+        idempotencyKey: 'miniapp-tracking-bound:cmp_1:req_1:submit_meta_1',
+        meta: expect.objectContaining({
+          requestId: 'req_1',
+          requestPublicId: 'REQ-1',
+          leadId: 'lead_1',
+          submitId: 'submit_meta_1',
+          trackingEventId: 'lead_submit_event_1',
+          hasFbp: true,
+          hasFbc: true
+        })
+      })
+    }));
+  });
+
   it('finalizes old polluted pending MiniApp title using selected car presentation', async () => {
     mockPrisma.botSession.findUnique.mockResolvedValue({
       id: 'sess_1',
