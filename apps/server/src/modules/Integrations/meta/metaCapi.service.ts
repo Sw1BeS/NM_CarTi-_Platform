@@ -9,6 +9,8 @@ export type MetaActionSource = 'email' | 'website' | 'app' | 'phone_call' | 'cha
 export type MetaCapiTrackInput = {
   eventId?: string | null;
   event_id?: string | null;
+  eventTime?: number | string | Date | null;
+  event_time?: number | string | Date | null;
   entityType?: string | null;
   entityId?: string | null;
   stage?: string | null;
@@ -154,6 +156,42 @@ export const buildMetaEventId = (companyId: string, eventName: string, input: Me
   return `meta:${companyId}:${eventName}:${entityType}:${entityId}:${stage}`;
 };
 
+const MAX_META_EVENT_AGE_SECONDS = 7 * 24 * 60 * 60;
+
+const buildAttemptLogKey = (eventId: string, reason: string) =>
+  `${eventId}:${reason}:${Date.now()}:${crypto.randomUUID()}`;
+
+const parseExplicitEventUnixTime = (value: unknown): number | undefined => {
+  if (value instanceof Date) {
+    const millis = value.getTime();
+    return Number.isNaN(millis) ? undefined : Math.floor(millis / 1000);
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return Math.floor(value > 1_000_000_000_000 ? value / 1000 : value);
+  }
+  const text = toText(value);
+  if (!text) return undefined;
+  const numeric = Number(text);
+  if (Number.isFinite(numeric)) {
+    return Math.floor(numeric > 1_000_000_000_000 ? numeric / 1000 : numeric);
+  }
+  const parsed = Date.parse(text);
+  return Number.isNaN(parsed) ? undefined : Math.floor(parsed / 1000);
+};
+
+const resolveMetaEventTime = (input: MetaCapiTrackInput = {}) => {
+  const explicit = input.eventTime ?? input.event_time;
+  const nowUnix = Math.floor(Date.now() / 1000);
+  const explicitUnix = parseExplicitEventUnixTime(explicit);
+  const eventTime = explicitUnix || nowUnix;
+  const tooOld = explicitUnix !== undefined && eventTime < nowUnix - MAX_META_EVENT_AGE_SECONDS;
+  return {
+    eventTime,
+    explicit: explicitUnix !== undefined,
+    tooOld
+  };
+};
+
 export class MetaCapiService {
   async trackB2CBotDatasetEvent(companyId: string | null | undefined, eventName: string, input: MetaCapiTrackInput = {}) {
     return this.trackB2CBotCrmLifecycleEvent(companyId, eventName, input);
@@ -200,10 +238,51 @@ export class MetaCapiService {
     const idempotencyKey = eventId;
     const entityType = toText(input.entityType) || 'meta_b2c_bot_event';
     const entityId = toText(input.entityId) || eventId;
+    const resolvedEventTime = resolveMetaEventTime(input);
+    if (resolvedEventTime.tooOld) {
+      await prisma.integrationEventLog.create({
+        data: {
+          companyId,
+          integration: META_B2C_BOT_INTEGRATION,
+          action: eventName,
+          status: 'SKIPPED',
+          entityType,
+          entityId,
+          message: 'Meta B2C bot event skipped because event_time is older than 7 days',
+          idempotencyKey: buildAttemptLogKey(eventId, 'old_event_time'),
+          meta: {
+            mode: META_B2C_BOT_CRM_MODE,
+            eventId,
+            destinationKey: config.destinationKey,
+            reason: 'META_EVENT_TIME_TOO_OLD',
+            eventTime: resolvedEventTime.eventTime
+          }
+        }
+      }).catch(() => null);
+      return { success: false, skipped: true, reason: 'META_EVENT_TIME_TOO_OLD', eventId, destinationKey: config.destinationKey };
+    }
     const existingLog = await prisma.integrationEventLog.findUnique({
       where: { idempotencyKey }
     }).catch(() => null);
     if (existingLog?.status === 'SUCCESS') {
+      await prisma.integrationEventLog.create({
+        data: {
+          companyId,
+          integration: META_B2C_BOT_INTEGRATION,
+          action: eventName,
+          status: 'SKIPPED',
+          entityType,
+          entityId,
+          message: 'Meta B2C bot duplicate success skipped',
+          idempotencyKey: buildAttemptLogKey(eventId, 'duplicate'),
+          meta: {
+            mode: META_B2C_BOT_CRM_MODE,
+            eventId,
+            destinationKey: config.destinationKey,
+            reason: 'duplicate_success'
+          }
+        }
+      }).catch(() => null);
       return { success: true, eventId, duplicate: true, destinationKey: config.destinationKey };
     }
 
@@ -233,7 +312,7 @@ export class MetaCapiService {
       data: [{
         event_name: eventName,
         event_id: eventId,
-        event_time: Math.floor(Date.now() / 1000),
+        event_time: resolvedEventTime.eventTime,
         user_data: userData,
         action_source: 'system_generated',
         ...(Object.keys(customData).length ? { custom_data: customData } : {})
@@ -299,7 +378,7 @@ export class MetaCapiService {
           entityType,
           entityId,
           message,
-          idempotencyKey,
+          idempotencyKey: buildAttemptLogKey(eventId, 'error'),
           meta: {
             mode: META_B2C_BOT_CRM_MODE,
             eventId,
@@ -350,10 +429,47 @@ export class MetaCapiService {
     const idempotencyKey = eventId;
     const entityType = toText(input.entityType) || 'meta_event';
     const entityId = toText(input.entityId) || eventId;
+    const resolvedEventTime = resolveMetaEventTime(input);
+    if (resolvedEventTime.tooOld) {
+      await prisma.integrationEventLog.create({
+        data: {
+          companyId,
+          integration: 'META_PIXEL',
+          action: eventName,
+          status: 'SKIPPED',
+          entityType,
+          entityId,
+          message: 'Meta CAPI event skipped because event_time is older than 7 days',
+          idempotencyKey: buildAttemptLogKey(eventId, 'old_event_time'),
+          meta: {
+            eventId,
+            reason: 'META_EVENT_TIME_TOO_OLD',
+            eventTime: resolvedEventTime.eventTime
+          }
+        }
+      }).catch(() => null);
+      return { success: false, skipped: true, reason: 'META_EVENT_TIME_TOO_OLD', eventId };
+    }
     const existingLog = await prisma.integrationEventLog.findUnique({
       where: { idempotencyKey }
     }).catch(() => null);
     if (existingLog?.status === 'SUCCESS') {
+      await prisma.integrationEventLog.create({
+        data: {
+          companyId,
+          integration: 'META_PIXEL',
+          action: eventName,
+          status: 'SKIPPED',
+          entityType,
+          entityId,
+          message: 'Meta CAPI duplicate success skipped',
+          idempotencyKey: buildAttemptLogKey(eventId, 'duplicate'),
+          meta: {
+            eventId,
+            reason: 'duplicate_success'
+          }
+        }
+      }).catch(() => null);
       return { success: true, eventId, duplicate: true };
     }
 
@@ -380,7 +496,7 @@ export class MetaCapiService {
       data: [{
         event_name: eventName,
         event_id: eventId,
-        event_time: Math.floor(Date.now() / 1000),
+        event_time: resolvedEventTime.eventTime,
         user_data: userData,
         action_source: input.actionSource || input.action_source || 'website',
         ...(input.eventSourceUrl || input.event_source_url ? { event_source_url: String(input.eventSourceUrl || input.event_source_url) } : {}),
@@ -430,7 +546,7 @@ export class MetaCapiService {
           entityType,
           entityId,
           message,
-          idempotencyKey,
+          idempotencyKey: buildAttemptLogKey(eventId, 'error'),
           meta: { eventId }
         }
       }).catch(() => null);

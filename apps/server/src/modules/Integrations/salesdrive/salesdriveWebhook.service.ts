@@ -1,5 +1,7 @@
 import { prisma } from '../../../services/prisma.js';
 import { MetaCapiService } from '../meta/metaCapi.service.js';
+import { readAttributionSnapshot } from '../../Attribution/attributionPayload.js';
+import type { AttributionSnapshot } from '../../Attribution/attributionTypes.js';
 
 const SALESDRIVE_INTEGRATION = 'SALESDRIVE';
 const DEFAULT_DESTINATION_KEY = 'b2c_bot_sandbox';
@@ -177,10 +179,10 @@ export const parseSalesDriveWebhookPayload = (body: Record<string, unknown>): Pa
 const resolveB2CBotWebhookContext = async (parsed: ParsedSalesDriveStatus, companyId?: string | null) => {
   const text = [parsed.comment, parsed.source].filter(Boolean).join(' ').toLowerCase();
   if (text.includes('cartié b2c') || text.includes('cartie b2c') || text.includes('b2c_bot') || text.includes(DEFAULT_DESTINATION_KEY)) {
-    return { isB2C: true, companyId: companyId || undefined };
+    return { isB2C: true, companyId: companyId || undefined, attribution: null as AttributionSnapshot | null };
   }
 
-  if (!parsed.orderId) return { isB2C: false, companyId: companyId || undefined };
+  if (!parsed.orderId) return { isB2C: false, companyId: companyId || undefined, attribution: null as AttributionSnapshot | null };
   const identity = await prisma.leadIdentity.findFirst({
     where: {
       ...(companyId ? { companyId } : {}),
@@ -190,9 +192,28 @@ const resolveB2CBotWebhookContext = async (parsed: ParsedSalesDriveStatus, compa
     include: { lead: true }
   }).catch(() => null);
   const leadPayload = isRecord((identity as any)?.lead?.payload) ? (identity as any).lead.payload : {};
+  const identityPayload = isRecord((identity as any)?.payload) ? (identity as any).payload : {};
+  const linkedRequestId = toText(identityPayload.requestId);
+  const linkedRequest = linkedRequestId
+    ? await prisma.b2bRequest.findFirst({
+        where: { id: linkedRequestId },
+        select: { companyId: true, payload: true, requesterPartnerId: true }
+      }).catch(() => null)
+    : null;
+  const linkedRequestPayload = isRecord((linkedRequest as any)?.payload) ? (linkedRequest as any).payload : {};
+  const attribution = readAttributionSnapshot(linkedRequestPayload)
+    || readAttributionSnapshot(leadPayload)
+    || readAttributionSnapshot(identityPayload);
   const identityCompanyId = toText((identity as any)?.companyId || (identity as any)?.lead?.companyId);
   if (toText(leadPayload.source) === 'b2c_bot' || toText(leadPayload.destination_key) === DEFAULT_DESTINATION_KEY) {
-    return { isB2C: true, companyId: companyId || identityCompanyId || undefined };
+    return { isB2C: true, companyId: companyId || identityCompanyId || undefined, attribution };
+  }
+  if (linkedRequest && !toText((linkedRequest as any).requesterPartnerId)) {
+    const linkedRequestIsB2C = toText(linkedRequestPayload.source) === 'b2c_bot'
+      || toText(linkedRequestPayload.destination_key) === DEFAULT_DESTINATION_KEY;
+    if (linkedRequestIsB2C) {
+      return { isB2C: true, companyId: companyId || toText((linkedRequest as any).companyId) || identityCompanyId || undefined, attribution };
+    }
   }
 
   const request = await prisma.b2bRequest.findFirst({
@@ -210,7 +231,8 @@ const resolveB2CBotWebhookContext = async (parsed: ParsedSalesDriveStatus, compa
     && (toText(requestPayload.source) === 'b2c_bot' || toText(requestPayload.destination_key) === DEFAULT_DESTINATION_KEY);
   return {
     isB2C: requestIsB2C,
-    companyId: companyId || toText((request as any)?.companyId) || undefined
+    companyId: companyId || toText((request as any)?.companyId) || undefined,
+    attribution: readAttributionSnapshot(requestPayload)
   };
 };
 
@@ -293,6 +315,8 @@ export const handleSalesDriveWebhook = async (request: WebhookRequestLike) => {
   }
   const webhookContext = await resolveB2CBotWebhookContext(parsed, companyId);
   const resolvedCompanyId = webhookContext.companyId || companyId;
+  const attribution = webhookContext.attribution || null;
+  const attributionIdentifiers = attribution?.identifiers || {};
   if (!webhookContext.isB2C) {
     await logWebhookDecision({ companyId, action: 'WEBHOOK_RULE_SKIPPED', status: 'OK', parsed, reason: 'non_b2c_bot_origin' });
     return { ok: true, sent: false, reason: 'non_b2c_bot_origin' };
@@ -327,6 +351,12 @@ export const handleSalesDriveWebhook = async (request: WebhookRequestLike) => {
     externalId: `salesdrive:${parsed.orderId}`,
     phone: parsed.phone,
     email: parsed.email,
+    eventTime: statusTime,
+    fbp: attributionIdentifiers.fbp,
+    fbc: attributionIdentifiers.fbc,
+    clientIpAddress: attributionIdentifiers.client_ip_address,
+    clientUserAgent: attributionIdentifiers.client_user_agent,
+    eventSourceUrl: attribution?.event_source_url,
     value: parsed.value,
     currency: parsed.currency,
     actionSource: 'system_generated',

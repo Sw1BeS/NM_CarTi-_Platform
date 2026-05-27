@@ -82,7 +82,8 @@ describe('MetaCapiService', () => {
       email: 'CLIENT@EXAMPLE.COM',
       actionSource: 'chat',
       fbp: 'fb.1.123',
-      fbc: 'fb.1.456'
+      fbc: 'fb.1.456',
+      eventTime: '2026-05-26T10:00:00Z'
     });
 
     const eventId = 'meta:company_1:Lead:lead:lead_1:created';
@@ -92,6 +93,7 @@ describe('MetaCapiService', () => {
     expect(payload.data[0]).toMatchObject({
       event_name: 'Lead',
       event_id: eventId,
+      event_time: Math.floor(new Date('2026-05-26T10:00:00Z').getTime() / 1000),
       action_source: 'chat'
     });
     expect(payload.data[0].user_data).toMatchObject({
@@ -130,7 +132,16 @@ describe('MetaCapiService', () => {
 
     expect(result).toMatchObject({ success: true, eventId, duplicate: true });
     expect(axiosPostMock).not.toHaveBeenCalled();
-    expect(prismaMock.integrationEventLog.create).not.toHaveBeenCalled();
+    expect(prismaMock.integrationEventLog.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        integration: 'META_PIXEL',
+        status: 'SKIPPED',
+        idempotencyKey: expect.stringContaining(`${eventId}:duplicate:`),
+        meta: expect.objectContaining({
+          reason: 'duplicate_success'
+        })
+      })
+    }));
   });
 
   it('logs Graph error without token or raw PII', async () => {
@@ -160,9 +171,69 @@ describe('MetaCapiService', () => {
     expect(String(result.error)).not.toContain('CLIENT@EXAMPLE.COM');
     const errorLog = prismaMock.integrationEventLog.create.mock.calls[0][0].data;
     expect(errorLog.status).toBe('ERROR');
+    expect(errorLog.idempotencyKey).toContain('meta:company_1:Lead:lead:lead_1:created:error:');
     expect(errorLog.message).not.toContain('secret-token');
     expect(errorLog.message).not.toContain('+380671234567');
     expect(errorLog.message).not.toContain('CLIENT@EXAMPLE.COM');
+  });
+
+  it('skips explicit event times older than Meta accepts', async () => {
+    const { MetaCapiService } = await import('./metaCapi.service.js');
+
+    const result = await new MetaCapiService().trackEvent('company_1', 'Lead', {
+      entityType: 'lead',
+      entityId: 'lead_old',
+      stage: 'created',
+      eventTime: '2026-01-01T00:00:00Z'
+    });
+
+    expect(result).toMatchObject({
+      success: false,
+      skipped: true,
+      reason: 'META_EVENT_TIME_TOO_OLD'
+    });
+    expect(axiosPostMock).not.toHaveBeenCalled();
+    expect(prismaMock.integrationEventLog.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        status: 'SKIPPED',
+        message: expect.stringContaining('older than 7 days')
+      })
+    }));
+  });
+
+  it('logs retryable Graph errors with attempt-specific idempotency keys', async () => {
+    axiosPostMock.mockRejectedValue({
+      response: {
+        data: {
+          error: {
+            message: 'Temporary bad token secret-token for +380671234567'
+          }
+        }
+      }
+    });
+    const { MetaCapiService } = await import('./metaCapi.service.js');
+    const service = new MetaCapiService();
+
+    await service.trackEvent('company_1', 'Lead', {
+      entityType: 'lead',
+      entityId: 'retry_lead',
+      stage: 'created',
+      phone: '+380671234567'
+    });
+    await service.trackEvent('company_1', 'Lead', {
+      entityType: 'lead',
+      entityId: 'retry_lead',
+      stage: 'created',
+      phone: '+380671234567'
+    });
+
+    const errorKeys = prismaMock.integrationEventLog.create.mock.calls
+      .map(call => call[0].data)
+      .filter(data => data.status === 'ERROR')
+      .map(data => data.idempotencyKey);
+    expect(errorKeys).toHaveLength(2);
+    expect(errorKeys[0]).not.toBe(errorKeys[1]);
+    expect(errorKeys.every(key => String(key).includes(':error:'))).toBe(true);
   });
 
   it('masks B2C bot access tokens without exposing the middle', async () => {
@@ -216,6 +287,7 @@ describe('MetaCapiService', () => {
       eventId,
       externalId: 'salesdrive:37193',
       phone: '+38 (063) 505-52-52',
+      eventTime: 1779703200,
       actionSource: 'website',
       customData: {
         crm_status: 'raw_lead_test',
@@ -235,6 +307,7 @@ describe('MetaCapiService', () => {
     expect(payload.data[0]).toMatchObject({
       event_name: 'Lead',
       event_id: eventId,
+      event_time: 1779703200,
       action_source: 'system_generated'
     });
     expect(payload.data[0].custom_data).toMatchObject({

@@ -136,6 +136,7 @@ describe('SalesDrive inbound webhook service', () => {
       entityId: '37193',
       phone: '+38 (063) 505-52-52',
       externalId: 'salesdrive:37193',
+      eventTime: statusTime,
       customData: expect.objectContaining({
         crm_status: 'contacted',
         status_id: '13',
@@ -153,7 +154,21 @@ describe('SalesDrive inbound webhook service', () => {
         companyId: 'company_from_identity',
         payload: {
           source: 'b2c_bot',
-          destination_key: 'b2c_bot_sandbox'
+          destination_key: 'b2c_bot_sandbox',
+          attribution: {
+            token: 'AbC_token_123456',
+            destination: 'b2c_bot_sandbox',
+            query: { utm_source: 'meta' },
+            identifiers: {
+              fbp: 'fb.1.1779865200000.123456789',
+              fbc: 'fb.1.1779865200000.ClickId',
+              client_ip_address: '203.0.113.10',
+              client_user_agent: 'Mozilla/5.0'
+            },
+            event_source_url: 'https://cartie.test/r/bot?fbclid=ClickId',
+            created_at: '2026-05-27T07:00:00.000Z',
+            expires_at: '2026-06-26T07:00:00.000Z'
+          }
         }
       }
     });
@@ -173,7 +188,14 @@ describe('SalesDrive inbound webhook service', () => {
     expect(trackB2CBotCrmLifecycleEventMock).toHaveBeenCalledWith(
       'company_from_identity',
       'Contacted',
-      expect.objectContaining({ entityId: '37193' })
+      expect.objectContaining({
+        entityId: '37193',
+        fbp: 'fb.1.1779865200000.123456789',
+        fbc: 'fb.1.1779865200000.ClickId',
+        clientIpAddress: '203.0.113.10',
+        clientUserAgent: 'Mozilla/5.0',
+        eventSourceUrl: 'https://cartie.test/r/bot?fbclid=ClickId'
+      })
     );
   });
 

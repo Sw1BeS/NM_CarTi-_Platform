@@ -91,3 +91,27 @@ Drift check:
 - New owner: no new owner; helper remains under Attribution module.
 - Retirement: legacy MiniApp tracking remains compatibility lane.
 - Decision: continue to SalesDrive and Meta sender hardening.
+
+## SalesDrive And Meta Sender Checkpoint
+
+Completed:
+
+- SalesDrive sync mapper now includes safe attribution summary in comments and prefers attribution UTM/event source URL when present.
+- SalesDrive LeadIdentity payload now records `attributionToken` for webhook join context.
+- SalesDrive webhook context now reads attribution snapshots from linked request, lead, or identity payload.
+- Webhook Contacted events pass explicit `eventTime`, `fbp`, `fbc`, IP, UA, and event source URL into the Meta B2C sender.
+- Meta CAPI input now accepts `eventTime` / `event_time`.
+- Meta sender uses explicit event time, skips too-old explicit events, logs duplicate-skip decisions, and writes retryable error logs with attempt-specific idempotency keys.
+
+Evidence refs:
+
+- `npm --prefix apps/server test -- src/modules/Integrations/salesdrive/salesdriveSync.service.test.ts src/modules/Integrations/salesdrive/salesdriveWebhook.service.test.ts src/modules/Integrations/meta/metaCapi.service.test.ts`
+- `npm --prefix apps/server run build`
+
+Drift check:
+
+- Scope: still inside SalesDrive/Meta hardening.
+- Compatibility: only status `13 -> Contacted` is active by default; unconfirmed statuses stay skipped.
+- New owner: none; attribution owner remains separate from Meta sender.
+- Retirement: legacy generic Meta senders are still not canonical for B2C CRM.
+- Decision: continue to docs/ADR/operator visibility and full verification.

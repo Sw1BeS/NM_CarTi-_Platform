@@ -9,6 +9,7 @@ import {
   type SalesDriveOrderCreateResult,
   type SalesDriveOrderAddInput
 } from './salesdrive.connector.js';
+import { readAttributionSnapshot } from '../../Attribution/attributionPayload.js';
 
 export type SalesDriveRequestSyncInput = {
   companyId?: string | null;
@@ -74,11 +75,19 @@ const numberOrUndefined = (value: unknown) => {
   return Number.isFinite(parsed) ? parsed : undefined;
 };
 
+const attributionTokenPrefix = (token?: string | null) => {
+  const text = toText(token);
+  return text ? text.slice(0, 8) : undefined;
+};
+
 export const salesDriveOrderInputFromRequest = (request: any): SalesDriveOrderAddInput => {
   const payload = isRecord(request?.payload) ? request.payload : {};
   const tracking = isRecord(payload.tracking) ? payload.tracking : {};
   const leadPayload = isRecord(request?.lead?.payload) ? request.lead.payload : {};
   const leadTracking = isRecord(leadPayload.tracking) ? leadPayload.tracking : {};
+  const attribution = readAttributionSnapshot(payload) || readAttributionSnapshot(leadPayload);
+  const attributionQuery = attribution?.query || {};
+  const attributionIdentifiers = attribution?.identifiers || {};
   const carListingId = toText(readPath(payload, ['request', 'carListingId']));
   const publicId = toText(request?.publicId) || toText(request?.id);
   const title = toText(request?.title) || `CarTié request ${publicId}`;
@@ -117,6 +126,14 @@ export const salesDriveOrderInputFromRequest = (request: any): SalesDriveOrderAd
     description ? `Комментарий клиента: ${description}` : null,
     `Источник: ${sourceContext}`,
     tracking.utm_campaign ? `UTM: ${tracking.utm_campaign}` : null,
+    attribution ? [
+      'Attribution:',
+      `token_prefix=${attributionTokenPrefix(attribution.token) || 'none'}`,
+      `campaign=${toText(attributionQuery.utm_campaign) || toText(tracking.utm_campaign) || 'none'}`,
+      `source=${toText(attributionQuery.utm_source) || toText(tracking.utm_source) || 'none'}`,
+      `has_fbc=${Boolean(attributionIdentifiers.fbc)}`,
+      `has_fbp=${Boolean(attributionIdentifiers.fbp)}`
+    ].join(' ') : null,
     `Internal requestId: ${toText(request?.id)}`
   ].filter(Boolean).join('\n');
 
@@ -127,7 +144,7 @@ export const salesDriveOrderInputFromRequest = (request: any): SalesDriveOrderAd
     email: toText(leadPayload.email) || toText(payload.email) || undefined,
     title,
     comment: commentText,
-    site: toText(tracking.eventSourceUrl) || toText(tracking.event_source_url) || undefined,
+    site: attribution?.event_source_url || toText(tracking.eventSourceUrl) || toText(tracking.event_source_url) || undefined,
     products: [{
       id: carListingId || publicId,
       name: title,
@@ -138,11 +155,11 @@ export const salesDriveOrderInputFromRequest = (request: any): SalesDriveOrderAd
     }],
     utm: {
       sourceFull: toText(tracking.utm_source_full) || toText(leadTracking.utm_source_full) || undefined,
-      source: toText(tracking.utm_source) || toText(leadTracking.utm_source) || undefined,
-      medium: toText(tracking.utm_medium) || toText(leadTracking.utm_medium) || undefined,
-      campaign: toText(tracking.utm_campaign) || toText(leadTracking.utm_campaign) || undefined,
-      content: toText(tracking.utm_content) || toText(leadTracking.utm_content) || undefined,
-      term: toText(tracking.utm_term) || toText(leadTracking.utm_term) || undefined,
+      source: toText(attributionQuery.utm_source) || toText(tracking.utm_source) || toText(leadTracking.utm_source) || undefined,
+      medium: toText(attributionQuery.utm_medium) || toText(tracking.utm_medium) || toText(leadTracking.utm_medium) || undefined,
+      campaign: toText(attributionQuery.utm_campaign) || toText(tracking.utm_campaign) || toText(leadTracking.utm_campaign) || undefined,
+      content: toText(attributionQuery.utm_content) || toText(tracking.utm_content) || toText(leadTracking.utm_content) || undefined,
+      term: toText(attributionQuery.utm_term) || toText(tracking.utm_term) || toText(leadTracking.utm_term) || undefined,
       page: toText(tracking.utm_page) || toText(leadTracking.utm_page) || undefined
     }
   };
@@ -158,6 +175,7 @@ const persistSalesDriveLeadIdentity = async (
   const externalId = toText(params.result.orderId);
   const companyId = toText(params.companyId || params.request?.companyId);
   const leadId = toText(params.request?.leadId || params.request?.lead?.id);
+  const attribution = readAttributionSnapshot(params.request?.payload) || readAttributionSnapshot(params.request?.lead?.payload);
   if (!externalId || !companyId || !leadId) return;
 
   await prisma.leadIdentity.upsert({
@@ -177,7 +195,8 @@ const persistSalesDriveLeadIdentity = async (
       payload: {
         source: 'salesdrive.request_sync',
         requestId: toText(params.request?.id) || undefined,
-        requestPublicId: toText(params.request?.publicId) || undefined
+        requestPublicId: toText(params.request?.publicId) || undefined,
+        attributionToken: attribution?.token || undefined
       }
     },
     update: {
@@ -186,7 +205,8 @@ const persistSalesDriveLeadIdentity = async (
       payload: {
         source: 'salesdrive.request_sync',
         requestId: toText(params.request?.id) || undefined,
-        requestPublicId: toText(params.request?.publicId) || undefined
+        requestPublicId: toText(params.request?.publicId) || undefined,
+        attributionToken: attribution?.token || undefined
       }
     }
   });

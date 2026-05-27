@@ -107,6 +107,21 @@ describe('SalesDrive Sync Service', () => {
           request_type: 'client_auto_selection',
           destination_key: 'b2c_bot_sandbox',
           cartie_request_id: 'RQ-B2C-9',
+          attribution: {
+            token: 'AbC_token_123456',
+            destination: 'b2c_bot_sandbox',
+            query: {
+              utm_source: 'meta',
+              utm_campaign: 'spring'
+            },
+            identifiers: {
+              fbp: 'fb.1.1779865200000.123456789',
+              fbc: 'fb.1.1779865200000.ClickId'
+            },
+            event_source_url: 'https://cartie.test/r/bot?fbclid=ClickId',
+            created_at: '2026-05-27T07:00:00.000Z',
+            expires_at: '2026-06-26T07:00:00.000Z'
+          },
           tracking: {
             utm_source: 'telegram'
           }
@@ -121,7 +136,10 @@ describe('SalesDrive Sync Service', () => {
       expect(result.comment).toContain('source=b2c_bot');
       expect(result.comment).toContain('request_type=client_auto_selection');
       expect(result.comment).toContain('cartie_request_id=RQ-B2C-9');
-      expect(result.utm?.source).toBe('telegram');
+      expect(result.comment).toContain('Attribution: token_prefix=AbC_toke campaign=spring source=meta has_fbc=true has_fbp=true');
+      expect(result.utm?.source).toBe('meta');
+      expect(result.utm?.campaign).toBe('spring');
+      expect(result.site).toBe('https://cartie.test/r/bot?fbclid=ClickId');
     });
 
     it('should fall back to LeadBot when source is not MiniApp and not B2B', () => {
@@ -223,7 +241,15 @@ describe('SalesDrive Sync Service', () => {
         payload: {
           direction: 'B2C',
           source: 'b2c_bot',
-          destination_key: 'b2c_bot_sandbox'
+          destination_key: 'b2c_bot_sandbox',
+          attribution: {
+            token: 'AbC_token_123456',
+            destination: 'b2c_bot_sandbox',
+            query: {},
+            identifiers: {},
+            created_at: '2026-05-27T07:00:00.000Z',
+            expires_at: '2026-06-26T07:00:00.000Z'
+          }
         },
         lead: {
           id: 'lead_1',
@@ -274,7 +300,12 @@ describe('SalesDrive Sync Service', () => {
             provider: 'SALESDRIVE',
             externalId: '37193'
           }
-        }
+        },
+        create: expect.objectContaining({
+          payload: expect.objectContaining({
+            attributionToken: 'AbC_token_123456'
+          })
+        })
       }));
     });
   });
