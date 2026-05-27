@@ -289,11 +289,18 @@ describe('MetaCapiService', () => {
       phone: '+38 (063) 505-52-52',
       eventTime: 1779703200,
       actionSource: 'website',
+      value: 25000,
+      currency: 'USD',
+      contentIds: ['ext_auto_ria_6e391e15705f56c152ed'],
+      contentName: 'Tesla Model X 2017',
+      contentCategory: 'MiniApp Lead Request',
       customData: {
         crm_status: 'raw_lead_test',
         event_source: 'wrong',
         lead_event_source: 'wrong',
-        destination_key: 'wrong'
+        destination_key: 'wrong',
+        car_listing_id: 'ext_auto_ria_6e391e15705f56c152ed',
+        car_title: 'Tesla Model X 2017'
       }
     });
 
@@ -314,7 +321,14 @@ describe('MetaCapiService', () => {
       event_source: 'crm',
       lead_event_source: 'CarTié SalesDrive',
       crm_status: 'raw_lead_test',
-      destination_key: 'b2c_bot_sandbox'
+      destination_key: 'b2c_bot_sandbox',
+      value: 25000,
+      currency: 'USD',
+      content_ids: ['ext_auto_ria_6e391e15705f56c152ed'],
+      content_name: 'Tesla Model X 2017',
+      content_category: 'MiniApp Lead Request',
+      car_listing_id: 'ext_auto_ria_6e391e15705f56c152ed',
+      car_title: 'Tesla Model X 2017'
     });
     expect(payload.data[0].user_data).toMatchObject({
       ph: [hash('380635055252')],
@@ -339,12 +353,24 @@ describe('MetaCapiService', () => {
             eventName: 'Lead',
             eventId,
             actionSource: 'system_generated',
-            customDataKeys: expect.arrayContaining(['event_source', 'lead_event_source', 'crm_status', 'destination_key']),
+            customDataKeys: expect.arrayContaining([
+              'event_source',
+              'lead_event_source',
+              'crm_status',
+              'destination_key',
+              'content_name',
+              'content_ids',
+              'value',
+              'car_listing_id'
+            ]),
             customDataPreview: expect.objectContaining({
               event_source: 'crm',
               lead_event_source: 'CarTié SalesDrive',
               crm_status: 'raw_lead_test',
-              destination_key: 'b2c_bot_sandbox'
+              destination_key: 'b2c_bot_sandbox',
+              content_name: 'Tesla Model X 2017',
+              car_listing_id: 'ext_auto_ria_6e391e15705f56c152ed',
+              value: 25000
             }),
             userDataKeys: expect.arrayContaining(['ph', 'external_id'])
           })

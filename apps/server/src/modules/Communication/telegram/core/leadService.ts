@@ -108,6 +108,80 @@ const readPayloadText = (payload: Record<string, any>, keys: string[]) => {
   return undefined;
 };
 
+const compactObject = <T extends Record<string, unknown>>(value: T) => Object.fromEntries(
+  Object.entries(value).filter(([, item]) => item !== undefined && item !== null && item !== '')
+) as Partial<T>;
+
+const parseMoneyValue = (value: unknown) => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  const text = String(value || '').trim();
+  if (!text) return undefined;
+  const parsed = Number(text.replace(/[^\d.]/g, ''));
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+};
+
+const firstRecordFrom = (...values: unknown[]) => {
+  for (const value of values) {
+    if (Array.isArray(value) && isRecord(value[0])) return value[0];
+  }
+  return undefined;
+};
+
+const buildB2CBotLeadContent = (input: LeadCreateInput, request?: any) => {
+  const inputPayload = isRecord(input.payload) ? input.payload : {};
+  const inputInnerPayload = isRecord(inputPayload.payload) ? inputPayload.payload : {};
+  const requestPayload = isRecord(request?.payload) ? request.payload : {};
+  const requestInnerPayload = isRecord(requestPayload.payload) ? requestPayload.payload : {};
+  const selectedCar = firstRecordFrom(
+    inputInnerPayload.selectedCars,
+    inputPayload.selectedCars,
+    requestInnerPayload.selectedCars,
+    requestPayload.selectedCars
+  );
+  const selectedCarCount = [
+    inputInnerPayload.selectedCars,
+    inputPayload.selectedCars,
+    requestInnerPayload.selectedCars,
+    requestPayload.selectedCars
+  ].find(Array.isArray)?.length;
+  const criteria = isRecord(inputInnerPayload.criteria)
+    ? inputInnerPayload.criteria
+    : (isRecord(requestInnerPayload.criteria) ? requestInnerPayload.criteria : {});
+  const title = (selectedCar && readPayloadText(selectedCar, ['title', 'name']))
+    || readPayloadText(criteria, ['title', 'name'])
+    || readPayloadText(request || {}, ['title'])
+    || input.request
+    || undefined;
+  const carListingId = selectedCar
+    ? readPayloadText(selectedCar, ['id', 'carListingId', 'listingId', 'externalId'])
+    : undefined;
+  const value = selectedCar
+    ? parseMoneyValue(selectedCar.price) || parseMoneyValue(selectedCar.priceLabel)
+    : parseMoneyValue(criteria.price);
+  const currency = (selectedCar && readPayloadText(selectedCar, ['currency']))
+    || readPayloadText(criteria, ['currency'])
+    || (value ? 'USD' : undefined);
+
+  return {
+    contentName: title,
+    contentCategory: 'MiniApp Lead Request',
+    contentIds: carListingId ? [carListingId] : undefined,
+    value,
+    currency,
+    customData: compactObject({
+      car_listing_id: carListingId,
+      car_title: selectedCar ? readPayloadText(selectedCar, ['title', 'name']) : title,
+      car_year: selectedCar ? readPayloadText(selectedCar, ['year']) : undefined,
+      car_location: selectedCar ? readPayloadText(selectedCar, ['location', 'city']) : undefined,
+      car_status: selectedCar ? readPayloadText(selectedCar, ['statusLabel', 'status']) : undefined,
+      car_price_label: selectedCar ? readPayloadText(selectedCar, ['priceLabel']) : readPayloadText(criteria, ['price']),
+      intent_kind: readPayloadText(inputInnerPayload, ['kind']) || readPayloadText(requestInnerPayload, ['kind']),
+      intent_title: readPayloadText(criteria, ['title']),
+      selected_car_count: selectedCarCount
+    })
+  };
+};
+
 const buildB2CBotAttribution = (params: {
   input: LeadCreateInput;
   botTemplate?: string | null;
@@ -181,6 +255,7 @@ const trackInitialB2CBotLeadStage = (params: {
   const destinationKey = params.attribution.destination_key || process.env.META_B2C_BOT_DESTINATION_KEY || 'b2c_bot_sandbox';
   const requestKey = String(params.request.publicId || params.request.id || '');
   if (!requestKey) return;
+  const leadContent = buildB2CBotLeadContent(params.input, params.request);
 
   new MetaCapiService().trackB2CBotCrmLifecycleEvent(params.companyId, 'Lead', {
     entityType: 'request',
@@ -196,6 +271,11 @@ const trackInitialB2CBotLeadStage = (params: {
     clientUserAgent: params.attribution.client_user_agent || undefined,
     eventSourceUrl: params.attribution.event_source_url || undefined,
     stage: 'raw_lead',
+    contentName: leadContent.contentName,
+    contentCategory: leadContent.contentCategory,
+    contentIds: leadContent.contentIds,
+    value: leadContent.value,
+    currency: leadContent.currency,
     customData: {
       crm_status: 'raw_lead',
       source: 'b2c_bot',
@@ -203,7 +283,8 @@ const trackInitialB2CBotLeadStage = (params: {
       request_type: params.attribution.request_type || 'client_auto_selection',
       destination_key: destinationKey,
       cartie_request_id: requestKey,
-      bot_id: params.input.botId
+      bot_id: params.input.botId,
+      ...leadContent.customData
     }
   }).catch(() => logger.warn('[Meta CAPI] B2C bot initial Lead stage send failed'));
 };

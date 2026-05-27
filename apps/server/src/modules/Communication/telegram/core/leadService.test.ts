@@ -122,6 +122,21 @@ describe('createOrMergeLead', () => {
       payload: {
         start_param: 'spring_campaign',
         campaign_token: 'cmp_123',
+        payload: {
+          kind: 'PRICE_TERMS',
+          criteria: {
+            title: 'Tesla Model X 2017',
+            price: '$25,000'
+          },
+          selectedCars: [{
+            id: 'ext_auto_ria_6e391e15705f56c152ed',
+            title: 'Tesla Model X 2017',
+            year: 2017,
+            location: 'Odesa',
+            priceLabel: '$25,000',
+            statusLabel: 'В наявності'
+          }]
+        },
         attribution: {
           token: 'AbC_token_123456',
           destination: 'b2c_bot_sandbox',
@@ -197,12 +212,26 @@ describe('createOrMergeLead', () => {
       clientIpAddress: '203.0.113.10',
       clientUserAgent: 'Mozilla/5.0',
       eventSourceUrl: 'https://cartie.test/r/bot?fbclid=ClickId',
+      contentName: 'Tesla Model X 2017',
+      contentCategory: 'MiniApp Lead Request',
+      contentIds: ['ext_auto_ria_6e391e15705f56c152ed'],
+      value: 25000,
+      currency: 'USD',
       customData: expect.objectContaining({
         crm_status: 'raw_lead',
         source: 'b2c_bot',
         request_type: 'client_auto_selection',
         destination_key: 'b2c_bot_sandbox',
-        cartie_request_id: 'RQ-B2C-1'
+        cartie_request_id: 'RQ-B2C-1',
+        car_listing_id: 'ext_auto_ria_6e391e15705f56c152ed',
+        car_title: 'Tesla Model X 2017',
+        car_year: '2017',
+        car_location: 'Odesa',
+        car_status: 'В наявності',
+        car_price_label: '$25,000',
+        intent_kind: 'PRICE_TERMS',
+        intent_title: 'Tesla Model X 2017',
+        selected_car_count: 1
       })
     }));
   });
