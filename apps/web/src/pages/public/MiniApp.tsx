@@ -293,6 +293,7 @@ const MiniAppContent = () => {
     const [requestType, setRequestType] = useState<RequestType>('BUY');
     const [isRequestSubmitting, setIsRequestSubmitting] = useState(false);
     const [requestSubmitError, setRequestSubmitError] = useState<{ message: string; openBotUrl?: string } | null>(null);
+    const [requestContactHandoff, setRequestContactHandoff] = useState<{ message: string; openBotUrl?: string } | null>(null);
     const [statusQuery, setStatusQuery] = useState({ publicId: '' });
     const [statusResult, setStatusResult] = useState<any>(null);
     const [leadMyRequests, setLeadMyRequests] = useState<MiniAppLeadRequestItem[]>([]);
@@ -727,6 +728,7 @@ const MiniAppContent = () => {
             setTelegramWriteState('unknown');
             setLeadMyRequests([]);
             setLeadMyRequestsError(null);
+            setRequestContactHandoff(null);
             setB2bPortal(null);
             setB2bPortalLoading(false);
             setB2bAccessRequestStatus(null);
@@ -1127,6 +1129,18 @@ const MiniAppContent = () => {
 
     const handleLeadIntentOutcome = (response: Awaited<ReturnType<typeof createMiniAppLeadIntent>>) => {
         const outcome = resolveLeadIntentOutcome(response);
+        if (outcome.contactActionRequired) {
+            const message = outcome.message || 'Запит збережено. Перейдіть у чат з ботом і передайте контакт.';
+            setRequestContactHandoff({ message, openBotUrl: outcome.openBotUrl || resolveOpenBotUrl() });
+            setConfigWarning(message);
+            if (outcome.shouldCloseMiniApp) {
+                closeMiniAppOrShowSuccess(message);
+            } else {
+                pushToast(message, 'success');
+            }
+            return false;
+        }
+        setRequestContactHandoff(null);
         if (outcome.shouldCloseMiniApp) return true;
 
         const message = outcome.message || 'Запит збережено. Відкрийте чат з ботом для продовження.';
@@ -1153,11 +1167,13 @@ const MiniAppContent = () => {
             setTelegramWriteState(telegramWriteState === 'outside_telegram' ? 'outside_telegram' : 'missing_initdata');
             setConfigWarning(message);
             setRequestSubmitError({ message, openBotUrl: resolveOpenBotUrl() });
+            setRequestContactHandoff(null);
             trackEvent('write_blocked_missing_initdata', { flow: params.kind, requestType: 'BUY' });
             return false;
         }
         setTelegramWriteState('ready');
         setRequestSubmitError(null);
+        setRequestContactHandoff(null);
         if (!initData) setInitData(submitInitData);
         const submitId = requestSubmitIdRef.current
             || (window.crypto?.randomUUID
@@ -3335,6 +3351,7 @@ const MiniAppContent = () => {
                 setTelegramWriteState(telegramWriteState === 'outside_telegram' ? 'outside_telegram' : 'missing_initdata');
                 setConfigWarning(message);
                 setRequestSubmitError({ message, openBotUrl: resolveOpenBotUrl() });
+                setRequestContactHandoff(null);
                 trackEvent('write_blocked_missing_initdata', { view: 'REQUEST', requestType });
                 return;
             }
@@ -3348,6 +3365,7 @@ const MiniAppContent = () => {
             try {
                 setIsRequestSubmitting(true);
                 setRequestSubmitError(null);
+                setRequestContactHandoff(null);
                 const slug = targetSlug || 'system';
                 const fallbackListingId = getCarId(selectedCar);
                 const selectedListingIds = selectedRequestCarIds.length
@@ -3531,15 +3549,16 @@ const MiniAppContent = () => {
                 actionLabel={isRequestSubmitting ? 'Надсилання...' : (reqStep >= 4 ? 'Надіслати' : 'Далі')}
                 actionDisabled={isRequestSubmitting}
                 submitError={requestSubmitError}
+                contactHandoff={requestContactHandoff}
                 openBotUrl={resolveOpenBotUrl()}
                 onOpenBot={openBotUrl}
                 onDismissSubmitError={() => setRequestSubmitError(null)}
                 onNextStep={handleNextStep}
                 onBackStep={() => setReqStep(prev => Math.max(1, prev - 1))}
-                onViewRequests={() => { setReqStep(1); setView('STATUS'); }}
-                onCatalog={() => { setReqStep(1); setView(isB2BMode ? 'B2B_REQUESTS' : 'INVENTORY'); }}
-                onContactManager={() => { setReqStep(1); setView(isB2BMode ? 'SUPPORT' : 'CONTACTS'); }}
-                onHome={() => { setReqStep(1); setView('HOME'); }}
+                onViewRequests={() => { setRequestContactHandoff(null); setReqStep(1); setView('STATUS'); }}
+                onCatalog={() => { setRequestContactHandoff(null); setReqStep(1); setView(isB2BMode ? 'B2B_REQUESTS' : 'INVENTORY'); }}
+                onContactManager={() => { setRequestContactHandoff(null); setReqStep(1); setView(isB2BMode ? 'SUPPORT' : 'CONTACTS'); }}
+                onHome={() => { setRequestContactHandoff(null); setReqStep(1); setView('HOME'); }}
             />
         );
     };

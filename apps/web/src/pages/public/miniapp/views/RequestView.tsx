@@ -60,6 +60,7 @@ type RequestViewProps = {
   actionLabel: string;
   actionDisabled?: boolean;
   submitError?: { message: string; openBotUrl?: string } | null;
+  contactHandoff?: { message: string; openBotUrl?: string } | null;
   openBotUrl?: string;
   onOpenBot?: (url?: string) => void;
   onDismissSubmitError?: () => void;
@@ -146,6 +147,7 @@ export const RequestView = ({
   actionLabel,
   actionDisabled,
   submitError,
+  contactHandoff,
   openBotUrl,
   onOpenBot,
   onDismissSubmitError,
@@ -266,6 +268,21 @@ export const RequestView = ({
             <h2 className="text-2xl font-bold text-white mb-2">{successContent.title}</h2>
             <p className="text-white/56 mb-8">{successContent.message}</p>
           </div>
+          {contactHandoff && (
+            <div className="mb-5 rounded-xl border border-yellow-500/25 bg-yellow-500/10 p-4 text-left text-sm text-yellow-50">
+              <p className="font-bold text-white">Потрібен контакт Telegram</p>
+              <p className="mt-1 text-yellow-100/80">{contactHandoff.message}</p>
+              {(contactHandoff.openBotUrl || openBotUrl) && (
+                <button
+                  type="button"
+                  onClick={() => onOpenBot?.(contactHandoff.openBotUrl || openBotUrl)}
+                  className="mt-3 w-full rounded-lg bg-yellow-100/12 px-3 py-2 font-bold text-yellow-100"
+                >
+                  Відкрити чат з ботом
+                </button>
+              )}
+            </div>
+          )}
           <div className="space-y-3">
             {successContent.actions.map(action => {
               const Icon = successActionIcons[action.id];
@@ -321,6 +338,21 @@ export const RequestView = ({
               ))}
             </div>
           </div>
+
+          {!hasTelegramInit && (
+            <div className="mb-4 text-xs text-yellow-200 bg-yellow-500/10 border border-yellow-500/25 rounded-xl p-3 text-center">
+              <div>{telegramWriteUnavailableMessage || 'Відкрийте Mini App з Telegram-бота, щоб надіслати запит.'}</div>
+              {(submitError?.openBotUrl || openBotUrl) && (
+                <button
+                  type="button"
+                  onClick={() => onOpenBot?.(submitError?.openBotUrl || openBotUrl)}
+                  className="mt-3 w-full rounded-lg bg-yellow-100/12 px-3 py-2 font-bold text-yellow-100"
+                >
+                  Відкрити бота
+                </button>
+              )}
+            </div>
+          )}
 
           {selectedCarsCount > 0 && (
             <div className="mb-4 bg-[#15171a] border border-white/10 rounded-xl p-3 text-xs text-white/80 space-y-2">
@@ -503,20 +535,6 @@ export const RequestView = ({
                   </div>
                 ))}
               </div>
-              {!hasTelegramInit && (
-                <div className="text-xs text-yellow-200 bg-yellow-500/10 border border-yellow-500/25 rounded-xl p-3 text-center">
-                  <div>{telegramWriteUnavailableMessage || 'Відкрийте Mini App з Telegram-бота, щоб надіслати запит.'}</div>
-                  {(submitError?.openBotUrl || openBotUrl) && (
-                    <button
-                      type="button"
-                      onClick={() => onOpenBot?.(submitError?.openBotUrl || openBotUrl)}
-                      className="mt-3 w-full rounded-lg bg-yellow-100/12 px-3 py-2 font-bold text-yellow-100"
-                    >
-                      Відкрити бота
-                    </button>
-                  )}
-                </div>
-              )}
               {submitError && (
                 <div className="rounded-xl border border-red-400/25 bg-red-500/10 p-4 text-sm text-red-50">
                   <div className="flex items-start justify-between gap-3">

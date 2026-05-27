@@ -466,7 +466,10 @@ const isReadOnlyPreviewMiniAppEvent = (eventType: string) => {
 
 const readTrackingMeta = (tracking: unknown) => {
   const trackingRecord = isRecord(tracking) ? tracking : {};
-  return isRecord(trackingRecord.meta) ? trackingRecord.meta : {};
+  return {
+    ...trackingRecord,
+    ...(isRecord(trackingRecord.meta) ? trackingRecord.meta : {})
+  };
 };
 
 const buildMiniAppTrackingEventId = (eventType: string, tracking: unknown, requestId?: string) => {
@@ -1754,7 +1757,9 @@ router.post('/lead-intents', async (req, res) => {
     res.json({
       ok: true,
       contactRequested: true,
+      contactActionRequired: true,
       closeMiniApp: true,
+      openBotUrl: buildBotOpenUrl(bot),
       duplicate: Boolean((pending as any).isDuplicate),
       intent: {
         kind: kind.kind,

@@ -260,7 +260,9 @@ export async function createMiniAppRequest(payload: MiniAppRequestPayload): Prom
 export async function createMiniAppLeadIntent(payload: MiniAppLeadIntentPayload): Promise<{
   ok: boolean;
   contactRequested: boolean;
+  contactActionRequired?: boolean;
   contactRequestFailed?: boolean;
+  contactKnown?: boolean;
   closeMiniApp: boolean;
   openBotUrl?: string;
   duplicate?: boolean;

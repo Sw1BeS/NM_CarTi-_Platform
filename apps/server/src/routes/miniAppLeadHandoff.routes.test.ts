@@ -323,7 +323,9 @@ describe('MiniApp Lead handoff routes', () => {
     expect(res.body).toMatchObject({
       ok: true,
       contactRequested: true,
-      closeMiniApp: true
+      contactActionRequired: true,
+      closeMiniApp: true,
+      openBotUrl: 'https://t.me/Cartie_Client_Bot'
     });
     expect(requestContractServiceMock.createPendingLeadIntent).toHaveBeenCalledWith(expect.objectContaining({
       slug: 'cartie',
@@ -1629,12 +1631,10 @@ describe('MiniApp Lead handoff routes', () => {
         carListingId: 'car_1',
         tracking: {
           submitId: 'lead_submit_1',
-          meta: {
-            eventId: 'meta_event_1',
-            fbp: 'fb.1.123',
-            fbc: 'fb.1.456',
-            eventSourceUrl: 'https://cartie.test/p/app/cartie'
-          }
+          eventId: 'meta_event_1',
+          fbp: 'fb.1.123',
+          fbc: 'fb.1.456',
+          eventSourceUrl: 'https://cartie.test/p/app/cartie'
         },
         payload: {
           budgetMax: 55000,

@@ -18,13 +18,20 @@ describe('MiniApp lead intent client outcome', () => {
     });
   });
 
-  it('closes the MiniApp after a normal contact handoff', () => {
-    expect(resolveLeadIntentOutcome({
+  it('shows a bot-chat handoff after a normal contact request', () => {
+    const outcome = resolveLeadIntentOutcome({
       ok: true,
       closeMiniApp: true,
-      contactRequested: true
-    })).toMatchObject({
-      shouldCloseMiniApp: true
+      contactRequested: true,
+      contactActionRequired: true,
+      openBotUrl: 'https://t.me/Cartie_Client_Bot'
     });
+
+    expect(outcome).toMatchObject({
+      shouldCloseMiniApp: true,
+      contactActionRequired: true,
+      openBotUrl: 'https://t.me/Cartie_Client_Bot'
+    });
+    expect(outcome.message).toContain('чат з ботом');
   });
 });
