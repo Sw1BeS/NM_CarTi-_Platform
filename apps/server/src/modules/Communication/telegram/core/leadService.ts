@@ -127,6 +127,33 @@ const firstRecordFrom = (...values: unknown[]) => {
   return undefined;
 };
 
+const firstTextFromArray = (value: unknown, keys: string[]) => {
+  if (!Array.isArray(value)) return undefined;
+  for (const item of value) {
+    if (isRecord(item)) {
+      const text = readPayloadText(item, keys);
+      if (text) return text;
+    } else if (item !== undefined && item !== null && String(item).trim()) {
+      return String(item).trim();
+    }
+  }
+  return undefined;
+};
+
+const resolveB2CBotLeadCity = (input: LeadCreateInput) => {
+  const inputPayload = isRecord(input.payload) ? input.payload : {};
+  const inputInnerPayload = isRecord(inputPayload.payload) ? inputPayload.payload : {};
+  const requestPayload = isRecord(inputPayload.request) ? inputPayload.request : {};
+  const criteria = isRecord(inputPayload.criteria)
+    ? inputPayload.criteria
+    : (isRecord(inputInnerPayload.criteria)
+      ? inputInnerPayload.criteria
+      : (isRecord(requestPayload.criteria) ? requestPayload.criteria : {}));
+  return input.requestData?.city
+    || readPayloadText(criteria, ['city', 'location'])
+    || firstTextFromArray((criteria as Record<string, unknown>).cities, ['label', 'name', 'city']);
+};
+
 const buildB2CBotLeadContent = (input: LeadCreateInput, request?: any) => {
   const inputPayload = isRecord(input.payload) ? input.payload : {};
   const inputInnerPayload = isRecord(inputPayload.payload) ? inputPayload.payload : {};
@@ -267,6 +294,7 @@ const trackInitialB2CBotLeadStage = (params: {
     phone: params.normalizedPhone || undefined,
     email: params.input.email || params.input.payload?.email || undefined,
     name: params.normalizedName,
+    city: resolveB2CBotLeadCity(params.input),
     fbp: params.attribution.fbp || undefined,
     fbc: params.attribution.fbc || undefined,
     clientIpAddress: params.attribution.client_ip_address || undefined,
@@ -592,6 +620,7 @@ export const createOrMergeLead = async (input: LeadCreateInput, botConfig?: any)
     phone: normalizedPhone || undefined,
     email: input.email || input.payload?.email || undefined,
     name: normalizedName,
+    city: resolveB2CBotLeadCity(input),
     actionSource: 'chat',
     contentName: `Lead ${normalizedName}`,
     contentCategory: 'Lead',

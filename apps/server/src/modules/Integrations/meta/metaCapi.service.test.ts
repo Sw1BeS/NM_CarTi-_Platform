@@ -83,6 +83,7 @@ describe('MetaCapiService', () => {
       actionSource: 'chat',
       fbp: 'fb.1.123',
       fbc: 'fb.1.456',
+      eventSourceUrl: 'https://cartie.test/p/app/cartie?utm_source=meta&tgWebAppData=secret#tgWebAppData=query_id%3D1%26user%3Dsecret%26hash%3Dsecret',
       eventTime: '2026-05-26T10:00:00Z'
     });
 
@@ -94,7 +95,8 @@ describe('MetaCapiService', () => {
       event_name: 'Lead',
       event_id: eventId,
       event_time: Math.floor(new Date('2026-05-26T10:00:00Z').getTime() / 1000),
-      action_source: 'chat'
+      action_source: 'chat',
+      event_source_url: 'https://cartie.test/p/app/cartie?utm_source=meta'
     });
     expect(payload.data[0].user_data).toMatchObject({
       ph: [hash('380635055252')],

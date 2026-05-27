@@ -31,6 +31,32 @@ const createMetaTimestamp = (nowMs: number) => String(Math.trunc(nowMs));
 
 const createMetaRandomPart = () => Math.floor(Math.random() * 1_000_000_000_000).toString();
 
+const SENSITIVE_EVENT_SOURCE_PARAMS = [
+    'tgWebAppData',
+    'tgWebAppThemeParams',
+    'tgWebAppVersion',
+    'tgWebAppPlatform',
+    'hash',
+    'signature',
+    'auth_date',
+    'query_id',
+    'user'
+];
+
+export const sanitizeMiniAppEventSourceUrl = (value: unknown) => {
+    const text = cleanString(value);
+    if (!text) return undefined;
+    const withoutHash = text.split('#')[0];
+    try {
+        const url = new URL(withoutHash);
+        SENSITIVE_EVENT_SOURCE_PARAMS.forEach(param => url.searchParams.delete(param));
+        url.hash = '';
+        return url.toString();
+    } catch {
+        return withoutHash || undefined;
+    }
+};
+
 export const resolveMiniAppViewEventType = (view: string): MiniAppBusinessEvent => {
     const normalized = String(view || '').trim().toUpperCase();
     if (normalized === 'INVENTORY' || normalized === 'CATALOG' || normalized === 'FAVORITES') return 'ViewInventory';

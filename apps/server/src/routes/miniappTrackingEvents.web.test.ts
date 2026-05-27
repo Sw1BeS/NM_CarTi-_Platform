@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
     resolveMiniAppMetaTracking,
     resolveMiniAppSubmitEventType,
-    resolveMiniAppViewEventType
+    resolveMiniAppViewEventType,
+    sanitizeMiniAppEventSourceUrl
 } from '../../../web/src/pages/public/miniapp/trackingEvents';
 
 describe('MiniApp web tracking event names', () => {
@@ -65,5 +66,17 @@ describe('MiniApp web tracking event names', () => {
         expect(result.cookiesToPersist).toEqual([
             { name: '_fbc', value: 'fb.1.1710000000000.fbclid_new' }
         ]);
+    });
+
+    it('removes Telegram initData hash from Meta event source URLs', () => {
+        expect(sanitizeMiniAppEventSourceUrl(
+            'https://cartie.test/p/app/cartie?v=build#tgWebAppData=query_id%3D1%26user%3D%257B%257D%26hash%3Dsecret&tgWebAppPlatform=macos'
+        )).toBe('https://cartie.test/p/app/cartie?v=build');
+    });
+
+    it('removes Telegram auth query params but keeps campaign params', () => {
+        expect(sanitizeMiniAppEventSourceUrl(
+            'https://cartie.test/p/app/cartie?utm_source=meta&tgWebAppData=secret&user=secret&fbclid=ClickId'
+        )).toBe('https://cartie.test/p/app/cartie?utm_source=meta&fbclid=ClickId');
     });
 });

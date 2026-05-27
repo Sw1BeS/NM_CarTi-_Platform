@@ -28,7 +28,13 @@ import { RequestView, type RequestFormData } from './miniapp/views/RequestView';
 import { MiniAppImage } from './miniapp/components/MiniAppImage';
 import { isMiniAppReadOnlyLaunch, parseMiniAppEntryIntent, resolveMiniAppInternalLinkIntent, type MiniAppEntryIntent } from './miniapp/entryIntent';
 import { resolveLeadIntentOutcome } from './miniapp/leadIntentOutcome';
-import { resolveMiniAppMetaTracking, resolveMiniAppSubmitEventType, resolveMiniAppViewEventType, type MiniAppMetaCookieWrite } from './miniapp/trackingEvents';
+import {
+    resolveMiniAppMetaTracking,
+    resolveMiniAppSubmitEventType,
+    resolveMiniAppViewEventType,
+    sanitizeMiniAppEventSourceUrl,
+    type MiniAppMetaCookieWrite
+} from './miniapp/trackingEvents';
 
 const emitMiniAppEvent = (level: 'info' | 'warn' | 'error', message: string, meta?: Record<string, unknown>) => {
     try {
@@ -821,7 +827,7 @@ const MiniAppContent = () => {
                 fbclid: metaTracking.fbclid,
                 fbp: metaTracking.fbp,
                 fbc: metaTracking.fbc,
-                eventSourceUrl: window.location.href,
+                eventSourceUrl: sanitizeMiniAppEventSourceUrl(window.location.href),
                 actionSource: 'website'
             };
             setTrackingMeta(baseTrackingMeta);

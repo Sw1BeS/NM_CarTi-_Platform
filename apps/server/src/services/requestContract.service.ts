@@ -174,6 +174,8 @@ const buildMiniAppTrackingBinding = (params: {
   const eventId = readTrackingText(params.tracking, ['eventId', 'event_id']);
   const fbp = readTrackingText(params.tracking, ['fbp']);
   const fbc = readTrackingText(params.tracking, ['fbc']);
+  const clientIpAddress = readTrackingText(params.tracking, ['client_ip_address', 'clientIpAddress']);
+  const clientUserAgent = readTrackingText(params.tracking, ['client_user_agent', 'clientUserAgent', 'userAgent']);
   return compactObject({
     requestId: toOptionalString(params.request?.id),
     requestPublicId: toOptionalString(params.request?.publicId),
@@ -189,6 +191,8 @@ const buildMiniAppTrackingBinding = (params: {
     fbclid: readTrackingText(params.tracking, ['fbclid']),
     hasFbp: Boolean(fbp),
     hasFbc: Boolean(fbc),
+    hasClientIp: Boolean(clientIpAddress),
+    hasClientUserAgent: Boolean(clientUserAgent),
     botId: params.botId,
     intentType: params.intentType,
     ...flattenMiniAppUtm(params.tracking)
@@ -719,6 +723,13 @@ class RequestContractService {
         : undefined;
     const sourceView = toOptionalString((payloadInput as Record<string, unknown>).sourceView)
       || toOptionalString((payloadInput as Record<string, unknown>).source);
+    const criteriaCity = isRecord(criteria)
+      ? toOptionalString(criteria.city)
+        || (Array.isArray(criteria.cities) && isRecord(criteria.cities[0])
+          ? toOptionalString((criteria.cities[0] as Record<string, unknown>).label)
+            || toOptionalString((criteria.cities[0] as Record<string, unknown>).name)
+          : undefined)
+      : undefined;
       const requestPresentation = pendingPresentation || buildRequestPresentationSnapshot({
         cars: selectedCarsOrdered,
         slug: pendingIntent.slug,
@@ -848,6 +859,7 @@ class RequestContractService {
         title,
         budgetMax: pendingIntent.budgetMax ?? null,
         yearMin: pendingIntent.yearMin ?? null,
+        city: criteriaCity ?? null,
         description: description || undefined,
         language: 'UK'
       }
@@ -953,6 +965,8 @@ class RequestContractService {
       actionSource: 'chat',
       fbp: readTrackingText(tracking, ['fbp']),
       fbc: readTrackingText(tracking, ['fbc']),
+      ip: readTrackingText(tracking, ['client_ip_address', 'clientIpAddress']),
+      userAgent: readTrackingText(tracking, ['client_user_agent', 'clientUserAgent', 'userAgent']),
       eventSourceUrl: readTrackingText(tracking, ['eventSourceUrl', 'event_source_url']),
       contentName: title,
       contentCategory: 'MiniApp Lead Request',
@@ -973,6 +987,8 @@ class RequestContractService {
       actionSource: 'chat',
       fbp: readTrackingText(tracking, ['fbp']),
       fbc: readTrackingText(tracking, ['fbc']),
+      ip: readTrackingText(tracking, ['client_ip_address', 'clientIpAddress']),
+      userAgent: readTrackingText(tracking, ['client_user_agent', 'clientUserAgent', 'userAgent']),
       eventSourceUrl: readTrackingText(tracking, ['eventSourceUrl', 'event_source_url']),
       contentName: title,
       contentCategory: 'MiniApp Contact Share',

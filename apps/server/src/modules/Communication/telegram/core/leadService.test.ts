@@ -126,7 +126,8 @@ describe('createOrMergeLead', () => {
           kind: 'PRICE_TERMS',
           criteria: {
             title: 'Tesla Model X 2017',
-            price: '$25,000'
+            price: '$25,000',
+            city: 'Kyiv'
           },
           selectedCars: [{
             id: 'ext_auto_ria_6e391e15705f56c152ed',
@@ -207,6 +208,7 @@ describe('createOrMergeLead', () => {
       externalId: 'telegram:1001',
       phone: '+380635055252',
       name: 'B2C Client',
+      city: 'Kyiv',
       fbp: 'fb.1.1779865200000.123456789',
       fbc: 'fb.1.1779865200000.ClickId',
       clientIpAddress: '203.0.113.10',

@@ -272,6 +272,9 @@ describe('requestContract.service', () => {
           title: 'BMW X5',
           carIds: ['car_1'],
           tracking: { utm_source: 'telegram' },
+          payload: {
+            criteria: { city: 'Kyiv' }
+          },
           createdAt: new Date().toISOString()
         }
       }
@@ -308,6 +311,9 @@ describe('requestContract.service', () => {
       companyId: 'cmp_1',
       phone: '+380671234567',
       createRequest: true,
+      requestData: expect.objectContaining({
+        city: 'Kyiv'
+      }),
       payload: expect.objectContaining({
         selectedCars: [
           expect.objectContaining({
@@ -385,6 +391,8 @@ describe('requestContract.service', () => {
               eventId: 'lead_submit_event_1',
               fbp: 'fb.1.123',
               fbc: 'fb.1.456',
+              client_ip_address: '203.0.113.10',
+              client_user_agent: 'Mozilla/5.0',
               eventSourceUrl: 'https://cartie.test/p/app/cartie'
             }
           },
@@ -411,6 +419,8 @@ describe('requestContract.service', () => {
       entityId: 'req_1',
       fbp: 'fb.1.123',
       fbc: 'fb.1.456',
+      ip: '203.0.113.10',
+      userAgent: 'Mozilla/5.0',
       eventSourceUrl: 'https://cartie.test/p/app/cartie',
       customData: expect.objectContaining({
         requestId: 'req_1',
@@ -423,12 +433,16 @@ describe('requestContract.service', () => {
         utm_source: 'facebook',
         utm_campaign: 'spring',
         hasFbp: true,
-        hasFbc: true
+        hasFbc: true,
+        hasClientIp: true,
+        hasClientUserAgent: true
       })
     }));
     expect(metaTrackEventMock).toHaveBeenCalledWith('cmp_1', 'Contact', expect.objectContaining({
       fbp: 'fb.1.123',
       fbc: 'fb.1.456',
+      ip: '203.0.113.10',
+      userAgent: 'Mozilla/5.0',
       eventSourceUrl: 'https://cartie.test/p/app/cartie',
       customData: expect.objectContaining({
         requestId: 'req_1',
@@ -453,7 +467,9 @@ describe('requestContract.service', () => {
           submitId: 'submit_meta_1',
           trackingEventId: 'lead_submit_event_1',
           hasFbp: true,
-          hasFbc: true
+          hasFbc: true,
+          hasClientIp: true,
+          hasClientUserAgent: true
         })
       })
     }));

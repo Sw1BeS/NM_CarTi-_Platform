@@ -20,6 +20,7 @@ import { isEnvFlagEnabled } from '../services/featureFlags.js';
 import { vehicleTaxonomyService } from '../services/vehicleTaxonomy.service.js';
 import { b2bWhitelistService } from '../services/b2bWhitelist.service.js';
 import { buildCallbackData } from '../modules/Communication/telegram/core/utils/callbackUtils.js';
+import { sanitizeMetaEventSourceUrl } from '../modules/Integrations/meta/metaEventSourceUrl.js';
 
 const router = Router();
 const showcaseService = new ShowcaseService();
@@ -507,6 +508,32 @@ const SENSITIVE_EVENT_KEYS = new Set([
   'accesstoken',
   'authorization'
 ]);
+
+const sanitizeMiniAppTrackingInput = (value: unknown): Record<string, unknown> | undefined => {
+  if (!isRecord(value)) return undefined;
+  const sanitized = sanitizeMiniAppEventValue(value);
+  if (!isRecord(sanitized)) return undefined;
+  const next: Record<string, unknown> = { ...sanitized };
+  for (const key of ['eventSourceUrl', 'event_source_url']) {
+    if (next[key] !== undefined) {
+      const cleanUrl = sanitizeMetaEventSourceUrl(readString(next[key]));
+      if (cleanUrl) next[key] = cleanUrl;
+      else delete next[key];
+    }
+  }
+  if (isRecord(next.meta)) {
+    const meta = { ...next.meta };
+    for (const key of ['eventSourceUrl', 'event_source_url']) {
+      if (meta[key] !== undefined) {
+        const cleanUrl = sanitizeMetaEventSourceUrl(readString(meta[key]));
+        if (cleanUrl) meta[key] = cleanUrl;
+        else delete meta[key];
+      }
+    }
+    next.meta = meta;
+  }
+  return next;
+};
 
 const sanitizeMiniAppEventValue = (value: unknown): unknown => {
   if (Array.isArray(value)) return value.map(sanitizeMiniAppEventValue).filter(item => item !== undefined);
@@ -1571,12 +1598,11 @@ router.post('/lead-intents', async (req, res) => {
         client_user_agent: readString(req.get('user-agent'))
       }).filter(([, value]) => Boolean(value))
     );
-    const tracking = isRecord(body.tracking)
-      ? {
-          ...body.tracking,
-          ...requestTrackingMeta
-        }
-      : requestTrackingMeta;
+    const trackingInput = sanitizeMiniAppTrackingInput(body.tracking) || {};
+    const tracking = {
+      ...trackingInput,
+      ...requestTrackingMeta
+    };
     const payloadFromInput = isRecord(body.payload) ? body.payload : {};
     const carListingIds = readStringArray(body.carListingIds);
     const pending = await requestContractService.createPendingLeadIntent({
@@ -1948,7 +1974,7 @@ router.post('/requests', async (req, res) => {
       carListingIds: Array.isArray(body.carListingIds)
         ? body.carListingIds.map((item) => readString(item)).filter((item): item is string => Boolean(item))
         : undefined,
-      tracking: (body.tracking as Record<string, unknown>) || undefined,
+      tracking: sanitizeMiniAppTrackingInput(body.tracking),
       telegram: {
         userId: telegram.userId,
         username: telegram.username,
@@ -2014,9 +2040,7 @@ router.post('/events', async (req, res) => {
     const payload = body.payload && typeof body.payload === 'object'
       ? sanitizeMiniAppEventValue(body.payload) as Record<string, unknown>
       : undefined;
-    const tracking = body.tracking && typeof body.tracking === 'object'
-      ? sanitizeMiniAppEventValue(body.tracking) as Record<string, unknown>
-      : undefined;
+    const tracking = sanitizeMiniAppTrackingInput(body.tracking);
     const carListingId = readString(body.carListingId);
     const eventId = buildMiniAppTrackingEventId(eventType, tracking, readString(req.get('x-request-id')));
     const metaEventName = mapMiniAppEventToMeta(eventType);

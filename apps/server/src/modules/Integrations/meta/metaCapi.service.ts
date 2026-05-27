@@ -3,6 +3,7 @@ import axios from 'axios';
 import { prisma } from '../../../services/prisma.js';
 import { logger } from '../../../utils/logger.js';
 import { isEnvFlagEnabled } from '../../../services/featureFlags.js';
+import { sanitizeMetaEventSourceUrl } from './metaEventSourceUrl.js';
 
 export type MetaActionSource = 'email' | 'website' | 'app' | 'phone_call' | 'chat' | 'physical_store' | 'system_generated' | 'business_messaging' | string;
 
@@ -558,6 +559,7 @@ export class MetaCapiService {
     }
 
     const userData = buildMetaUserData(input, { includeName: true });
+    const eventSourceUrl = sanitizeMetaEventSourceUrl(input.eventSourceUrl || input.event_source_url);
 
     const customData = {
       ...(input.customData && typeof input.customData === 'object' ? input.customData : {}),
@@ -574,7 +576,7 @@ export class MetaCapiService {
         event_time: resolvedEventTime.eventTime,
         user_data: userData,
         action_source: input.actionSource || input.action_source || 'website',
-        ...(input.eventSourceUrl || input.event_source_url ? { event_source_url: String(input.eventSourceUrl || input.event_source_url) } : {}),
+        ...(eventSourceUrl ? { event_source_url: eventSourceUrl } : {}),
         ...(Object.keys(customData).length ? { custom_data: customData } : {})
       }],
       ...(testEventCode ? { test_event_code: testEventCode } : {})

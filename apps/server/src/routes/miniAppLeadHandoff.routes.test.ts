@@ -316,7 +316,10 @@ describe('MiniApp Lead handoff routes', () => {
           model: 'X5',
           budgetMax: 55000
         },
-        tracking: { submitId: 'submit_1' }
+        tracking: {
+          submitId: 'submit_1',
+          eventSourceUrl: 'https://cartie.test/p/app/cartie?utm_source=meta&tgWebAppData=secret#tgWebAppData=query_id%3D1%26user%3Dsecret%26hash%3Dsecret'
+        }
       });
 
     expect(res.status).toBe(200);
@@ -332,6 +335,7 @@ describe('MiniApp Lead handoff routes', () => {
       intentType: 'REQUEST',
       tracking: expect.objectContaining({
         submitId: 'submit_1',
+        eventSourceUrl: 'https://cartie.test/p/app/cartie?utm_source=meta',
         client_ip_address: expect.any(String)
       }),
       telegram: expect.objectContaining({
@@ -1920,7 +1924,7 @@ describe('MiniApp Lead handoff routes', () => {
             eventId: 'view_car_preview_1',
             fbp: 'fb.1.123',
             fbc: 'fb.1.456',
-            eventSourceUrl: 'https://cartie.test/p/app/cartie?entry=inventory&carId=car_1'
+            eventSourceUrl: 'https://cartie.test/p/app/cartie?entry=inventory&carId=car_1&tgWebAppData=secret#tgWebAppData=query_id%3D1%26user%3Dsecret%26hash%3Dsecret'
           }
         },
         payload: {
@@ -1942,6 +1946,7 @@ describe('MiniApp Lead handoff routes', () => {
     expect(metaPixelTrackEventMock).toHaveBeenCalledWith('company_1', 'ViewContent', expect.objectContaining({
       eventId: 'view_car_preview_1',
       externalId: 'visitor:visitor_preview_1',
+      eventSourceUrl: 'https://cartie.test/p/app/cartie?entry=inventory&carId=car_1',
       contentIds: ['car_1'],
       customData: expect.objectContaining({
         source: 'miniapp',
@@ -1953,6 +1958,7 @@ describe('MiniApp Lead handoff routes', () => {
     const platformPayload = emitPlatformEventMock.mock.calls[0][0].payload;
     expect(JSON.stringify(platformPayload)).not.toContain('spoofed_user');
     expect(JSON.stringify(platformPayload)).not.toContain('+380635055252');
+    expect(JSON.stringify(platformPayload)).not.toContain('tgWebAppData');
   });
 
   it('allows LeadFormStart telemetry without initData for read-only preview sessions', async () => {
