@@ -613,6 +613,27 @@ model IntegrationEventLog {
   @@index([traceId])
 }
 
+model AttributionSession {
+  id          String    @id @default(cuid())
+  token       String    @unique
+  companyId   String?
+  botId       String?
+  destination String
+  source      String?
+  query       Json?     @db.JsonB
+  identifiers Json?     @db.JsonB
+  requestMeta Json?     @db.JsonB
+  expiresAt   DateTime
+  consumedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([companyId])
+  @@index([botId])
+  @@index([expiresAt])
+  @@index([destination])
+}
+
 model QuotaUsage {
   id        String     @id @default(cuid())
   companyId String?

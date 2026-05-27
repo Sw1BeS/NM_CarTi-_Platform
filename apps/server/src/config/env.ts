@@ -52,6 +52,11 @@ const envSchema = z.object({
     META_B2C_BOT_CAPI_ENABLED: z.string().optional(),
     META_B2C_BOT_PURCHASE_ENABLED: z.string().optional(),
     META_B2C_BOT_TEST_MODE: z.string().optional(),
+    ATTRIBUTION_REDIRECT_ENABLED: z.string().optional(),
+    ATTRIBUTION_SESSION_TTL_DAYS: intWithDefault(30, 1),
+    ATTRIBUTION_BOT_ALLOWLIST: z.string().optional(),
+    ATTRIBUTION_DEFAULT_DESTINATION: z.string().optional(),
+    ATTRIBUTION_REDIRECT_FAIL_MODE: z.enum(['closed', 'passthrough']).optional(),
     SALESDRIVE_WEBHOOK_SECRET: z.string().optional(),
     SALESDRIVE_WEBHOOK_TOKEN: z.string().optional(),
     SALESDRIVE_SECRET: z.string().optional(),
@@ -97,6 +102,11 @@ export interface ValidatedEnv {
     META_B2C_BOT_CAPI_ENABLED?: string;
     META_B2C_BOT_PURCHASE_ENABLED?: string;
     META_B2C_BOT_TEST_MODE?: string;
+    ATTRIBUTION_REDIRECT_ENABLED?: string;
+    ATTRIBUTION_SESSION_TTL_DAYS: number;
+    ATTRIBUTION_BOT_ALLOWLIST?: string;
+    ATTRIBUTION_DEFAULT_DESTINATION?: string;
+    ATTRIBUTION_REDIRECT_FAIL_MODE?: 'closed' | 'passthrough';
     SALESDRIVE_WEBHOOK_SECRET?: string;
     SALESDRIVE_WEBHOOK_TOKEN?: string;
     SALESDRIVE_SECRET?: string;
@@ -128,4 +138,68 @@ export const validateEnv = (): ValidatedEnv => {
     }
 
     return env;
+};
+
+export type AttributionRedirectFailMode = 'closed' | 'passthrough';
+
+export type AttributionBotAllowlistEntry = {
+    destination: string;
+    botUsername: string;
+};
+
+export type AttributionRedirectConfig = {
+    enabled: boolean;
+    ttlDays: number;
+    botAllowlist: AttributionBotAllowlistEntry[];
+    defaultDestination?: string;
+    failMode: AttributionRedirectFailMode;
+};
+
+const TRUE_VALUES = new Set(['1', 'true', 'yes', 'on']);
+
+export const parseBooleanFlag = (value: string | undefined, defaultValue = false): boolean => {
+    if (value === undefined || value === null || value === '') {
+        return defaultValue;
+    }
+    return TRUE_VALUES.has(String(value).trim().toLowerCase());
+};
+
+const normalizeEnvText = (value: unknown): string | undefined => {
+    if (typeof value !== 'string') return undefined;
+    const trimmed = value.trim();
+    return trimmed || undefined;
+};
+
+export const parseAttributionBotAllowlist = (raw: string | undefined): AttributionBotAllowlistEntry[] => {
+    const text = normalizeEnvText(raw);
+    if (!text) return [];
+
+    return text
+        .split(',')
+        .map(entry => {
+            const [destinationRaw, botUsernameRaw] = entry.split(':');
+            const destination = normalizeEnvText(destinationRaw);
+            const botUsername = normalizeEnvText(botUsernameRaw);
+            if (!destination || !botUsername) return null;
+            return { destination, botUsername };
+        })
+        .filter((entry): entry is AttributionBotAllowlistEntry => Boolean(entry));
+};
+
+export const getAttributionRedirectConfig = (
+    env: Partial<ValidatedEnv> | NodeJS.ProcessEnv = process.env
+): AttributionRedirectConfig => {
+    const botAllowlist = parseAttributionBotAllowlist(env.ATTRIBUTION_BOT_ALLOWLIST);
+    const defaultDestination = normalizeEnvText(env.ATTRIBUTION_DEFAULT_DESTINATION) || botAllowlist[0]?.destination;
+    const ttlValue = Number(env.ATTRIBUTION_SESSION_TTL_DAYS || 30);
+    const ttlDays = Number.isFinite(ttlValue) && ttlValue > 0 ? Math.floor(ttlValue) : 30;
+    const failMode = env.ATTRIBUTION_REDIRECT_FAIL_MODE === 'passthrough' ? 'passthrough' : 'closed';
+
+    return {
+        enabled: parseBooleanFlag(env.ATTRIBUTION_REDIRECT_ENABLED, false),
+        ttlDays,
+        botAllowlist,
+        defaultDestination,
+        failMode
+    };
 };
