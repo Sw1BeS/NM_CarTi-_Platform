@@ -287,6 +287,16 @@ describe('MetaCapiService', () => {
       eventId,
       externalId: 'salesdrive:37193',
       phone: '+38 (063) 505-52-52',
+      name: 'Ivan Petrenko',
+      city: 'Kyiv',
+      state: 'CA',
+      zip: '01001',
+      country: 'UA',
+      dateOfBirth: '1990-05-26',
+      clientIpAddress: '203.0.113.10',
+      clientUserAgent: 'Mozilla/5.0',
+      fbp: 'fb.1.1779865200000.123456789',
+      fbc: 'fb.1.1779865200000.ClickId',
       eventTime: 1779703200,
       actionSource: 'website',
       value: 25000,
@@ -332,7 +342,18 @@ describe('MetaCapiService', () => {
     });
     expect(payload.data[0].user_data).toMatchObject({
       ph: [hash('380635055252')],
-      external_id: [hash('salesdrive:37193')]
+      external_id: [hash('salesdrive:37193')],
+      fn: [hash('ivan')],
+      ln: [hash('petrenko')],
+      ct: [hash('kyiv')],
+      st: [hash('ca')],
+      zp: [hash('01001')],
+      country: [hash('ua')],
+      db: [hash('19900526')],
+      client_ip_address: '203.0.113.10',
+      client_user_agent: 'Mozilla/5.0',
+      fbp: 'fb.1.1779865200000.123456789',
+      fbc: 'fb.1.1779865200000.ClickId'
     });
     expect(prismaMock.integrationEventLog.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({
@@ -372,7 +393,21 @@ describe('MetaCapiService', () => {
               car_listing_id: 'ext_auto_ria_6e391e15705f56c152ed',
               value: 25000
             }),
-            userDataKeys: expect.arrayContaining(['ph', 'external_id'])
+            userDataKeys: expect.arrayContaining([
+              'ph',
+              'external_id',
+              'fn',
+              'ln',
+              'ct',
+              'st',
+              'zp',
+              'country',
+              'db',
+              'client_ip_address',
+              'client_user_agent',
+              'fbp',
+              'fbc'
+            ])
           })
         })
       })

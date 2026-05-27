@@ -1562,7 +1562,18 @@ router.post('/lead-intents', async (req, res) => {
     }
 
     const criteria = isRecord(body.criteria) ? body.criteria : {};
-    const tracking = isRecord(body.tracking) ? body.tracking : undefined;
+    const requestTrackingMeta = Object.fromEntries(
+      Object.entries({
+        client_ip_address: readClientIp(req),
+        client_user_agent: readString(req.get('user-agent'))
+      }).filter(([, value]) => Boolean(value))
+    );
+    const tracking = isRecord(body.tracking)
+      ? {
+          ...body.tracking,
+          ...requestTrackingMeta
+        }
+      : requestTrackingMeta;
     const payloadFromInput = isRecord(body.payload) ? body.payload : {};
     const carListingIds = readStringArray(body.carListingIds);
     const pending = await requestContractService.createPendingLeadIntent({

@@ -219,8 +219,10 @@ const buildB2CBotAttribution = (params: {
     attribution: Object.keys(attributionSnapshot).length ? attributionSnapshot : undefined,
     fbp: readPayloadText(attributionIdentifiers, ['fbp']) || readPayloadText(tracking, ['fbp']),
     fbc: readPayloadText(attributionIdentifiers, ['fbc']) || readPayloadText(tracking, ['fbc']),
-    client_ip_address: readPayloadText(attributionIdentifiers, ['client_ip_address']),
-    client_user_agent: readPayloadText(attributionIdentifiers, ['client_user_agent']),
+    client_ip_address: readPayloadText(attributionIdentifiers, ['client_ip_address'])
+      || readPayloadText(tracking, ['client_ip_address', 'clientIpAddress']),
+    client_user_agent: readPayloadText(attributionIdentifiers, ['client_user_agent'])
+      || readPayloadText(tracking, ['client_user_agent', 'clientUserAgent', 'userAgent']),
     event_source_url: readPayloadText(attributionSnapshot, ['event_source_url'])
       || readPayloadText(tracking, ['eventSourceUrl', 'event_source_url']),
     phone: params.normalizedPhone || undefined,

@@ -19,6 +19,18 @@ export type MetaCapiTrackInput = {
   phone?: string | null;
   email?: string | null;
   name?: string | null;
+  firstName?: string | null;
+  first_name?: string | null;
+  lastName?: string | null;
+  last_name?: string | null;
+  dateOfBirth?: string | null;
+  date_of_birth?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip?: string | null;
+  postalCode?: string | null;
+  postal_code?: string | null;
+  country?: string | null;
   fbp?: string | null;
   fbc?: string | null;
   ip?: string | null;
@@ -64,9 +76,72 @@ const normalizeMetaPhone = (value?: string | null) => {
   return digits.length >= 8 ? digits : undefined;
 };
 
+const normalizeMetaText = (value?: string | null) => {
+  const text = String(value || '').trim().toLowerCase();
+  return text || undefined;
+};
+
+const normalizeMetaCity = (value?: string | null) => {
+  const text = normalizeMetaText(value);
+  return text ? text.replace(/[\s\p{P}\p{S}]+/gu, '') : undefined;
+};
+
+const normalizeMetaCountryOrState = (value?: string | null) => {
+  const text = normalizeMetaText(value)?.replace(/[^a-z]/g, '');
+  return text && text.length === 2 ? text : undefined;
+};
+
+const normalizeMetaDateOfBirth = (value?: string | null) => {
+  const text = String(value || '').trim();
+  if (!text) return undefined;
+  const digits = text.replace(/[^\d]/g, '');
+  if (/^\d{8}$/.test(digits)) return digits;
+  const parsed = Date.parse(text);
+  if (Number.isNaN(parsed)) return undefined;
+  const date = new Date(parsed);
+  const year = date.getUTCFullYear();
+  if (year < 1900 || year > new Date().getUTCFullYear()) return undefined;
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(date.getUTCDate()).padStart(2, '0');
+  return `${year}${month}${day}`;
+};
+
 const normalizeMetaArrayHash = (value?: string | null, normalizer?: (value?: string | null) => string | undefined) => {
   const normalized = normalizer ? normalizer(value) : String(value || '').trim().toLowerCase();
   return normalized ? [sha256(normalized)] : undefined;
+};
+
+const resolveMetaNameParts = (input: MetaCapiTrackInput = {}) => {
+  const explicitFirst = normalizeMetaText(input.firstName || input.first_name);
+  const explicitLast = normalizeMetaText(input.lastName || input.last_name);
+  if (explicitFirst || explicitLast) {
+    return { firstName: explicitFirst, lastName: explicitLast };
+  }
+  const parts = normalizeMetaText(input.name)?.split(/\s+/).filter(Boolean) || [];
+  return {
+    firstName: parts[0],
+    lastName: parts.length > 1 ? parts.slice(1).join(' ') : undefined
+  };
+};
+
+const buildMetaUserData = (input: MetaCapiTrackInput = {}, options: { includeName?: boolean } = {}) => {
+  const nameParts: { firstName?: string; lastName?: string } = options.includeName ? resolveMetaNameParts(input) : {};
+  return {
+    ...(normalizeMetaArrayHash(input.phone, normalizeMetaPhone) ? { ph: normalizeMetaArrayHash(input.phone, normalizeMetaPhone) } : {}),
+    ...(normalizeMetaArrayHash(input.email, normalizeMetaEmail) ? { em: normalizeMetaArrayHash(input.email, normalizeMetaEmail) } : {}),
+    ...(options.includeName && normalizeMetaArrayHash(nameParts.firstName, normalizeMetaText) ? { fn: normalizeMetaArrayHash(nameParts.firstName, normalizeMetaText) } : {}),
+    ...(options.includeName && normalizeMetaArrayHash(nameParts.lastName, normalizeMetaText) ? { ln: normalizeMetaArrayHash(nameParts.lastName, normalizeMetaText) } : {}),
+    ...(normalizeMetaArrayHash(input.dateOfBirth || input.date_of_birth, normalizeMetaDateOfBirth) ? { db: normalizeMetaArrayHash(input.dateOfBirth || input.date_of_birth, normalizeMetaDateOfBirth) } : {}),
+    ...(normalizeMetaArrayHash(input.city, normalizeMetaCity) ? { ct: normalizeMetaArrayHash(input.city, normalizeMetaCity) } : {}),
+    ...(normalizeMetaArrayHash(input.state, normalizeMetaCountryOrState) ? { st: normalizeMetaArrayHash(input.state, normalizeMetaCountryOrState) } : {}),
+    ...(normalizeMetaArrayHash(input.zip || input.postalCode || input.postal_code) ? { zp: normalizeMetaArrayHash(input.zip || input.postalCode || input.postal_code) } : {}),
+    ...(normalizeMetaArrayHash(input.country, normalizeMetaCountryOrState) ? { country: normalizeMetaArrayHash(input.country, normalizeMetaCountryOrState) } : {}),
+    ...(normalizeMetaArrayHash(input.externalId || input.external_id) ? { external_id: normalizeMetaArrayHash(input.externalId || input.external_id) } : {}),
+    ...(input.fbp ? { fbp: String(input.fbp) } : {}),
+    ...(input.fbc ? { fbc: String(input.fbc) } : {}),
+    ...(input.ip || input.clientIpAddress ? { client_ip_address: String(input.ip || input.clientIpAddress) } : {}),
+    ...(input.userAgent || input.clientUserAgent ? { client_user_agent: String(input.userAgent || input.clientUserAgent) } : {})
+  };
 };
 
 const redactSensitiveText = (value: unknown, accessToken?: string | null) => {
@@ -300,15 +375,7 @@ export class MetaCapiService {
       return { success: true, eventId, duplicate: true, destinationKey: config.destinationKey };
     }
 
-    const userData = {
-      ...(normalizeMetaArrayHash(input.phone, normalizeMetaPhone) ? { ph: normalizeMetaArrayHash(input.phone, normalizeMetaPhone) } : {}),
-      ...(normalizeMetaArrayHash(input.email, normalizeMetaEmail) ? { em: normalizeMetaArrayHash(input.email, normalizeMetaEmail) } : {}),
-      ...(normalizeMetaArrayHash(input.externalId || input.external_id) ? { external_id: normalizeMetaArrayHash(input.externalId || input.external_id) } : {}),
-      ...(input.fbp ? { fbp: String(input.fbp) } : {}),
-      ...(input.fbc ? { fbc: String(input.fbc) } : {}),
-      ...(input.ip || input.clientIpAddress ? { client_ip_address: String(input.ip || input.clientIpAddress) } : {}),
-      ...(input.userAgent || input.clientUserAgent ? { client_user_agent: String(input.userAgent || input.clientUserAgent) } : {})
-    };
+    const userData = buildMetaUserData(input, { includeName: true });
 
     const customData = {
       ...(input.customData && typeof input.customData === 'object' ? input.customData : {}),
@@ -371,6 +438,9 @@ export class MetaCapiService {
             hasPhone: Boolean(input.phone),
             hasEmail: Boolean(input.email),
             hasExternalId: Boolean(input.externalId || input.external_id),
+            hasName: Boolean(input.name || input.firstName || input.first_name || input.lastName || input.last_name),
+            hasClientIp: Boolean(input.ip || input.clientIpAddress),
+            hasClientUserAgent: Boolean(input.userAgent || input.clientUserAgent),
             hasFbp: Boolean(input.fbp),
             hasFbc: Boolean(input.fbc)
           }
@@ -487,16 +557,7 @@ export class MetaCapiService {
       return { success: true, eventId, duplicate: true };
     }
 
-    const userData = {
-      ...(normalizeMetaArrayHash(input.phone, normalizeMetaPhone) ? { ph: normalizeMetaArrayHash(input.phone, normalizeMetaPhone) } : {}),
-      ...(normalizeMetaArrayHash(input.email, normalizeMetaEmail) ? { em: normalizeMetaArrayHash(input.email, normalizeMetaEmail) } : {}),
-      ...(normalizeMetaArrayHash(input.name) ? { fn: normalizeMetaArrayHash(input.name) } : {}),
-      ...(normalizeMetaArrayHash(input.externalId || input.external_id) ? { external_id: normalizeMetaArrayHash(input.externalId || input.external_id) } : {}),
-      ...(input.fbp ? { fbp: String(input.fbp) } : {}),
-      ...(input.fbc ? { fbc: String(input.fbc) } : {}),
-      ...(input.ip || input.clientIpAddress ? { client_ip_address: String(input.ip || input.clientIpAddress) } : {}),
-      ...(input.userAgent || input.clientUserAgent ? { client_user_agent: String(input.userAgent || input.clientUserAgent) } : {})
-    };
+    const userData = buildMetaUserData(input, { includeName: true });
 
     const customData = {
       ...(input.customData && typeof input.customData === 'object' ? input.customData : {}),
@@ -540,6 +601,9 @@ export class MetaCapiService {
             hasPhone: Boolean(input.phone),
             hasEmail: Boolean(input.email),
             hasExternalId: Boolean(input.externalId || input.external_id),
+            hasName: Boolean(input.name || input.firstName || input.first_name || input.lastName || input.last_name),
+            hasClientIp: Boolean(input.ip || input.clientIpAddress),
+            hasClientUserAgent: Boolean(input.userAgent || input.clientUserAgent),
             hasFbp: Boolean(input.fbp),
             hasFbc: Boolean(input.fbc)
           }

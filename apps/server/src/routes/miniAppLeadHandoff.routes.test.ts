@@ -328,7 +328,10 @@ describe('MiniApp Lead handoff routes', () => {
     expect(requestContractServiceMock.createPendingLeadIntent).toHaveBeenCalledWith(expect.objectContaining({
       slug: 'cartie',
       intentType: 'REQUEST',
-      tracking: { submitId: 'submit_1' },
+      tracking: expect.objectContaining({
+        submitId: 'submit_1',
+        client_ip_address: expect.any(String)
+      }),
       telegram: expect.objectContaining({
         userId: '1001',
         username: 'client_one',
@@ -380,7 +383,10 @@ describe('MiniApp Lead handoff routes', () => {
     expect(requestContractServiceMock.createPendingLeadIntent).toHaveBeenCalledWith(expect.objectContaining({
       slug: 'cartie',
       intentType: 'REQUEST',
-      tracking: { submitId: 'submit_contact_send_failed' }
+      tracking: expect.objectContaining({
+        submitId: 'submit_contact_send_failed',
+        client_ip_address: expect.any(String)
+      })
     }));
     expect(telegramOutboxMock.sendMessage).toHaveBeenCalledWith(expect.objectContaining({
       botId: 'bot_1',
