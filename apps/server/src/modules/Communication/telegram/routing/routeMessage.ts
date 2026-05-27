@@ -30,6 +30,7 @@ import { b2bRoutingService } from '../../../../services/b2bRouting.service.js';
 import { startLeadBuyWizard, handleLeadBuyText } from './wizards/leadBuyWizard.js';
 import { startLeadSellWizard, handleLeadSellText } from './wizards/leadSellWizard.js';
 import { startB2BSellWizard, handleB2BSellText } from './wizards/b2bSellWizard.js';
+import { attributionSessionService } from '../../../Attribution/attributionSession.service.js';
 
 
 const shouldBypassScenarioEngine = (ctx: PipelineContext) => {
@@ -635,7 +636,8 @@ const handleClientLead = async (ctx: PipelineContext, text: string) => {
   }
 
   if (text.startsWith('/start ')) {
-    const startPayload = text.split(' ')[1]?.trim().toLowerCase();
+    const rawStartPayload = text.split(/\s+/)[1]?.trim();
+    const startPayload = rawStartPayload?.toLowerCase();
     if (startPayload === 'sell') {
       await startLeadSellWizard(ctx);
       return true;
@@ -657,6 +659,21 @@ const handleClientLead = async (ctx: PipelineContext, text: string) => {
         });
         return true;
       }
+    }
+    if (rawStartPayload) {
+      const attribution = await attributionSessionService.lookupToken(rawStartPayload, { consume: false }).catch(() => null);
+      if (attribution) {
+        await updateSession(ctx, 'CL_MENU', {
+          ...vars,
+          attributionToken: rawStartPayload,
+          attribution,
+          attributionBoundAt: new Date().toISOString()
+        });
+        await showMenu(ctx, lang, 'CLIENT_LEAD');
+        return true;
+      }
+      await showMenu(ctx, lang, 'CLIENT_LEAD');
+      return true;
     }
   }
 

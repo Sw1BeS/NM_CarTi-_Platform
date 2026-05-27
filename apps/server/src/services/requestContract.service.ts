@@ -21,6 +21,11 @@ import { findRecentMiniAppSelectedCarsDuplicate } from './miniappRequestDedupe.j
 import { IntegrationService } from '../modules/Integrations/integration.service.js';
 import { enqueueSalesDriveRequestSync } from '../modules/Integrations/salesdrive/salesdriveSync.service.js';
 import { logger } from '../utils/logger.js';
+import {
+  mergeAttributionSnapshot,
+  readAttributionSnapshot,
+  resolveAttributionSnapshotForPayload
+} from '../modules/Attribution/attributionPayload.js';
 
 type MiniAppTracking = Record<string, unknown>;
 type MiniAppTelegram = {
@@ -398,6 +403,15 @@ class RequestContractService {
       listingTitle: presentationTitles[0] || selection.listingTitle
     });
 
+    const pendingAttribution = await resolveAttributionSnapshotForPayload({
+      ...(isRecord(input.payload) ? input.payload : {}),
+      tracking: isRecord(input.tracking) ? input.tracking : undefined
+    }, { consume: false });
+    const pendingIntentPayload = mergeAttributionSnapshot(
+      isRecord(input.payload) ? input.payload : undefined,
+      pendingAttribution
+    );
+
     const pendingIntent: MiniAppPendingIntent = {
       version: 1,
       intentType: input.intentType,
@@ -410,7 +424,7 @@ class RequestContractService {
       carId: selection.selectedCarIds[0],
       carIds: selection.selectedCarIds.length ? selection.selectedCarIds : undefined,
       tracking: isRecord(input.tracking) ? input.tracking : undefined,
-      payload: isRecord(input.payload) ? input.payload : undefined,
+      payload: isRecord(pendingIntentPayload) ? pendingIntentPayload : undefined,
       telegram: {
         userId: tgUserId,
         username: toOptionalString((telegram as Record<string, unknown>)?.username),
@@ -693,7 +707,11 @@ class RequestContractService {
         : null
     ].filter((item): item is string => Boolean(item));
     const description = descriptionParts.join('\n');
-      const payloadInput = pendingPayload;
+      const pendingAttribution = await resolveAttributionSnapshotForPayload({
+        ...pendingPayload,
+        tracking: pendingIntent.tracking || undefined
+      }, { consume: true });
+      const payloadInput = mergeAttributionSnapshot(pendingPayload, pendingAttribution) || pendingPayload;
     const criteria = isRecord((payloadInput as Record<string, unknown>).criteria)
       ? (payloadInput as Record<string, unknown>).criteria as Record<string, unknown>
       : isRecord((payloadInput as Record<string, unknown>).request)
@@ -715,6 +733,7 @@ class RequestContractService {
       sourceContext: pendingIntent.intentType === 'REQUEST' ? 'miniapp_request' : 'miniapp_interest',
       phone: params.phone,
       tracking: pendingIntent.tracking || undefined,
+      attribution: readAttributionSnapshot(payloadInput) || undefined,
       telegram: {
         userId: params.telegramUserId,
         username: params.telegramUsername || undefined,
@@ -736,7 +755,7 @@ class RequestContractService {
       vehiclePresentation: requestPresentation.vehiclePresentation,
       requestSummary: requestPresentation.requestSummary,
       requestPresentation,
-      payload: pendingIntent.payload || undefined
+      payload: payloadInput || undefined
     } as Record<string, unknown>;
     requestPayload.operatorPresentation = buildOperatorRequestPresentation({
       title,

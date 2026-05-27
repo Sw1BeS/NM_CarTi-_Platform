@@ -14,6 +14,10 @@ import {
   resolveLeadByIdentity,
   upsertLeadIdentities
 } from '../../../../services/leadIdentity.service.js';
+import {
+  mergeAttributionSnapshot,
+  resolveAttributionSnapshotForPayload
+} from '../../../Attribution/attributionPayload.js';
 
 
 const leadRepo = new LeadRepository(prisma);
@@ -113,6 +117,8 @@ const buildB2CBotAttribution = (params: {
 }) => {
   const payload = isRecord(params.input.payload) ? params.input.payload : {};
   const tracking = isRecord(payload.tracking) ? payload.tracking : {};
+  const attributionSnapshot = isRecord(payload.attribution) ? payload.attribution : {};
+  const attributionIdentifiers = isRecord(attributionSnapshot.identifiers) ? attributionSnapshot.identifiers : {};
   const source = String(params.input.source || payload.source || '').trim().toLowerCase();
   const direction = String(payload.direction || '').trim().toUpperCase();
   const destinationKey = readPayloadText(payload, ['destination_key', 'destinationKey'])
@@ -136,6 +142,13 @@ const buildB2CBotAttribution = (params: {
       || readPayloadText(tracking, ['start_param', 'startParam']) || undefined,
     campaign_token: readPayloadText(payload, ['campaign_token', 'campaignToken'])
       || readPayloadText(tracking, ['campaign_token', 'campaignToken']) || undefined,
+    attribution: Object.keys(attributionSnapshot).length ? attributionSnapshot : undefined,
+    fbp: readPayloadText(attributionIdentifiers, ['fbp']) || readPayloadText(tracking, ['fbp']),
+    fbc: readPayloadText(attributionIdentifiers, ['fbc']) || readPayloadText(tracking, ['fbc']),
+    client_ip_address: readPayloadText(attributionIdentifiers, ['client_ip_address']),
+    client_user_agent: readPayloadText(attributionIdentifiers, ['client_user_agent']),
+    event_source_url: readPayloadText(attributionSnapshot, ['event_source_url'])
+      || readPayloadText(tracking, ['eventSourceUrl', 'event_source_url']),
     phone: params.normalizedPhone || undefined,
     name: params.normalizedName,
     created_at: readPayloadText(payload, ['created_at', 'createdAt']) || new Date().toISOString()
@@ -177,6 +190,11 @@ const trackInitialB2CBotLeadStage = (params: {
     phone: params.normalizedPhone || undefined,
     email: params.input.email || params.input.payload?.email || undefined,
     name: params.normalizedName,
+    fbp: params.attribution.fbp || undefined,
+    fbc: params.attribution.fbc || undefined,
+    clientIpAddress: params.attribution.client_ip_address || undefined,
+    clientUserAgent: params.attribution.client_user_agent || undefined,
+    eventSourceUrl: params.attribution.event_source_url || undefined,
     stage: 'raw_lead',
     customData: {
       crm_status: 'raw_lead',
@@ -205,6 +223,14 @@ export const createOrMergeLead = async (input: LeadCreateInput, botConfig?: any)
 
   if (!companyId) {
     throw new Error('companyId is required to create lead');
+  }
+
+  const attributionSnapshot = await resolveAttributionSnapshotForPayload(input.payload, { consume: true });
+  if (attributionSnapshot) {
+    input = {
+      ...input,
+      payload: mergeAttributionSnapshot(input.payload, attributionSnapshot) as Record<string, any>
+    };
   }
 
   const b2cAttribution = buildB2CBotAttribution({

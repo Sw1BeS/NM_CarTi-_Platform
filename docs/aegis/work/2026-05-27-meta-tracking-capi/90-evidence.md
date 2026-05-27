@@ -12,3 +12,9 @@
 - Prisma client generation: `npm --prefix apps/server run prisma:generate`
 - Focused tests: `npm --prefix apps/server test -- src/config/env.test.ts src/modules/Attribution/attributionSession.service.test.ts src/modules/Attribution/trackingRedirect.routes.test.ts`
 - Build: `npm --prefix apps/server run build`
+
+## Telegram And Lead/Request Join Evidence
+
+- Focused tests: `npm --prefix apps/server test -- src/modules/Communication/telegram/routing/routeMessage.attribution.test.ts src/modules/Communication/telegram/routing/routeMessage.clientLeadMenu.test.ts src/modules/Communication/telegram/core/leadService.test.ts src/services/miniapp.service.test.ts src/services/requestContract.service.test.ts src/routes/miniappTrackingEvents.web.test.ts`
+- Build: `npm --prefix apps/server run build`
+- Baseline failure check in untouched `/srv/cartie`: `src/routes/miniAppLeadHandoff.routes.test.ts -t "lists active B2B network requests without exposing requester contacts"` fails before this feature branch due stale requesterPartnerId expectation.

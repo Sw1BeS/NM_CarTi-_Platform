@@ -121,7 +121,21 @@ describe('createOrMergeLead', () => {
       source: 'TELEGRAM',
       payload: {
         start_param: 'spring_campaign',
-        campaign_token: 'cmp_123'
+        campaign_token: 'cmp_123',
+        attribution: {
+          token: 'AbC_token_123456',
+          destination: 'b2c_bot_sandbox',
+          query: { utm_source: 'meta' },
+          identifiers: {
+            fbp: 'fb.1.1779865200000.123456789',
+            fbc: 'fb.1.1779865200000.ClickId',
+            client_ip_address: '203.0.113.10',
+            client_user_agent: 'Mozilla/5.0'
+          },
+          event_source_url: 'https://cartie.test/r/bot?fbclid=ClickId',
+          created_at: '2026-05-27T07:00:00.000Z',
+          expires_at: '2026-06-26T07:00:00.000Z'
+        }
       },
       leadType: 'BUY',
       createRequest: true,
@@ -143,6 +157,17 @@ describe('createOrMergeLead', () => {
         chat_id: '1001',
         start_param: 'spring_campaign',
         campaign_token: 'cmp_123',
+        attribution: expect.objectContaining({
+          token: 'AbC_token_123456',
+          identifiers: expect.objectContaining({
+            fbc: 'fb.1.1779865200000.ClickId'
+          })
+        }),
+        fbp: 'fb.1.1779865200000.123456789',
+        fbc: 'fb.1.1779865200000.ClickId',
+        client_ip_address: '203.0.113.10',
+        client_user_agent: 'Mozilla/5.0',
+        event_source_url: 'https://cartie.test/r/bot?fbclid=ClickId',
         phone: '+380635055252',
         name: 'B2C Client'
       })
@@ -154,7 +179,10 @@ describe('createOrMergeLead', () => {
         surface: 'telegram_bot',
         request_type: 'client_auto_selection',
         destination_key: 'b2c_bot_sandbox',
-        cartie_request_id: expect.any(String)
+        cartie_request_id: expect.any(String),
+        attribution: expect.objectContaining({
+          token: 'AbC_token_123456'
+        })
       })
     }));
     expect(metaB2CBotCrmLifecycleEventMock).toHaveBeenCalledWith('comp_1', 'Lead', expect.objectContaining({
@@ -164,6 +192,11 @@ describe('createOrMergeLead', () => {
       externalId: 'telegram:1001',
       phone: '+380635055252',
       name: 'B2C Client',
+      fbp: 'fb.1.1779865200000.123456789',
+      fbc: 'fb.1.1779865200000.ClickId',
+      clientIpAddress: '203.0.113.10',
+      clientUserAgent: 'Mozilla/5.0',
+      eventSourceUrl: 'https://cartie.test/r/bot?fbclid=ClickId',
       customData: expect.objectContaining({
         crm_status: 'raw_lead',
         source: 'b2c_bot',

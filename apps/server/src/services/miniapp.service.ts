@@ -8,6 +8,11 @@ import { platformEvents, EVENTS } from './platform-events.js';
 import { buildRequestPresentationSnapshot } from './requestPresentation.js';
 import { buildMiniAppSubmitKey } from './requestContract.service.js';
 import { findRecentMiniAppSelectedCarsDuplicate } from './miniappRequestDedupe.js';
+import {
+  mergeAttributionSnapshot,
+  readAttributionSnapshot,
+  resolveAttributionSnapshotForPayload
+} from '../modules/Attribution/attributionPayload.js';
 
 export type MiniAppIdentity = {
   tgUserId?: string;
@@ -285,7 +290,12 @@ export class MiniAppService {
 
       const tracking = isRecord(input.tracking) ? input.tracking : {};
       const telegram = isRecord(input.telegram) ? input.telegram : {};
-    const payloadFromInput = isRecord(input.payload) ? input.payload : {};
+    let payloadFromInput = isRecord(input.payload) ? input.payload : {};
+    const attributionSnapshot = await resolveAttributionSnapshotForPayload({
+      ...payloadFromInput,
+      tracking
+    }, { consume: true });
+    payloadFromInput = mergeAttributionSnapshot(payloadFromInput, attributionSnapshot) as Record<string, unknown>;
     const requestType = String(
       toOptionalString(input.requestType)
       || toOptionalString((payloadFromInput as Record<string, unknown>).requestType)
@@ -355,6 +365,7 @@ export class MiniAppService {
         phone: phone || undefined,
         idempotencyKey,
         tracking,
+        attribution: readAttributionSnapshot(payloadFromInput) || undefined,
         telegram,
         requestType,
         requestSubtype,
