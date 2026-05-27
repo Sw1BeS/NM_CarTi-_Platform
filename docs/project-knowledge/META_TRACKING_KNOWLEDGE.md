@@ -6,6 +6,26 @@ Status: research and design input only. No outbound Meta or SalesDrive calls wer
 
 This note is the operator-facing knowledge base for Meta tracking, Meta CAPI, CRM Conversion Leads, Telegram attribution, and the current Cartie implementation surface.
 
+## Implementation Notes From 2026-05-27 Branch
+
+The implementation branch `feature/meta-tracking-capi` adds the first concrete bridge:
+
+- `AttributionSession` stores sanitized click/browser context.
+- `GET /r/bot` creates sessions and redirects to Telegram with a compact `start` token.
+- `routeMessage.ts` keeps reserved `/start` aliases first, then binds valid attribution tokens.
+- Lead/request payloads receive `payload.attribution` snapshots without replacing existing `payload.tracking`.
+- SalesDrive sync carries safe attribution context and records `attributionToken` in `LeadIdentity.payload`.
+- SalesDrive webhook enriches B2C CRM events with `fbp`, `fbc`, IP, UA, event source URL, and explicit status event time.
+- Meta B2C sender now logs duplicate skips and uses attempt-specific error log keys.
+
+Runtime remains off by default until configured:
+
+- `ATTRIBUTION_REDIRECT_ENABLED=false`
+- `ATTRIBUTION_REDIRECT_FAIL_MODE=closed`
+- `META_B2C_BOT_CAPI_ENABLED=false`
+
+No production Meta or SalesDrive QA is implied by these code changes.
+
 ## Truth Hierarchy
 
 Use this order when resolving conflicts:

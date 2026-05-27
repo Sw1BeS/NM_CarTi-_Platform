@@ -97,12 +97,16 @@ const redactDebugText = (value: unknown) => String(value || '')
 const safeMetaDebugPayload = (meta: unknown) => {
     const record = meta && typeof meta === 'object' && !Array.isArray(meta) ? meta as Record<string, unknown> : {};
     return {
+        ...(typeof record.mode === 'string' ? { mode: record.mode } : {}),
         ...(typeof record.eventId === 'string' ? { eventId: record.eventId } : {}),
         ...(typeof record.trackingEventId === 'string' ? { trackingEventId: record.trackingEventId } : {}),
         ...(typeof record.requestId === 'string' ? { requestId: record.requestId } : {}),
         ...(typeof record.requestPublicId === 'string' ? { requestPublicId: record.requestPublicId } : {}),
         ...(typeof record.leadId === 'string' ? { leadId: record.leadId } : {}),
         ...(typeof record.submitId === 'string' ? { submitId: record.submitId } : {}),
+        ...(typeof record.destinationKey === 'string' ? { destinationKey: record.destinationKey } : {}),
+        ...(typeof record.fbtrace_id === 'string' ? { fbtrace_id: record.fbtrace_id } : {}),
+        ...(typeof record.testEventCodeUsed === 'boolean' ? { testEventCodeUsed: record.testEventCodeUsed } : {}),
         ...(typeof record.hasPhone === 'boolean' ? { hasPhone: record.hasPhone } : {}),
         ...(typeof record.hasEmail === 'boolean' ? { hasEmail: record.hasEmail } : {}),
         ...(typeof record.hasExternalId === 'boolean' ? { hasExternalId: record.hasExternalId } : {}),
@@ -135,7 +139,29 @@ router.get('/meta/debug', requireRole(['OWNER', 'ADMIN', 'MANAGER', 'OPERATOR'])
         if (!companyId) return errorResponse(res, 400, 'Company context required', 'META_DEBUG');
 
         const where = { companyId, integration: 'META_PIXEL' };
-        const [lastSent, lastBinding, lastError, byStatusRows, byActionRows, byEntityTypeRows] = await Promise.all([
+        const b2cWhere = { companyId, integration: 'META_B2C_BOT' };
+        const attributionCount = async (whereInput: Record<string, unknown>) => {
+            const delegate = (prisma as any).attributionSession;
+            if (!delegate?.count) return 0;
+            return delegate.count({ where: whereInput }).catch(() => 0);
+        };
+        const [
+            lastSent,
+            lastBinding,
+            lastError,
+            byStatusRows,
+            byActionRows,
+            byEntityTypeRows,
+            lastB2CSent,
+            lastB2CSkip,
+            lastB2CError,
+            b2cByStatusRows,
+            b2cByActionRows,
+            b2cMissingIdentifiers,
+            attributionCreated,
+            attributionExpired,
+            attributionConsumed
+        ] = await Promise.all([
             prisma.integrationEventLog.findFirst({
                 where: { ...where, status: 'SUCCESS', action: { not: META_TRACKING_BOUND_ACTION } },
                 orderBy: { createdAt: 'desc' }
@@ -162,10 +188,46 @@ router.get('/meta/debug', requireRole(['OWNER', 'ADMIN', 'MANAGER', 'OPERATOR'])
                 by: ['entityType'],
                 where,
                 _count: { _all: true }
-            })
+            }),
+            prisma.integrationEventLog.findFirst({
+                where: { ...b2cWhere, status: 'SUCCESS' },
+                orderBy: { createdAt: 'desc' }
+            }),
+            prisma.integrationEventLog.findFirst({
+                where: { ...b2cWhere, status: 'SKIPPED' },
+                orderBy: { createdAt: 'desc' }
+            }),
+            prisma.integrationEventLog.findFirst({
+                where: { ...b2cWhere, status: 'ERROR' },
+                orderBy: { createdAt: 'desc' }
+            }),
+            prisma.integrationEventLog.groupBy({
+                by: ['status'],
+                where: b2cWhere,
+                _count: { _all: true }
+            }),
+            prisma.integrationEventLog.groupBy({
+                by: ['action'],
+                where: b2cWhere,
+                _count: { _all: true }
+            }),
+            prisma.integrationEventLog.count({
+                where: {
+                    ...b2cWhere,
+                    status: 'SUCCESS',
+                    OR: [
+                        { meta: { path: ['hasFbc'], equals: false } },
+                        { meta: { path: ['hasFbp'], equals: false } }
+                    ]
+                }
+            }).catch(() => 0),
+            attributionCount({ companyId }),
+            attributionCount({ companyId, expiresAt: { lt: new Date() } }),
+            attributionCount({ companyId, consumedAt: { not: null } })
         ]);
         const byAction = toCountMap(byActionRows as any, 'action');
         const byEntityType = toCountMap(byEntityTypeRows as any, 'entityType');
+        const b2cByAction = toCountMap(b2cByActionRows as any, 'action');
 
         res.json({
             integration: 'META_PIXEL',
@@ -184,6 +246,24 @@ router.get('/meta/debug', requireRole(['OWNER', 'ADMIN', 'MANAGER', 'OPERATOR'])
             lastSent: safeMetaDebugLog(lastSent),
             lastBinding: safeMetaDebugLog(lastBinding),
             lastError: safeMetaDebugLog(lastError),
+            b2cCrm: {
+                integration: 'META_B2C_BOT',
+                capiEnabled: isEnvFlagEnabled('META_B2C_BOT_CAPI_ENABLED', false),
+                testMode: isEnvFlagEnabled('META_B2C_BOT_TEST_MODE', false),
+                counts: {
+                    byStatus: toCountMap(b2cByStatusRows as any, 'status'),
+                    byAction: b2cByAction,
+                    missingIdentifiers: b2cMissingIdentifiers || 0
+                },
+                lastSent: safeMetaDebugLog(lastB2CSent),
+                lastSkipped: safeMetaDebugLog(lastB2CSkip),
+                lastError: safeMetaDebugLog(lastB2CError)
+            },
+            attributionSessions: {
+                created: attributionCreated || 0,
+                expired: attributionExpired || 0,
+                consumed: attributionConsumed || 0
+            },
             dedup: {
                 eventIdField: 'event_id',
                 idempotencyKey: 'IntegrationEventLog.idempotencyKey'

@@ -115,3 +115,27 @@ Drift check:
 - New owner: none; attribution owner remains separate from Meta sender.
 - Retirement: legacy generic Meta senders are still not canonical for B2C CRM.
 - Decision: continue to docs/ADR/operator visibility and full verification.
+
+## Final Implementation Checkpoint
+
+Completed:
+
+- Added ADR for `AttributionSession` ownership.
+- Updated Meta tracking knowledge base with implementation notes and runtime defaults.
+- Extended `/api/integrations/meta/debug` with B2C CRM counts, safe last sent/skipped/error logs, missing identifier count, and attribution session counts.
+- Ran focused verification gate, build, and code-map check.
+
+Evidence refs:
+
+- `npm --prefix apps/server test -- src/modules/Integrations/integration.routes.metaDebug.test.ts`
+- `npm --prefix apps/server test -- src/config/env.test.ts src/modules/Attribution/attributionSession.service.test.ts src/modules/Attribution/trackingRedirect.routes.test.ts src/modules/Communication/telegram/routing/routeMessage.attribution.test.ts src/modules/Communication/telegram/routing/routeMessage.clientLeadMenu.test.ts src/modules/Communication/telegram/core/leadService.test.ts src/services/miniapp.service.test.ts src/services/requestContract.service.test.ts src/routes/miniappTrackingEvents.web.test.ts src/modules/Integrations/salesdrive/salesdriveSync.service.test.ts src/modules/Integrations/salesdrive/salesdriveWebhook.service.test.ts src/modules/Integrations/meta/metaCapi.service.test.ts src/modules/Integrations/integration.routes.metaDebug.test.ts src/modules/Integrations/integration.routes.salesdriveWebhook.test.ts`
+- `npm --prefix apps/server run build`
+- `node scripts/inspect/generate_code_map.mjs --check`
+
+Drift check:
+
+- Scope: implementation matches approved plan.
+- Compatibility: production sends remain gated by existing Meta flags; redirect remains disabled by default.
+- New owner: ADR records `AttributionSession`.
+- Retirement: comments and legacy tracking are compatibility snapshots, not source-of-truth.
+- Decision: completion candidate after final git status.
