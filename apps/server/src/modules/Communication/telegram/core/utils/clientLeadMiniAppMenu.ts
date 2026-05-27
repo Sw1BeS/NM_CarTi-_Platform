@@ -18,26 +18,23 @@ const webAppButton = (text: string, url: string): TelegramKeyboardButton => {
 };
 
 export const buildClientLeadMiniAppKeyboard = (bot: BotConfig, lang: Lang): TelegramReplyKeyboard => {
-  const pickUrl = buildMiniAppUrl(bot, { entry: 'request', type: 'BUY' });
-  const stockUrl = buildMiniAppUrl(bot, { entry: 'inventory', status: 'AVAILABLE', availabilityState: 'IN_STOCK' });
-  const transitUrl = buildMiniAppUrl(bot, { entry: 'inventory', status: 'PENDING', availabilityState: 'IN_TRANSIT' });
-  const favoritesUrl = buildMiniAppUrl(bot, { entry: 'favorites' });
-  const requestsUrl = buildMiniAppUrl(bot, { entry: 'status' });
-  const contactsUrl = buildMiniAppUrl(bot, { entry: 'contacts' });
+  // Telegram Desktop may launch reply-keyboard web_app URLs with section query params without signed initData.
+  // Use the canonical app URL here so request writes stay authenticated.
+  const appUrl = buildMiniAppUrl(bot);
 
   return {
     keyboard: [
       [
-        webAppButton(button(lang, 'leadMenu.stock'), stockUrl),
-        webAppButton(button(lang, 'leadMenu.transit'), transitUrl)
+        webAppButton(button(lang, 'leadMenu.stock'), appUrl),
+        webAppButton(button(lang, 'leadMenu.transit'), appUrl)
       ],
       [
-        webAppButton(button(lang, 'leadMenu.buy'), pickUrl),
-        webAppButton('❤️ Обрані / Переглянуті', favoritesUrl)
+        webAppButton(button(lang, 'leadMenu.buy'), appUrl),
+        webAppButton('❤️ Обрані / Переглянуті', appUrl)
       ],
       [
-        webAppButton('📩 Мої запити', requestsUrl),
-        webAppButton(button(lang, 'leadMenu.support'), contactsUrl)
+        webAppButton('📩 Мої запити', appUrl),
+        webAppButton(button(lang, 'leadMenu.support'), appUrl)
       ]
     ],
     resize_keyboard: true,

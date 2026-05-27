@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { buildClientLeadMiniAppKeyboard } from './clientLeadMiniAppMenu.js';
 
 describe('clientLeadMiniAppMenu', () => {
-  it('builds a persistent two-column reply menu whose buttons open MiniApp sections', () => {
+  it('builds a persistent two-column reply menu whose buttons open the canonical MiniApp URL', () => {
     const markup = buildClientLeadMiniAppKeyboard({
       config: {
         miniAppConfig: { url: 'https://example.com/p/app/cartie' },
@@ -17,18 +17,18 @@ describe('clientLeadMiniAppMenu', () => {
     expect(markup.is_persistent).toBe(true);
 
     const flat = markup.keyboard.flat();
+    const urls = flat.map(button => button.web_app.url);
+
     expect(flat[0].text).toContain('Авто в наявності');
-    expect(flat[0].web_app.url).toContain('status=AVAILABLE');
-    expect(flat[0].web_app.url).toContain('availabilityState=IN_STOCK');
     expect(flat[1].text).toContain('Авто в дорозі');
-    expect(flat[1].web_app.url).toContain('status=PENDING');
-    expect(flat[1].web_app.url).toContain('availabilityState=IN_TRANSIT');
-    expect(flat[2].web_app.url).toContain('entry=request');
-    expect(flat[2].web_app.url).toContain('type=BUY');
-    expect(flat[3].web_app.url).toContain('entry=favorites');
     expect(flat[4].text).toContain('Мої запити');
-    expect(flat[4].web_app.url).toContain('entry=status');
     expect(flat[5].text).toContain('менеджером');
-    expect(flat[5].web_app.url).toContain('entry=contacts');
+
+    expect(new Set(urls).size).toBe(1);
+    expect(urls.every(url => url.includes('/p/app/cartie'))).toBe(true);
+    expect(urls.every(url => !url.includes('entry='))).toBe(true);
+    expect(urls.every(url => !url.includes('type='))).toBe(true);
+    expect(urls.every(url => !url.includes('status='))).toBe(true);
+    expect(urls.every(url => !url.includes('availabilityState='))).toBe(true);
   });
 });

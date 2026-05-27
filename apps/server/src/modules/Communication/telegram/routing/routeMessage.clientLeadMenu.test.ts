@@ -165,11 +165,13 @@ describe('CLIENT_LEAD bot menu', () => {
     expect(calls[0].replyMarkup.keyboard.map((row: any[]) => row.length)).toEqual([2, 2, 2]);
 
     const runtimeButtons = calls[0].replyMarkup.keyboard.flat();
-    expect(runtimeButtons.every((button: any) => button.web_app?.url?.includes('/p/app/cartie'))).toBe(true);
-    expect(runtimeButtons.some((button: any) => button.web_app.url.includes('entry=request') && button.web_app.url.includes('type=BUY'))).toBe(true);
-    expect(runtimeButtons.some((button: any) => button.web_app.url.includes('availabilityState=IN_STOCK'))).toBe(true);
-    expect(runtimeButtons.some((button: any) => button.web_app.url.includes('availabilityState=IN_TRANSIT'))).toBe(true);
-    expect(runtimeButtons.some((button: any) => button.web_app.url.includes('entry=status'))).toBe(true);
+    const runtimeUrls = runtimeButtons.map((button: any) => button.web_app?.url);
+    expect(runtimeUrls.every((url: string) => url?.includes('/p/app/cartie'))).toBe(true);
+    expect(new Set(runtimeUrls).size).toBe(1);
+    expect(runtimeUrls.every((url: string) => !url.includes('entry='))).toBe(true);
+    expect(runtimeUrls.every((url: string) => !url.includes('type='))).toBe(true);
+    expect(runtimeUrls.every((url: string) => !url.includes('status='))).toBe(true);
+    expect(runtimeUrls.every((url: string) => !url.includes('availabilityState='))).toBe(true);
 
     const storedButtons = ctx.bot.config.menuConfig.buttons;
     expect(storedButtons).toEqual([
@@ -189,7 +191,7 @@ describe('CLIENT_LEAD bot menu', () => {
     expect(storedButtons[1].value).toContain('utm_source=menu');
   }, 10000);
 
-  it('sends one welcome message with a persistent reply keyboard of MiniApp section buttons', async () => {
+  it('sends one welcome message with a persistent reply keyboard of canonical MiniApp buttons', async () => {
     const { showMenu } = await import('./routeMessage.js');
 
     const ctx: any = {
@@ -236,12 +238,13 @@ describe('CLIENT_LEAD bot menu', () => {
     expect(calls[0].replyMarkup.is_persistent).toBe(true);
 
     const flatButtons = calls[0].replyMarkup.keyboard.flat();
-    expect(flatButtons.every((button: any) => button.web_app?.url?.includes('/p/app/cartie'))).toBe(true);
-    expect(flatButtons.some((button: any) => button.web_app?.url?.includes('entry=request') && button.web_app.url.includes('type=BUY'))).toBe(true);
-    expect(flatButtons.some((button: any) => button.web_app?.url?.includes('availabilityState=IN_STOCK'))).toBe(true);
-    expect(flatButtons.some((button: any) => button.web_app?.url?.includes('availabilityState=IN_TRANSIT'))).toBe(true);
-    expect(flatButtons.some((button: any) => button.web_app?.url?.includes('entry=status'))).toBe(true);
-    expect(flatButtons.some((button: any) => button.web_app?.url?.includes('entry=contacts'))).toBe(true);
+    const urls = flatButtons.map((button: any) => button.web_app?.url);
+    expect(urls.every((url: string) => url?.includes('/p/app/cartie'))).toBe(true);
+    expect(new Set(urls).size).toBe(1);
+    expect(urls.every((url: string) => !url.includes('entry='))).toBe(true);
+    expect(urls.every((url: string) => !url.includes('type='))).toBe(true);
+    expect(urls.every((url: string) => !url.includes('status='))).toBe(true);
+    expect(urls.every((url: string) => !url.includes('availabilityState='))).toBe(true);
   }, 10000);
 
   it('sends actionable admin buttons when MiniApp lead is finalized after native contact share', async () => {
