@@ -10,7 +10,7 @@ import { callTelegram } from './legacyTelegramProxy.shared.js';
 import { logger } from '../utils/logger.js';
 import { errorResponse } from '../utils/errorResponse.js';
 import { normalizeBotConfigChatId } from '../modules/Communication/telegram/core/utils/telegramChatId.js';
-import { buildMiniAppUrl } from '../modules/Communication/telegram/core/utils/miniappUrl.js';
+import { buildMiniAppTelegramLaunchUrl } from '../modules/Communication/telegram/core/utils/miniappUrl.js';
 
 const router = Router();
 const resolveCompanyId = async (requestedCompanyId?: string | null, userCompanyId?: string | null) => {
@@ -21,7 +21,7 @@ const resolveCompanyId = async (requestedCompanyId?: string | null, userCompanyI
 
 const syncMenuButton = async (bot: any) => {
     if (!bot?.token) return;
-    const miniAppUrl = buildMiniAppUrl(bot, {});
+    const miniAppUrl = buildMiniAppTelegramLaunchUrl(bot, {});
     if (!miniAppUrl) return;
     const menuText = String((bot?.config as any)?.menuButtonText || 'Каталог авто').trim() || 'Каталог авто';
     await callTelegram(bot.token, 'setChatMenuButton', {

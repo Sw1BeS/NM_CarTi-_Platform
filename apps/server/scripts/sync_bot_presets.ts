@@ -97,14 +97,32 @@ const syncTelegramMenuButton = async (bot: { id: string; token: string; config?:
     }
   };
 
-  const delaysMs = [1000, 2000, 4000, 8000, 12000, 15000, 20000];
+  const setRetryDelaysMs = [1000, 2500, 5000];
+  const verifyDelaysMs = [1000, 2000, 4000, 8000, 12000, 20000, 30000, 45000, 60000];
   let lastSeenUrl = '';
   let lastError = '';
-  for (let attempt = 0; attempt < delaysMs.length + 1; attempt += 1) {
+
+  for (let attempt = 0; attempt < setRetryDelaysMs.length + 1; attempt += 1) {
     try {
       const setResponse = await axios.post(`https://api.telegram.org/bot${bot.token}/setChatMenuButton`, payload, { timeout: 20000 });
       assertTelegramApiOk('setChatMenuButton', setResponse.data);
+      lastError = '';
+      break;
+    } catch (err: any) {
+      lastError = err?.response?.data?.description || err?.code || err?.message || String(err);
+    }
 
+    const delay = setRetryDelaysMs[attempt];
+    if (delay) {
+      console.warn(`[preset-sync] chat menu set retry ${attempt + 1}/${setRetryDelaysMs.length + 1} for bot ${bot.id}: ${lastError}`);
+      await sleep(delay);
+    } else {
+      throw new Error(`setChatMenuButton failed: ${lastError || 'unknown Telegram API error'}`);
+    }
+  }
+
+  for (let attempt = 0; attempt < verifyDelaysMs.length + 1; attempt += 1) {
+    try {
       const getResponse = await axios.post(`https://api.telegram.org/bot${bot.token}/getChatMenuButton`, {}, { timeout: 20000 });
       assertTelegramApiOk('getChatMenuButton', getResponse.data);
       lastSeenUrl = extractChatMenuButtonUrl(getResponse.data);
@@ -114,9 +132,9 @@ const syncTelegramMenuButton = async (bot: { id: string; token: string; config?:
       lastError = err?.response?.data?.description || err?.code || err?.message || String(err);
     }
 
-    const delay = delaysMs[attempt];
+    const delay = verifyDelaysMs[attempt];
     if (delay) {
-      console.warn(`[preset-sync] chat menu verification retry ${attempt + 1}/${delaysMs.length + 1} for bot ${bot.id}: ${lastError}`);
+      console.warn(`[preset-sync] chat menu verification retry ${attempt + 1}/${verifyDelaysMs.length + 1} for bot ${bot.id}: ${lastError}`);
       await sleep(delay);
     }
   }

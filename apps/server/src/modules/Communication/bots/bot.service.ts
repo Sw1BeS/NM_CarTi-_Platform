@@ -8,7 +8,7 @@ import { runTelegramPipeline } from '../telegram/scenarios/pipeline.js';
 import { telegramOutbox } from '../telegram/messaging/outbox/telegramOutbox.js';
 import { BotRepository } from '../../../repositories/index.js';
 import { logger } from '../../../utils/logger.js';
-import { buildMiniAppUrl } from '../telegram/core/utils/miniappUrl.js';
+import { buildMiniAppTelegramLaunchUrl } from '../telegram/core/utils/miniappUrl.js';
 import { resolveRuntimeBotDeliveryMode } from './botDeliveryMode.js';
 
 
@@ -150,7 +150,7 @@ class BotInstance {
     }
 
     private async syncChatMenuButton() {
-        const miniAppUrl = buildMiniAppUrl(this.config as any, {});
+        const miniAppUrl = buildMiniAppTelegramLaunchUrl(this.config as any, {});
         if (!miniAppUrl) return;
         const menuText = String((this.config.config as any)?.menuButtonText || 'Каталог авто').trim() || 'Каталог авто';
         await axios.post(`https://api.telegram.org/bot${this.config.token}/setChatMenuButton`, {
