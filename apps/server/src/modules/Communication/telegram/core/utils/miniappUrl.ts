@@ -54,6 +54,11 @@ export interface MiniAppFilters {
   [key: string]: string | number | boolean | undefined | null;
 }
 
+type MiniAppUrlOptions = {
+  includeBuildTag?: boolean;
+  preserveBaseQuery?: boolean;
+};
+
 const normalizeStartParamFilters = (value?: string | null): MiniAppFilters => {
   const normalized = String(value || '').trim().toLowerCase();
   if (!normalized) return {};
@@ -86,7 +91,7 @@ const normalizeStartParamFilters = (value?: string | null): MiniAppFilters => {
   return aliases[normalized] || {};
 };
 
-export const buildMiniAppUrl = (bot: BotConfig, filters: MiniAppFilters = {}) => {
+export const buildMiniAppUrl = (bot: BotConfig, filters: MiniAppFilters = {}, options: MiniAppUrlOptions = {}) => {
   const config = (bot.config || {}) as any;
 
   const baseUrl = config?.miniAppConfig?.url
@@ -102,6 +107,10 @@ export const buildMiniAppUrl = (bot: BotConfig, filters: MiniAppFilters = {}) =>
     url = new URL(baseUrl);
   } catch {
     return '';
+  }
+
+  if (options.preserveBaseQuery === false) {
+    url.search = '';
   }
 
   const slug = String(config?.defaultShowcaseSlug || config?.miniAppConfig?.showcaseSlug || 'system').trim() || 'system';
@@ -121,13 +130,18 @@ export const buildMiniAppUrl = (bot: BotConfig, filters: MiniAppFilters = {}) =>
     url.searchParams.set(key, String(value));
   });
 
-  const buildSha = readBuildSha();
+  const buildSha = options.includeBuildTag === false ? '' : readBuildSha();
   if (buildSha) {
     url.searchParams.set('v', buildSha.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 24));
+  } else if (options.includeBuildTag === false) {
+    url.searchParams.delete('v');
   }
 
   return url.toString();
 };
+
+export const buildMiniAppTelegramLaunchUrl = (bot: BotConfig, filters: MiniAppFilters = {}) =>
+  buildMiniAppUrl(bot, filters, { includeBuildTag: false, preserveBaseQuery: false });
 
 export const normalizeMiniAppButtonUrl = (
   bot: BotConfig,

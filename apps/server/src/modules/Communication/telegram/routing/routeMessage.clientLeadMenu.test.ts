@@ -168,6 +168,7 @@ describe('CLIENT_LEAD bot menu', () => {
     const runtimeUrls = runtimeButtons.map((button: any) => button.web_app?.url);
     expect(runtimeUrls.every((url: string) => url?.includes('/p/app/cartie'))).toBe(true);
     expect(new Set(runtimeUrls).size).toBe(1);
+    expect(runtimeUrls.every((url: string) => new URL(url).search === '')).toBe(true);
     expect(runtimeUrls.every((url: string) => !url.includes('entry='))).toBe(true);
     expect(runtimeUrls.every((url: string) => !url.includes('type='))).toBe(true);
     expect(runtimeUrls.every((url: string) => !url.includes('status='))).toBe(true);
@@ -241,6 +242,7 @@ describe('CLIENT_LEAD bot menu', () => {
     const urls = flatButtons.map((button: any) => button.web_app?.url);
     expect(urls.every((url: string) => url?.includes('/p/app/cartie'))).toBe(true);
     expect(new Set(urls).size).toBe(1);
+    expect(urls.every((url: string) => new URL(url).search === '')).toBe(true);
     expect(urls.every((url: string) => !url.includes('entry='))).toBe(true);
     expect(urls.every((url: string) => !url.includes('type='))).toBe(true);
     expect(urls.every((url: string) => !url.includes('status='))).toBe(true);

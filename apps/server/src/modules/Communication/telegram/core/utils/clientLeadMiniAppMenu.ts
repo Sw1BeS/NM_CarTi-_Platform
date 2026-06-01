@@ -1,5 +1,5 @@
 import type { BotConfig } from '@prisma/client';
-import { buildMiniAppUrl } from './miniappUrl.js';
+import { buildMiniAppTelegramLaunchUrl } from './miniappUrl.js';
 import { button, type Lang } from './telegramText.js';
 
 type TelegramKeyboardButton = {
@@ -18,9 +18,9 @@ const webAppButton = (text: string, url: string): TelegramKeyboardButton => {
 };
 
 export const buildClientLeadMiniAppKeyboard = (bot: BotConfig, lang: Lang): TelegramReplyKeyboard => {
-  // Telegram Desktop may launch reply-keyboard web_app URLs with section query params without signed initData.
-  // Use the canonical app URL here so request writes stay authenticated.
-  const appUrl = buildMiniAppUrl(bot);
+  // Telegram Desktop/macOS may launch reply-keyboard web_app URLs with query params without signed initData.
+  // Use a bare canonical app URL here so request writes stay authenticated.
+  const appUrl = buildMiniAppTelegramLaunchUrl(bot);
 
   return {
     keyboard: [

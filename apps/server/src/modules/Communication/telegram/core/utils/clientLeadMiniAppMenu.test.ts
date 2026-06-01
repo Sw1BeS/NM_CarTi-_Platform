@@ -26,6 +26,7 @@ describe('clientLeadMiniAppMenu', () => {
 
     expect(new Set(urls).size).toBe(1);
     expect(urls.every(url => url.includes('/p/app/cartie'))).toBe(true);
+    expect(urls.every(url => new URL(url).search === '')).toBe(true);
     expect(urls.every(url => !url.includes('entry='))).toBe(true);
     expect(urls.every(url => !url.includes('type='))).toBe(true);
     expect(urls.every(url => !url.includes('status='))).toBe(true);

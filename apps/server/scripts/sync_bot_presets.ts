@@ -2,7 +2,7 @@ import axios from 'axios';
 import type { BotTemplate } from '@prisma/client';
 import { prisma } from '../src/services/prisma.js';
 import { applyTemplatePreset } from '../src/services/templatePreset.service.js';
-import { buildMiniAppUrl } from '../src/modules/Communication/telegram/core/utils/miniappUrl.js';
+import { buildMiniAppTelegramLaunchUrl } from '../src/modules/Communication/telegram/core/utils/miniappUrl.js';
 import { assertTelegramApiOk, extractChatMenuButtonUrl } from '../src/modules/Communication/telegram/core/utils/chatMenuSync.js';
 
 const SUPPORTED_TEMPLATES = new Set<BotTemplate>(['CLIENT_LEAD', 'B2B', 'CATALOG']);
@@ -86,7 +86,7 @@ const syncTelegramCommands = async (bot: { id: string; token: string; template: 
 };
 
 const syncTelegramMenuButton = async (bot: { id: string; token: string; config?: any }) => {
-  const miniAppUrl = buildMiniAppUrl(bot as any, {});
+  const miniAppUrl = buildMiniAppTelegramLaunchUrl(bot as any, {});
   if (!miniAppUrl) return;
   const menuText = String(bot.config?.menuButtonText || 'Каталог авто').trim() || 'Каталог авто';
   const payload = {

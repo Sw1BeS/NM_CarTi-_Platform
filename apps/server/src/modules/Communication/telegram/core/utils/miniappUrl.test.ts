@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
-import { buildMiniAppEntryUrl, buildMiniAppUrl, normalizeMiniAppButtonUrl } from './miniappUrl.js';
+import { buildMiniAppEntryUrl, buildMiniAppTelegramLaunchUrl, buildMiniAppUrl, normalizeMiniAppButtonUrl } from './miniappUrl.js';
 
 const { execSyncMock } = vi.hoisted(() => ({
   execSyncMock: vi.fn(() => 'cached_sha\n')
@@ -32,6 +32,30 @@ describe('miniappUrl', () => {
     expect(url.searchParams.get('type')).toBe('SELL');
     expect(url.searchParams.get('status')).toBe('PENDING');
     expect(url.searchParams.get('carId')).toBe('car-123');
+  });
+
+  it('builds bare Telegram launch URLs without query params for signed MiniApp sessions', () => {
+    const previousBuildSha = process.env.BUILD_SHA;
+    process.env.BUILD_SHA = 'fresh_sha';
+
+    try {
+      const url = new URL(buildMiniAppTelegramLaunchUrl({
+        config: {
+          miniAppConfig: { url: 'https://example.com/p/app/cartie?v=old_sha&theme=dark&entry=inventory' },
+          defaultShowcaseSlug: 'cartie'
+        }
+      } as any));
+
+      expect(url.origin).toBe('https://example.com');
+      expect(url.pathname).toBe('/p/app/cartie');
+      expect(url.search).toBe('');
+    } finally {
+      if (previousBuildSha === undefined) {
+        delete process.env.BUILD_SHA;
+      } else {
+        process.env.BUILD_SHA = previousBuildSha;
+      }
+    }
   });
 
   it('normalizes transit entry helper to inventory with explicit availability state', () => {

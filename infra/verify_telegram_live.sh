@@ -59,6 +59,18 @@ if (!Array.isArray(bots) || bots.length === 0) {
 }
 
 const asString = (value) => (value === null || value === undefined ? '' : String(value));
+const stripQueryAndHash = (value) => {
+  const raw = asString(value).trim();
+  if (!raw) return '';
+  try {
+    const url = new URL(raw);
+    url.search = '';
+    url.hash = '';
+    return url.toString();
+  } catch {
+    return raw.replace(/[?#].*$/, '');
+  }
+};
 const maskToken = (token) => {
   const raw = asString(token);
   if (!raw) return '<empty>';
@@ -114,6 +126,7 @@ function logBot(bot, line) {
     const channelId = asString(bot.channelId).trim();
     const adminChatId = asString(bot.adminChatId).trim();
     const expectedMiniAppUrl = asString(bot.expectedMiniAppUrl).trim();
+    const expectedMiniAppLaunchUrl = stripQueryAndHash(expectedMiniAppUrl);
     const configWebhookUrl = asString(bot.configWebhookUrl).trim();
 
     logBot(bot, `template=${bot.template} deliveryMode=${deliveryMode || 'UNKNOWN'} token=${maskToken(token)}`);
@@ -167,8 +180,8 @@ function logBot(bot, line) {
       if (menuType !== 'web_app' || !menuUrl) {
         pushIssue(issues, botId, 'Menu button is not web_app with URL');
       }
-      if (expectedMiniAppUrl && menuUrl !== expectedMiniAppUrl) {
-        pushIssue(issues, botId, `Menu URL mismatch: expected=${expectedMiniAppUrl} live=${menuUrl || '<empty>'}`);
+      if (expectedMiniAppLaunchUrl && menuUrl !== expectedMiniAppLaunchUrl) {
+        pushIssue(issues, botId, `Menu URL mismatch: expected=${expectedMiniAppLaunchUrl} live=${menuUrl || '<empty>'}`);
       }
     }
 

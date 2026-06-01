@@ -11,7 +11,7 @@ import { createOrMergeLead, recordIncomingLeadMessage } from '../core/leadServic
 import { renderCarCardForBot } from '../../../../services/carCardRenderer.v2.js';
 import { renderLeadCard, renderRequestCard, sanitizePublicText } from '../../../../services/cardRenderer.js';
 import { generateRequestLink } from '../../../../utils/deeplink.utils.js';
-import { buildMiniAppUrl, normalizeMiniAppButtonUrl } from '../core/utils/miniappUrl.js';
+import { buildMiniAppTelegramLaunchUrl, buildMiniAppUrl, normalizeMiniAppButtonUrl } from '../core/utils/miniappUrl.js';
 import { buildClientLeadMiniAppKeyboard } from '../core/utils/clientLeadMiniAppMenu.js';
 import { generatePublicId, mapRequestInput } from '../../../../services/dto.js';
 import { ActionTokens, buildCallbackData } from '../core/utils/callbackUtils.js';
@@ -63,6 +63,11 @@ const isMiniAppMenuLink = (rawValue?: string | null) => {
   if (raw === '{{MINI_APP_URL}}' || raw === '{MINI_APP_URL}') return true;
   return /\/p\/app(?:\/|\?|$)|startapp=|tgWebAppStartParam=|\/app(?:\?|$)/i.test(raw);
 };
+
+function normalizeTelegramWebAppButtonUrl(bot: any, rawValue?: string | null) {
+  if (bot?.template === 'CLIENT_LEAD') return buildMiniAppTelegramLaunchUrl(bot);
+  return normalizeMiniAppButtonUrl(bot, rawValue);
+}
 
 const parseRange = (input: string) => {
   const nums = (input.match(/\d{2,}/g) || []).map(v => Number(v));
@@ -643,7 +648,7 @@ const handleClientLead = async (ctx: PipelineContext, text: string) => {
       return true;
     }
     if (startPayload === 'stock' || startPayload === 'available' || startPayload === 'catalog') {
-      const url = buildMiniAppUrl(ctx.bot, { entry: 'inventory', status: 'AVAILABLE', availabilityState: 'IN_STOCK' });
+      const url = buildMiniAppTelegramLaunchUrl(ctx.bot);
       if (url) {
         await sendMessage(ctx, '🚘 Відкрийте каталог авто:', {
           inline_keyboard: [[{ text: button(lang, 'common.openMiniApp'), web_app: { url } }]]
@@ -652,7 +657,7 @@ const handleClientLead = async (ctx: PipelineContext, text: string) => {
       }
     }
     if (startPayload === 'transit' || startPayload === 'pending') {
-      const url = buildMiniAppUrl(ctx.bot, { entry: 'inventory', status: 'PENDING', availabilityState: 'IN_TRANSIT' });
+      const url = buildMiniAppTelegramLaunchUrl(ctx.bot);
       if (url) {
         await sendMessage(ctx, '🚚 Відкрийте авто в дорозі:', {
           inline_keyboard: [[{ text: button(lang, 'common.openMiniApp'), web_app: { url } }]]
@@ -1676,7 +1681,7 @@ export const handleDynamicMenu = async (ctx: PipelineContext, text: string) => {
       const label = btn[`label_${lang}`] || btn.label || 'Button';
 
       if (btn.type === 'WEB_APP' || (btn.type === 'LINK' && isMiniAppMenuLink(btn.value))) {
-        rows[btn.row].push({ text: label, web_app: { url: normalizeMiniAppButtonUrl(ctx.bot, btn.value) } });
+        rows[btn.row].push({ text: label, web_app: { url: normalizeTelegramWebAppButtonUrl(ctx.bot, btn.value) } });
       } else if (btn.type === 'LINK') {
         // Links are usually inline buttons, but in a keyboard they fail. 
         // We will simple show text for now or maybe this is intended for inline?
@@ -1754,7 +1759,7 @@ export const handleDynamicMenu = async (ctx: PipelineContext, text: string) => {
 
     if (matchedBtn.type === 'LINK') {
       if (isMiniAppMenuLink(matchedBtn.value)) {
-        const url = normalizeMiniAppButtonUrl(ctx.bot, matchedBtn.value);
+        const url = normalizeTelegramWebAppButtonUrl(ctx.bot, matchedBtn.value);
         await sendMessage(ctx, 'Відкрийте MiniApp через кнопку нижче:', {
           inline_keyboard: [[{ text: matchedBtn.label || 'Відкрити MiniApp', web_app: { url } }]]
         });
