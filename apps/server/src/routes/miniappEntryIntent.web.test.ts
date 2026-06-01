@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   isMiniAppReadOnlyLaunch,
+  isMiniAppReadOnlyPreviewLaunch,
   parseMiniAppEntryIntent,
   resolveMiniAppInternalLinkIntent
 } from '../../../web/src/pages/public/miniapp/entryIntent.ts';
@@ -55,7 +56,13 @@ describe('MiniApp entry intent parser', () => {
 
   it('treats bare direct /p/app/:slug browser launches as read-only home previews', () => {
     expect(isMiniAppReadOnlyLaunch(new URLSearchParams())).toBe(true);
+    expect(isMiniAppReadOnlyPreviewLaunch(new URLSearchParams(), undefined, false)).toBe(true);
     expect(parseMiniAppEntryIntent(new URLSearchParams())).toEqual({});
+  });
+
+  it('does not downgrade Telegram launches without initData into read-only preview', () => {
+    expect(isMiniAppReadOnlyLaunch(new URLSearchParams('entry=inventory&status=AVAILABLE'))).toBe(true);
+    expect(isMiniAppReadOnlyPreviewLaunch(new URLSearchParams('entry=inventory&status=AVAILABLE'), undefined, true)).toBe(false);
   });
 
   it('treats explicit admin preview links as read-only even when they only carry preview mode', () => {

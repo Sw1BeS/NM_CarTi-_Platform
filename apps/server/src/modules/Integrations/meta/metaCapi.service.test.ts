@@ -281,7 +281,8 @@ describe('MetaCapiService', () => {
     vi.stubEnv('META_B2C_BOT_TEST_EVENT_CODE', 'TEST46105');
     const { MetaCapiService } = await import('./metaCapi.service.js');
     const service = new MetaCapiService();
-    const eventId = 'crm-lead-test:b2c_bot_sandbox:1760000000';
+    const eventTime = Math.floor(Date.now() / 1000) - 60;
+    const eventId = `crm-lead-test:b2c_bot_sandbox:${eventTime}`;
 
     const result = await service.trackB2CBotDatasetEvent('company_1', 'Lead', {
       entityType: 'salesdrive_status',
@@ -299,7 +300,7 @@ describe('MetaCapiService', () => {
       clientUserAgent: 'Mozilla/5.0',
       fbp: 'fb.1.1779865200000.123456789',
       fbc: 'fb.1.1779865200000.ClickId',
-      eventTime: 1779703200,
+      eventTime,
       actionSource: 'website',
       value: 25000,
       currency: 'USD',
@@ -326,7 +327,7 @@ describe('MetaCapiService', () => {
     expect(payload.data[0]).toMatchObject({
       event_name: 'Lead',
       event_id: eventId,
-      event_time: 1779703200,
+      event_time: eventTime,
       action_source: 'system_generated'
     });
     expect(payload.data[0].custom_data).toMatchObject({

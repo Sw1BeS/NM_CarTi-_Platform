@@ -181,13 +181,15 @@ export const resolveTelegramLaunchContext = async (
     const resolvedUser = bridgeUser || parseTelegramUserFromInitData(resolvedInitData);
     const bridgeContext = Boolean(bridgeInitData || bridgeStartParam || bridgeUser);
     const launchContext = Boolean(launchInitData || launchStartParam.value || launchPlatform || launchVersion || launchTheme);
+    const tgPlatform = String(tg?.platform || '').trim();
+    const usableTgPlatform = tgPlatform && tgPlatform !== 'unknown' ? tgPlatform : '';
+    const bridgeRuntimeContext = Boolean(tg && usableTgPlatform);
     const telegramContext = bridgeContext
       || launchContext
+      || bridgeRuntimeContext
       || hasTelegramUserAgent(nav)
       || hasTelegramReferrer(doc)
       || hasTelegramBridgeProxy(win);
-    const tgPlatform = String(tg?.platform || '').trim();
-    const usableTgPlatform = tgPlatform && tgPlatform !== 'unknown' ? tgPlatform : '';
     const platform = String(usableTgPlatform || launchPlatform || (hasTelegramUserAgent(nav) ? 'telegram-ua' : (launchContext ? 'url-fallback' : 'web')));
     const version = String(tg?.version || launchVersion || 'n/a');
 

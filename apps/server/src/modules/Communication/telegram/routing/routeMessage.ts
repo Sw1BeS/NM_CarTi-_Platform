@@ -171,6 +171,25 @@ const sendPhoto = async (ctx: PipelineContext, photo: string, caption: string, r
   });
 };
 
+const sendClientLeadMiniAppLaunch = async (
+  ctx: PipelineContext,
+  lang: Lang,
+  text: string,
+  filters: Parameters<typeof buildMiniAppTelegramLaunchUrl>[1] = {},
+  label = button(lang, 'common.openMiniApp')
+) => {
+  if (!ctx.bot) return false;
+  const url = buildMiniAppTelegramLaunchUrl(ctx.bot, filters);
+  if (!url) {
+    await sendMessage(ctx, '⚠️ URL MiniApp не налаштовано.');
+    return true;
+  }
+  await sendMessage(ctx, text, {
+    inline_keyboard: [[{ text: label, web_app: { url } }]]
+  });
+  return true;
+};
+
 const sendCarCardToChat = async (
   ctx: PipelineContext,
   car: any,
@@ -616,11 +635,13 @@ const handleClientLead = async (ctx: PipelineContext, text: string) => {
   const isCatalog = isCommand(text, [button(lang, 'common.openMiniApp'), 'Каталог авто']);
   const isStockCatalog = isCommand(text, [button(lang, 'leadMenu.stock'), 'Авто в наявності']);
   const isTransitCatalog = isCommand(text, [button(lang, 'leadMenu.transit'), 'Авто в дорозі']);
+  const isFavorites = isCommand(text, ['❤️ Обрані / Переглянуті', '⭐ Обране', 'Обрані', 'Переглянуті', button(lang, 'lead.favorites')]);
+  const isMyRequests = isCommand(text, ['📩 Мої запити', 'Мої запити', 'Мої заявки']);
   const isContacts = isCommand(text, ['Контакти', '📞 Контакти', '👤 Звʼязатися з менеджером', '👤 Зв’язатися з менеджером']);
   const isCancel = isCommand(text, ['cancel', 'stop', 'відміна', 'отмена', button(lang, 'common.cancel')]);
   const isBack = isCommand(text, ['back', 'назад', '⬅️ back', '⬅️ назад', button(lang, 'common.back')]);
   const isMenu = isCommand(text, ['/start', '/menu', 'menu', 'reset']);
-  const isTopLevelIntent = isLeaveRequest || isSellRequest || isSupport || isInfo || isCatalog || isStockCatalog || isTransitCatalog || isContacts || isCancel || isMenu;
+  const isTopLevelIntent = isLeaveRequest || isSellRequest || isSupport || isInfo || isCatalog || isStockCatalog || isTransitCatalog || isFavorites || isMyRequests || isContacts || isCancel || isMenu;
 
   if (state !== 'CL_MENU' && isSessionTimedOut(ctx.session.lastActive as Date | undefined)) {
     // If user pressed a top-level intent, silently reset stale wizard and execute the intent.
@@ -648,22 +669,20 @@ const handleClientLead = async (ctx: PipelineContext, text: string) => {
       return true;
     }
     if (startPayload === 'stock' || startPayload === 'available' || startPayload === 'catalog') {
-      const url = buildMiniAppTelegramLaunchUrl(ctx.bot);
-      if (url) {
-        await sendMessage(ctx, '🚘 Відкрийте каталог авто:', {
-          inline_keyboard: [[{ text: button(lang, 'common.openMiniApp'), web_app: { url } }]]
-        });
-        return true;
-      }
+      await sendClientLeadMiniAppLaunch(ctx, lang, '🚘 Відкрийте авто в наявності:', {
+        entry: 'inventory',
+        status: 'AVAILABLE',
+        availabilityState: 'IN_STOCK'
+      }, button(lang, 'leadMenu.stock'));
+      return true;
     }
     if (startPayload === 'transit' || startPayload === 'pending') {
-      const url = buildMiniAppTelegramLaunchUrl(ctx.bot);
-      if (url) {
-        await sendMessage(ctx, '🚚 Відкрийте авто в дорозі:', {
-          inline_keyboard: [[{ text: button(lang, 'common.openMiniApp'), web_app: { url } }]]
-        });
-        return true;
-      }
+      await sendClientLeadMiniAppLaunch(ctx, lang, '🚚 Відкрийте авто в дорозі:', {
+        entry: 'inventory',
+        status: 'PENDING',
+        availabilityState: 'IN_TRANSIT'
+      }, button(lang, 'leadMenu.transit'));
+      return true;
     }
     if (rawStartPayload) {
       const attribution = await attributionSessionService.lookupToken(rawStartPayload, { consume: false }).catch(() => null);
@@ -697,7 +716,7 @@ const handleClientLead = async (ctx: PipelineContext, text: string) => {
     const hasLeadFlowState = state.startsWith('LB_')
       || state.startsWith('LS_')
       || state.startsWith('CL_SUPPORT');
-    if (isLeaveRequest || isSellRequest || isSupport || isInfo || isCatalog || isContacts || hasLeadFlowState) {
+    if (isLeaveRequest || isSellRequest || isSupport || isInfo || isCatalog || isStockCatalog || isTransitCatalog || isFavorites || isMyRequests || isContacts || hasLeadFlowState) {
       await showMenu(
         ctx,
         lang,
@@ -725,17 +744,40 @@ const handleClientLead = async (ctx: PipelineContext, text: string) => {
   }
 
   if (state === 'CL_MENU' && (isCatalog || isStockCatalog || isTransitCatalog)) {
-    const url = buildMiniAppUrl(ctx.bot, {
+    await sendClientLeadMiniAppLaunch(ctx, lang, isTransitCatalog ? '🚚 Авто в дорозі доступні в Mini App:' : '🚘 Авто в наявності доступні в Mini App:', {
       entry: 'inventory',
-      status: isTransitCatalog ? 'PENDING' : 'AVAILABLE'
-    });
-    if (url) {
-      await sendMessage(ctx, isTransitCatalog ? '🚚 Авто в дорозі доступні в Mini App:' : '🚘 Каталог авто доступний у Mini App:', {
-        inline_keyboard: [[{ text: button(lang, 'common.openMiniApp'), web_app: { url } }]]
-      });
-    } else {
-      await sendMessage(ctx, '⚠️ URL MiniApp не налаштовано.');
-    }
+      status: isTransitCatalog ? 'PENDING' : 'AVAILABLE',
+      availabilityState: isTransitCatalog ? 'IN_TRANSIT' : 'IN_STOCK'
+    }, isTransitCatalog ? button(lang, 'leadMenu.transit') : button(lang, 'leadMenu.stock'));
+    return true;
+  }
+
+  if (state === 'CL_MENU' && isLeaveRequest) {
+    await sendClientLeadMiniAppLaunch(ctx, lang, '🔎 Відкрийте форму підбору авто в Mini App:', {
+      entry: 'request',
+      type: 'BUY'
+    }, button(lang, 'leadMenu.buy'));
+    return true;
+  }
+
+  if (state === 'CL_MENU' && isFavorites) {
+    await sendClientLeadMiniAppLaunch(ctx, lang, '❤️ Обрані та переглянуті авто доступні в Mini App:', {
+      entry: 'favorites'
+    }, 'Відкрити обране');
+    return true;
+  }
+
+  if (state === 'CL_MENU' && isMyRequests) {
+    await sendClientLeadMiniAppLaunch(ctx, lang, '📩 Ваші запити доступні в Mini App:', {
+      entry: 'status'
+    }, 'Відкрити мої запити');
+    return true;
+  }
+
+  if (state === 'CL_MENU' && (isSupport || isContacts)) {
+    await sendClientLeadMiniAppLaunch(ctx, lang, '👤 Звʼяжіться з менеджером у Mini App:', {
+      entry: 'contacts'
+    }, button(lang, 'leadMenu.support'));
     return true;
   }
 
@@ -753,7 +795,7 @@ const handleClientLead = async (ctx: PipelineContext, text: string) => {
     return true;
   }
 
-  if (state === 'CL_MENU' && !isLeaveRequest && !isSellRequest && !isSupport && !isCatalog && !isStockCatalog && !isTransitCatalog && !isContacts && !isInfo) {
+  if (state === 'CL_MENU' && !isLeaveRequest && !isSellRequest && !isSupport && !isCatalog && !isStockCatalog && !isTransitCatalog && !isFavorites && !isMyRequests && !isContacts && !isInfo) {
     const from = message?.from || {};
     const telegramName = [from.first_name, from.last_name].filter(Boolean).join(' ').trim() || undefined;
     try {

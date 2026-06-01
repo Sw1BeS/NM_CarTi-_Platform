@@ -120,6 +120,12 @@ export const isMiniAppReadOnlyLaunch = (
     || ['home', 'main', 'app', 'miniapp', 'inventory', 'stock', 'view_inventory', 'view_stock', 'transit', 'view_transit', 'pending', 'contacts', 'contact'].includes(start);
 };
 
+export const isMiniAppReadOnlyPreviewLaunch = (
+  params: URLSearchParams,
+  startParam?: string,
+  isTelegramContext = false
+) => !isTelegramContext && isMiniAppReadOnlyLaunch(params, startParam);
+
 export type MiniAppInternalLinkIntent = {
   slug?: string;
   carId?: string;

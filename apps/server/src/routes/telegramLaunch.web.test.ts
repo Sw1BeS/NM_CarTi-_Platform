@@ -102,6 +102,31 @@ describe('Telegram MiniApp launch context helper', () => {
     expect(context.startParamSource).toBe('tgWebAppStartParam');
   });
 
+  it('treats a real Telegram bridge without initData as Telegram context', async () => {
+    const context = await resolveTelegramLaunchContext({
+      attempts: 1,
+      delayMs: 0,
+      windowRef: {
+        location: { search: '' },
+        navigator: { userAgent: 'Mozilla/5.0' },
+        Telegram: {
+          WebApp: {
+            initData: '',
+            initDataUnsafe: {},
+            platform: 'macos',
+            version: '9.6'
+          }
+        }
+      },
+      documentRef: { referrer: '' }
+    });
+
+    expect(context.isTelegramContext).toBe(true);
+    expect(context.hasBridge).toBe(true);
+    expect(context.initData).toBeUndefined();
+    expect(context.platform).toBe('macos');
+  });
+
   it('does not treat the public telegram-web-app.js stub as Telegram context by itself', async () => {
     const context = await resolveTelegramLaunchContext({
       attempts: 1,

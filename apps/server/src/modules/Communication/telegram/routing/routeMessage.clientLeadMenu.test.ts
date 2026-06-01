@@ -165,14 +165,7 @@ describe('CLIENT_LEAD bot menu', () => {
     expect(calls[0].replyMarkup.keyboard.map((row: any[]) => row.length)).toEqual([2, 2, 2]);
 
     const runtimeButtons = calls[0].replyMarkup.keyboard.flat();
-    const runtimeUrls = runtimeButtons.map((button: any) => button.web_app?.url);
-    expect(runtimeUrls.every((url: string) => url?.includes('/p/app/cartie'))).toBe(true);
-    expect(new Set(runtimeUrls).size).toBe(1);
-    expect(runtimeUrls.every((url: string) => new URL(url).search === '')).toBe(true);
-    expect(runtimeUrls.every((url: string) => !url.includes('entry='))).toBe(true);
-    expect(runtimeUrls.every((url: string) => !url.includes('type='))).toBe(true);
-    expect(runtimeUrls.every((url: string) => !url.includes('status='))).toBe(true);
-    expect(runtimeUrls.every((url: string) => !url.includes('availabilityState='))).toBe(true);
+    expect(runtimeButtons.every((button: any) => !button.web_app)).toBe(true);
 
     const storedButtons = ctx.bot.config.menuConfig.buttons;
     expect(storedButtons).toEqual([
@@ -239,14 +232,107 @@ describe('CLIENT_LEAD bot menu', () => {
     expect(calls[0].replyMarkup.is_persistent).toBe(true);
 
     const flatButtons = calls[0].replyMarkup.keyboard.flat();
-    const urls = flatButtons.map((button: any) => button.web_app?.url);
-    expect(urls.every((url: string) => url?.includes('/p/app/cartie'))).toBe(true);
-    expect(new Set(urls).size).toBe(1);
-    expect(urls.every((url: string) => new URL(url).search === '')).toBe(true);
-    expect(urls.every((url: string) => !url.includes('entry='))).toBe(true);
-    expect(urls.every((url: string) => !url.includes('type='))).toBe(true);
-    expect(urls.every((url: string) => !url.includes('status='))).toBe(true);
-    expect(urls.every((url: string) => !url.includes('availabilityState='))).toBe(true);
+    expect(flatButtons.every((button: any) => !button.web_app)).toBe(true);
+  }, 10000);
+
+  it('turns stock text menu clicks into inline MiniApp launch buttons with scoped entry filters', async () => {
+    const { routeMessage } = await import('./routeMessage.js');
+
+    const ctx: any = {
+      bot: {
+        id: 'bot_lead',
+        token: 'token',
+        name: 'Cartie Client Bot',
+        template: 'CLIENT_LEAD',
+        config: {
+          publicBaseUrl: 'https://cartie.test',
+          defaultShowcaseSlug: 'cartie',
+          miniAppConfig: {
+            url: 'https://cartie.test/p/app/cartie?v=stale',
+            showcaseSlug: 'cartie'
+          }
+        }
+      },
+      companyId: 'company_1',
+      chatId: '1001',
+      userId: '1001',
+      chatType: 'private',
+      update: {
+        message: {
+          text: '🚘 Авто в наявності',
+          chat: { id: 1001, type: 'private' },
+          from: { id: 1001, first_name: 'Client' }
+        }
+      },
+      session: {
+        id: 'session_1',
+        state: 'CL_MENU',
+        variables: {}
+      }
+    };
+
+    const handled = await routeMessage(ctx);
+
+    expect(handled).toBe(true);
+    const calls = telegramOutboxMock.sendMessage.mock.calls.map(([payload]) => payload);
+    expect(calls).toHaveLength(1);
+    expect(calls[0].replyMarkup).not.toHaveProperty('keyboard');
+    const launchButton = calls[0].replyMarkup.inline_keyboard[0][0];
+    expect(launchButton.text).toContain('Авто в наявності');
+    const url = new URL(launchButton.web_app.url);
+    expect(url.origin + url.pathname).toBe('https://cartie.test/p/app/cartie');
+    expect(url.searchParams.get('entry')).toBe('inventory');
+    expect(url.searchParams.get('status')).toBe('AVAILABLE');
+    expect(url.searchParams.get('availabilityState')).toBe('IN_STOCK');
+    expect(url.searchParams.has('v')).toBe(false);
+  }, 10000);
+
+  it('turns manager contact menu clicks into inline MiniApp contact launches', async () => {
+    const { routeMessage } = await import('./routeMessage.js');
+
+    const ctx: any = {
+      bot: {
+        id: 'bot_lead',
+        token: 'token',
+        name: 'Cartie Client Bot',
+        template: 'CLIENT_LEAD',
+        config: {
+          publicBaseUrl: 'https://cartie.test',
+          defaultShowcaseSlug: 'cartie',
+          miniAppConfig: {
+            url: 'https://cartie.test/p/app/cartie',
+            showcaseSlug: 'cartie'
+          }
+        }
+      },
+      companyId: 'company_1',
+      chatId: '1001',
+      userId: '1001',
+      chatType: 'private',
+      update: {
+        message: {
+          text: '👤 Звʼязатися з менеджером',
+          chat: { id: 1001, type: 'private' },
+          from: { id: 1001, first_name: 'Client' }
+        }
+      },
+      session: {
+        id: 'session_1',
+        state: 'CL_MENU',
+        variables: {}
+      }
+    };
+
+    const handled = await routeMessage(ctx);
+
+    expect(handled).toBe(true);
+    const calls = telegramOutboxMock.sendMessage.mock.calls.map(([payload]) => payload);
+    expect(calls).toHaveLength(1);
+    const launchButton = calls[0].replyMarkup.inline_keyboard[0][0];
+    expect(launchButton.text).toContain('менеджером');
+    const url = new URL(launchButton.web_app.url);
+    expect(url.origin + url.pathname).toBe('https://cartie.test/p/app/cartie');
+    expect(url.searchParams.get('entry')).toBe('contacts');
   }, 10000);
 
   it('sends actionable admin buttons when MiniApp lead is finalized after native contact share', async () => {
