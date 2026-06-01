@@ -892,9 +892,9 @@ describe('MiniApp Lead handoff routes', () => {
 
     const res = await request(app)
       .get('/api/miniapp/b2b/me')
+      .set('X-Telegram-Init-Data', 'signed-init-data')
       .query({
         slug: 'cardealer_lviv_bot',
-        initData: 'signed-init-data',
         telegramUserId: 'spoofed_user'
       });
 
@@ -1000,9 +1000,9 @@ describe('MiniApp Lead handoff routes', () => {
 
     const res = await request(app)
       .get('/api/miniapp/b2b/me')
+      .set('X-Telegram-Init-Data', 'signed-init-data')
       .query({
         slug: 'cardealer_lviv_bot',
-        initData: 'signed-init-data',
         telegramUserId: 'spoofed_user'
       });
 
@@ -1315,9 +1315,9 @@ describe('MiniApp Lead handoff routes', () => {
 
     const res = await request(app)
       .get('/api/miniapp/b2b/requests/active')
+      .set('X-Telegram-Init-Data', 'signed-init-data')
       .query({
-        slug: 'cardealer_lviv_bot',
-        initData: 'signed-init-data'
+        slug: 'cardealer_lviv_bot'
       });
 
     expect(res.status).toBe(200);
@@ -1325,7 +1325,8 @@ describe('MiniApp Lead handoff routes', () => {
       where: expect.objectContaining({
         companyId: 'company_1',
         status: { in: ['PUBLISHED', 'COLLECTING_VARIANTS'] },
-        requesterPartnerId: { not: 'seller_partner_1' }
+        requesterPartnerId: { not: null },
+        NOT: { requesterPartnerId: 'seller_partner_1' }
       })
     }));
     expect(res.body.items).toHaveLength(1);
@@ -1644,9 +1645,14 @@ describe('MiniApp Lead handoff routes', () => {
           budgetMax: 55000,
           city: 'Львів',
           phone: '+380635055252',
+          phone_raw: '+380635055253',
+          full_name: 'Ivan Raw Client',
+          telegram_user: { id: 1001, username: 'raw_user' },
+          access_token: 'raw-access-token',
           nested: {
             email: 'client@example.com',
-            initData: 'raw-init-data'
+            initData: 'raw-init-data',
+            telegram_init_data: 'raw-telegram-init-data'
           }
         }
       });
@@ -1679,9 +1685,19 @@ describe('MiniApp Lead handoff routes', () => {
       })
     }));
     const platformPayload = emitPlatformEventMock.mock.calls[0][0].payload;
+    const metaInput = metaPixelTrackEventMock.mock.calls[0][2];
     expect(JSON.stringify(platformPayload)).not.toContain('+380635055252');
+    expect(JSON.stringify(platformPayload)).not.toContain('+380635055253');
+    expect(JSON.stringify(platformPayload)).not.toContain('Ivan Raw Client');
+    expect(JSON.stringify(platformPayload)).not.toContain('raw_user');
+    expect(JSON.stringify(platformPayload)).not.toContain('raw-access-token');
     expect(JSON.stringify(platformPayload)).not.toContain('client@example.com');
     expect(JSON.stringify(platformPayload)).not.toContain('raw-init-data');
+    expect(JSON.stringify(platformPayload)).not.toContain('raw-telegram-init-data');
+    expect(JSON.stringify(metaInput.customData)).not.toContain('+380635055253');
+    expect(JSON.stringify(metaInput.customData)).not.toContain('Ivan Raw Client');
+    expect(JSON.stringify(metaInput.customData)).not.toContain('raw_user');
+    expect(JSON.stringify(metaInput.customData)).not.toContain('raw-access-token');
   });
 
   it('stores MiniApp tracking event_id and tracking metadata when Meta CAPI is disabled', async () => {
@@ -1804,9 +1820,9 @@ describe('MiniApp Lead handoff routes', () => {
 
     const res = await request(app)
       .get('/api/miniapp/requests/status')
+      .set('X-Telegram-Init-Data', 'signed-init-data')
       .query({
         slug: 'cartie',
-        initData: 'signed-init-data',
         requestId: 'REQ-1',
         telegramUserId: 'spoofed_user',
         phone: '+380635055252'
@@ -1821,6 +1837,7 @@ describe('MiniApp Lead handoff routes', () => {
         status: 'NEW'
       }
     });
+    expect(res.headers['cache-control']).toBe('no-store');
     expect(verifyInitDataMock).toHaveBeenCalledWith('signed-init-data', {
       companyId: 'company_1',
       botId: 'bot_1'
@@ -1854,9 +1871,9 @@ describe('MiniApp Lead handoff routes', () => {
 
     const res = await request(app)
       .get('/api/miniapp/requests/my')
+      .set('X-Telegram-Init-Data', 'signed-init-data')
       .query({
         slug: 'cartie',
-        initData: 'signed-init-data',
         telegramUserId: 'spoofed_user',
         limit: 5
       });
@@ -1874,6 +1891,7 @@ describe('MiniApp Lead handoff routes', () => {
         }
       ]
     });
+    expect(res.headers['cache-control']).toBe('no-store');
     expect(verifyInitDataMock).toHaveBeenCalledWith('signed-init-data', {
       companyId: 'company_1',
       botId: 'bot_1'
@@ -1934,6 +1952,9 @@ describe('MiniApp Lead handoff routes', () => {
       });
 
     expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      meta: { enabled: false, eventName: 'ViewContent' }
+    });
     expect(emitPlatformEventMock).toHaveBeenCalledWith(expect.objectContaining({
       eventType: 'miniapp.ViewCar',
       userId: 'visitor_preview_1',
@@ -1943,18 +1964,7 @@ describe('MiniApp Lead handoff routes', () => {
         carListingId: 'car_1'
       })
     }));
-    expect(metaPixelTrackEventMock).toHaveBeenCalledWith('company_1', 'ViewContent', expect.objectContaining({
-      eventId: 'view_car_preview_1',
-      externalId: 'visitor:visitor_preview_1',
-      eventSourceUrl: 'https://cartie.test/p/app/cartie?entry=inventory&carId=car_1',
-      contentIds: ['car_1'],
-      customData: expect.objectContaining({
-        source: 'miniapp',
-        slug: 'cartie',
-        miniapp_event: 'ViewCar',
-        carListingId: 'car_1'
-      })
-    }));
+    expect(metaPixelTrackEventMock).not.toHaveBeenCalled();
     const platformPayload = emitPlatformEventMock.mock.calls[0][0].payload;
     expect(JSON.stringify(platformPayload)).not.toContain('spoofed_user');
     expect(JSON.stringify(platformPayload)).not.toContain('+380635055252');

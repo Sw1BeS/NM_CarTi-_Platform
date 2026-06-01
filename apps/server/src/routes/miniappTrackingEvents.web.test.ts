@@ -76,7 +76,7 @@ describe('MiniApp web tracking event names', () => {
 
     it('removes Telegram auth query params but keeps campaign params', () => {
         expect(sanitizeMiniAppEventSourceUrl(
-            'https://cartie.test/p/app/cartie?utm_source=meta&tgWebAppData=secret&user=secret&fbclid=ClickId'
+            'https://cartie.test/p/app/cartie?utm_source=meta&tgWebAppData=secret&user=secret&initData=raw&init_data=raw2&telegramInitData=raw3&telegram_init_data=raw4&fbclid=ClickId'
         )).toBe('https://cartie.test/p/app/cartie?utm_source=meta&fbclid=ClickId');
     });
 });

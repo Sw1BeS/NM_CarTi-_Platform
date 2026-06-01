@@ -1,6 +1,12 @@
 import { apiFetch } from './apiClient';
 import type { CarListing, B2BRequest } from '../types';
 
+export const MINIAPP_INIT_DATA_HEADER = 'X-Telegram-Init-Data';
+
+export const buildMiniAppInitDataHeaders = (initData: string): HeadersInit => ({
+  [MINIAPP_INIT_DATA_HEADER]: initData
+});
+
 export type MiniAppFavoritesResponse = {
   ids: string[];
   items: CarListing[];
@@ -295,10 +301,9 @@ export async function trackMiniAppEvent(payload: MiniAppEventPayload): Promise<{
   });
 }
 
-export function buildMiniAppRequestStatusPath(params: { slug: string; initData: string; requestId?: string }) {
+export function buildMiniAppRequestStatusPath(params: { slug: string; requestId?: string }) {
   const query = new URLSearchParams();
   query.append('slug', params.slug);
-  query.append('initData', params.initData);
   if (params.requestId) query.append('requestId', params.requestId);
   return `/miniapp/requests/status?${query.toString()}`;
 }
@@ -306,14 +311,14 @@ export function buildMiniAppRequestStatusPath(params: { slug: string; initData: 
 export async function getMiniAppRequestStatus(params: { slug: string; initData: string; requestId?: string }) {
   return await apiFetch(buildMiniAppRequestStatusPath(params), {
     method: 'GET',
-    skipAuth: true
+    skipAuth: true,
+    headers: buildMiniAppInitDataHeaders(params.initData)
   });
 }
 
-export function buildMiniAppMyRequestsPath(params: { slug: string; initData: string; limit?: number }) {
+export function buildMiniAppMyRequestsPath(params: { slug: string; limit?: number }) {
   const query = new URLSearchParams();
   query.append('slug', params.slug);
-  query.append('initData', params.initData);
   if (params.limit) query.append('limit', String(params.limit));
   return `/miniapp/requests/my?${query.toString()}`;
 }
@@ -324,21 +329,22 @@ export async function getMiniAppMyRequests(params: { slug: string; initData: str
 }> {
   return await apiFetch(buildMiniAppMyRequestsPath(params), {
     method: 'GET',
-    skipAuth: true
+    skipAuth: true,
+    headers: buildMiniAppInitDataHeaders(params.initData)
   });
 }
 
-export function buildMiniAppB2BPartnerPortalPath(params: { slug: string; initData: string }) {
+export function buildMiniAppB2BPartnerPortalPath(params: { slug: string }) {
   const query = new URLSearchParams();
   query.append('slug', params.slug);
-  query.append('initData', params.initData);
   return `/miniapp/b2b/me?${query.toString()}`;
 }
 
 export async function getMiniAppB2BPartnerPortal(params: { slug: string; initData: string }): Promise<MiniAppB2BPartnerPortalResponse> {
   return await apiFetch(buildMiniAppB2BPartnerPortalPath(params), {
     method: 'GET',
-    skipAuth: true
+    skipAuth: true,
+    headers: buildMiniAppInitDataHeaders(params.initData)
   });
 }
 
@@ -445,24 +451,23 @@ export async function shareMiniAppCar(carId: string, payload: { slug: string; in
   });
 }
 
-export function buildMiniAppB2bMyRequestsPath(params: { slug: string; initData: string }) {
+export function buildMiniAppB2bMyRequestsPath(params: { slug: string }) {
   const query = new URLSearchParams();
   query.append('slug', params.slug);
-  query.append('initData', params.initData);
   return `/miniapp/b2b/requests/my?${query.toString()}`;
 }
 
 export async function getMiniAppB2bMyRequests(params: { slug: string; initData: string }): Promise<MiniAppB2bListResponse<MiniAppB2bMyRequestItem>> {
   return await apiFetch(buildMiniAppB2bMyRequestsPath(params), {
     method: 'GET',
-    skipAuth: true
+    skipAuth: true,
+    headers: buildMiniAppInitDataHeaders(params.initData)
   });
 }
 
-export function buildMiniAppB2bActiveRequestsPath(params: { slug: string; initData: string; limit?: number }) {
+export function buildMiniAppB2bActiveRequestsPath(params: { slug: string; limit?: number }) {
   const query = new URLSearchParams();
   query.append('slug', params.slug);
-  query.append('initData', params.initData);
   if (params.limit) query.append('limit', String(params.limit));
   return `/miniapp/b2b/requests/active?${query.toString()}`;
 }
@@ -470,21 +475,22 @@ export function buildMiniAppB2bActiveRequestsPath(params: { slug: string; initDa
 export async function getMiniAppB2bActiveRequests(params: { slug: string; initData: string; limit?: number }): Promise<MiniAppB2bListResponse<MiniAppB2bActiveRequestItem>> {
   return await apiFetch(buildMiniAppB2bActiveRequestsPath(params), {
     method: 'GET',
-    skipAuth: true
+    skipAuth: true,
+    headers: buildMiniAppInitDataHeaders(params.initData)
   });
 }
 
-export function buildMiniAppB2bReceivedVariantsPath(params: { slug: string; initData: string }) {
+export function buildMiniAppB2bReceivedVariantsPath(params: { slug: string }) {
   const query = new URLSearchParams();
   query.append('slug', params.slug);
-  query.append('initData', params.initData);
   return `/miniapp/b2b/variants/received?${query.toString()}`;
 }
 
 export async function getMiniAppB2bReceivedVariants(params: { slug: string; initData: string }): Promise<MiniAppB2bListResponse<MiniAppB2bReceivedVariantItem>> {
   return await apiFetch(buildMiniAppB2bReceivedVariantsPath(params), {
     method: 'GET',
-    skipAuth: true
+    skipAuth: true,
+    headers: buildMiniAppInitDataHeaders(params.initData)
   });
 }
 
@@ -519,10 +525,9 @@ export async function setMiniAppB2bVariantDecision(variantId: string, payload: {
   });
 }
 
-export function buildMiniAppB2bAdminFitQueuePath(params: { slug: string; initData: string; status?: string }) {
+export function buildMiniAppB2bAdminFitQueuePath(params: { slug: string; status?: string }) {
   const query = new URLSearchParams();
   query.append('slug', params.slug);
-  query.append('initData', params.initData);
   if (params.status) query.append('status', params.status);
   return `/miniapp/b2b/admin/fit-queue?${query.toString()}`;
 }
@@ -530,7 +535,8 @@ export function buildMiniAppB2bAdminFitQueuePath(params: { slug: string; initDat
 export async function getMiniAppB2bAdminFitQueue(params: { slug: string; initData: string; status?: string }) {
   return await apiFetch(buildMiniAppB2bAdminFitQueuePath(params), {
     method: 'GET',
-    skipAuth: true
+    skipAuth: true,
+    headers: buildMiniAppInitDataHeaders(params.initData)
   });
 }
 

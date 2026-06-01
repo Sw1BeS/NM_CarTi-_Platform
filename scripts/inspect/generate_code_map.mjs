@@ -658,7 +658,16 @@ function renderTelegramMiniAppMap(inventory) {
     '4. Public frontend screens live in `apps/web/src/pages/public`, with `MiniApp.tsx` as the largest current UI surface.\n\n' +
     '## High-attention files\n\n' + formatTable(['File', 'Bytes'], relevantFiles) +
     '\n## Operational note\n\n' +
-    'The latest manual post-cleanup check found MiniApp availability intact but noted Telegram menu hash drift between live config and DB-expected config. Treat this as configuration drift, not confirmed downtime.\n';
+    'The latest manual post-cleanup check found MiniApp availability intact but noted Telegram menu hash drift between live config and DB-expected config. Treat this as configuration drift, not confirmed downtime.\n\n' +
+    '## Scenario Ownership Note\n\n' +
+    'Template presets seed admin-visible scenarios and commands for `CLIENT_LEAD`\n' +
+    'and `B2B`, but the critical buyer, seller, support, B2B request, and MiniApp\n' +
+    'handoff flows are mostly owned by specialized Telegram/MiniApp handlers. Treat\n' +
+    'scenario graph edits as admin/template behavior unless a route explicitly\n' +
+    'delegates to the scenario engine.\n\n' +
+    'Persistent reply-keyboard `web_app` buttons for `CLIENT_LEAD` should point to\n' +
+    'canonical `/p/app/{slug}` URLs. Do not reintroduce section query params into\n' +
+    'reply-keyboard URLs without rechecking Telegram signed launch behavior.\n';
 }
 
 function renderIntegrationsMap(inventory) {

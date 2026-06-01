@@ -9,6 +9,7 @@ import { telegramOutbox } from '../telegram/messaging/outbox/telegramOutbox.js';
 import { BotRepository } from '../../../repositories/index.js';
 import { logger } from '../../../utils/logger.js';
 import { buildMiniAppUrl } from '../telegram/core/utils/miniappUrl.js';
+import { resolveRuntimeBotDeliveryMode } from './botDeliveryMode.js';
 
 
 
@@ -21,6 +22,7 @@ interface BotConfigModel {
     channelId: string | null;
     adminChatId: string | null;
     companyId?: string | null;
+    deliveryMode?: any;
     config?: any;
     defaultShowcase?: any;
 }
@@ -71,7 +73,7 @@ export class BotManager {
     private startBot(config: BotConfigModel) {
         if (this.activeBots.has(config.id)) return;
 
-        const deliveryMode = (config.config as any)?.deliveryMode || 'polling';
+        const deliveryMode = resolveRuntimeBotDeliveryMode(config);
         logger.info(`🚀 Starting Bot [${config.id}] (${deliveryMode}): ${config.name}`);
 
         const instance = new BotInstance(config, deliveryMode, (botId) => {

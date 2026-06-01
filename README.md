@@ -36,18 +36,15 @@ curl -s http://127.0.0.1:3002/api/miniapp/config?slug=cartie
 
 ## MiniApp Navigation Contract
 
-Runtime Telegram buttons for the `CLIENT_LEAD` bot must be `WEB_APP` buttons in
-a two-column layout:
+Runtime persistent reply-keyboard `web_app` buttons for the `CLIENT_LEAD` bot
+must use canonical `/p/app/{slug}` URLs without `entry`, `status`, `type`, or
+other stateful query params. Telegram Desktop can launch reply-keyboard
+`web_app` URLs without signed `initData`; section state must be resolved inside
+the MiniApp after Telegram launch context is available.
 
-- `Підібрати авто` -> `/p/app/{slug}?entry=request&type=BUY`
-- `Продати авто` -> `/p/app/{slug}?entry=request&type=SELL`
-- `Авто в наявності` -> `/p/app/{slug}?entry=inventory&status=AVAILABLE`
-- `Авто в дорозі` -> `/p/app/{slug}?entry=inventory&status=PENDING`
-- `Обране` -> `/p/app/{slug}?entry=favorites`
-- `Підтримка` -> `/p/app/{slug}?entry=support`
-
-The standard Telegram menu button should remain a `web_app` entry to the public
-MiniApp and should not be changed without a specific product reason.
+The standard Telegram menu button should also remain a canonical `web_app`
+entry to the public MiniApp and should not be changed without a specific
+product reason.
 
 Inventory API supports status filtering:
 

@@ -81,6 +81,15 @@ const requireInitData = async (initData: string | undefined, companyId?: string 
   return verifyMiniAppInitDataForScope(initData, { companyId, botId });
 };
 
+const readMiniAppInitData = (req: any, body?: Record<string, unknown>) =>
+  readString(req?.get?.('x-telegram-init-data'))
+  || readString(body?.initData)
+  || readString(req?.query?.initData);
+
+const setSignedMiniAppNoStore = (res: any) => {
+  res.set('Cache-Control', 'no-store');
+};
+
 const parseMiniAppTelegramIdentity = (initData: string) => {
   const tgUser = parseTelegramUser(initData) as any;
   const userId = tgUser?.id ? String(tgUser.id) : undefined;
@@ -499,6 +508,7 @@ const SENSITIVE_EVENT_KEYS = new Set([
   'name',
   'fullname',
   'initdata',
+  'telegraminitdata',
   'raw',
   'rawuser',
   'telegramuser',
@@ -508,6 +518,9 @@ const SENSITIVE_EVENT_KEYS = new Set([
   'accesstoken',
   'authorization'
 ]);
+
+const normalizeMiniAppEventKey = (key: string) =>
+  String(key || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
 const sanitizeMiniAppTrackingInput = (value: unknown): Record<string, unknown> | undefined => {
   if (!isRecord(value)) return undefined;
@@ -540,7 +553,7 @@ const sanitizeMiniAppEventValue = (value: unknown): unknown => {
   if (isRecord(value)) {
     const sanitizedRecord: Record<string, unknown> = {};
     for (const [key, item] of Object.entries(value)) {
-      if (SENSITIVE_EVENT_KEYS.has(key.toLowerCase())) continue;
+      if (SENSITIVE_EVENT_KEYS.has(normalizeMiniAppEventKey(key))) continue;
       const sanitized = sanitizeMiniAppEventValue(item);
       if (sanitized !== undefined) sanitizedRecord[key] = sanitized;
     }
@@ -559,12 +572,11 @@ const sanitizeMiniAppEventValue = (value: unknown): unknown => {
 };
 
 const toMetaCustomData = (input: Record<string, unknown>) => {
-  const blocked = new Set(['phone', 'phoneRaw', 'email', 'name', 'initData', 'token', 'accessToken']);
   const sanitizedInput = sanitizeMiniAppEventValue(input);
   const record = isRecord(sanitizedInput) ? sanitizedInput : {};
   return Object.fromEntries(
     Object.entries(record).filter(([key, value]) => {
-      if (blocked.has(key)) return false;
+      if (SENSITIVE_EVENT_KEYS.has(normalizeMiniAppEventKey(key))) return false;
       return value !== undefined && value !== null && value !== '';
     })
   );
@@ -822,7 +834,8 @@ router.post('/cars/:carId/share', async (req, res) => {
 router.get('/b2b/me', async (req, res) => {
   try {
     const slug = readString(req.query.slug);
-    const initData = readString(req.query.initData);
+    const initData = readMiniAppInitData(req);
+    setSignedMiniAppNoStore(res);
     if (!slug) return errorResponse(res, 400, 'slug is required');
     if (!initData) return errorResponse(res, 400, 'initData is required');
 
@@ -973,7 +986,8 @@ router.post('/b2b/access/request', async (req, res) => {
 router.get('/b2b/requests/my', async (req, res) => {
   try {
     const slug = readString(req.query.slug);
-    const initData = readString(req.query.initData);
+    const initData = readMiniAppInitData(req);
+    setSignedMiniAppNoStore(res);
     if (!slug) return errorResponse(res, 400, 'slug is required');
     if (!initData) return errorResponse(res, 400, 'initData is required');
 
@@ -1016,7 +1030,8 @@ router.get('/b2b/requests/my', async (req, res) => {
 router.get('/b2b/requests/active', async (req, res) => {
   try {
     const slug = readString(req.query.slug);
-    const initData = readString(req.query.initData);
+    const initData = readMiniAppInitData(req);
+    setSignedMiniAppNoStore(res);
     if (!slug) return errorResponse(res, 400, 'slug is required');
     if (!initData) return errorResponse(res, 400, 'initData is required');
 
@@ -1061,7 +1076,8 @@ router.get('/b2b/requests/active', async (req, res) => {
 router.get('/b2b/variants/received', async (req, res) => {
   try {
     const slug = readString(req.query.slug);
-    const initData = readString(req.query.initData);
+    const initData = readMiniAppInitData(req);
+    setSignedMiniAppNoStore(res);
     if (!slug) return errorResponse(res, 400, 'slug is required');
     if (!initData) return errorResponse(res, 400, 'initData is required');
 
@@ -1350,7 +1366,8 @@ router.post('/b2b/requests/:requestRef/variants', async (req, res) => {
 router.get('/b2b/admin/fit-queue', async (req, res) => {
   try {
     const slug = readString(req.query.slug);
-    const initData = readString(req.query.initData);
+    const initData = readMiniAppInitData(req);
+    setSignedMiniAppNoStore(res);
     if (!slug) return errorResponse(res, 400, 'slug is required');
     if (!initData) return errorResponse(res, 400, 'initData is required');
 
@@ -2044,7 +2061,7 @@ router.post('/events', async (req, res) => {
     const carListingId = readString(body.carListingId);
     const eventId = buildMiniAppTrackingEventId(eventType, tracking, readString(req.get('x-request-id')));
     const metaEventName = mapMiniAppEventToMeta(eventType);
-    const metaEnabled = Boolean(metaEventName && isEnvFlagEnabled('META_CAPI_ENABLED', false));
+    const metaEnabled = Boolean(metaEventName && isEnvFlagEnabled('META_CAPI_ENABLED', false) && verifiedTelegram?.userId);
     const metaStatus: Record<string, unknown> = {
       enabled: metaEnabled,
       eventName: metaEventName
@@ -2070,9 +2087,7 @@ router.post('/events', async (req, res) => {
 
     if (metaEventName && metaEnabled) {
       const trackingMeta = readTrackingMeta(tracking);
-      const externalId = verifiedTelegram?.userId
-        ? `telegram:${verifiedTelegram.userId}`
-        : (visitorId ? `visitor:${visitorId}` : undefined);
+      const externalId = `telegram:${verifiedTelegram?.userId}`;
       const customData = toMetaCustomData({
         ...(payload || {}),
         source: 'miniapp',
@@ -2137,7 +2152,8 @@ router.get('/requests/my', async (req, res) => {
   try {
     const slug = readString(req.query.slug);
     if (!slug) return errorResponse(res, 400, 'slug is required');
-    const initData = readString(req.query.initData);
+    const initData = readMiniAppInitData(req);
+    setSignedMiniAppNoStore(res);
     if (!initData) return errorResponse(res, 400, 'initData is required', MINIAPP_ERROR_CODES.INITDATA_REQUIRED);
 
     const config = await miniAppService.getConfig(slug);
@@ -2167,7 +2183,8 @@ router.get('/requests/status', async (req, res) => {
   try {
     const slug = readString(req.query.slug);
     if (!slug) return errorResponse(res, 400, 'slug is required');
-    const initData = readString(req.query.initData);
+    const initData = readMiniAppInitData(req);
+    setSignedMiniAppNoStore(res);
     if (!initData) return errorResponse(res, 400, 'initData is required', MINIAPP_ERROR_CODES.INITDATA_REQUIRED);
 
     const config = await miniAppService.getConfig(slug);

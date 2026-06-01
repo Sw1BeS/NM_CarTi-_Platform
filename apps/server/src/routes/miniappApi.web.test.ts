@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  MINIAPP_INIT_DATA_HEADER,
+  buildMiniAppInitDataHeaders,
   buildMiniAppB2BPartnerPortalPath,
   buildMiniAppB2bAdminFitQueuePath,
   buildMiniAppB2bOfferSubmitPath,
@@ -17,6 +19,12 @@ const initData = new URLSearchParams({
 }).toString();
 
 describe('MiniApp API web client contract', () => {
+  it('builds dedicated MiniApp initData headers', () => {
+    expect(buildMiniAppInitDataHeaders(initData)).toEqual({
+      [MINIAPP_INIT_DATA_HEADER]: initData
+    });
+  });
+
   it('builds request status reads with signed initData and no spoofable identity params', () => {
     const path = buildMiniAppRequestStatusPath({
       slug: 'cardealer_lviv_bot',
@@ -29,7 +37,7 @@ describe('MiniApp API web client contract', () => {
 
     expect(url.pathname).toBe('/miniapp/requests/status');
     expect(url.searchParams.get('slug')).toBe('cardealer_lviv_bot');
-    expect(url.searchParams.get('initData')).toBe(initData);
+    expect(url.searchParams.has('initData')).toBe(false);
     expect(url.searchParams.get('requestId')).toBe('CD-2026-000123');
     expect(url.searchParams.has('telegramUserId')).toBe(false);
     expect(url.searchParams.has('phone')).toBe(false);
@@ -37,14 +45,13 @@ describe('MiniApp API web client contract', () => {
 
   it('builds B2B partner portal reads with signed initData', () => {
     const path = buildMiniAppB2BPartnerPortalPath({
-      slug: 'cardealer_lviv_bot',
-      initData
+      slug: 'cardealer_lviv_bot'
     });
     const url = new URL(path, 'https://cartie.local');
 
     expect(url.pathname).toBe('/miniapp/b2b/me');
     expect(url.searchParams.get('slug')).toBe('cardealer_lviv_bot');
-    expect(url.searchParams.get('initData')).toBe(initData);
+    expect(url.searchParams.has('initData')).toBe(false);
   });
 
   it('builds B2B activity reads with signed initData', () => {
@@ -57,17 +64,17 @@ describe('MiniApp API web client contract', () => {
       'https://cartie.local'
     );
     const receivedVariants = new URL(
-      buildMiniAppB2bReceivedVariantsPath({ slug: 'b2b_bot', initData }),
+      buildMiniAppB2bReceivedVariantsPath({ slug: 'b2b_bot' }),
       'https://cartie.local'
     );
 
     expect(myRequests.pathname).toBe('/miniapp/b2b/requests/my');
     expect(myRequests.searchParams.get('slug')).toBe('b2b_bot');
-    expect(myRequests.searchParams.get('initData')).toBe(initData);
+    expect(myRequests.searchParams.has('initData')).toBe(false);
     expect(myRequests.searchParams.has('telegramUserId')).toBe(false);
     expect(receivedVariants.pathname).toBe('/miniapp/b2b/variants/received');
     expect(receivedVariants.searchParams.get('slug')).toBe('b2b_bot');
-    expect(receivedVariants.searchParams.get('initData')).toBe(initData);
+    expect(receivedVariants.searchParams.has('initData')).toBe(false);
   });
 
   it('builds B2B decision and admin queue paths without leaking identities into query params', () => {
@@ -85,7 +92,7 @@ describe('MiniApp API web client contract', () => {
     expect(decision.pathname).toBe('/miniapp/b2b/variants/variant%2Fwith%20space/decision');
     expect(adminQueue.pathname).toBe('/miniapp/b2b/admin/fit-queue');
     expect(adminQueue.searchParams.get('slug')).toBe('b2b_bot');
-    expect(adminQueue.searchParams.get('initData')).toBe(initData);
+    expect(adminQueue.searchParams.has('initData')).toBe(false);
     expect(adminQueue.searchParams.get('status')).toBe('NEW');
     expect(adminQueue.searchParams.has('phone')).toBe(false);
   });

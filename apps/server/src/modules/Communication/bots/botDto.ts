@@ -1,3 +1,5 @@
+import { normalizeBotDeliveryModeColumn, resolveRuntimeBotDeliveryMode } from './botDeliveryMode.js';
+
 const TEMPLATE_BY_ROLE: Record<string, string> = {
   CLIENT: 'CLIENT_LEAD',
   CHANNEL: 'CATALOG',
@@ -48,7 +50,8 @@ export const mapBotInput = (input: any, existingConfig: any = {}) => {
   if ('stats' in input) setConfigValue(config, 'stats', input.stats);
   if ('processedUpdateIds' in input) setConfigValue(config, 'processedUpdateIds', input.processedUpdateIds);
   if ('lastUpdateId' in input) setConfigValue(config, 'lastUpdateId', input.lastUpdateId);
-  if ('deliveryMode' in input) setConfigValue(config, 'deliveryMode', input.deliveryMode);
+  const deliveryMode = 'deliveryMode' in input ? normalizeBotDeliveryModeColumn(input.deliveryMode) : undefined;
+  if ('deliveryMode' in input) setConfigValue(config, 'deliveryMode', deliveryMode?.toLowerCase() || input.deliveryMode);
   if ('webhookSecret' in input) setConfigValue(config, 'webhookSecret', input.webhookSecret);
 
   ensureMiniAppUrl(config);
@@ -71,6 +74,7 @@ export const mapBotInput = (input: any, existingConfig: any = {}) => {
   if ('active' in input) data.isEnabled = !!input.active;
   if ('isEnabled' in input) data.isEnabled = !!input.isEnabled;
   if ('defaultShowcaseId' in input) data.defaultShowcaseId = input.defaultShowcaseId || null;
+  if (deliveryMode) data.deliveryMode = deliveryMode;
 
   return { data, config };
 };
@@ -94,7 +98,7 @@ export const mapBotOutput = (bot: any) => {
     stats: config.stats,
     processedUpdateIds: config.processedUpdateIds,
     lastUpdateId: config.lastUpdateId,
-    deliveryMode: config.deliveryMode || 'polling',
+    deliveryMode: resolveRuntimeBotDeliveryMode(bot),
     webhookSecret: config.webhookSecret,
     webhookUrl: config.webhookUrl,
     adminChannelId: bot.adminChatId,

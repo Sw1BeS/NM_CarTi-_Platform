@@ -7,7 +7,11 @@ const SENSITIVE_EVENT_SOURCE_PARAMS = [
   'signature',
   'auth_date',
   'query_id',
-  'user'
+  'user',
+  'initData',
+  'init_data',
+  'telegramInitData',
+  'telegram_init_data'
 ];
 
 const toText = (value: unknown) => String(value || '').trim();

@@ -29,3 +29,15 @@ Git: `bd69ae0`
 ## Operational note
 
 The latest manual post-cleanup check found MiniApp availability intact but noted Telegram menu hash drift between live config and DB-expected config. Treat this as configuration drift, not confirmed downtime.
+
+## Scenario Ownership Note
+
+Template presets seed admin-visible scenarios and commands for `CLIENT_LEAD`
+and `B2B`, but the critical buyer, seller, support, B2B request, and MiniApp
+handoff flows are mostly owned by specialized Telegram/MiniApp handlers. Treat
+scenario graph edits as admin/template behavior unless a route explicitly
+delegates to the scenario engine.
+
+Persistent reply-keyboard `web_app` buttons for `CLIENT_LEAD` should point to
+canonical `/p/app/{slug}` URLs. Do not reintroduce section query params into
+reply-keyboard URLs without rechecking Telegram signed launch behavior.

@@ -21,6 +21,7 @@
     "cleanup:external-hidden-listings": "tsx scripts/cleanup_external_hidden_listings.ts",
     "telegram:normalize-chat-ids": "tsx scripts/telegram_normalize_chat_ids.ts",
     "telegram:backfill-identity": "tsx scripts/backfill_telegram_identity.ts",
+    "cleanup:b2b-request-tracking-urls": "tsx scripts/sanitize_b2b_request_tracking_event_source_url.ts",
     "repair:miniapp-menu-config": "tsx scripts/repair_miniapp_menu_config.ts",
     "repair:miniapp-request-titles": "tsx scripts/repair_miniapp_request_titles.ts",
     "cleanup:test-data": "tsx scripts/cleanup_test_data.ts",
