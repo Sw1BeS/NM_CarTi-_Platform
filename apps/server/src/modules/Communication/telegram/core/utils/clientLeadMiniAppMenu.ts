@@ -1,8 +1,10 @@
 import type { BotConfig } from '@prisma/client';
 import { button, type Lang } from './telegramText.js';
+import { buildMiniAppTelegramLaunchUrl, type MiniAppFilters } from './miniappUrl.js';
 
 type TelegramKeyboardButton = {
   text: string;
+  web_app?: { url: string };
 };
 
 type TelegramReplyKeyboard = {
@@ -12,21 +14,39 @@ type TelegramReplyKeyboard = {
 };
 
 export const buildClientLeadMiniAppKeyboard = (bot: BotConfig, lang: Lang): TelegramReplyKeyboard => {
-  void bot;
+  const miniAppButton = (text: string, filters: MiniAppFilters): TelegramKeyboardButton => {
+    const url = buildMiniAppTelegramLaunchUrl(bot, filters);
+    return url ? { text, web_app: { url } } : { text };
+  };
 
   return {
     keyboard: [
       [
-        { text: button(lang, 'leadMenu.stock') },
-        { text: button(lang, 'leadMenu.transit') }
+        miniAppButton(button(lang, 'leadMenu.stock'), {
+          entry: 'inventory',
+          status: 'AVAILABLE',
+          availabilityState: 'IN_STOCK'
+        }),
+        miniAppButton(button(lang, 'leadMenu.transit'), {
+          entry: 'inventory',
+          status: 'PENDING',
+          availabilityState: 'IN_TRANSIT'
+        })
       ],
       [
-        { text: button(lang, 'leadMenu.buy') },
-        { text: '❤️ Обрані / Переглянуті' }
+        miniAppButton(button(lang, 'leadMenu.buy'), {
+          entry: 'request',
+          type: 'BUY'
+        }),
+        miniAppButton('❤️ Обрані / Переглянуті', {
+          entry: 'favorites'
+        })
       ],
       [
         { text: '📩 Мої запити' },
-        { text: button(lang, 'leadMenu.support') }
+        miniAppButton(button(lang, 'leadMenu.support'), {
+          entry: 'contacts'
+        })
       ]
     ],
     resize_keyboard: true,

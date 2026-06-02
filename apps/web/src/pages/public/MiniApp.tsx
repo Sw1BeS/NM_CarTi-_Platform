@@ -29,6 +29,12 @@ import { MiniAppImage } from './miniapp/components/MiniAppImage';
 import { isMiniAppReadOnlyPreviewLaunch, parseMiniAppEntryIntent, resolveMiniAppInternalLinkIntent, type MiniAppEntryIntent } from './miniapp/entryIntent';
 import { resolveLeadIntentOutcome } from './miniapp/leadIntentOutcome';
 import {
+    buildTelegramKeyboardLeadSubmitPayload,
+    canUseTelegramKeyboardSubmit,
+    sendTelegramKeyboardPayload,
+    type TelegramKeyboardLeadSubmitKind
+} from './miniapp/telegramKeyboardSubmit';
+import {
     resolveMiniAppMetaTracking,
     resolveMiniAppSubmitEventType,
     resolveMiniAppViewEventType,
@@ -119,10 +125,11 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
 }
 
 const PLACEHOLDER_IMAGE = 'https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?auto=format&fit=crop&q=80&w=1000';
-const MISSING_TELEGRAM_SESSION_MESSAGE = 'Telegram відкрив Mini App без захищеної сесії. Закрийте це вікно, напишіть /start у чаті бота і відкрийте Mini App кнопкою під повідомленням.';
+const MISSING_TELEGRAM_SESSION_MESSAGE = 'Telegram відкрив Mini App без захищеної сесії. Приватні розділи доступні через кнопку Mini App у меню бота або кнопку під повідомленням.';
+const TELEGRAM_KEYBOARD_SUBMIT_MESSAGE = 'Запит передано в чат бота. Далі Telegram попросить поділитися контактом, якщо його ще немає.';
 
 type InventoryTab = 'IN_STOCK' | 'IN_TRANSIT';
-type TelegramWriteState = 'unknown' | 'ready' | 'outside_telegram' | 'missing_initdata' | 'read_only_preview' | 'invalid_initdata';
+type TelegramWriteState = 'unknown' | 'ready' | 'keyboard_bridge' | 'outside_telegram' | 'missing_initdata' | 'read_only_preview' | 'invalid_initdata';
 type MiniAppSurfaceMode = 'LEAD' | 'B2B';
 type MiniAppView = 'HOME' | 'INVENTORY' | 'LISTING' | 'FAVORITES' | 'REQUEST' | 'STATUS' | 'B2B_REQUESTS' | 'OFFER' | 'PROFILE' | 'SUPPORT' | 'CONTACTS';
 type RequestType = 'BUY' | 'SELL';
@@ -326,10 +333,12 @@ const MiniAppContent = () => {
     const [trackingMeta, setTrackingMeta] = useState<MiniAppTrackingMeta>({});
     const [reqComment, setReqComment] = useState('');
     const { toasts, pushToast, dismissToast } = useToasts();
+    const effectiveSurfaceMode: MiniAppSurfaceMode = config?.surfaceMode === 'B2B' ? 'B2B' : 'LEAD';
     const currentInitData = initData || readRuntimeTelegramInitData();
     const hasTelegramInit = Boolean(currentInitData);
     const readOnlyPreview = !hasTelegramInit && isMiniAppReadOnlyPreviewLaunch(new URLSearchParams(window.location.search), trackingMeta.startParam, launchIsTelegramContext);
-    const missingTelegramInitInApp = !hasTelegramInit && launchIsTelegramContext;
+    const keyboardBridgeSubmitAvailable = !hasTelegramInit && launchIsTelegramContext && telegramWriteState === 'keyboard_bridge' && effectiveSurfaceMode === 'LEAD';
+    const missingTelegramInitInApp = !hasTelegramInit && launchIsTelegramContext && telegramWriteState !== 'keyboard_bridge';
     const viewHistoryRef = useRef<MiniAppView[]>(['HOME']);
     const suppressHistoryPushRef = useRef(false);
     const requestSubmitIdRef = useRef<string | null>(null);
@@ -799,8 +808,12 @@ const MiniAppContent = () => {
             setTgUser(resolvedUser);
             setInitData(telegramContext.initData);
             if (!telegramContext.initData && telegramContext.isTelegramContext) {
-                setTelegramWriteState('missing_initdata');
-                setConfigWarning(MISSING_TELEGRAM_SESSION_MESSAGE);
+                if (canUseTelegramKeyboardSubmit(telegramContext.tg)) {
+                    setTelegramWriteState('keyboard_bridge');
+                } else {
+                    setTelegramWriteState('missing_initdata');
+                    setConfigWarning(MISSING_TELEGRAM_SESSION_MESSAGE);
+                }
             } else if (telegramContext.initData) {
                 setTelegramWriteState('ready');
             } else {
@@ -1171,6 +1184,47 @@ const MiniAppContent = () => {
         return false;
     };
 
+    const submitLeadIntentViaKeyboardBridge = (params: {
+        kind: TelegramKeyboardLeadSubmitKind;
+        carListingIds?: string[];
+        criteria?: Record<string, unknown>;
+        comment?: string;
+        tracking?: MiniAppTrackingMeta;
+    }) => {
+        const tg = (window as any).Telegram?.WebApp;
+        if (!canUseTelegramKeyboardSubmit(tg)) return false;
+
+        const payload = buildTelegramKeyboardLeadSubmitPayload(params);
+        trackEvent('lead_submit_keyboard_bridge_attempt', {
+            kind: params.kind,
+            selectedCarsCount: params.carListingIds?.length || 0,
+            requestType: params.tracking?.requestType || 'BUY'
+        });
+        const result = sendTelegramKeyboardPayload(tg, payload);
+        if (result.status === 'error') {
+            const message = result.reason === 'payload_too_large'
+                ? 'Заявка завелика для нижньої клавіатури Telegram. Скоротіть коментар або відкрийте Mini App через кнопку під повідомленням.'
+                : 'Не вдалося передати заявку через Telegram. Відкрийте Mini App через кнопку під повідомленням і повторіть спробу.';
+            setTelegramWriteState('missing_initdata');
+            setConfigWarning(message);
+            setRequestSubmitError({ message });
+            trackEvent('lead_submit_keyboard_bridge_failed', {
+                kind: params.kind,
+                reason: result.reason,
+                bytes: result.bytes
+            });
+            return false;
+        }
+
+        setTelegramWriteState('keyboard_bridge');
+        setRequestSubmitError(null);
+        setRequestContactHandoff({ message: TELEGRAM_KEYBOARD_SUBMIT_MESSAGE });
+        setConfigWarning(TELEGRAM_KEYBOARD_SUBMIT_MESSAGE);
+        pushToast(TELEGRAM_KEYBOARD_SUBMIT_MESSAGE, 'success');
+        requestSubmitIdRef.current = null;
+        return true;
+    };
+
     const submitLeadIntent = async (params: {
         kind: 'PICK' | 'PRICE_TERMS';
         carListingIds?: string[];
@@ -1178,6 +1232,17 @@ const MiniAppContent = () => {
         comment?: string;
     }) => {
         const submitInitData = initData || readRuntimeTelegramInitData();
+        const submitId = requestSubmitIdRef.current
+            || (window.crypto?.randomUUID
+                ? window.crypto.randomUUID()
+                : `submit_${Date.now()}_${Math.random().toString(16).slice(2)}`);
+        requestSubmitIdRef.current = submitId;
+        if (!submitInitData && keyboardBridgeSubmitAvailable) {
+            return submitLeadIntentViaKeyboardBridge({
+                ...params,
+                tracking: { ...trackingMeta, submitId, requestType: 'BUY' }
+            });
+        }
         if (!submitInitData) {
             const { message, openBotUrl } = resolveMissingInitDataError('Надсилання запиту доступне лише всередині Telegram Mini App.');
             setTelegramWriteState(telegramWriteState === 'outside_telegram' ? 'outside_telegram' : 'missing_initdata');
@@ -1191,11 +1256,6 @@ const MiniAppContent = () => {
         setRequestSubmitError(null);
         setRequestContactHandoff(null);
         if (!initData) setInitData(submitInitData);
-        const submitId = requestSubmitIdRef.current
-            || (window.crypto?.randomUUID
-                ? window.crypto.randomUUID()
-                : `submit_${Date.now()}_${Math.random().toString(16).slice(2)}`);
-        requestSubmitIdRef.current = submitId;
         const response = await createMiniAppLeadIntent({
             slug: targetSlug || 'system',
             initData: submitInitData,
@@ -1654,7 +1714,7 @@ const MiniAppContent = () => {
     }
 
     const primaryColor = normalizeMiniAppAccent(config.primaryColor);
-    const surfaceMode: MiniAppSurfaceMode = config.surfaceMode === 'B2B' ? 'B2B' : 'LEAD';
+    const surfaceMode = effectiveSurfaceMode;
     const navItems = (config.navItems && config.navItems.length > 0)
         ? config.navItems
         : [
@@ -3376,17 +3436,6 @@ const MiniAppContent = () => {
 
         {
             const submitInitData = initData || readRuntimeTelegramInitData();
-            if (!submitInitData) {
-                const { message, openBotUrl } = resolveMissingInitDataError('Надсилання запиту доступне лише в Telegram Mini App.');
-                setTelegramWriteState(telegramWriteState === 'outside_telegram' ? 'outside_telegram' : 'missing_initdata');
-                setConfigWarning(message);
-                setRequestSubmitError({ message, openBotUrl });
-                setRequestContactHandoff(null);
-                trackEvent('write_blocked_missing_initdata', { view: 'REQUEST', requestType, isTelegramContext: launchIsTelegramContext });
-                return;
-            }
-            setTelegramWriteState('ready');
-            if (!initData) setInitData(submitInitData);
             if (isB2BMode && !reqCompany.trim()) {
                 setConfigWarning('Для B2B запиту вкажіть компанію.');
                 return;
@@ -3448,6 +3497,38 @@ const MiniAppContent = () => {
                     cities: normalizedCity ? [normalizedCity] : undefined,
                     selectedCars: selectedTitles.length ? selectedTitles : undefined
                 };
+
+                if (!submitInitData && !isB2BMode && keyboardBridgeSubmitAvailable) {
+                    const sent = submitLeadIntentViaKeyboardBridge({
+                        kind: selectedListingIds.length ? 'PRICE_TERMS' : 'PICK',
+                        carListingIds: selectedListingIds.length ? selectedListingIds : undefined,
+                        criteria,
+                        comment: reqComment || undefined,
+                        tracking: { ...trackingMeta, submitId, requestType: 'BUY' }
+                    });
+                    if (sent) {
+                        trackEvent('LeadSubmit', {
+                            requestSubtype: effectiveRequestSubtype,
+                            selectedCarsCount: selectedListingIds.length,
+                            legacyEventType: 'lead_intent_keyboard_bridge_submitted'
+                        });
+                        clearRequestSelection();
+                    }
+                    return;
+                }
+
+                if (!submitInitData) {
+                    const { message, openBotUrl } = resolveMissingInitDataError('Надсилання запиту доступне лише в Telegram Mini App.');
+                    setTelegramWriteState(telegramWriteState === 'outside_telegram' ? 'outside_telegram' : 'missing_initdata');
+                    setConfigWarning(message);
+                    setRequestSubmitError({ message, openBotUrl });
+                    setRequestContactHandoff(null);
+                    trackEvent('write_blocked_missing_initdata', { view: 'REQUEST', requestType, isTelegramContext: launchIsTelegramContext });
+                    return;
+                }
+
+                setTelegramWriteState('ready');
+                if (!initData) setInitData(submitInitData);
 
                 if (!isB2BMode) {
                     const response = await createMiniAppLeadIntent({
@@ -3550,6 +3631,8 @@ const MiniAppContent = () => {
             ? 'Відкрийте Mini App саме з кнопки Telegram-бота, щоб надіслати запит.'
             : telegramWriteState === 'invalid_initdata'
                 ? 'Сесія Telegram застаріла. Закрийте це вікно і відкрийте Mini App повторно з бота.'
+                : telegramWriteState === 'keyboard_bridge'
+                    ? 'Заявку буде передано через Telegram у чат бота.'
                 : telegramWriteState === 'missing_initdata'
                     ? MISSING_TELEGRAM_SESSION_MESSAGE
                     : 'Для надсилання потрібна захищена сесія Telegram Mini App.';
@@ -3571,7 +3654,7 @@ const MiniAppContent = () => {
                 selectedCarsCount={selectedRequestCarIds.length}
                 selectedCarsPreview={selectedRequestCars.map(car => car.title).filter(Boolean).slice(0, 3)}
                 onClearSelectedCars={clearRequestSelection}
-                hasTelegramInit={hasTelegramInit}
+                hasTelegramInit={hasTelegramInit || keyboardBridgeSubmitAvailable}
                 telegramWriteUnavailableMessage={telegramWriteUnavailableMessage}
                 primaryColor={primaryColor}
                 surfaceMode={surfaceMode}

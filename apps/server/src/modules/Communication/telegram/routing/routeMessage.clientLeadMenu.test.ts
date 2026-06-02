@@ -165,7 +165,13 @@ describe('CLIENT_LEAD bot menu', () => {
     expect(calls[0].replyMarkup.keyboard.map((row: any[]) => row.length)).toEqual([2, 2, 2]);
 
     const runtimeButtons = calls[0].replyMarkup.keyboard.flat();
-    expect(runtimeButtons.every((button: any) => !button.web_app)).toBe(true);
+    const runtimeWebAppButtons = runtimeButtons.filter((button: any) => button.web_app);
+    expect(runtimeWebAppButtons).toHaveLength(5);
+    expect(runtimeButtons.find((button: any) => button.text === '📩 Мої запити')?.web_app).toBeUndefined();
+    expect(runtimeWebAppButtons.every((button: any) => button.web_app?.url?.startsWith('https://cartie.test/p/app/cartie'))).toBe(true);
+    expect(runtimeWebAppButtons.some((button: any) => button.web_app.url.includes('entry=inventory'))).toBe(true);
+    expect(runtimeWebAppButtons.some((button: any) => button.web_app.url.includes('entry=request'))).toBe(true);
+    expect(runtimeWebAppButtons.every((button: any) => !button.web_app.url.includes('v='))).toBe(true);
 
     const storedButtons = ctx.bot.config.menuConfig.buttons;
     expect(storedButtons).toEqual([
@@ -232,7 +238,11 @@ describe('CLIENT_LEAD bot menu', () => {
     expect(calls[0].replyMarkup.is_persistent).toBe(true);
 
     const flatButtons = calls[0].replyMarkup.keyboard.flat();
-    expect(flatButtons.every((button: any) => !button.web_app)).toBe(true);
+    const webAppButtons = flatButtons.filter((button: any) => button.web_app);
+    expect(webAppButtons).toHaveLength(5);
+    expect(flatButtons.find((button: any) => button.text === '📩 Мої запити')?.web_app).toBeUndefined();
+    expect(webAppButtons.every((button: any) => button.web_app?.url?.startsWith('https://cartie.test/p/app/cartie'))).toBe(true);
+    expect(webAppButtons.some((button: any) => button.web_app.url.includes('entry=contacts'))).toBe(true);
   }, 10000);
 
   it('turns stock text menu clicks into inline MiniApp launch buttons with scoped entry filters', async () => {

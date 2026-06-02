@@ -893,7 +893,7 @@ const handleClientLead = async (ctx: PipelineContext, text: string) => {
       finalized.isDuplicate
         ? `✅ Інтерес зафіксовано. ${requestPublicId ? `Запит ${requestPublicId} оновлено.` : 'Менеджер вже бачить ваше звернення.'}`
         : `✅ Дякуємо! ${requestPublicId ? `Запит ${requestPublicId} отримано.` : 'Запит отримано.'} Менеджер звʼяжеться з вами найближчим часом.`,
-      { remove_keyboard: true }
+      buildClientLeadMiniAppKeyboard(ctx.bot, lang)
     );
 
     if (ctx.bot.adminChatId) {

@@ -13,6 +13,7 @@ import { ScenarioEngine } from '../../bots/scenario.engine.js';
 import { resolveLang, t } from '../core/utils/telegramText.js';
 import { requestContractService } from '../../../../services/requestContract.service.js';
 import { buildLeadAdminActionMarkupAsync, buildLeadAdminNotificationText } from '../../../../services/leadAdminNotification.js';
+import { buildClientLeadMiniAppKeyboard } from '../core/utils/clientLeadMiniAppMenu.js';
 
 const shouldBypassScenarioEngine = (ctx: PipelineContext) => {
   const template = String(ctx.bot?.template || '').toUpperCase();
@@ -215,7 +216,7 @@ export const routeWebApp = async (ctx: PipelineContext) => {
           telegramName
         });
 
-        await sendMessage(ctx, `✅ Запит отримано. Використали збережений контакт ${knownContact.phone}.`, { remove_keyboard: true });
+        await sendMessage(ctx, `✅ Запит отримано. Використали збережений контакт ${knownContact.phone}.`, buildClientLeadMiniAppKeyboard(ctx.bot, lang));
         if (ctx.bot.adminChatId) {
           const adminText = buildLeadAdminNotificationText({
             header: '🟢 [LEAD] MiniApp legacy submit',
