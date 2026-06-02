@@ -436,7 +436,13 @@ export const showMenu = async (ctx: PipelineContext, lang: Lang, template: strin
       return;
     }
 
-    const leadKeyboard = buildClientLeadMiniAppKeyboard(ctx.bot, lang);
+    const from = ctx.update?.message?.from || ctx.update?.callback_query?.from;
+    const leadKeyboard = buildClientLeadMiniAppKeyboard(ctx.bot, lang, {
+      chatId: currentChatId || ctx.chatId,
+      userId: ctx.userId || currentChatId,
+      username: from?.username,
+      name: [from?.first_name, from?.last_name].filter(Boolean).join(' ')
+    });
 
     await sendMessage(ctx, t(lang, 'common.welcome_lead', { bot: botName }), leadKeyboard);
     await updateSession(ctx, 'CL_MENU', {
@@ -893,7 +899,12 @@ const handleClientLead = async (ctx: PipelineContext, text: string) => {
       finalized.isDuplicate
         ? `✅ Інтерес зафіксовано. ${requestPublicId ? `Запит ${requestPublicId} оновлено.` : 'Менеджер вже бачить ваше звернення.'}`
         : `✅ Дякуємо! ${requestPublicId ? `Запит ${requestPublicId} отримано.` : 'Запит отримано.'} Менеджер звʼяжеться з вами найближчим часом.`,
-      buildClientLeadMiniAppKeyboard(ctx.bot, lang)
+      buildClientLeadMiniAppKeyboard(ctx.bot, lang, {
+        chatId: ctx.chatId,
+        userId: tgUserId,
+        username: telegramUsername,
+        name: telegramName
+      })
     );
 
     if (ctx.bot.adminChatId) {

@@ -1,6 +1,7 @@
 import type { BotConfig } from '@prisma/client';
 import { button, type Lang } from './telegramText.js';
 import { buildMiniAppTelegramLaunchUrl, type MiniAppFilters } from './miniappUrl.js';
+import { createClientLeadMiniAppAuthToken, type ClientLeadMiniAppAuthInput } from './clientLeadMiniAppAuth.js';
 
 type TelegramKeyboardButton = {
   text: string;
@@ -13,10 +14,33 @@ type TelegramReplyKeyboard = {
   is_persistent: true;
 };
 
-export const buildClientLeadMiniAppKeyboard = (bot: BotConfig, lang: Lang): TelegramReplyKeyboard => {
+const withHashParam = (rawUrl: string, key: string, value?: string) => {
+  if (!value) return rawUrl;
+  try {
+    const url = new URL(rawUrl);
+    const hashParams = new URLSearchParams(url.hash.replace(/^#/, ''));
+    hashParams.set(key, value);
+    url.hash = hashParams.toString();
+    return url.toString();
+  } catch {
+    return rawUrl;
+  }
+};
+
+export const buildClientLeadMiniAppKeyboard = (
+  bot: BotConfig,
+  lang: Lang,
+  auth?: Omit<ClientLeadMiniAppAuthInput, 'botId' | 'companyId' | 'lang'>
+): TelegramReplyKeyboard => {
+  const authToken = createClientLeadMiniAppAuthToken({
+    botId: bot.id,
+    companyId: bot.companyId,
+    lang,
+    ...auth
+  });
   const miniAppButton = (text: string, filters: MiniAppFilters): TelegramKeyboardButton => {
     const url = buildMiniAppTelegramLaunchUrl(bot, filters);
-    return url ? { text, web_app: { url } } : { text };
+    return url ? { text, web_app: { url: withHashParam(url, 'kbAuth', authToken) } } : { text };
   };
 
   return {

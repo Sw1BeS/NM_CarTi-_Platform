@@ -21,6 +21,9 @@ import { vehicleTaxonomyService } from '../services/vehicleTaxonomy.service.js';
 import { b2bWhitelistService } from '../services/b2bWhitelist.service.js';
 import { buildCallbackData } from '../modules/Communication/telegram/core/utils/callbackUtils.js';
 import { sanitizeMetaEventSourceUrl } from '../modules/Integrations/meta/metaEventSourceUrl.js';
+import { buildClientLeadMiniAppKeyboard } from '../modules/Communication/telegram/core/utils/clientLeadMiniAppMenu.js';
+import { verifyClientLeadMiniAppAuthToken } from '../modules/Communication/telegram/core/utils/clientLeadMiniAppAuth.js';
+import type { Lang } from '../modules/Communication/telegram/core/utils/telegramText.js';
 
 const router = Router();
 const showcaseService = new ShowcaseService();
@@ -34,6 +37,8 @@ const MINIAPP_ERROR_CODES = {
 } as const;
 
 const LEAD_WRONG_ENDPOINT = 'LEAD_WRONG_ENDPOINT';
+const TELEGRAM_KEYBOARD_AUTH_INVALID = 'TELEGRAM_KEYBOARD_AUTH_INVALID';
+const TELEGRAM_KEYBOARD_AUTH_EXPIRED = 'TELEGRAM_KEYBOARD_AUTH_EXPIRED';
 const B2B_PARTNER_NOT_APPROVED = 'B2B_PARTNER_NOT_APPROVED';
 const B2B_PARTNER_NOT_APPROVED_REASON = 'PARTNER_NOT_APPROVED';
 const B2B_PORTAL_UNAVAILABLE = 'B2B_PORTAL_UNAVAILABLE';
@@ -509,6 +514,8 @@ const SENSITIVE_EVENT_KEYS = new Set([
   'fullname',
   'initdata',
   'telegraminitdata',
+  'kbauth',
+  'keyboardauth',
   'raw',
   'rawuser',
   'telegramuser',
@@ -1570,12 +1577,13 @@ router.post('/lead-intents', async (req, res) => {
     const body = (req.body || {}) as Record<string, unknown>;
     const slug = readString(body.slug);
     const initData = readString(body.initData);
+    const keyboardAuth = readString(body.keyboardAuth);
     const kind = normalizeLeadIntentKind(readString(body.kind) || readString(body.intentType) || readString(body.type));
     const requestId = readString(req.get('x-request-id')) || `miniapp_${Date.now().toString(36)}`;
 
     if (!slug) return errorResponse(res, 400, 'slug is required', MINIAPP_ERROR_CODES.VALIDATION);
-    if (!initData) {
-      return errorResponse(res, 400, 'initData is required', MINIAPP_ERROR_CODES.INITDATA_REQUIRED);
+    if (!initData && !keyboardAuth) {
+      return errorResponse(res, 400, 'initData or keyboardAuth is required', MINIAPP_ERROR_CODES.INITDATA_REQUIRED);
     }
     if (!kind) {
       return errorResponse(res, 400, 'kind must be PICK or PRICE_TERMS', MINIAPP_ERROR_CODES.VALIDATION);
@@ -1590,20 +1598,54 @@ router.post('/lead-intents', async (req, res) => {
       return errorResponse(res, 400, 'Lead intents are not available for B2B MiniApp', MINIAPP_ERROR_CODES.BOT_FLOW_UNAVAILABLE);
     }
 
-    const initCheck = await requireInitData(initData, config.companyId, config.botId);
-    if (!initCheck.ok) {
-      logger.warn('[MiniApp] lead intent initData invalid', {
-        requestId,
-        slug,
-        companyId: config.companyId,
-        botId: config.botId || null,
-        reason: initCheck.message,
-        diagnostics: buildInitDataDiagnostics(initData)
-      });
-      return errorResponse(res, 401, initCheck.message || 'Invalid Telegram init data', MINIAPP_ERROR_CODES.INITDATA_INVALID);
-    }
+    let telegram: ReturnType<typeof parseMiniAppTelegramIdentity>;
+    let authSource: 'initData' | 'reply_keyboard' = 'initData';
+    let lang: Lang = 'UK';
+    if (initData) {
+      const initCheck = await requireInitData(initData, config.companyId, config.botId);
+      if (!initCheck.ok) {
+        logger.warn('[MiniApp] lead intent initData invalid', {
+          requestId,
+          slug,
+          companyId: config.companyId,
+          botId: config.botId || null,
+          reason: initCheck.message,
+          diagnostics: buildInitDataDiagnostics(initData)
+        });
+        return errorResponse(res, 401, initCheck.message || 'Invalid Telegram init data', MINIAPP_ERROR_CODES.INITDATA_INVALID);
+      }
 
-    const telegram = parseMiniAppTelegramIdentity(initData);
+      telegram = parseMiniAppTelegramIdentity(initData);
+    } else {
+      const keyboardAuthCheck = verifyClientLeadMiniAppAuthToken(keyboardAuth, {
+        companyId: config.companyId,
+        botId: config.botId
+      });
+      if (!keyboardAuthCheck.ok) {
+        logger.warn('[MiniApp] lead intent keyboard auth invalid', {
+          requestId,
+          slug,
+          companyId: config.companyId,
+          botId: config.botId || null,
+          reason: keyboardAuthCheck.reason
+        });
+        return errorResponse(
+          res,
+          401,
+          keyboardAuthCheck.reason === 'expired' ? 'Telegram keyboard session expired' : 'Invalid Telegram keyboard session',
+          keyboardAuthCheck.reason === 'expired' ? TELEGRAM_KEYBOARD_AUTH_EXPIRED : TELEGRAM_KEYBOARD_AUTH_INVALID
+        );
+      }
+      const payload = keyboardAuthCheck.payload;
+      authSource = 'reply_keyboard';
+      lang = payload.lang === 'UK' || payload.lang === 'EN' || payload.lang === 'RU' ? payload.lang : 'UK';
+      telegram = {
+        userId: payload.userId,
+        username: payload.username,
+        name: payload.name,
+        raw: payload
+      };
+    }
     if (!telegram.userId) {
       return errorResponse(res, 400, 'Telegram user not found', MINIAPP_ERROR_CODES.INITDATA_INVALID);
     }
@@ -1638,6 +1680,7 @@ router.post('/lead-intents', async (req, res) => {
         kind: kind.kind,
         criteria,
         source: 'miniapp_lead_intent',
+        authSource,
         requestId
       },
       telegram: {
@@ -1686,7 +1729,12 @@ router.post('/lead-intents', async (req, res) => {
         token: bot.token,
         chatId: pending.chatId || telegram.userId,
         text: `✅ Запит отримано. Використали збережений контакт ${knownContact.phone}. Менеджер звʼяжеться з вами найближчим часом.`,
-        replyMarkup: { remove_keyboard: true },
+        replyMarkup: buildClientLeadMiniAppKeyboard(bot as any, lang, {
+          chatId: pending.chatId || telegram.userId,
+          userId: telegram.userId,
+          username: telegram.username,
+          name: telegram.name
+        }),
         companyId: config.companyId,
         userId: telegram.userId
       }).catch((e: unknown) => {

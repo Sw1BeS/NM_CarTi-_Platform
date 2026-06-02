@@ -216,7 +216,12 @@ export const routeWebApp = async (ctx: PipelineContext) => {
           telegramName
         });
 
-        await sendMessage(ctx, `✅ Запит отримано. Використали збережений контакт ${knownContact.phone}.`, buildClientLeadMiniAppKeyboard(ctx.bot, lang));
+        await sendMessage(ctx, `✅ Запит отримано. Використали збережений контакт ${knownContact.phone}.`, buildClientLeadMiniAppKeyboard(ctx.bot, lang, {
+          chatId: ctx.chatId || String(from.id),
+          userId: String(from.id),
+          username: telegramUsername,
+          name: telegramName
+        }));
         if (ctx.bot.adminChatId) {
           const adminText = buildLeadAdminNotificationText({
             header: '🟢 [LEAD] MiniApp legacy submit',

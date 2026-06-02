@@ -62,7 +62,8 @@ export type MiniAppRequestPayload = {
 
 export type MiniAppLeadIntentPayload = {
   slug: string;
-  initData: string;
+  initData?: string;
+  keyboardAuth?: string;
   kind: 'PICK' | 'PRICE_TERMS';
   carListingId?: string;
   carListingIds?: string[];

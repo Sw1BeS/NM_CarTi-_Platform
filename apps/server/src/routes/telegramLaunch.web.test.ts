@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  clearTelegramLaunchValues,
+  readRuntimeTelegramKeyboardAuth,
   readRuntimeTelegramInitData,
   readTelegramLaunchValue,
   resolveTelegramLaunchContext
@@ -27,6 +29,52 @@ describe('Telegram MiniApp launch context helper', () => {
 
     expect(readTelegramLaunchValue('tgWebAppData', { hash })).toBe(initData);
     expect(readTelegramLaunchValue('startapp', { hash })).toBe('view_stock');
+  });
+
+  it('reads reply-keyboard auth from the URL fragment', async () => {
+    const context = await resolveTelegramLaunchContext({
+      attempts: 1,
+      delayMs: 0,
+      windowRef: {
+        location: { hash: '#kbAuth=v1.token.signature&entry=request' },
+        navigator: { userAgent: 'Telegram iOS' },
+        Telegram: {
+          WebApp: {
+            initData: '',
+            initDataUnsafe: {},
+            platform: 'ios',
+            version: '7.10'
+          }
+        }
+      }
+    });
+
+    expect(readRuntimeTelegramKeyboardAuth({
+      location: { hash: '#kbAuth=v1.token.signature&entry=request' }
+    })).toBe('v1.token.signature');
+    expect(context.keyboardAuth).toBe('v1.token.signature');
+    expect(context.isTelegramContext).toBe(true);
+  });
+
+  it('removes reply-keyboard auth from the visible URL without touching other hash params', () => {
+    const replaceState = vi.fn();
+    vi.stubGlobal('window', {
+      location: {
+        href: 'https://cartie.test/p/app/cartie#kbAuth=v1.secret.signature&entry=request',
+        pathname: '/p/app/cartie',
+        search: '',
+        hash: '#kbAuth=v1.secret.signature&entry=request'
+      },
+      history: {
+        state: { ok: true },
+        replaceState
+      }
+    });
+
+    clearTelegramLaunchValues(['kbAuth']);
+
+    expect(replaceState).toHaveBeenCalledWith({ ok: true }, '', '/p/app/cartie#entry=request');
+    vi.unstubAllGlobals();
   });
 
   it('prefers Telegram bridge initData over URL fallback and keeps bridge start_param source', async () => {

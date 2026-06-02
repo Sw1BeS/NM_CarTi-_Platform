@@ -44,7 +44,9 @@ const SENSITIVE_EVENT_SOURCE_PARAMS = [
     'initData',
     'init_data',
     'telegramInitData',
-    'telegram_init_data'
+    'telegram_init_data',
+    'kbAuth',
+    'keyboardAuth'
 ];
 
 export const sanitizeMiniAppEventSourceUrl = (value: unknown) => {

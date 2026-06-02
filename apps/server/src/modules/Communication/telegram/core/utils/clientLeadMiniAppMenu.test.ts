@@ -1,14 +1,22 @@
 import { describe, expect, it } from 'vitest';
+import { verifyClientLeadMiniAppAuthToken } from './clientLeadMiniAppAuth.js';
 import { buildClientLeadMiniAppKeyboard } from './clientLeadMiniAppMenu.js';
 
 describe('clientLeadMiniAppMenu', () => {
   it('builds a persistent two-column menu with direct MiniApp web_app buttons', () => {
     const markup = buildClientLeadMiniAppKeyboard({
+      id: 'bot_1',
+      companyId: 'company_1',
       config: {
         miniAppConfig: { url: 'https://example.com/p/app/cartie' },
         defaultShowcaseSlug: 'cartie'
       }
-    } as any, 'UK');
+    } as any, 'UK', {
+      chatId: '1001',
+      userId: '1001',
+      username: 'client_ua',
+      name: 'Client'
+    });
 
     expect(markup.inline_keyboard).toBeUndefined();
     expect(markup.keyboard).toHaveLength(3);
@@ -43,5 +51,18 @@ describe('clientLeadMiniAppMenu', () => {
     const contactsUrl = new URL(flat[5].web_app!.url);
     expect(contactsUrl.searchParams.get('entry')).toBe('contacts');
     expect(contactsUrl.searchParams.has('v')).toBe(false);
+    expect(contactsUrl.searchParams.has('kbAuth')).toBe(false);
+
+    const auth = new URLSearchParams(contactsUrl.hash.replace(/^#/, '')).get('kbAuth');
+    const verified = verifyClientLeadMiniAppAuthToken(auth, { botId: 'bot_1', companyId: 'company_1' });
+    expect(verified).toMatchObject({
+      ok: true,
+      payload: expect.objectContaining({
+        userId: '1001',
+        chatId: '1001',
+        username: 'client_ua',
+        typ: 'client_lead_reply_keyboard'
+      })
+    });
   });
 });

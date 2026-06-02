@@ -12,6 +12,7 @@ export type TelegramStartParamSource = 'bridge' | 'tgWebAppStartParam' | 'starta
 export type TelegramLaunchContext = {
   tg: any;
   initData?: string;
+  keyboardAuth?: string;
   startParam?: string;
   startParamSource?: TelegramStartParamSource;
   user: TgUser | null;
@@ -139,6 +140,38 @@ export const readRuntimeTelegramInitData = (windowRef?: WindowLike): string => {
   return bridgeInitData || readTelegramLaunchValue('tgWebAppData', win?.location);
 };
 
+export const readRuntimeTelegramKeyboardAuth = (windowRef?: WindowLike): string =>
+  readTelegramLaunchValue('kbAuth', (windowRef || getDefaultWindow())?.location);
+
+export const clearTelegramLaunchValues = (keys: string[], windowRef?: WindowLike) => {
+  const win = windowRef || getDefaultWindow();
+  if (!win?.location || typeof window === 'undefined' || !window.history?.replaceState) return;
+  const keySet = new Set(keys.map(key => key.trim()).filter(Boolean));
+  if (!keySet.size) return;
+
+  try {
+    const url = new URL(window.location.href);
+    keySet.forEach(key => url.searchParams.delete(key));
+
+    const rawHash = url.hash.startsWith('#') ? url.hash.slice(1) : url.hash;
+    if (rawHash) {
+      const queryIndex = rawHash.indexOf('?');
+      const prefix = queryIndex >= 0 ? rawHash.slice(0, queryIndex + 1) : '';
+      const hashQuery = queryIndex >= 0 ? rawHash.slice(queryIndex + 1) : rawHash;
+      if (hashQuery.includes('=')) {
+        const params = new URLSearchParams(hashQuery);
+        keySet.forEach(key => params.delete(key));
+        const nextHashQuery = params.toString();
+        url.hash = nextHashQuery ? `${prefix}${nextHashQuery}` : (prefix ? prefix.slice(0, -1) : '');
+      }
+    }
+
+    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+  } catch {
+    // URL cleanup is cosmetic; it must not block Mini App bootstrap.
+  }
+};
+
 export const parseTelegramUserFromInitData = (rawInitData?: string): TgUser | null => {
   if (!rawInitData) return null;
   try {
@@ -171,6 +204,7 @@ export const resolveTelegramLaunchContext = async (
   const attempts = Math.max(1, options.attempts ?? 20);
   const delayMs = Math.max(0, options.delayMs ?? 150);
   const launchInitData = readTelegramLaunchValue('tgWebAppData', location);
+  const launchKeyboardAuth = readTelegramLaunchValue('kbAuth', location);
   const launchStartParam = readTelegramLaunchParam(location);
   const launchPlatform = readTelegramLaunchValue('tgWebAppPlatform', location);
   const launchVersion = readTelegramLaunchValue('tgWebAppVersion', location);
@@ -196,6 +230,7 @@ export const resolveTelegramLaunchContext = async (
     return {
       tg,
       initData: resolvedInitData || undefined,
+      keyboardAuth: launchKeyboardAuth || undefined,
       startParam: bridgeStartParam || launchStartParam.value || undefined,
       startParamSource: bridgeStartParam ? 'bridge' : launchStartParam.source as TelegramStartParamSource | undefined,
       user: resolvedUser,

@@ -1,6 +1,7 @@
 import express from 'express';
 import request from 'supertest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { createClientLeadMiniAppAuthToken } from '../modules/Communication/telegram/core/utils/clientLeadMiniAppAuth.js';
 
 const {
   miniAppServiceMock,
@@ -356,6 +357,61 @@ describe('MiniApp Lead handoff routes', () => {
         keyboard: [[expect.objectContaining({ request_contact: true })], [expect.any(Object)]],
         resize_keyboard: true,
         one_time_keyboard: true
+      })
+    }));
+  });
+
+  it('creates a pending B2C lead intent from reply-keyboard auth without Telegram initData', async () => {
+    const keyboardAuth = createClientLeadMiniAppAuthToken({
+      botId: 'bot_1',
+      companyId: 'company_1',
+      chatId: '1001',
+      userId: '1001',
+      username: 'client_one',
+      name: 'Ivan Client',
+      lang: 'UK'
+    });
+    const app = await buildApp();
+
+    const res = await request(app)
+      .post('/api/miniapp/lead-intents')
+      .send({
+        slug: 'cartie',
+        keyboardAuth,
+        kind: 'PRICE_TERMS',
+        carListingId: 'car_1',
+        criteria: {
+          title: 'Mercedes-Benz S 500'
+        },
+        tracking: {
+          submitId: 'submit_keyboard_auth',
+          keyboardAuth: 'must-not-persist'
+        }
+      });
+
+    expect(res.status).toBe(200);
+    expect(verifyInitDataMock).not.toHaveBeenCalled();
+    expect(requestContractServiceMock.createPendingLeadIntent).toHaveBeenCalledWith(expect.objectContaining({
+      slug: 'cartie',
+      intentType: 'INTEREST',
+      carListingId: 'car_1',
+      tracking: expect.not.objectContaining({
+        keyboardAuth: expect.any(String)
+      }),
+      telegram: {
+        userId: '1001',
+        username: 'client_one',
+        name: 'Ivan Client'
+      },
+      payload: expect.objectContaining({
+        authSource: 'reply_keyboard',
+        kind: 'PRICE_TERMS'
+      })
+    }));
+    expect(telegramOutboxMock.sendMessage).toHaveBeenCalledWith(expect.objectContaining({
+      chatId: '1001',
+      replyMarkup: expect.objectContaining({
+        keyboard: [[expect.objectContaining({ request_contact: true })], [expect.any(Object)]]
       })
     }));
   });
