@@ -228,6 +228,11 @@ export type VehicleTaxonomyBrand = VehicleTaxonomyOption & {
 };
 
 export type VehicleTaxonomyResponse = {
+  ok?: boolean;
+  version?: string;
+  source?: 'LOCAL_SNAPSHOT' | 'EMERGENCY_FALLBACK';
+  updatedAt?: string;
+  stale?: boolean;
   brands: VehicleTaxonomyBrand[];
   bodyTypes: VehicleTaxonomyOption[];
   fuels: VehicleTaxonomyOption[];

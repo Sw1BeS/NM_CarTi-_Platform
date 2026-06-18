@@ -11,6 +11,7 @@ import requestsRoutes from './modules/Sales/requests/requests.routes.js';
 import publicRoutes from './routes/publicRoutes.js';
 import miniAppRoutes from './routes/miniAppRoutes.js';
 import trackingRedirectRoutes from './modules/Attribution/trackingRedirect.routes.js';
+import vehicleTaxonomyRoutes from './modules/VehicleTaxonomy/vehicleTaxonomy.routes.js';
 import companyRoutes from './modules/Core/companies/company.routes.js';
 import templateRoutes from './modules/Core/templates/template.routes.js';
 import integrationRoutes from './modules/Integrations/integration.routes.js';
@@ -78,6 +79,7 @@ app.use('/api/telegram', telegramRoutes);
 app.use('/r', trackingRedirectRoutes);
 app.use('/api/public', publicRoutes);
 app.use('/api/miniapp', miniAppRoutes);
+app.use('/api/vehicle-taxonomy', vehicleTaxonomyRoutes);
 
 // 3) Auth Routes
 app.use('/api/auth', authRoutes);
@@ -107,6 +109,7 @@ apiV2Router.get('/health', checkHealth);
 apiV2Router.get('/health/platform-readiness', checkPlatformReadiness);
 apiV2Router.use('/public', publicRoutes);
 apiV2Router.use('/miniapp', miniAppRoutes);
+apiV2Router.use('/vehicle-taxonomy', vehicleTaxonomyRoutes);
 apiV2Router.use('/auth', authRoutes);
 apiV2Router.use('/system', systemRoutes);
 apiV2Router.use('/entities', entityRoutes);

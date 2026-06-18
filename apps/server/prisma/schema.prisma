@@ -2260,3 +2260,100 @@ model ViewDefinition {
   @@index([workspace_id, entity_type_id])
   @@map("view_definitions")
 }
+
+model VehicleMake {
+  id            String   @id @default(cuid())
+  slug          String   @unique
+  label         String
+  normalizedKey String   @unique
+  countryScope  String?
+  active        Boolean  @default(true)
+  sourceMeta    Json     @default("{}") @db.JsonB
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  models VehicleModel[]
+
+  @@index([active])
+}
+
+model VehicleModel {
+  id            String   @id @default(cuid())
+  makeId        String
+  slug          String
+  label         String
+  normalizedKey String
+  active        Boolean  @default(true)
+  sourceMeta    Json     @default("{}") @db.JsonB
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  make VehicleMake @relation(fields: [makeId], references: [id], onDelete: Cascade)
+
+  @@unique([makeId, normalizedKey])
+  @@index([makeId])
+  @@index([active])
+}
+
+model VehicleSpecOption {
+  id            String   @id @default(cuid())
+  group         String
+  slug          String
+  label         String
+  normalizedKey String
+  active        Boolean  @default(true)
+  sourceMeta    Json     @default("{}") @db.JsonB
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([group, normalizedKey])
+  @@index([group, active])
+}
+
+model GeoPlace {
+  id            String   @id @default(cuid())
+  countryCode   String
+  slug          String
+  label         String
+  normalizedKey String
+  type          String
+  region        String?
+  latitude      Float?
+  longitude     Float?
+  sourceMeta    Json     @default("{}") @db.JsonB
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([countryCode, type, normalizedKey])
+  @@index([countryCode, active])
+  @@index([region])
+}
+
+model TaxonomySyncRun {
+  id         String    @id @default(cuid())
+  source     String
+  status     String
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+  counts     Json      @default("{}") @db.JsonB
+  error      String?
+  sourceMeta Json      @default("{}") @db.JsonB
+
+  @@index([source, startedAt])
+  @@index([status])
+}
+
+model VehicleTaxonomyCandidate {
+  id         String    @id @default(cuid())
+  kind       String
+  label      String
+  makeLabel  String?
+  source     String
+  evidence   Json      @default("{}") @db.JsonB
+  status     String    @default("NEW")
+  createdAt  DateTime  @default(now())
+  reviewedAt DateTime?
+
+  @@index([kind, status])
+}
