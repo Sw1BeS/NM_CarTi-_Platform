@@ -1,13 +1,14 @@
 # Vehicle Taxonomy Source Checkpoint
 
 Date: 2026-06-18
-Status: implementation slice verified
+Status: implementation and UI/UX slice verified
 
 ## TodoCheckpointDraft
 
 - Active slice: Tasks 1-4 baseline implementation.
 - Continuation slice: Task 5 candidate quarantine, Task 6 parser helper extraction, Task 7 ADR.
 - Rollout slice: safe operator CLI and staging runbook.
+- UI/UX slice: MiniApp request form scalability and Pro Max mobile interaction pass.
 - Current todo:
   1. Apply migration on verified staging/dev DB.
   2. Run `vehicle-taxonomy:sync` dry-run on staging/dev.
@@ -39,6 +40,12 @@ Status: implementation slice verified
   - Safe operator CLI added: `npm --prefix apps/server run vehicle-taxonomy:sync`.
   - Write-mode gate added: `ALLOW_VEHICLE_TAXONOMY_SYNC_WRITE=1`.
   - Rollout runbook added under `docs/aegis/work/2026-06-18-vehicle-taxonomy-rollout/`.
+  - MiniApp city selection changed from chip grid to searchable combobox.
+  - `SearchableSelect` and `MultiSelectCombobox` updated for 48px touch targets, visible focus states, capped result lists, and overscroll containment.
+  - City combobox supports a typed fallback when taxonomy has no match; make/model selection remains dictionary-bound.
+  - Request form numeric fields use mobile numeric keyboard hints.
+  - `prefers-reduced-motion` handling added globally.
+  - MiniApp request flow design rules recorded in `apps/web/docs/DESIGN_SYSTEM.md`.
 - Evidence refs:
   - Worktree: `/root/.config/aegis/worktrees/cartie/vehicle-taxonomy-source`
   - Branch: `feature/vehicle-taxonomy-source`
@@ -54,6 +61,9 @@ Status: implementation slice verified
   - Disposable Postgres `migrate deploy` exposed a pre-existing blank-DB migration-chain issue in `20240320000000_add_showcase`.
   - Disposable Postgres `db push --skip-generate` plus gated `EMERGENCY_FALLBACK --apply` passed.
   - Disposable public mapper smoke returned `LOCAL_SNAPSHOT`, `stale=false`, and zero duplicate brand IDs.
+  - Final full server suite passed after UI/UX continuation: 113 files, 507 tests.
+  - Final server TypeScript build passed.
+  - Final web production build passed with existing Browserslist/chunk-size warnings only.
 - Blockers:
   - Normal `npm --prefix apps/web install` needs `--legacy-peer-deps` due existing React 19 / `@emoji-mart/react` peer conflict.
   - Live AUTO.RIA sync needs a valid `autoriaApiKey`/`AUTORIA_API_KEY`.
@@ -76,4 +86,4 @@ git status --short --branch
 - New owner/fallback/adapter appeared? yes; owner module, fallback, routes, providers, and sync service are implemented.
 - Retirement track explicit? yes in parent plan.
 - Evidence enough for next claim? yes for isolated rollout verification; live write-run remains intentionally blocked.
-- Decision: continue only on verified staging/dev target or prepare branch for review/merge.
+- Decision: no further local code work is pending; continue only on verified staging/dev target or prepare branch for review/merge.

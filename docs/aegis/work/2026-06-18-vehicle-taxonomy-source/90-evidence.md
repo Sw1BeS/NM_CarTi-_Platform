@@ -39,5 +39,16 @@ Date: 2026-06-18
 - Disposable Postgres `prisma migrate deploy` failed before the new taxonomy migration on old migration `20240320000000_add_showcase` because a blank DB lacks `workspaces`; this is a pre-existing blank-DB bootstrap issue.
 - Disposable Postgres verification with `CREATE EXTENSION citext`, `prisma db push --skip-generate`, and gated `EMERGENCY_FALLBACK --apply` passed with 14 makes, 102 models, 22 spec options, 9 places, and no duplicate makes.
 - Disposable public mapper smoke after local snapshot apply returned `source=LOCAL_SNAPSHOT`, `stale=false`, `brand_count=15`, `city_count=9`, and `duplicate_brand_id_count=0`.
+- UI/UX continuation applied `team-skills-platform:ui-ux-promax` checklist to the MiniApp request form:
+  - City selection changed from chip grid to searchable combobox.
+  - Combobox controls now have 48px touch targets, visible focus rings, capped visible results, and overscroll containment.
+  - City selection supports a typed fallback when taxonomy has no match; make/model selection remains dictionary-bound.
+  - Numeric request fields use mobile numeric keyboard hints.
+  - Global `prefers-reduced-motion` handling added.
+  - MiniApp request flow rules recorded in `apps/web/docs/DESIGN_SYSTEM.md`.
+- Final full verification from current HEAD on 2026-06-18:
+  - `npm --prefix apps/server test` passed: 113 test files, 507 tests.
+  - `npm --prefix apps/server run build -- --pretty false` passed.
+  - `npm --prefix apps/web run build` passed; Vite reported existing Browserslist and large chunk warnings.
 
 Further verification pending for any live provider sync against real credentials/data URLs.

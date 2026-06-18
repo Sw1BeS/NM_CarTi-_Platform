@@ -128,6 +128,21 @@ Results:
 - Server TypeScript build passed.
 - Web production build passed with existing Browserslist/chunk-size warnings only.
 
+Final continuation verification on 2026-06-18 after MiniApp UI/UX Pro Max changes:
+
+```bash
+npm --prefix apps/server test
+npm --prefix apps/server run build -- --pretty false
+npm --prefix apps/web run build
+```
+
+Results:
+
+- Full server suite passed: 113 files, 507 tests.
+- Server TypeScript build passed.
+- Web production build passed with existing Browserslist/chunk-size warnings only.
+- Browser smoke against `http://127.0.0.1:4174/p/app/cartie` loaded the MiniApp fallback; direct request form smoke remains gated by Telegram initData in browser preview mode.
+
 ## Rollback
 
 - Disable write runs by removing `ALLOW_VEHICLE_TAXONOMY_SYNC_WRITE=1`.
