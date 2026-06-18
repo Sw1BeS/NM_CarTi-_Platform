@@ -488,11 +488,13 @@ export const RequestView = ({
                 </div>
               </Field>
               <Field label="Місто">
-                <div className="grid grid-cols-2 gap-2">
-                  {cityOptions.map(city => (
-                    <Chip key={city.id} selected={reqData.city === city.label} onClick={() => setReqData({ ...reqData, city: city.label })}>{city.label}</Chip>
-                  ))}
-                </div>
+                <SearchableSelect
+                  label="Пошук міста"
+                  placeholder="Почніть вводити місто"
+                  value={reqData.city}
+                  options={cityOptions}
+                  onChange={city => setReqData({ ...reqData, city })}
+                />
               </Field>
             </div>
           )}
