@@ -5,6 +5,7 @@ import {
   EMERGENCY_SPEC_OPTIONS,
   EMERGENCY_VEHICLE_MAKES
 } from './vehicleTaxonomy.fallback.js';
+import { shouldRejectPublicModelLabel } from './vehicleTaxonomy.candidates.js';
 import { normalizeTaxonomyLabel, vehicleTaxonomyId } from './vehicleTaxonomy.ids.js';
 import { vehicleTaxonomyRepository } from './vehicleTaxonomy.repository.js';
 import type {
@@ -26,13 +27,6 @@ const SPEC_GROUPS = {
   transmissions: ['transmission', 'gearbox', 'кпп'],
   drives: ['drive', 'drivetrain', 'привід']
 } as const;
-
-const noisyModelPatterns = [
-  /опис від продавця/i,
-  /відсутній у розшуку/i,
-  /офіційних відкритих/i,
-  /перевірк/i
-];
 
 export { vehicleTaxonomyId };
 
@@ -93,8 +87,7 @@ const option = (
 const shouldKeepModel = (label: unknown) => {
   const normalized = normalizeLabel(label);
   if (!normalized) return false;
-  if (normalized.length > 80) return false;
-  return !noisyModelPatterns.some((pattern) => pattern.test(normalized));
+  return !shouldRejectPublicModelLabel(normalized);
 };
 
 const ensureOtherModel = (models: VehicleTaxonomyModel[], brandId: string) => {

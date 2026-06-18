@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { authenticateToken, requireRole } from '../../middleware/auth.js';
 import { errorResponse } from '../../utils/errorResponse.js';
+import { vehicleTaxonomyCandidateService } from './vehicleTaxonomy.candidates.js';
 import { vehicleTaxonomyService } from './vehicleTaxonomy.service.js';
 import { vehicleTaxonomySyncService, type VehicleTaxonomySyncSource } from './vehicleTaxonomy.sync.service.js';
 
@@ -19,6 +20,12 @@ const readSources = (value: unknown): VehicleTaxonomySyncSource[] | undefined =>
     return value.split(',').map((entry) => entry.trim()).filter(Boolean) as VehicleTaxonomySyncSource[];
   }
   return undefined;
+};
+
+const readNumber = (value: unknown) => {
+  const raw = Array.isArray(value) ? value[0] : value;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) ? parsed : undefined;
 };
 
 router.get('/public', async (req, res) => {
@@ -53,6 +60,20 @@ router.get('/sync/status', authenticateToken, requireRole(['ADMIN', 'SUPER_ADMIN
     res.json({ ok: true, syncRun });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Failed to load vehicle taxonomy sync status';
+    errorResponse(res, 500, message);
+  }
+});
+
+router.post('/candidates/scan-observed', authenticateToken, requireRole(['ADMIN', 'SUPER_ADMIN']), async (req, res) => {
+  try {
+    const user = (req as any).user;
+    const result = await vehicleTaxonomyCandidateService.collectObservedInventoryCandidates({
+      companyId: readString(req.body?.companyId) || user?.companyId || user?.workspaceId || null,
+      limit: readNumber(req.body?.limit)
+    });
+    res.json({ ok: true, result });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Failed to scan vehicle taxonomy candidates';
     errorResponse(res, 500, message);
   }
 });

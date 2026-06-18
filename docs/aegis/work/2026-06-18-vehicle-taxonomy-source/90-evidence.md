@@ -24,5 +24,10 @@ Date: 2026-06-18
 - Initial `npm --prefix apps/web run build` failed because web `node_modules` were absent in the worktree (`vite: not found`).
 - `npm --prefix apps/web ci --legacy-peer-deps` passed; npm audit reported 11 existing vulnerabilities.
 - `npm --prefix apps/web run build` passed; Vite reported existing warnings for old Browserslist DB and large chunks.
+- `npm --prefix apps/server test -- src/modules/VehicleTaxonomy/vehicleTaxonomy.candidates.test.ts` failed RED before candidate implementation and passed after implementation.
+- `npm --prefix apps/server test -- src/modules/VehicleTaxonomy/vehicleTaxonomy.candidates.test.ts src/modules/VehicleTaxonomy/vehicleTaxonomy.service.test.ts src/services/vehicleTaxonomy.service.test.ts` passed after the public mapper imported the shared reject helper.
+- `npm --prefix apps/server test -- src/services/taxonomy.test.ts` failed RED before `detectMakeFromKnownList` and passed after helper extraction.
+- `npm --prefix apps/server test -- src/services/taxonomy.test.ts src/__tests__/enhanced-parsing.utils.test.ts` passed after helper extraction.
+- `npm --prefix apps/server test -- src/modules/VehicleTaxonomy/vehicleTaxonomy.routes.test.ts src/modules/VehicleTaxonomy/vehicleTaxonomy.candidates.test.ts` passed after adding the admin candidate scan route.
 
 Further verification pending for any live provider sync against real credentials/data URLs.

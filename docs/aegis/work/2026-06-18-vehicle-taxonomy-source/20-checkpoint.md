@@ -6,11 +6,11 @@ Status: implementation slice verified
 ## TodoCheckpointDraft
 
 - Active slice: Tasks 1-4 baseline implementation.
+- Continuation slice: Task 5 candidate quarantine, Task 6 parser helper extraction, Task 7 ADR.
 - Current todo:
   1. Decide whether to run a local non-production seed with `EMERGENCY_FALLBACK`.
   2. Decide live provider credentials/limits for AUTO.RIA and KATOTTG/GeoNames URLs.
-  3. Add candidate quarantine producer from observed inventory if continuing Task 5.
-  4. Add operator runbook for production sync.
+  3. Add operator runbook for production sync.
 - Completed todos:
   - Approved spec copied into isolated worktree.
   - Implementation plan copied into isolated worktree.
@@ -29,6 +29,10 @@ Status: implementation slice verified
   - Task 4 provider adapters implemented for AUTO.RIA, NHTSA vPIC, KATOTTG CSV, and GeoNames TSV.
   - Sync service supports injected providers, dry-run counts, and non-dry-run upserts into local taxonomy tables.
   - Frontend MiniApp API type accepts optional taxonomy metadata.
+  - Candidate quarantine service added for rejected observed-inventory model labels.
+  - Admin route added: `POST /api/vehicle-taxonomy/candidates/scan-observed`.
+  - `detectMakeFromKnownList` extracted for synchronous parser compatibility.
+  - ADR added for vehicle taxonomy local snapshot ownership.
 - Evidence refs:
   - Worktree: `/root/.config/aegis/worktrees/cartie/vehicle-taxonomy-source`
   - Branch: `feature/vehicle-taxonomy-source`
@@ -38,6 +42,7 @@ Status: implementation slice verified
   - `npm --prefix apps/server run build -- --pretty false` passed.
   - `npm --prefix apps/web ci --legacy-peer-deps` passed.
   - `npm --prefix apps/web run build` passed.
+  - Candidate/route/parser continuation tests passed.
 - Blockers:
   - Normal `npm --prefix apps/web install` needs `--legacy-peer-deps` due existing React 19 / `@emoji-mart/react` peer conflict.
   - Live AUTO.RIA sync needs a valid `autoriaApiKey`/`AUTORIA_API_KEY`.

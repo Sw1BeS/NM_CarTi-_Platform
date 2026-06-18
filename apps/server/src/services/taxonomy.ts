@@ -6,19 +6,22 @@ export const CAR_MAKES = [
     'Subaru', 'Suzuki', 'Tesla', 'Toyota', 'Volkswagen', 'Volvo', 'Zeekr', 'Li Auto', 'Lixiang'
 ];
 
-export const detectMake = (text: string): string | null => {
-    if (!text) return null;
-    const lower = text.toLowerCase();
+const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const makePattern = (make: string) =>
+    make.split(/[-\s]+/).filter(Boolean).map(escapeRegex).join('[ -]+');
 
-    // Sort by length desc to match "Mercedes-Benz" before "Mercedes"
-    const sorted = [...CAR_MAKES].sort((a, b) => b.length - a.length);
+export const detectMakeFromKnownList = (text: string, makes: string[]): string | null => {
+    if (!text) return null;
+
+    const sorted = [...makes].filter(Boolean).sort((a, b) => b.length - a.length);
 
     for (const make of sorted) {
-        // Look for word boundary or start of string
-        const regex = new RegExp(`\\b${make.replace('-', '[- ]?')}\\b`, 'i');
+        const regex = new RegExp(`\\b${makePattern(make)}\\b`, 'i');
         if (regex.test(text)) {
             return make;
         }
     }
     return null;
 };
+
+export const detectMake = (text: string): string | null => detectMakeFromKnownList(text, CAR_MAKES);

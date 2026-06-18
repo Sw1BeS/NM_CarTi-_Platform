@@ -11,12 +11,20 @@ const syncServiceMock = vi.hoisted(() => ({
   getLatestRun: vi.fn()
 }));
 
+const candidateServiceMock = vi.hoisted(() => ({
+  collectObservedInventoryCandidates: vi.fn()
+}));
+
 vi.mock('./vehicleTaxonomy.service.js', () => ({
   vehicleTaxonomyService: serviceMock
 }));
 
 vi.mock('./vehicleTaxonomy.sync.service.js', () => ({
   vehicleTaxonomySyncService: syncServiceMock
+}));
+
+vi.mock('./vehicleTaxonomy.candidates.js', () => ({
+  vehicleTaxonomyCandidateService: candidateServiceMock
 }));
 
 vi.mock('../../middleware/auth.js', () => ({
@@ -91,6 +99,27 @@ describe('vehicle taxonomy routes', () => {
       sources: ['NHTSA'],
       dryRun: true,
       countryCode: 'UA'
+    });
+  });
+
+  it('scans observed inventory into candidates behind auth', async () => {
+    candidateServiceMock.collectObservedInventoryCandidates.mockResolvedValue({
+      scanned: 1,
+      rejectedModels: 1,
+      recorded: 1
+    });
+    const app = await buildApp();
+
+    const res = await request(app)
+      .post('/api/vehicle-taxonomy/candidates/scan-observed')
+      .set('authorization', 'Bearer test')
+      .send({ companyId: 'company_1', limit: 10 });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ ok: true, result: { scanned: 1, recorded: 1 } });
+    expect(candidateServiceMock.collectObservedInventoryCandidates).toHaveBeenCalledWith({
+      companyId: 'company_1',
+      limit: 10
     });
   });
 });
