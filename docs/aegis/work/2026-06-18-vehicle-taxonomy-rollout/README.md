@@ -1,7 +1,7 @@
 # Vehicle Taxonomy Rollout Runbook
 
 Date: 2026-06-18
-Status: ready for staging operator run
+Status: implementation verified; ready for staging operator run
 
 ## Boundary
 
@@ -88,6 +88,45 @@ Disposable verification on 2026-06-18 using a temporary Postgres container plus 
 
 - `EMERGENCY_FALLBACK --apply` writes 14 makes, 102 models, 22 spec options, and 9 places.
 - The public mapper returns `source: "LOCAL_SNAPSHOT"`, `stale: false`, and `duplicate_brand_id_count: 0`.
+
+Current deployed live read-only smoke on 2026-06-18 still showed the pre-rollout endpoint shape:
+
+- `brand_count: 51`
+- `city_count: 17`
+- `duplicate_brand_id_count: 16`
+- no `version`, `source`, or `stale` metadata
+
+That confirms production had not yet received this branch and should not be used as validation of the new local snapshot path.
+
+## Verification
+
+Completed on 2026-06-18:
+
+```bash
+npm --prefix apps/server test -- \
+  src/modules/VehicleTaxonomy/providers/autoria.provider.test.ts \
+  src/modules/VehicleTaxonomy/providers/nhtsa.provider.test.ts \
+  src/modules/VehicleTaxonomy/providers/geoplaces.provider.test.ts \
+  src/modules/VehicleTaxonomy/vehicleTaxonomy.repository.test.ts \
+  src/modules/VehicleTaxonomy/vehicleTaxonomy.service.test.ts \
+  src/modules/VehicleTaxonomy/vehicleTaxonomy.routes.test.ts \
+  src/modules/VehicleTaxonomy/vehicleTaxonomy.candidates.test.ts \
+  src/services/taxonomy.test.ts \
+  src/scripts/sync_vehicle_taxonomy.helpers.test.ts
+
+npm --prefix apps/server test -- src/modules/Integrations/meta/metaCapi.service.test.ts
+npm --prefix apps/server test
+npm --prefix apps/server run build -- --pretty false
+npm --prefix apps/web run build
+```
+
+Results:
+
+- Focused taxonomy/provider/route/CLI tests passed: 9 files, 21 tests.
+- Meta CAPI isolated test passed after replacing a fixed `2026-05-26T10:00:00Z` event time with a recent timestamp inside the 7-day retention window.
+- Full server suite passed: 113 files, 507 tests.
+- Server TypeScript build passed.
+- Web production build passed with existing Browserslist/chunk-size warnings only.
 
 ## Rollback
 

@@ -72,6 +72,8 @@ describe('MetaCapiService', () => {
   it('sends hashed ph and external_id with stable event_id', async () => {
     const { MetaCapiService } = await import('./metaCapi.service.js');
     const service = new MetaCapiService();
+    const recentEventTime = new Date(Date.now() - 60_000).toISOString();
+    const recentEventUnix = Math.floor(new Date(recentEventTime).getTime() / 1000);
 
     const result = await service.trackEvent('company_1', 'Lead', {
       entityType: 'lead',
@@ -84,7 +86,7 @@ describe('MetaCapiService', () => {
       fbp: 'fb.1.123',
       fbc: 'fb.1.456',
       eventSourceUrl: 'https://cartie.test/p/app/cartie?utm_source=meta&tgWebAppData=secret#tgWebAppData=query_id%3D1%26user%3Dsecret%26hash%3Dsecret',
-      eventTime: '2026-05-26T10:00:00Z'
+      eventTime: recentEventTime
     });
 
     const eventId = 'meta:company_1:Lead:lead:lead_1:created';
@@ -94,7 +96,7 @@ describe('MetaCapiService', () => {
     expect(payload.data[0]).toMatchObject({
       event_name: 'Lead',
       event_id: eventId,
-      event_time: Math.floor(new Date('2026-05-26T10:00:00Z').getTime() / 1000),
+      event_time: recentEventUnix,
       action_source: 'chat',
       event_source_url: 'https://cartie.test/p/app/cartie?utm_source=meta'
     });
