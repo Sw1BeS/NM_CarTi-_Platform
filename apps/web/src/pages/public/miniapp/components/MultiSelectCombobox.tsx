@@ -30,11 +30,13 @@ export const MultiSelectCombobox = ({
   const [query, setQuery] = React.useState('');
   const [open, setOpen] = React.useState(false);
   const [activeIndex, setActiveIndex] = React.useState(0);
-  const visibleOptions = React.useMemo(
-    () => options.filter((option) => matchesQuery(option, query)).slice(0, 24),
+  const matchingOptions = React.useMemo(
+    () => options.filter((option) => matchesQuery(option, query)),
     [options, query]
   );
+  const visibleOptions = matchingOptions.slice(0, 24);
   const activeOption = visibleOptions[activeIndex];
+  const hiddenOptionsCount = Math.max(0, matchingOptions.length - visibleOptions.length);
 
   const toggle = (option: SearchableSelectOption) => {
     if (option.disabled) return;
@@ -63,7 +65,7 @@ export const MultiSelectCombobox = ({
               <button
                 type="button"
                 onClick={() => remove(value)}
-                className="shrink-0 rounded-full p-0.5 text-white/55 hover:bg-white/10 hover:text-white"
+                className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-full text-white/55 transition-colors hover:bg-white/10 hover:text-white focus-visible:ring-2 focus-visible:ring-white/35 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
                 aria-label={`Прибрати ${value}`}
               >
                 <X size={14} />
@@ -79,12 +81,13 @@ export const MultiSelectCombobox = ({
           <input
             aria-label={label}
             aria-autocomplete="list"
+            aria-haspopup="listbox"
             aria-controls={listboxId}
             aria-activedescendant={activeOption ? `${listboxId}-${activeOption.id}` : undefined}
             aria-expanded={open && !disabled}
             role="combobox"
             disabled={disabled}
-            className="w-full rounded-xl border border-white/10 bg-[#15171a] py-3 pl-10 pr-4 text-sm font-semibold text-white outline-none transition-colors placeholder:text-white/30 focus:border-white/35 disabled:opacity-50"
+            className="min-h-[48px] w-full rounded-xl border border-white/10 bg-[#15171a] py-3 pl-10 pr-4 text-sm font-semibold text-white outline-none transition-colors placeholder:text-white/30 focus:border-white/35 focus-visible:ring-2 focus-visible:ring-white/35 focus-visible:ring-offset-2 focus-visible:ring-offset-black disabled:cursor-not-allowed disabled:opacity-50"
             placeholder={placeholder}
             value={query}
             onChange={(event) => {
@@ -120,7 +123,7 @@ export const MultiSelectCombobox = ({
             id={listboxId}
             role="listbox"
             aria-multiselectable="true"
-            className="absolute z-30 mt-2 max-h-64 w-full overflow-y-auto rounded-xl border border-white/12 bg-[#111316] shadow-2xl shadow-black/50"
+            className="absolute z-30 mt-2 max-h-64 w-full overflow-y-auto overscroll-contain rounded-xl border border-white/12 bg-[#111316] shadow-2xl shadow-black/50"
           >
             {visibleOptions.length ? visibleOptions.map((option, index) => {
               const selected = values.includes(option.label);
@@ -135,7 +138,7 @@ export const MultiSelectCombobox = ({
                   onMouseEnter={() => setActiveIndex(index)}
                   onMouseDown={(event) => event.preventDefault()}
                   onClick={() => toggle(option)}
-                  className={`flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm font-semibold transition-colors ${
+                  className={`flex min-h-[48px] w-full cursor-pointer items-center justify-between gap-3 px-4 py-3 text-left text-sm font-semibold transition-colors focus-visible:ring-2 focus-visible:ring-white/35 ${
                     selected || active ? 'bg-white/12 text-white' : 'text-white/78 hover:bg-white/8 hover:text-white'
                   }`}
                 >
@@ -145,6 +148,11 @@ export const MultiSelectCombobox = ({
               );
             }) : (
               <div className="px-4 py-3 text-sm text-white/50">Нічого не знайдено</div>
+            )}
+            {hiddenOptionsCount > 0 && (
+              <div className="border-t border-white/8 px-4 py-2 text-xs text-white/42">
+                Показано перші 24. Уточніть пошук, щоб звузити список.
+              </div>
             )}
           </div>
         )}

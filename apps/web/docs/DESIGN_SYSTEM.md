@@ -119,6 +119,28 @@ Based on **8px** grid system:
 
 ## Components
 
+### MiniApp Request Flow
+
+**Pattern**: mobile-first stepped form with progressive disclosure.
+
+**Style**: dark premium automotive UI with metallic primary actions, restrained panels, Lucide icons, and compact searchable controls.
+
+**Colors**: keep the existing black/surface/metal system. Use metallic primary actions for the main next/submit path, dark surfaces for secondary controls, yellow only for Telegram/session warnings, and red only for submission errors.
+
+**Typography**: Manrope/system stack. Keep compact labels for field names, but preserve at least 16px-equivalent readable input text on mobile controls.
+
+**Interaction rules**:
+- Searchable vehicle/city dictionaries must cap rendered options and ask the user to refine search when the source list is longer than the visible result set.
+- Touch targets in the request form must be at least 48px high.
+- Every input, chip, and combobox option must have visible keyboard focus.
+- City selection may accept a typed fallback when the taxonomy source has no match; brand/model selection stays dictionary-bound.
+
+**Anti-patterns to avoid**:
+- Rendering large taxonomy lists as chip grids.
+- Hiding field names and relying only on placeholders.
+- Showing technical provider names to MiniApp users.
+- Adding decorative gradients or emoji icons to form controls.
+
 ### Buttons
 
 #### `.btn-primary`

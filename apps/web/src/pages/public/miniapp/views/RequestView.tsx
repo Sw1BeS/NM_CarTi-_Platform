@@ -78,6 +78,9 @@ const metallicStyle: React.CSSProperties = {
   boxShadow: '0 10px 24px rgba(210, 216, 224, 0.18), inset 0 1px 0 rgba(255,255,255,0.85)'
 };
 
+const controlClassName = 'min-h-[48px] w-full rounded-xl border border-white/10 bg-[#15171a] p-3 text-white outline-none transition-colors placeholder-white/30 focus:border-white/35 focus-visible:ring-2 focus-visible:ring-white/35 focus-visible:ring-offset-2 focus-visible:ring-offset-black';
+const textAreaClassName = 'w-full min-h-[112px] rounded-xl border border-white/10 bg-[#15171a] p-4 text-white outline-none transition-colors placeholder-white/30 resize-none focus:border-white/35 focus-visible:ring-2 focus-visible:ring-white/35 focus-visible:ring-offset-2 focus-visible:ring-offset-black';
+
 const Field = ({ label, children }: { label: string; children: React.ReactNode }) => (
   <div>
     <label className="text-[10px] font-bold text-white/50 uppercase mb-2 block">{label}</label>
@@ -97,7 +100,7 @@ const Chip = ({
   <button
     type="button"
     onClick={onClick}
-    className={`min-h-[42px] px-3 py-2 rounded-xl border text-sm font-semibold transition-all active:scale-95 ${
+    className={`min-h-[48px] cursor-pointer px-3 py-2 rounded-xl border text-sm font-semibold transition-all active:scale-95 focus-visible:ring-2 focus-visible:ring-white/35 focus-visible:ring-offset-2 focus-visible:ring-offset-black ${
       selected ? 'border-white/55 text-black' : 'border-white/10 bg-[#181a1d] text-white/76'
     }`}
     style={selected ? metallicStyle : undefined}
@@ -398,7 +401,7 @@ export const RequestView = ({
                 )}
                 {selectedBrands.includes(OTHER_BRAND) && (
                   <input
-                    className="mt-3 w-full bg-[#15171a] text-white p-3 rounded-xl outline-none placeholder-white/30 border border-white/10 focus:border-white/30"
+                    className={`mt-3 ${controlClassName}`}
                     placeholder="Введіть марку"
                     value={reqData.brandCustom}
                     onChange={e => setReqData({ ...reqData, brandCustom: e.target.value })}
@@ -433,7 +436,7 @@ export const RequestView = ({
                 )}
                 {selectedModels.includes(OTHER_MODEL) && (
                   <input
-                    className="mt-3 w-full bg-[#15171a] text-white p-3 rounded-xl outline-none placeholder-white/30 border border-white/10 focus:border-white/30"
+                    className={`mt-3 ${controlClassName}`}
                     placeholder="Введіть модель"
                     value={reqData.modelCustom}
                     onChange={e => setReqData({ ...reqData, modelCustom: e.target.value })}
@@ -447,18 +450,18 @@ export const RequestView = ({
             <div className="space-y-4 animate-slide-up">
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Рік від">
-                  <input className="w-full bg-[#15171a] text-white p-3 rounded-xl outline-none border border-white/10" placeholder="2018" value={reqData.yearMin} onChange={e => setReqData({ ...reqData, yearMin: e.target.value })} />
+                  <input className={controlClassName} inputMode="numeric" placeholder="2018" value={reqData.yearMin} onChange={e => setReqData({ ...reqData, yearMin: e.target.value })} />
                 </Field>
                 <Field label="Рік до">
-                  <input className="w-full bg-[#15171a] text-white p-3 rounded-xl outline-none border border-white/10" placeholder="2024" value={reqData.yearMax} onChange={e => setReqData({ ...reqData, yearMax: e.target.value })} />
+                  <input className={controlClassName} inputMode="numeric" placeholder="2024" value={reqData.yearMax} onChange={e => setReqData({ ...reqData, yearMax: e.target.value })} />
                 </Field>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Бюджет від, $">
-                  <input className="w-full bg-[#15171a] text-white p-3 rounded-xl outline-none border border-white/10" placeholder="20000" value={reqData.budgetMin} onChange={e => setReqData({ ...reqData, budgetMin: e.target.value })} />
+                  <input className={controlClassName} inputMode="numeric" placeholder="20000" value={reqData.budgetMin} onChange={e => setReqData({ ...reqData, budgetMin: e.target.value })} />
                 </Field>
                 <Field label="Бюджет до, $">
-                  <input className="w-full bg-[#15171a] text-white p-3 rounded-xl outline-none border border-white/10" placeholder="60000" value={reqData.budgetMax} onChange={e => setReqData({ ...reqData, budgetMax: e.target.value })} />
+                  <input className={controlClassName} inputMode="numeric" placeholder="60000" value={reqData.budgetMax} onChange={e => setReqData({ ...reqData, budgetMax: e.target.value })} />
                 </Field>
               </div>
               <Field label="Тип кузова">
@@ -494,6 +497,8 @@ export const RequestView = ({
                   value={reqData.city}
                   options={cityOptions}
                   onChange={city => setReqData({ ...reqData, city })}
+                  allowCustom
+                  customOptionLabel={city => `Вказати "${city}"`}
                 />
               </Field>
             </div>
@@ -504,7 +509,7 @@ export const RequestView = ({
               {surfaceMode === 'B2B' && (
                 <Field label="Компанія">
                   <input
-                    className="w-full bg-[#15171a] text-white p-4 rounded-xl outline-none border border-white/10 placeholder-white/30"
+                    className={controlClassName}
                     placeholder="Назва компанії"
                     value={reqCompany}
                     onChange={e => setReqCompany(e.target.value)}
@@ -513,7 +518,7 @@ export const RequestView = ({
               )}
               <Field label="Коментар">
                 <textarea
-                  className="w-full min-h-[112px] bg-[#15171a] text-white p-4 rounded-xl outline-none border border-white/10 placeholder-white/30 resize-none"
+                  className={textAreaClassName}
                   placeholder="Побажання щодо комплектації, кольору, строків або умов"
                   value={reqComment}
                   onChange={e => setReqComment(e.target.value)}

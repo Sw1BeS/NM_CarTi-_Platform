@@ -53,6 +53,17 @@
     background: radial-gradient(circle at 15% 0%, #1a1a1a 0%, #000 52%);
   }
 
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      scroll-behavior: auto !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
   .telegram-miniapp-shell {
     height: var(--tg-viewport-stable-height);
     max-height: var(--tg-viewport-stable-height);
