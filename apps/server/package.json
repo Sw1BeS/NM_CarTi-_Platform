@@ -25,6 +25,7 @@
     "repair:miniapp-menu-config": "tsx scripts/repair_miniapp_menu_config.ts",
     "repair:miniapp-request-titles": "tsx scripts/repair_miniapp_request_titles.ts",
     "cleanup:test-data": "tsx scripts/cleanup_test_data.ts",
+    "vehicle-taxonomy:sync": "tsx scripts/sync_vehicle_taxonomy.ts",
     "test": "vitest --run",
     "test:watch": "vitest",
     "b2b:backfill-partner-admin-groups": "tsx scripts/backfill_partner_admin_groups.ts"

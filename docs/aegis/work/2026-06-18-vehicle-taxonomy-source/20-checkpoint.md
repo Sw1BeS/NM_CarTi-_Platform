@@ -7,10 +7,13 @@ Status: implementation slice verified
 
 - Active slice: Tasks 1-4 baseline implementation.
 - Continuation slice: Task 5 candidate quarantine, Task 6 parser helper extraction, Task 7 ADR.
+- Rollout slice: safe operator CLI and staging runbook.
 - Current todo:
-  1. Decide whether to run a local non-production seed with `EMERGENCY_FALLBACK`.
-  2. Decide live provider credentials/limits for AUTO.RIA and KATOTTG/GeoNames URLs.
-  3. Add operator runbook for production sync.
+  1. Apply migration on verified staging/dev DB.
+  2. Run `vehicle-taxonomy:sync` dry-run on staging/dev.
+  3. Apply `EMERGENCY_FALLBACK` snapshot on staging/dev using the write gate.
+  4. Run public MiniApp smoke.
+  5. Decide live provider credentials/limits for AUTO.RIA and KATOTTG/GeoNames URLs.
 - Completed todos:
   - Approved spec copied into isolated worktree.
   - Implementation plan copied into isolated worktree.
@@ -33,6 +36,9 @@ Status: implementation slice verified
   - Admin route added: `POST /api/vehicle-taxonomy/candidates/scan-observed`.
   - `detectMakeFromKnownList` extracted for synchronous parser compatibility.
   - ADR added for vehicle taxonomy local snapshot ownership.
+  - Safe operator CLI added: `npm --prefix apps/server run vehicle-taxonomy:sync`.
+  - Write-mode gate added: `ALLOW_VEHICLE_TAXONOMY_SYNC_WRITE=1`.
+  - Rollout runbook added under `docs/aegis/work/2026-06-18-vehicle-taxonomy-rollout/`.
 - Evidence refs:
   - Worktree: `/root/.config/aegis/worktrees/cartie/vehicle-taxonomy-source`
   - Branch: `feature/vehicle-taxonomy-source`
@@ -43,6 +49,8 @@ Status: implementation slice verified
   - `npm --prefix apps/web ci --legacy-peer-deps` passed.
   - `npm --prefix apps/web run build` passed.
   - Candidate/route/parser continuation tests passed.
+  - `vehicle-taxonomy:sync` dry-run passed with `EMERGENCY_FALLBACK`.
+  - `vehicle-taxonomy:sync --apply` without write gate failed as intended before DB writes.
 - Blockers:
   - Normal `npm --prefix apps/web install` needs `--legacy-peer-deps` due existing React 19 / `@emoji-mart/react` peer conflict.
   - Live AUTO.RIA sync needs a valid `autoriaApiKey`/`AUTORIA_API_KEY`.

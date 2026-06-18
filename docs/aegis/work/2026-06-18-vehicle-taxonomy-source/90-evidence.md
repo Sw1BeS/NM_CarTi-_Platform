@@ -29,5 +29,11 @@ Date: 2026-06-18
 - `npm --prefix apps/server test -- src/services/taxonomy.test.ts` failed RED before `detectMakeFromKnownList` and passed after helper extraction.
 - `npm --prefix apps/server test -- src/services/taxonomy.test.ts src/__tests__/enhanced-parsing.utils.test.ts` passed after helper extraction.
 - `npm --prefix apps/server test -- src/modules/VehicleTaxonomy/vehicleTaxonomy.routes.test.ts src/modules/VehicleTaxonomy/vehicleTaxonomy.candidates.test.ts` passed after adding the admin candidate scan route.
+- `npm --prefix apps/server test -- src/scripts/sync_vehicle_taxonomy.helpers.test.ts` passed.
+- `npm --prefix apps/server run vehicle-taxonomy:sync -- --source=EMERGENCY_FALLBACK` passed in dry-run mode with counts: 14 makes, 102 models, 22 spec options, 9 places.
+- `npm --prefix apps/server run vehicle-taxonomy:sync -- --source=EMERGENCY_FALLBACK --apply` failed as intended without `ALLOW_VEHICLE_TAXONOMY_SYNC_WRITE=1`.
+- Focused rollout verification passed: `npm --prefix apps/server test -- src/scripts/sync_vehicle_taxonomy.helpers.test.ts src/modules/VehicleTaxonomy/vehicleTaxonomy.repository.test.ts src/modules/VehicleTaxonomy/vehicleTaxonomy.service.test.ts src/modules/VehicleTaxonomy/vehicleTaxonomy.routes.test.ts src/modules/VehicleTaxonomy/vehicleTaxonomy.sync.service.test.ts src/modules/VehicleTaxonomy/vehicleTaxonomy.candidates.test.ts src/services/taxonomy.test.ts src/routes/miniAppLeadHandoff.routes.test.ts`
+  - Result: 8 test files passed, 65 tests passed.
+- `npm --prefix apps/server run build -- --pretty false` passed after adding the operator sync CLI.
 
 Further verification pending for any live provider sync against real credentials/data URLs.

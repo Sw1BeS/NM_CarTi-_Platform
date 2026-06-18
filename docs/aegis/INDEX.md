@@ -14,3 +14,4 @@
 | 2026-06-18 | spec | `docs/aegis/specs/2026-06-18-vehicle-taxonomy-source-design.md` | Vehicle Taxonomy Source Design | approved for implementation planning |
 | 2026-06-18 | plan | `docs/aegis/plans/2026-06-18-vehicle-taxonomy-source-implementation-plan.md` | Vehicle Taxonomy Source Implementation Plan | implementation slice verified |
 | 2026-06-18 | work | `docs/aegis/work/2026-06-18-vehicle-taxonomy-source/` | Vehicle Taxonomy Source Work Trail | implementation slice verified |
+| 2026-06-18 | work | `docs/aegis/work/2026-06-18-vehicle-taxonomy-rollout/` | Vehicle Taxonomy Rollout Runbook | ready for staging operator run |
