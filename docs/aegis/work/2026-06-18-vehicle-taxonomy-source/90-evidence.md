@@ -35,5 +35,9 @@ Date: 2026-06-18
 - Focused rollout verification passed: `npm --prefix apps/server test -- src/scripts/sync_vehicle_taxonomy.helpers.test.ts src/modules/VehicleTaxonomy/vehicleTaxonomy.repository.test.ts src/modules/VehicleTaxonomy/vehicleTaxonomy.service.test.ts src/modules/VehicleTaxonomy/vehicleTaxonomy.routes.test.ts src/modules/VehicleTaxonomy/vehicleTaxonomy.sync.service.test.ts src/modules/VehicleTaxonomy/vehicleTaxonomy.candidates.test.ts src/services/taxonomy.test.ts src/routes/miniAppLeadHandoff.routes.test.ts`
   - Result: 8 test files passed, 65 tests passed.
 - `npm --prefix apps/server run build -- --pretty false` passed after adding the operator sync CLI.
+- Read-only live smoke on `http://127.0.0.1:3002/api/miniapp/vehicle-taxonomy?slug=cartie` showed current deployed route still has no taxonomy metadata and has 16 duplicate brand IDs.
+- Disposable Postgres `prisma migrate deploy` failed before the new taxonomy migration on old migration `20240320000000_add_showcase` because a blank DB lacks `workspaces`; this is a pre-existing blank-DB bootstrap issue.
+- Disposable Postgres verification with `CREATE EXTENSION citext`, `prisma db push --skip-generate`, and gated `EMERGENCY_FALLBACK --apply` passed with 14 makes, 102 models, 22 spec options, 9 places, and no duplicate makes.
+- Disposable public mapper smoke after local snapshot apply returned `source=LOCAL_SNAPSHOT`, `stale=false`, `brand_count=15`, `city_count=9`, and `duplicate_brand_id_count=0`.
 
 Further verification pending for any live provider sync against real credentials/data URLs.

@@ -51,11 +51,14 @@ Status: implementation slice verified
   - Candidate/route/parser continuation tests passed.
   - `vehicle-taxonomy:sync` dry-run passed with `EMERGENCY_FALLBACK`.
   - `vehicle-taxonomy:sync --apply` without write gate failed as intended before DB writes.
+  - Disposable Postgres `migrate deploy` exposed a pre-existing blank-DB migration-chain issue in `20240320000000_add_showcase`.
+  - Disposable Postgres `db push --skip-generate` plus gated `EMERGENCY_FALLBACK --apply` passed.
+  - Disposable public mapper smoke returned `LOCAL_SNAPSHOT`, `stale=false`, and zero duplicate brand IDs.
 - Blockers:
   - Normal `npm --prefix apps/web install` needs `--legacy-peer-deps` due existing React 19 / `@emoji-mart/react` peer conflict.
   - Live AUTO.RIA sync needs a valid `autoriaApiKey`/`AUTORIA_API_KEY`.
   - GeoNames sync needs `GEONAMES_TSV_URL`; KATOTTG has a default CSV URL but should be rechecked before production run.
-- Next step: review diff, then either commit this branch or continue with Task 5 candidate quarantine/runbook.
+- Next step: apply migration and gated snapshot sync only after a verified staging/dev `DATABASE_URL` is provided or confirmed.
 
 ## ResumeStateHint
 
@@ -72,5 +75,5 @@ git status --short --branch
 - Compatibility boundary held? yes; existing MiniApp route shape is preserved and metadata is additive.
 - New owner/fallback/adapter appeared? yes; owner module, fallback, routes, providers, and sync service are implemented.
 - Retirement track explicit? yes in parent plan.
-- Evidence enough for next claim? yes for current implementation slice.
-- Decision: review/commit or continue to candidate quarantine.
+- Evidence enough for next claim? yes for isolated rollout verification; live write-run remains intentionally blocked.
+- Decision: continue only on verified staging/dev target or prepare branch for review/merge.

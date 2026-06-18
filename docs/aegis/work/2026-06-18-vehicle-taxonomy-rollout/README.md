@@ -18,6 +18,8 @@ npm --prefix apps/server run prisma:generate
 npm --prefix apps/server run prisma:migrate
 ```
 
+This migration path is intended for an existing Cartie database that already has the historical baseline schema. A blank disposable database currently does not replay the older migration chain cleanly because `20240320000000_add_showcase` expects `workspaces` to exist. For disposable verification only, create `citext` and use `prisma db push --skip-generate` instead of treating a blank DB as production-like migration evidence.
+
 Before write mode, verify the target:
 
 ```bash
@@ -81,6 +83,11 @@ Expected:
 - `brand_count` greater than 0
 - `duplicate_ids: 0`
 - `source: "LOCAL_SNAPSHOT"` after apply, or `"EMERGENCY_FALLBACK"` before apply
+
+Disposable verification on 2026-06-18 using a temporary Postgres container plus `prisma db push --skip-generate` confirmed:
+
+- `EMERGENCY_FALLBACK --apply` writes 14 makes, 102 models, 22 spec options, and 9 places.
+- The public mapper returns `source: "LOCAL_SNAPSHOT"`, `stale: false`, and `duplicate_brand_id_count: 0`.
 
 ## Rollback
 
