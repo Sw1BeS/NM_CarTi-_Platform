@@ -42,6 +42,34 @@ const INVENTORY_SPEC_FIELDS = {
   transmissions: ['transmission', 'gearbox'],
   drives: ['drive', 'drivetrain']
 } as const;
+const POPULAR_BRAND_IDS = [
+  'bmw',
+  'mercedes-benz',
+  'audi',
+  'volkswagen',
+  'toyota',
+  'tesla',
+  'porsche',
+  'lexus',
+  'nissan',
+  'hyundai',
+  'kia',
+  'mazda',
+  'honda',
+  'ford',
+  'chevrolet',
+  'skoda',
+  'renault',
+  'peugeot',
+  'citroen',
+  'volvo',
+  'land-rover',
+  'jeep',
+  'mitsubishi',
+  'opel',
+  'fiat'
+] as const;
+const POPULAR_BRAND_WEIGHT: Map<string, number> = new Map(POPULAR_BRAND_IDS.map((id, index) => [id, index]));
 
 export { vehicleTaxonomyId };
 
@@ -194,6 +222,21 @@ const sortOptions = <T extends VehicleTaxonomyOption>(items: T[]) =>
     return a.label.localeCompare(b.label);
   });
 
+const brandWeight = (brand: VehicleTaxonomyBrand) => {
+  const direct = POPULAR_BRAND_WEIGHT.get(brand.id);
+  if (direct !== undefined) return direct;
+  return POPULAR_BRAND_WEIGHT.get(vehicleTaxonomyId(brand.label)) ?? POPULAR_BRAND_IDS.length;
+};
+
+const sortBrands = (items: VehicleTaxonomyBrand[]) =>
+  [...items].sort((a, b) => {
+    if (a.id === 'other') return 1;
+    if (b.id === 'other') return -1;
+    const weightDelta = brandWeight(a) - brandWeight(b);
+    if (weightDelta !== 0) return weightDelta;
+    return a.label.localeCompare(b.label);
+  });
+
 const buildBrands = (
   makes: VehicleTaxonomySnapshotMake[],
   brandAliases: Map<string, Set<string>>,
@@ -268,7 +311,7 @@ const buildBrands = (
     });
   }
 
-  return sortOptions(Array.from(brands.values()));
+  return sortBrands(Array.from(brands.values()));
 };
 
 const groupMatches = (optionGroup: string, expected: readonly string[]) => {

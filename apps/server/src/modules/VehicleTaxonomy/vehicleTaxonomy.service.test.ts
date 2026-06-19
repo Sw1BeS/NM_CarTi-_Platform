@@ -122,6 +122,70 @@ describe('VehicleTaxonomyService', () => {
     expect(mercedesBrands[0].models.find((model) => model.label === 'GLE')?.externalIds).toEqual({ autoria: 1001, nhtsa: 2002 });
   });
 
+  it('keeps popular market brands before noisy provider makes in public suggestions', async () => {
+    repositoryMock.readPublicSnapshot.mockResolvedValue({
+      makes: [
+        {
+          id: 'make_custom',
+          slug: '1955-custom-belair',
+          label: '1955 Custom Belair',
+          sourceMeta: { externalIds: { nhtsa: 1 } },
+          updatedAt: null,
+          models: []
+        },
+        {
+          id: 'make_aas',
+          slug: 'aas',
+          label: 'Aas',
+          sourceMeta: { externalIds: { nhtsa: 2 } },
+          updatedAt: null,
+          models: []
+        },
+        {
+          id: 'make_bmw',
+          slug: 'bmw',
+          label: 'BMW',
+          sourceMeta: { source: 'EMERGENCY_FALLBACK' },
+          updatedAt: null,
+          models: []
+        },
+        {
+          id: 'make_audi',
+          slug: 'audi',
+          label: 'Audi',
+          sourceMeta: { source: 'EMERGENCY_FALLBACK' },
+          updatedAt: null,
+          models: []
+        },
+        {
+          id: 'make_tesla',
+          slug: 'tesla',
+          label: 'Tesla',
+          sourceMeta: { source: 'EMERGENCY_FALLBACK' },
+          updatedAt: null,
+          models: []
+        },
+        {
+          id: 'make_toyota',
+          slug: 'toyota',
+          label: 'Toyota',
+          sourceMeta: { source: 'EMERGENCY_FALLBACK' },
+          updatedAt: null,
+          models: []
+        }
+      ],
+      specOptions: [],
+      places: [],
+      updatedAt: new Date('2026-06-18T00:00:00.000Z')
+    });
+
+    const { vehicleTaxonomyService } = await import('./vehicleTaxonomy.service.js');
+    const output = await vehicleTaxonomyService.getPublicTaxonomy({ countryCode: 'UA' });
+
+    expect(output.brands.slice(0, 4).map((brand) => brand.label)).toEqual(['BMW', 'Audi', 'Toyota', 'Tesla']);
+    expect(output.brands.findIndex((brand) => brand.label === '1955 Custom Belair')).toBeGreaterThan(3);
+  });
+
   it('deduplicates provider duplicates in cities and spec options by canonical labels', async () => {
     repositoryMock.readPublicSnapshot.mockResolvedValue({
       makes: [
