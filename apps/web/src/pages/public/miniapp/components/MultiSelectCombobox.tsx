@@ -45,7 +45,8 @@ export const MultiSelectCombobox = ({
       : [...values, option.label];
     onChange(next);
     setQuery('');
-    setOpen(true);
+    setOpen(false);
+    setActiveIndex(0);
   };
 
   const remove = (value: string) => {
