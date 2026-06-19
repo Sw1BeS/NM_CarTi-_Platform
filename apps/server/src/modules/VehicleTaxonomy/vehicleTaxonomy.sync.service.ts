@@ -137,6 +137,21 @@ const mapWithConcurrency = async <T, R>(items: T[], concurrency: number, mapper:
   return output;
 };
 
+const isProviderRateLimitError = (error: unknown) =>
+  !!(error && typeof error === 'object' && (error as { response?: { status?: number } }).response?.status === 429);
+
+const allowAutoriaPartialOnRateLimit = () =>
+  process.env.AUTORIA_ALLOW_PARTIAL_ON_RATE_LIMIT === '1';
+
+const optionalAutoriaBatch = async <T>(loader: () => Promise<T[]>): Promise<T[]> => {
+  try {
+    return await loader();
+  } catch (error) {
+    if (allowAutoriaPartialOnRateLimit() && isProviderRateLimitError(error)) return [];
+    throw error;
+  }
+};
+
 const emergencyDataset = async (): Promise<VehicleTaxonomySourceDataset> => ({
   makes: EMERGENCY_VEHICLE_MAKES.map((make) => ({
     slug: vehicleTaxonomyId(make.label),
@@ -181,11 +196,11 @@ const defaultProviders: Record<VehicleTaxonomySyncSource, VehicleTaxonomyProvide
     const models = (await mapWithConcurrency(
       modelMakeIds,
       input.modelFetchConcurrency || 6,
-      (makeExternalId) => fetchAutoriaModels({ apiKey, categoryId, makeExternalId })
+      (makeExternalId) => optionalAutoriaBatch(() => fetchAutoriaModels({ apiKey, categoryId, makeExternalId }))
     )).flat();
     const [specOptions, places] = await Promise.all([
-      fetchAutoriaSpecOptions({ apiKey, categoryId }),
-      fetchAutoriaPlaces({ apiKey })
+      optionalAutoriaBatch(() => fetchAutoriaSpecOptions({ apiKey, categoryId })),
+      optionalAutoriaBatch(() => fetchAutoriaPlaces({ apiKey }))
     ]);
     return { makes, models, specOptions, places };
   },
