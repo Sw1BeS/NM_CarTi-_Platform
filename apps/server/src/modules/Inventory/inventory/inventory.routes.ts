@@ -7,6 +7,7 @@ import { mapInventoryInput, mapInventoryOutput } from '../../../services/dto.js'
 import { CarRepository } from '../../../repositories/index.js';
 import { errorResponse } from '../../../utils/errorResponse.js';
 import { logger } from '../../../utils/logger.js';
+import { vehicleTaxonomyService } from '../../VehicleTaxonomy/vehicleTaxonomy.service.js';
 import { telegramOutbox } from '../../Communication/telegram/messaging/outbox/telegramOutbox.js';
 import { renderCarCardForBot } from '../../../services/carCardRenderer.v2.js';
 
@@ -198,7 +199,10 @@ router.post('/', requireRole(['ADMIN', 'MANAGER']), async (req, res) => {
         const companyId = isSuperadmin ? (requestedCompanyId || userCompanyId) : userCompanyId;
         if (!companyId && !isSuperadmin) return errorResponse(res, 400, 'Company context required', 'COMPANY_REQUIRED');
 
-        const mapped = mapInventoryInput(req.body || {});
+        const mapped = await vehicleTaxonomyService.canonicalizeInventoryInput(mapInventoryInput(req.body || {}), {
+            companyId: companyId || null,
+            source: 'INVENTORY_CREATE'
+        }).then(result => result.data);
         const partnerCompanyId = readPartnerCompanyId(req.body || {});
         const partnerOwnerTgId = readPartnerOwnerTgId(req.body || {});
         if (partnerCompanyId) {
@@ -241,7 +245,10 @@ router.post('/bulk', requireRole(['ADMIN', 'MANAGER']), async (req, res) => {
         const ids = Array.isArray(req.body?.ids) ? req.body.ids.filter(Boolean).map(String) : [];
         if (!ids.length) return errorResponse(res, 400, 'ids[] is required', 'INVALID_INPUT');
 
-        const updateData = mapInventoryInput((req.body || {}).updates || {});
+        const updateData = await vehicleTaxonomyService.canonicalizeInventoryInput(mapInventoryInput((req.body || {}).updates || {}), {
+            companyId: companyId || null,
+            source: 'INVENTORY_BULK_UPDATE'
+        }).then(result => result.data);
         const partnerCompanyId = readPartnerCompanyId((req.body || {}).updates || req.body || {});
         const partnerOwnerTgId = readPartnerOwnerTgId(req.body || {});
         if (partnerCompanyId) {
@@ -292,7 +299,10 @@ router.put('/:id', requireRole(['ADMIN', 'MANAGER']), async (req, res) => {
         }
 
         const { id: _id, createdAt, updatedAt, ...raw } = req.body;
-        const updateData = mapInventoryInput(raw);
+        const updateData = await vehicleTaxonomyService.canonicalizeInventoryInput(mapInventoryInput(raw), {
+            companyId: existing.companyId || userCompanyId || null,
+            source: 'INVENTORY_UPDATE'
+        }).then(result => result.data);
         const partnerCompanyId = readPartnerCompanyId(req.body || {});
         const partnerOwnerTgId = readPartnerOwnerTgId(req.body || {});
         const scopedPartnerCompanyId = existing.partnerCompanyId || partnerCompanyId;

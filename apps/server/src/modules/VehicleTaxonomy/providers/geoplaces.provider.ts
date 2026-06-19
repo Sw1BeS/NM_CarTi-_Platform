@@ -1,8 +1,35 @@
 import axios from 'axios';
+import { readFile } from 'node:fs/promises';
 import { normalizeTaxonomyLabel, vehicleTaxonomyId } from '../vehicleTaxonomy.ids.js';
 import type { VehicleTaxonomySourcePlace } from '../vehicleTaxonomy.types.js';
 
 const DEFAULT_KATOTTG_CSV_URL = 'https://api.directory.org.ua/api/katottg/download/csv';
+
+type KatottgMapOptions = {
+  includeSettlements?: boolean;
+};
+
+type KatottgPlaceType = 'city' | 'settlement';
+
+type KatottgFetchOptions = KatottgMapOptions & {
+  headers?: Record<string, string>;
+  url?: string;
+};
+
+const readTextSource = async (source: string, headers?: Record<string, string>) => {
+  if (/^https?:\/\//i.test(source)) {
+    const response = await axios.get<string>(source, { responseType: 'text' as any, headers });
+    return String(response.data || '');
+  }
+  const path = source.startsWith('file://') ? new URL(source) : source;
+  return readFile(path, 'utf8');
+};
+
+const katottgAuthHeaders = () => {
+  const authorization = process.env.KATOTTG_AUTHORIZATION ||
+    (process.env.KATOTTG_API_TOKEN ? `Bearer ${process.env.KATOTTG_API_TOKEN}` : undefined);
+  return authorization ? { Authorization: authorization } : undefined;
+};
 
 const parseNumber = (value: unknown) => {
   const parsed = Number(String(value || '').replace(',', '.'));
@@ -39,20 +66,23 @@ const pick = (row: Record<string, string>, keys: string[]) => {
   return '';
 };
 
-const katottgType = (category: string) => {
+const katottgType = (category: string): KatottgPlaceType | null => {
   const normalized = category.toUpperCase();
   if (['M', 'CITY', 'М', 'МІСТО'].includes(normalized)) return 'city';
   if (['P', 'VILLAGE', 'S', 'С', 'СЕЛО', 'TOWN', 'СМТ'].includes(normalized)) return 'settlement';
   return null;
 };
 
-export const mapKatottgCsv = (text: string): VehicleTaxonomySourcePlace[] =>
+const shouldIncludeKatottgType = (type: KatottgPlaceType | null, options: KatottgMapOptions): type is KatottgPlaceType =>
+  type === 'city' || (type === 'settlement' && options.includeSettlements === true);
+
+export const mapKatottgCsv = (text: string, options: KatottgMapOptions = {}): VehicleTaxonomySourcePlace[] =>
   parseDelimited(text).reduce<VehicleTaxonomySourcePlace[]>((acc, row) => {
     const label = pick(row, ['name', 'Назва', 'Назва об’єкта українською мовою', 'Назва обʼєкта українською мовою']);
     const category = pick(row, ['category', 'Категорія', 'Тип']);
     const type = katottgType(category);
     const code = pick(row, ['code', 'Код КАТОТТГ', 'katottg', 'Код']);
-    if (!label || type !== 'city') return acc;
+    if (!label || !shouldIncludeKatottgType(type, options)) return acc;
     acc.push({
       countryCode: 'UA',
       type,
@@ -60,7 +90,7 @@ export const mapKatottgCsv = (text: string): VehicleTaxonomySourcePlace[] =>
       label,
       region: pick(row, ['region', 'Область']) || null,
       externalIds: code ? { katottg: code } : undefined,
-      sourceMeta: { source: 'KATOTTG' }
+      sourceMeta: { source: 'KATOTTG', category }
     });
     return acc;
   }, []);
@@ -92,7 +122,15 @@ export const mapGeoNamesTsv = (text: string): VehicleTaxonomySourcePlace[] =>
       return acc;
     }, []);
 
-export const fetchKatottgPlaces = async (url = process.env.KATOTTG_CSV_URL || DEFAULT_KATOTTG_CSV_URL) => {
-  const response = await axios.get<string>(url, { responseType: 'text' as any });
-  return mapKatottgCsv(String(response.data || ''));
+export const fetchKatottgPlaces = async (input: string | KatottgFetchOptions = {}) => {
+  const options = typeof input === 'string' ? { url: input } : input;
+  const url = options.url || process.env.KATOTTG_CSV_URL || DEFAULT_KATOTTG_CSV_URL;
+  const data = await readTextSource(url, options.headers || katottgAuthHeaders());
+  return mapKatottgCsv(data, { includeSettlements: options.includeSettlements });
+};
+
+export const fetchGeoNamesPlaces = async (url = process.env.GEONAMES_TSV_URL) => {
+  if (!url) throw new Error('GEONAMES sync requires GEONAMES_TSV_URL');
+  const data = await readTextSource(url);
+  return mapGeoNamesTsv(data);
 };

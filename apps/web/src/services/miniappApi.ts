@@ -217,14 +217,25 @@ export type VehicleTaxonomyOption = {
   id: string;
   label: string;
   aliases?: string[];
+  externalIds?: Record<string, string | number>;
+};
+
+export type VehicleTaxonomyCompatibilityConstraints = {
+  fuels?: string[];
+  bodyTypes?: string[];
+  transmissions?: string[];
+  drives?: string[];
+  source?: string;
 };
 
 export type VehicleTaxonomyModel = VehicleTaxonomyOption & {
   brandId?: string;
+  constraints?: VehicleTaxonomyCompatibilityConstraints;
 };
 
 export type VehicleTaxonomyBrand = VehicleTaxonomyOption & {
   models: VehicleTaxonomyModel[];
+  constraints?: VehicleTaxonomyCompatibilityConstraints;
 };
 
 export type VehicleTaxonomyResponse = {

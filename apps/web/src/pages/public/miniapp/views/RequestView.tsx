@@ -12,6 +12,11 @@ import {
 import { MultiSelectCombobox } from '../components/MultiSelectCombobox';
 import { SearchableSelect, type SearchableSelectOption } from '../components/SearchableSelect';
 import { resolveRequestSuccessContent, type RequestSuccessActionId } from '../requestSuccessActions';
+import {
+  filterOptionsByVehicleConstraints,
+  isValueAllowedByOptions,
+  resolveActiveVehicleConstraints
+} from '../vehicleCompatibility';
 import type { VehicleTaxonomyResponse } from '../../../../services/miniappApi';
 
 type MiniAppSurfaceMode = 'LEAD' | 'B2B';
@@ -168,7 +173,12 @@ export const RequestView = ({
     models: item.models.map(model => ({ id: model.toLowerCase(), label: model, aliases: [], brandId: item.brand.toLowerCase() }))
   })));
   const brandOptions = brandSources
-    .map(item => ({ id: item.id, label: item.label === 'Other' ? OTHER_BRAND : item.label, aliases: item.aliases }))
+    .map(item => ({
+      id: item.id,
+      label: item.label === 'Other' ? OTHER_BRAND : item.label,
+      aliases: item.aliases,
+      externalIds: item.externalIds
+    }))
     .concat(brandSources.some(item => item.label === OTHER_BRAND || item.label === 'Other') ? [] : [toSelectOption(OTHER_BRAND)]);
   const selectedBrands = (reqData.brands?.length ? reqData.brands : (reqData.brand ? [reqData.brand] : []))
     .filter(Boolean);
@@ -190,11 +200,21 @@ export const RequestView = ({
     const sourceModel = brandSources
       .flatMap(brand => brand.models || [])
       .find(model => model.label === label || (model.label === 'Other' && label === OTHER_MODEL));
-    return { id: sourceModel?.id || toSelectOption(label).id, label, aliases: sourceModel?.aliases };
+    return {
+      id: sourceModel?.id || toSelectOption(label).id,
+      label,
+      aliases: sourceModel?.aliases,
+      externalIds: sourceModel?.externalIds
+    };
   });
-  const bodyTypeOptions = (taxonomy?.bodyTypes?.length ? taxonomy.bodyTypes : BODY_TYPES.map(type => toSelectOption(type)));
-  const fuelOptions = (taxonomy?.fuels?.length ? taxonomy.fuels : FUEL_TYPES.map(type => toSelectOption(type)));
+  const activeConstraints = resolveActiveVehicleConstraints({ brandSources, selectedBrands, selectedModels });
+  const allBodyTypeOptions = (taxonomy?.bodyTypes?.length ? taxonomy.bodyTypes : BODY_TYPES.map(type => toSelectOption(type)));
+  const allFuelOptions = (taxonomy?.fuels?.length ? taxonomy.fuels : FUEL_TYPES.map(type => toSelectOption(type)));
+  const bodyTypeOptions = filterOptionsByVehicleConstraints(allBodyTypeOptions, activeConstraints, 'bodyTypes');
+  const fuelOptions = filterOptionsByVehicleConstraints(allFuelOptions, activeConstraints, 'fuels');
   const cityOptions = (taxonomy?.cities?.length ? taxonomy.cities : CITY_OPTIONS.map(city => toSelectOption(city)));
+  const bodyTypeOptionKey = bodyTypeOptions.map(option => option.id).join('|');
+  const fuelOptionKey = fuelOptions.map(option => option.id).join('|');
   const displayBrand = selectedBrands.includes(OTHER_BRAND)
     ? (reqData.brandCustom || OTHER_BRAND)
     : selectedBrands.join(', ');
@@ -205,6 +225,22 @@ export const RequestView = ({
     ? 'Створити B2B запит'
     : (requestType === 'SELL' ? 'Продаж авто' : 'Підбір авто');
   const successContent = resolveRequestSuccessContent(surfaceMode);
+  React.useEffect(() => {
+    if (!activeConstraints?.fuels?.length || isValueAllowedByOptions(reqFuel, fuelOptions)) return;
+    setReqFuel('');
+  }, [activeConstraints?.fuels, fuelOptionKey, reqFuel, setReqFuel]);
+
+  React.useEffect(() => {
+    if (!activeConstraints?.bodyTypes?.length) return;
+    const nextBodyTypes = selectedBodyTypes.filter(value => isValueAllowedByOptions(value, bodyTypeOptions));
+    if (nextBodyTypes.length === selectedBodyTypes.length) return;
+    setReqData({
+      ...reqData,
+      bodyType: nextBodyTypes[0] || '',
+      bodyTypes: nextBodyTypes
+    });
+  }, [activeConstraints?.bodyTypes, bodyTypeOptionKey, selectedBodyTypes.join('|'), reqData, setReqData]);
+
   const handleSuccessAction = (actionId: RequestSuccessActionId) => {
     if (actionId === 'MY_REQUESTS' || actionId === 'B2B_ACTIVITY') {
       onViewRequests?.();

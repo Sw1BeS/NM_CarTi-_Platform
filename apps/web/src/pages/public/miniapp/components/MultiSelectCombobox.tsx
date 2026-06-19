@@ -1,7 +1,9 @@
 import React from 'react';
 import { Check, Search, X } from 'lucide-react';
 import {
+  excludeSelectedSearchableOptions,
   resolveSearchableOptions,
+  searchableOptionDomId,
   type SearchableSelectOption
 } from './searchableOptions';
 
@@ -26,9 +28,13 @@ export const MultiSelectCombobox = ({
   const [query, setQuery] = React.useState('');
   const [open, setOpen] = React.useState(false);
   const [activeIndex, setActiveIndex] = React.useState(0);
+  const availableOptions = React.useMemo(
+    () => excludeSelectedSearchableOptions(options, values),
+    [options, values]
+  );
   const { visibleOptions, hiddenOptionsCount } = React.useMemo(
-    () => resolveSearchableOptions(options, query),
-    [options, query]
+    () => resolveSearchableOptions(availableOptions, query),
+    [availableOptions, query]
   );
   const activeOption = visibleOptions[activeIndex];
 
@@ -77,7 +83,7 @@ export const MultiSelectCombobox = ({
             aria-autocomplete="list"
             aria-haspopup="listbox"
             aria-controls={listboxId}
-            aria-activedescendant={activeOption ? `${listboxId}-${activeOption.id}` : undefined}
+            aria-activedescendant={activeOption ? searchableOptionDomId(listboxId, activeOption) : undefined}
             aria-expanded={open && !disabled}
             role="combobox"
             disabled={disabled}
@@ -125,7 +131,7 @@ export const MultiSelectCombobox = ({
               return (
                 <button
                   key={option.id}
-                  id={`${listboxId}-${option.id}`}
+                  id={searchableOptionDomId(listboxId, option)}
                   type="button"
                   role="option"
                   aria-selected={selected}

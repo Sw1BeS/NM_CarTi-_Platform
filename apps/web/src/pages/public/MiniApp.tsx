@@ -3405,22 +3405,39 @@ const MiniAppContent = () => {
         );
     };
 
-    const findTaxonomyOption = (
-        label: string,
-        options: Array<{ id: string; label: string; aliases?: string[] }>
-    ) => {
-        const normalized = label.trim().toLowerCase();
-        const alternative = normalized === 'інша марка' || normalized === 'інша модель' ? 'other' : normalized;
-        return options.find(option =>
-            option.label.toLowerCase() === normalized
-            || option.label.toLowerCase() === alternative
-            || (option.aliases || []).some(alias => alias.toLowerCase() === normalized || alias.toLowerCase() === alternative)
-        );
+    type TaxonomyOptionLike = {
+        id: string;
+        label: string;
+        aliases?: string[];
+        externalIds?: Record<string, string | number>;
     };
+
+    const taxonomySearchKeys = (value: unknown) => {
+        const normalized = String(value || '').trim().toLowerCase();
+        if (!normalized) return [];
+        const optionId = taxonomyId(normalized);
+        const alternative = normalized === 'інша марка' || normalized === 'інша модель' ? 'other' : normalized;
+        return Array.from(new Set([normalized, alternative, optionId].filter(Boolean)));
+    };
+
+    const taxonomyOptionMatches = (value: unknown, option: TaxonomyOptionLike) => {
+        const inputKeys = taxonomySearchKeys(value);
+        if (!inputKeys.length) return false;
+        const optionKeys = [
+            option.id,
+            option.label,
+            ...(option.aliases || []),
+            ...Object.values(option.externalIds || {})
+        ].flatMap(taxonomySearchKeys);
+        return inputKeys.some(key => optionKeys.includes(key));
+    };
+
+    const findTaxonomyOption = (label: string, options: TaxonomyOptionLike[]) =>
+        options.find(option => taxonomyOptionMatches(label, option));
 
     const toTaxonomyOption = (
         label: string,
-        options: Array<{ id: string; label: string; aliases?: string[] }>
+        options: TaxonomyOptionLike[]
     ) => {
         const clean = label.trim();
         if (!clean) return undefined;
@@ -3439,11 +3456,7 @@ const MiniAppContent = () => {
             : (vehicleTaxonomy?.brands || []).map(brand => ({ id: brand.id, label: brand.label }));
         for (const brand of brandCandidates) {
             const sourceBrand = (vehicleTaxonomy?.brands || []).find(item => item.id === brand.id || item.label === brand.label);
-            const match = sourceBrand?.models?.find(model =>
-                model.label.toLowerCase() === clean.toLowerCase()
-                || (clean === 'Інша модель' && model.label.toLowerCase() === 'other')
-                || (model.aliases || []).some(alias => alias.toLowerCase() === clean.toLowerCase())
-            );
+            const match = sourceBrand?.models?.find(model => taxonomyOptionMatches(clean, model));
             if (sourceBrand && match) return { brandId: sourceBrand.id, id: match.id, label: match.label };
         }
         return { brandId: selectedBrands[0]?.id, id: taxonomyId(clean), label: clean };

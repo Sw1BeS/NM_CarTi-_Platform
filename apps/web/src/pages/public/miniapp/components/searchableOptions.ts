@@ -2,6 +2,7 @@ export type SearchableSelectOption = {
   id: string;
   label: string;
   aliases?: string[];
+  externalIds?: Record<string, string | number>;
   disabled?: boolean;
 };
 
@@ -62,28 +63,105 @@ export const searchKeysForValue = (value: unknown) => {
   return Array.from(new Set(keys.flatMap(addLegacyPlaceVariants).filter(Boolean)));
 };
 
-export const optionMatchesQuery = (option: Pick<SearchableSelectOption, 'label' | 'aliases'>, query: string) => {
+const optionSearchValues = (option: Pick<SearchableSelectOption, 'id' | 'label' | 'aliases' | 'externalIds'>) => [
+  option.id,
+  option.label,
+  ...(option.aliases || []),
+  ...Object.values(option.externalIds || {})
+];
+
+const directSearchValues = (option: Pick<SearchableSelectOption, 'id' | 'label'>) => [
+  option.label,
+  option.id
+];
+
+const indirectSearchValues = (option: Pick<SearchableSelectOption, 'aliases' | 'externalIds'>) => [
+  ...(option.aliases || []),
+  ...Object.values(option.externalIds || {})
+];
+
+export const searchableOptionDomId = (listboxId: string, option: Pick<SearchableSelectOption, 'id' | 'label'>) => {
+  const key = compactText(normalizeText(option.id)) || compactText(normalizeText(option.label)) || 'option';
+  return `${listboxId}-${key}`;
+};
+
+export const optionMatchesQuery = (option: Pick<SearchableSelectOption, 'id' | 'label' | 'aliases' | 'externalIds'>, query: string) => {
   const queryKeys = searchKeysForValue(query);
   if (!queryKeys.length) return true;
 
-  const optionKeys = [option.label, ...(option.aliases || [])].flatMap(searchKeysForValue);
+  const optionKeys = optionSearchValues(option).flatMap(searchKeysForValue);
   return queryKeys.some((queryKey) =>
     optionKeys.some((optionKey) => optionKey.includes(queryKey))
   );
 };
 
-export const resolveSearchableOptions = <T extends Pick<SearchableSelectOption, 'label' | 'aliases'>>(
+const matchRankForKeys = (queryKeys: string[], optionKeys: string[], baseRank: number) => {
+  let rank = Number.POSITIVE_INFINITY;
+  for (const queryKey of queryKeys) {
+    for (const optionKey of optionKeys) {
+      if (optionKey === queryKey) rank = Math.min(rank, baseRank);
+      else if (optionKey.startsWith(queryKey)) rank = Math.min(rank, baseRank + 1);
+      else if (optionKey.includes(queryKey)) rank = Math.min(rank, baseRank + 3);
+    }
+  }
+  return rank;
+};
+
+const optionMatchRank = (option: Pick<SearchableSelectOption, 'id' | 'label' | 'aliases' | 'externalIds'>, query: string) => {
+  const queryKeys = searchKeysForValue(query);
+  if (!queryKeys.length) return 0;
+  const directRank = matchRankForKeys(queryKeys, directSearchValues(option).flatMap(searchKeysForValue), 0);
+  const indirectRank = matchRankForKeys(queryKeys, indirectSearchValues(option).flatMap(searchKeysForValue), 2);
+  return Math.min(directRank, indirectRank);
+};
+
+const optionDedupeKeys = (option: Pick<SearchableSelectOption, 'id' | 'label'>) => [
+  compactText(normalizeText(option.id)),
+  compactText(normalizeText(option.label))
+].filter(Boolean);
+
+export const resolveSearchableOptions = <T extends Pick<SearchableSelectOption, 'id' | 'label' | 'aliases' | 'externalIds'>>(
   options: readonly T[],
   query: string,
   limit = RESULT_LIMIT
 ) => {
-  const matchingOptions = options.filter((option) => optionMatchesQuery(option, query));
-  const visibleOptions = matchingOptions.slice(0, limit);
+  const hasQuery = Boolean(query.trim());
+  const matchingOptions = options
+    .map((option, index) => ({ option, index, rank: optionMatchRank(option, query) }))
+    .filter((entry) => Number.isFinite(entry.rank))
+    .sort((a, b) => {
+      if (!hasQuery) return a.index - b.index;
+      if (a.rank !== b.rank) return a.rank - b.rank;
+      const labelOrder = a.option.label.localeCompare(b.option.label);
+      return labelOrder || a.index - b.index;
+    })
+    .map((entry) => entry.option);
+  const seen = new Set<string>();
+  const uniqueMatchingOptions = matchingOptions.filter((option) => {
+    const keys = optionDedupeKeys(option);
+    if (keys.some((key) => seen.has(key))) return false;
+    keys.forEach((key) => seen.add(key));
+    return true;
+  });
+  const visibleOptions = uniqueMatchingOptions.slice(0, limit);
   return {
-    matchingOptions,
+    matchingOptions: uniqueMatchingOptions,
     visibleOptions,
-    hiddenOptionsCount: Math.max(0, matchingOptions.length - visibleOptions.length)
+    hiddenOptionsCount: Math.max(0, uniqueMatchingOptions.length - visibleOptions.length)
   };
+};
+
+export const excludeSelectedSearchableOptions = <T extends Pick<SearchableSelectOption, 'id' | 'label' | 'aliases'>>(
+  options: readonly T[],
+  values: readonly string[]
+) => {
+  const selectedKeys = new Set(values.flatMap(searchKeysForValue));
+  if (!selectedKeys.size) return [...options];
+
+  return options.filter((option) => {
+    const optionKeys = [option.id, option.label, ...(option.aliases || [])].flatMap(searchKeysForValue);
+    return !optionKeys.some((key) => selectedKeys.has(key));
+  });
 };
 
 export const canUseCustomSearchValue = (input: {

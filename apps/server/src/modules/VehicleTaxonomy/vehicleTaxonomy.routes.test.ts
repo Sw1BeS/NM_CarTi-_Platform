@@ -12,7 +12,9 @@ const syncServiceMock = vi.hoisted(() => ({
 }));
 
 const candidateServiceMock = vi.hoisted(() => ({
-  collectObservedInventoryCandidates: vi.fn()
+  collectObservedInventoryCandidates: vi.fn(),
+  listCandidates: vi.fn(),
+  reviewCandidate: vi.fn()
 }));
 
 vi.mock('./vehicleTaxonomy.service.js', () => ({
@@ -102,6 +104,44 @@ describe('vehicle taxonomy routes', () => {
     });
   });
 
+  it('passes full import sync options from admin API to the sync service', async () => {
+    syncServiceMock.startSync.mockResolvedValue({
+      id: 'sync_full',
+      status: 'DRY_RUN',
+      dryRun: true,
+      counts: { makes: 2 }
+    });
+    const app = await buildApp();
+
+    const res = await request(app)
+      .post('/api/vehicle-taxonomy/sync')
+      .set('authorization', 'Bearer test')
+      .send({
+        sources: 'AUTO_RIA,KATOTTG',
+        dryRun: true,
+        countryCode: 'ua',
+        allModels: true,
+        modelMakeOffset: 25,
+        modelFetchConcurrency: 4,
+        includeSettlements: true,
+        categoryId: 1,
+        vehicleType: 'car'
+      });
+
+    expect(res.status).toBe(200);
+    expect(syncServiceMock.startSync).toHaveBeenCalledWith({
+      sources: ['AUTO_RIA', 'KATOTTG'],
+      dryRun: true,
+      countryCode: 'ua',
+      modelMakeLimit: null,
+      modelMakeOffset: 25,
+      modelFetchConcurrency: 4,
+      categoryId: 1,
+      vehicleType: 'car',
+      includeSettlements: true
+    });
+  });
+
   it('scans observed inventory into candidates behind auth', async () => {
     candidateServiceMock.collectObservedInventoryCandidates.mockResolvedValue({
       scanned: 1,
@@ -121,5 +161,65 @@ describe('vehicle taxonomy routes', () => {
       companyId: 'company_1',
       limit: 10
     });
+  });
+
+  it('lists candidate queue behind auth with filters', async () => {
+    candidateServiceMock.listCandidates.mockResolvedValue([
+      { id: 'candidate_1', kind: 'city', label: 'Київ обл', status: 'NEW' }
+    ]);
+    const app = await buildApp();
+
+    const res = await request(app)
+      .get('/api/vehicle-taxonomy/candidates?kind=city&status=NEW&limit=20')
+      .set('authorization', 'Bearer test');
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      ok: true,
+      candidates: [{ id: 'candidate_1', kind: 'city', status: 'NEW' }]
+    });
+    expect(candidateServiceMock.listCandidates).toHaveBeenCalledWith({
+      kind: 'city',
+      status: 'NEW',
+      limit: 20
+    });
+  });
+
+  it('reviews candidates and can approve them as normalization aliases', async () => {
+    candidateServiceMock.reviewCandidate.mockResolvedValue({
+      candidate: { id: 'candidate_1', status: 'APPROVED', reviewedAt: new Date('2026-06-19T10:00:00.000Z') },
+      alias: { id: 'alias_1', alias: 'Тесла', canonical: 'Tesla' }
+    });
+    const app = await buildApp();
+
+    const res = await request(app)
+      .post('/api/vehicle-taxonomy/candidates/candidate_1/review')
+      .set('authorization', 'Bearer test')
+      .send({ status: 'APPROVED', canonicalLabel: 'Tesla' });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      ok: true,
+      candidate: { id: 'candidate_1', status: 'APPROVED' },
+      alias: { id: 'alias_1', canonical: 'Tesla' }
+    });
+    expect(candidateServiceMock.reviewCandidate).toHaveBeenCalledWith({
+      id: 'candidate_1',
+      status: 'APPROVED',
+      canonicalLabel: 'Tesla',
+      companyId: 'company_1'
+    });
+  });
+
+  it('rejects invalid candidate review status', async () => {
+    const app = await buildApp();
+
+    const res = await request(app)
+      .post('/api/vehicle-taxonomy/candidates/candidate_1/review')
+      .set('authorization', 'Bearer test')
+      .send({ status: 'maybe' });
+
+    expect(res.status).toBe(400);
+    expect(candidateServiceMock.reviewCandidate).not.toHaveBeenCalled();
   });
 });

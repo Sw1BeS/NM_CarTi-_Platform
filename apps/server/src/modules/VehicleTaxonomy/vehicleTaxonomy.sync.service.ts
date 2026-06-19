@@ -1,4 +1,3 @@
-import axios from 'axios';
 import { prisma as defaultPrisma } from '../../services/prisma.js';
 import {
   EMERGENCY_PLACES,
@@ -6,8 +5,13 @@ import {
   EMERGENCY_VEHICLE_MAKES
 } from './vehicleTaxonomy.fallback.js';
 import { normalizeTaxonomyLabel, vehicleTaxonomyId } from './vehicleTaxonomy.ids.js';
-import { fetchAutoriaMarks, fetchAutoriaModels } from './providers/autoria.provider.js';
-import { fetchKatottgPlaces, mapGeoNamesTsv } from './providers/geoplaces.provider.js';
+import {
+  fetchAutoriaMarks,
+  fetchAutoriaModels,
+  fetchAutoriaPlaces,
+  fetchAutoriaSpecOptions
+} from './providers/autoria.provider.js';
+import { fetchGeoNamesPlaces, fetchKatottgPlaces } from './providers/geoplaces.provider.js';
 import { fetchNhtsaMakes, fetchNhtsaModelsForMakeId } from './providers/nhtsa.provider.js';
 import type {
   VehicleTaxonomyExternalIds,
@@ -25,7 +29,10 @@ export type VehicleTaxonomySyncInput = {
   autoriaApiKey?: string | null;
   categoryId?: number;
   vehicleType?: string;
-  modelMakeLimit?: number;
+  modelMakeLimit?: number | null;
+  modelMakeOffset?: number;
+  modelFetchConcurrency?: number;
+  includeSettlements?: boolean;
 };
 
 export type VehicleTaxonomySyncRunView = {
@@ -107,6 +114,29 @@ const sourceMeta = (source: string, externalIds?: VehicleTaxonomyExternalIds, ex
   ...(extra || {})
 });
 
+const compactMeta = (value: Record<string, unknown>) =>
+  Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== undefined));
+
+const modelMakeFanoutLimit = (value: number | null | undefined, defaultLimit: number) =>
+  value === null ? Number.POSITIVE_INFINITY : Math.max(0, value ?? defaultLimit);
+
+const modelMakeFanoutOffset = (value: number | undefined) =>
+  Math.max(0, value ?? 0);
+
+const mapWithConcurrency = async <T, R>(items: T[], concurrency: number, mapper: (item: T) => Promise<R>) => {
+  const output: R[] = [];
+  let cursor = 0;
+  const workerCount = Math.max(1, Math.min(concurrency, items.length || 1));
+  await Promise.all(Array.from({ length: workerCount }, async () => {
+    while (cursor < items.length) {
+      const index = cursor;
+      cursor += 1;
+      output[index] = await mapper(items[index]);
+    }
+  }));
+  return output;
+};
+
 const emergencyDataset = async (): Promise<VehicleTaxonomySourceDataset> => ({
   makes: EMERGENCY_VEHICLE_MAKES.map((make) => ({
     slug: vehicleTaxonomyId(make.label),
@@ -142,35 +172,40 @@ const defaultProviders: Record<VehicleTaxonomySyncSource, VehicleTaxonomyProvide
     if (!apiKey) throw new Error('AUTO_RIA sync requires autoriaApiKey or AUTORIA_API_KEY');
     const categoryId = input.categoryId || 1;
     const makes = await fetchAutoriaMarks({ apiKey, categoryId });
-    const modelMakeLimit = Math.max(0, input.modelMakeLimit ?? 50);
-    const models = (await Promise.all(
-      makes
-        .slice(0, modelMakeLimit)
-        .map((make) => make.externalIds?.autoria)
-        .filter((id): id is string | number => id !== undefined && id !== null)
-        .map((makeExternalId) => fetchAutoriaModels({ apiKey, categoryId, makeExternalId }))
+    const modelMakeLimit = modelMakeFanoutLimit(input.modelMakeLimit, 50);
+    const modelMakeOffset = modelMakeFanoutOffset(input.modelMakeOffset);
+    const modelMakeIds = makes
+      .slice(modelMakeOffset, Number.isFinite(modelMakeLimit) ? modelMakeOffset + modelMakeLimit : undefined)
+      .map((make) => make.externalIds?.autoria)
+      .filter((id): id is string | number => id !== undefined && id !== null);
+    const models = (await mapWithConcurrency(
+      modelMakeIds,
+      input.modelFetchConcurrency || 6,
+      (makeExternalId) => fetchAutoriaModels({ apiKey, categoryId, makeExternalId })
     )).flat();
-    return { makes, models };
+    const [specOptions, places] = await Promise.all([
+      fetchAutoriaSpecOptions({ apiKey, categoryId }),
+      fetchAutoriaPlaces({ apiKey })
+    ]);
+    return { makes, models, specOptions, places };
   },
   NHTSA: async (input) => {
     const makes = await fetchNhtsaMakes(input.vehicleType || 'car');
-    const modelMakeLimit = Math.max(0, input.modelMakeLimit ?? 0);
-    const models = (await Promise.all(
-      makes
-        .slice(0, modelMakeLimit)
-        .map((make) => make.externalIds?.nhtsa)
-        .filter((id): id is string | number => id !== undefined && id !== null)
-        .map((makeId) => fetchNhtsaModelsForMakeId(makeId))
+    const modelMakeLimit = modelMakeFanoutLimit(input.modelMakeLimit, 0);
+    const modelMakeOffset = modelMakeFanoutOffset(input.modelMakeOffset);
+    const modelMakeIds = makes
+      .slice(modelMakeOffset, Number.isFinite(modelMakeLimit) ? modelMakeOffset + modelMakeLimit : undefined)
+      .map((make) => make.externalIds?.nhtsa)
+      .filter((id): id is string | number => id !== undefined && id !== null);
+    const models = (await mapWithConcurrency(
+      modelMakeIds,
+      input.modelFetchConcurrency || 6,
+      (makeId) => fetchNhtsaModelsForMakeId(makeId)
     )).flat();
     return { makes, models };
   },
-  KATOTTG: async () => ({ places: await fetchKatottgPlaces() }),
-  GEONAMES: async () => {
-    const url = process.env.GEONAMES_TSV_URL;
-    if (!url) throw new Error('GEONAMES sync requires GEONAMES_TSV_URL');
-    const response = await axios.get<string>(url, { responseType: 'text' as any });
-    return { places: mapGeoNamesTsv(String(response.data || '')) };
-  },
+  KATOTTG: async (input) => ({ places: await fetchKatottgPlaces({ includeSettlements: input.includeSettlements === true }) }),
+  GEONAMES: async () => ({ places: await fetchGeoNamesPlaces() }),
   EMERGENCY_FALLBACK: emergencyDataset
 };
 
@@ -194,7 +229,20 @@ export class VehicleTaxonomySyncService {
     const dryRun = input.dryRun !== false;
     const countryCode = String(input.countryCode || 'UA').toUpperCase();
     const source = sources.join(',');
-    const sourceMetaValue = { dryRun, countryCode, sources };
+    const optionsMeta = compactMeta({
+      categoryId: input.categoryId,
+      vehicleType: input.vehicleType,
+      modelMakeLimit: input.modelMakeLimit === null ? 'all' : input.modelMakeLimit,
+      modelMakeOffset: input.modelMakeOffset,
+      modelFetchConcurrency: input.modelFetchConcurrency,
+      includeSettlements: input.includeSettlements === true ? true : undefined
+    });
+    const sourceMetaValue = {
+      dryRun,
+      countryCode,
+      sources,
+      ...(Object.keys(optionsMeta).length ? { options: optionsMeta } : {})
+    };
     const dataset = await this.collectDataset(sources, { ...input, countryCode });
     const counts = datasetCounts(sources, dataset);
 

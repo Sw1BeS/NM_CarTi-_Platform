@@ -51,6 +51,45 @@ describe('VehicleTaxonomySyncService', () => {
     expect(prisma.vehicleMake.upsert).not.toHaveBeenCalled();
   });
 
+  it('passes explicit full import options to providers and dry-run metadata', async () => {
+    const prisma = buildPrismaMock();
+    const provider = vi.fn().mockResolvedValue({
+      makes: [{ slug: 'bmw', label: 'BMW', externalIds: { nhtsa: 452 } }],
+      models: [],
+      places: [{ countryCode: 'UA', type: 'settlement', slug: 'брюховичі', label: 'Брюховичі' }]
+    });
+    const service = new VehicleTaxonomySyncService({
+      prisma,
+      providers: { NHTSA: provider },
+      now: () => new Date('2026-06-18T09:00:00.000Z')
+    });
+
+    const result = await service.startSync({
+      sources: ['NHTSA'],
+      dryRun: true,
+      countryCode: 'ua',
+      modelMakeLimit: null,
+      vehicleType: 'car',
+      includeSettlements: true
+    });
+
+    expect(provider).toHaveBeenCalledWith(expect.objectContaining({
+      countryCode: 'UA',
+      modelMakeLimit: null,
+      vehicleType: 'car',
+      includeSettlements: true
+    }));
+    expect(result.sourceMeta).toMatchObject({
+      countryCode: 'UA',
+      options: {
+        modelMakeLimit: 'all',
+        vehicleType: 'car',
+        includeSettlements: true
+      }
+    });
+    expect(result.counts).toMatchObject({ makes: 1, models: 0, places: 1 });
+  });
+
   it('upserts provider records and completes the sync run', async () => {
     const prisma = buildPrismaMock();
     const service = new VehicleTaxonomySyncService({

@@ -43,7 +43,8 @@ const {
   emitPlatformEventMock: vi.fn(),
   metaPixelTrackEventMock: vi.fn(),
   vehicleTaxonomyServiceMock: {
-    getTaxonomy: vi.fn()
+    getTaxonomy: vi.fn(),
+    canonicalizeCriteria: vi.fn()
   },
   prismaMock: {
     botConfig: {
@@ -248,6 +249,14 @@ describe('MiniApp Lead handoff routes', () => {
     telegramOutboxMock.sendMessage.mockResolvedValue({ message_id: 10 });
     prismaMock.integrationEventLog.create.mockResolvedValue({});
     startLeadSellWizardMock.mockResolvedValue(undefined);
+    vehicleTaxonomyServiceMock.canonicalizeCriteria.mockImplementation(async (criteria: Record<string, unknown>) => ({
+      data: criteria,
+      issues: [],
+      taxonomy: {
+        version: 'test-taxonomy',
+        source: 'LOCAL_SNAPSHOT'
+      }
+    }));
     b2bWhitelistServiceMock.ensureAccess.mockResolvedValue({
       allowed: false,
       accessRequest: {
@@ -733,6 +742,57 @@ describe('MiniApp Lead handoff routes', () => {
     expect(miniAppServiceMock.createRequest).not.toHaveBeenCalled();
   });
 
+  it('passes canonicalized MiniApp lead criteria to the pending intent contract', async () => {
+    vehicleTaxonomyServiceMock.canonicalizeCriteria.mockResolvedValueOnce({
+      data: {
+        brand: 'Tesla',
+        model: 'Model 3',
+        fuel: 'Електро',
+        fuels: [{ id: 'електро', label: 'Електро' }]
+      },
+      issues: [{ field: 'fuel', value: 'diesel', reason: 'incompatible', expected: ['електро'] }],
+      taxonomy: { version: 'test-taxonomy', source: 'LOCAL_SNAPSHOT' }
+    });
+    const app = await buildApp();
+
+    const res = await request(app)
+      .post('/api/miniapp/lead-intents')
+      .send({
+        slug: 'cartie',
+        initData: 'signed-init-data',
+        kind: 'PICK',
+        criteria: {
+          brand: 'tesla',
+          model: 'model 3',
+          fuel: 'diesel'
+        },
+        tracking: { submitId: 'submit_taxonomy_1' }
+      });
+
+    expect(res.status).toBe(200);
+    expect(vehicleTaxonomyServiceMock.canonicalizeCriteria).toHaveBeenCalledWith(expect.objectContaining({
+      brand: 'tesla',
+      model: 'model 3',
+      fuel: 'diesel'
+    }), {
+      companyId: 'company_1',
+      source: 'MINIAPP_LEAD_INTENT'
+    });
+    expect(requestContractServiceMock.createPendingLeadIntent).toHaveBeenCalledWith(expect.objectContaining({
+      payload: expect.objectContaining({
+        criteria: expect.objectContaining({
+          brand: 'Tesla',
+          model: 'Model 3',
+          fuel: 'Електро'
+        }),
+        taxonomyNormalization: expect.objectContaining({
+          version: 'test-taxonomy',
+          issues: [expect.objectContaining({ field: 'fuel', reason: 'incompatible' })]
+        })
+      })
+    }));
+  });
+
   it('rejects Lead-only bot-flows for B2B MiniApp configs', async () => {
     miniAppServiceMock.getConfig.mockResolvedValueOnce({
       companyId: 'company_1',
@@ -933,6 +993,82 @@ describe('MiniApp Lead handoff routes', () => {
     }));
     expect(startLeadSellWizardMock).not.toHaveBeenCalled();
     expect(requestContractServiceMock.createPendingLeadIntent).not.toHaveBeenCalled();
+  });
+
+  it('passes canonicalized B2B request criteria to MiniApp request creation', async () => {
+    miniAppServiceMock.getConfig.mockResolvedValueOnce({
+      companyId: 'company_1',
+      botId: 'bot_b2b',
+      publicSlug: 'cardealer_lviv_bot',
+      template: 'B2B',
+      miniapp: { surfaceMode: 'B2B' }
+    });
+    prismaMock.partnerUser.findFirst.mockResolvedValueOnce({
+      partnerId: 'partner_1',
+      role: 'OWNER',
+      partner: {
+        id: 'partner_1',
+        name: 'Dealer One',
+        partnerCode: 'D1',
+        showcaseSlug: 'dealer-one'
+      }
+    });
+    vehicleTaxonomyServiceMock.canonicalizeCriteria.mockResolvedValueOnce({
+      data: {
+        brand: 'Tesla',
+        model: 'Model Y',
+        fuel: 'Електро'
+      },
+      issues: [{ field: 'fuel', value: 'benzyn', reason: 'incompatible', expected: ['електро'] }],
+      taxonomy: { version: 'test-taxonomy', source: 'LOCAL_SNAPSHOT' }
+    });
+    miniAppServiceMock.createRequest.mockResolvedValueOnce({
+      id: 'request_taxonomy_1',
+      publicId: 'CD-2026-000003',
+      requesterPartnerId: 'partner_1'
+    });
+    const app = await buildApp();
+
+    const res = await request(app)
+      .post('/api/miniapp/requests')
+      .send({
+        slug: 'cardealer_lviv_bot',
+        initData: 'signed-init-data',
+        requestType: 'BUY',
+        payload: {
+          mode: 'B2B',
+          criteria: {
+            brand: 'tesla',
+            model: 'model y',
+            fuel: 'benzyn'
+          }
+        },
+        tracking: { submitId: 'b2b_taxonomy_submit_1' }
+      });
+
+    expect(res.status).toBe(200);
+    expect(vehicleTaxonomyServiceMock.canonicalizeCriteria).toHaveBeenCalledWith(expect.objectContaining({
+      brand: 'tesla',
+      model: 'model y',
+      fuel: 'benzyn'
+    }), {
+      companyId: 'company_1',
+      source: 'MINIAPP_B2B_REQUEST'
+    });
+    expect(miniAppServiceMock.createRequest).toHaveBeenCalledWith(expect.objectContaining({
+      payload: expect.objectContaining({
+        mode: 'B2B',
+        criteria: expect.objectContaining({
+          brand: 'Tesla',
+          model: 'Model Y',
+          fuel: 'Електро'
+        }),
+        taxonomyNormalization: expect.objectContaining({
+          version: 'test-taxonomy',
+          issues: [expect.objectContaining({ field: 'fuel', reason: 'incompatible' })]
+        })
+      })
+    }));
   });
 
   it('returns pending B2B partner portal state without querying partner-owned data', async () => {

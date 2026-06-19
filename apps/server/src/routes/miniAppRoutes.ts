@@ -1651,6 +1651,10 @@ router.post('/lead-intents', async (req, res) => {
     }
 
     const criteria = isRecord(body.criteria) ? body.criteria : {};
+    const canonicalizedCriteria = await vehicleTaxonomyService.canonicalizeCriteria(criteria, {
+      companyId: config.companyId,
+      source: 'MINIAPP_LEAD_INTENT'
+    });
     const requestTrackingMeta = Object.fromEntries(
       Object.entries({
         client_ip_address: readClientIp(req),
@@ -1678,7 +1682,11 @@ router.post('/lead-intents', async (req, res) => {
       payload: {
         ...payloadFromInput,
         kind: kind.kind,
-        criteria,
+        criteria: canonicalizedCriteria.data,
+        taxonomyNormalization: {
+          ...canonicalizedCriteria.taxonomy,
+          issues: canonicalizedCriteria.issues
+        },
         source: 'miniapp_lead_intent',
         authSource,
         requestId
@@ -2025,6 +2033,25 @@ router.post('/requests', async (req, res) => {
         : 0
     });
 
+    const payloadFromInput = isRecord(body.payload) ? { ...(body.payload as Record<string, unknown>) } : {};
+    const requestCriteria = isRecord(payloadFromInput.criteria)
+      ? payloadFromInput.criteria as Record<string, unknown>
+      : isRecord((payloadFromInput.request as Record<string, unknown> | undefined)?.criteria)
+        ? (payloadFromInput.request as Record<string, unknown>).criteria as Record<string, unknown>
+        : {};
+    const canonicalizedCriteria = await vehicleTaxonomyService.canonicalizeCriteria(requestCriteria, {
+      companyId: config.companyId,
+      source: 'MINIAPP_B2B_REQUEST'
+    });
+    const payload = {
+      ...payloadFromInput,
+      criteria: canonicalizedCriteria.data,
+      taxonomyNormalization: {
+        ...canonicalizedCriteria.taxonomy,
+        issues: canonicalizedCriteria.issues
+      }
+    };
+
     const request = await miniAppService.createRequest({
       slug,
       requestType: readString(body.requestType) || readString(body.type),
@@ -2045,7 +2072,7 @@ router.post('/requests', async (req, res) => {
         username: telegram.username,
         name: telegram.name
       },
-      payload: (body.payload as Record<string, unknown>) || undefined
+      payload
     });
 
     res.json({ ok: true, request });

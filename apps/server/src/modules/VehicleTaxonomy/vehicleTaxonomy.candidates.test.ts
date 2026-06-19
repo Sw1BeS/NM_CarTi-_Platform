@@ -7,11 +7,18 @@ import {
 const buildPrismaMock = () => ({
   vehicleTaxonomyCandidate: {
     findFirst: vi.fn().mockResolvedValue(null),
+    findUnique: vi.fn(),
+    findMany: vi.fn(),
     create: vi.fn().mockImplementation(async ({ data }) => ({ id: 'candidate_1', ...data })),
-    update: vi.fn()
+    update: vi.fn().mockImplementation(async ({ data }) => ({ id: 'candidate_1', ...data }))
   },
   carListing: {
     findMany: vi.fn()
+  },
+  normalizationAlias: {
+    findFirst: vi.fn().mockResolvedValue(null),
+    create: vi.fn().mockImplementation(async ({ data }) => ({ id: 'alias_1', ...data })),
+    update: vi.fn().mockImplementation(async ({ data }) => ({ id: 'alias_1', ...data }))
   }
 });
 
@@ -83,5 +90,82 @@ describe('vehicle taxonomy candidates', () => {
         source: 'OBSERVED_INVENTORY_REJECTED_MODEL'
       })
     });
+  });
+
+  it('lists candidates with bounded filters for moderation', async () => {
+    const prisma = buildPrismaMock();
+    prisma.vehicleTaxonomyCandidate.findMany.mockResolvedValue([{ id: 'candidate_1', status: 'NEW' }]);
+    const service = new VehicleTaxonomyCandidateService({ prisma });
+
+    const result = await service.listCandidates({ kind: 'city', status: 'NEW', limit: 500 });
+
+    expect(result).toEqual([{ id: 'candidate_1', status: 'NEW' }]);
+    expect(prisma.vehicleTaxonomyCandidate.findMany).toHaveBeenCalledWith({
+      where: { kind: 'city', status: 'NEW' },
+      orderBy: { createdAt: 'desc' },
+      take: 200
+    });
+  });
+
+  it('approves brand/model/city candidates by creating normalization aliases, not public taxonomy rows', async () => {
+    const prisma = buildPrismaMock();
+    prisma.vehicleTaxonomyCandidate.findUnique.mockResolvedValue({
+      id: 'candidate_1',
+      kind: 'make',
+      label: 'Тесла',
+      status: 'NEW'
+    });
+    const service = new VehicleTaxonomyCandidateService({
+      prisma,
+      now: () => new Date('2026-06-19T10:00:00.000Z')
+    });
+
+    const result = await service.reviewCandidate({
+      id: 'candidate_1',
+      status: 'APPROVED',
+      canonicalLabel: 'Tesla',
+      companyId: 'company_1'
+    });
+
+    expect(result.alias).toMatchObject({
+      id: 'alias_1',
+      alias: 'Тесла',
+      canonical: 'Tesla',
+      companyId: 'company_1'
+    });
+    expect(prisma.normalizationAlias.create).toHaveBeenCalledWith({
+      data: {
+        type: 'brand',
+        alias: 'Тесла',
+        canonical: 'Tesla',
+        companyId: 'company_1'
+      }
+    });
+    expect(prisma.vehicleTaxonomyCandidate.update).toHaveBeenCalledWith({
+      where: { id: 'candidate_1' },
+      data: {
+        status: 'APPROVED',
+        reviewedAt: new Date('2026-06-19T10:00:00.000Z')
+      }
+    });
+  });
+
+  it('rejects candidates without creating aliases', async () => {
+    const prisma = buildPrismaMock();
+    prisma.vehicleTaxonomyCandidate.findUnique.mockResolvedValue({
+      id: 'candidate_1',
+      kind: 'specOption',
+      label: 'nonsense',
+      status: 'NEW'
+    });
+    const service = new VehicleTaxonomyCandidateService({ prisma });
+
+    await service.reviewCandidate({ id: 'candidate_1', status: 'REJECTED' });
+
+    expect(prisma.normalizationAlias.create).not.toHaveBeenCalled();
+    expect(prisma.vehicleTaxonomyCandidate.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'candidate_1' },
+      data: expect.objectContaining({ status: 'REJECTED' })
+    }));
   });
 });

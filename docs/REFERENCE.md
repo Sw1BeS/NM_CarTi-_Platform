@@ -1,6 +1,6 @@
 # Cartie Platform Reference
 
-Updated: 2026-01-22
+Updated: 2026-06-19
 
 ## Environment Variables
 
@@ -34,6 +34,10 @@ Updated: 2026-01-22
 - `SENDPULSE_ID`
 - `SENDPULSE_SECRET`
 - `AUTORIA_API_KEY`
+- `KATOTTG_CSV_URL`
+- `KATOTTG_AUTHORIZATION`
+- `KATOTTG_API_TOKEN`
+- `GEONAMES_TSV_URL`
 - `GEMINI_API_KEY`
 
 ## API Endpoints (Selected)
@@ -63,6 +67,29 @@ Updated: 2026-01-22
 - GET `/api/templates`
 - GET `/api/integrations`
 - GET `/api/entities/meta`
+- GET `/api/miniapp/vehicle-taxonomy`
+- POST `/api/vehicle-taxonomy/sync`
+- POST `/api/vehicle-taxonomy/candidates/scan-observed`
+
+## Vehicle Taxonomy
+
+- Runtime MiniApp and inventory writes use the local vehicle taxonomy snapshot as a controlled vocabulary.
+- External providers feed the local snapshot through sync jobs; public request forms do not call AUTO.RIA/KATOTTG/GeoNames live.
+- Unknown user-entered brand/model/spec/city values are recorded as `VehicleTaxonomyCandidate` evidence instead of becoming public dictionary entries.
+- Compatibility rules remove impossible canonical criteria, for example Tesla with diesel/gasoline fuel.
+
+Dry-run provider sync:
+
+```bash
+npm --prefix apps/server run vehicle-taxonomy:sync -- --sources=AUTO_RIA --model-make-limit=0 --category-id=1
+```
+
+Gated apply, staging/dev only:
+
+```bash
+ALLOW_VEHICLE_TAXONOMY_SYNC_WRITE=1 \
+npm --prefix apps/server run vehicle-taxonomy:sync -- --source=EMERGENCY_FALLBACK --apply
+```
 
 ## Common Commands
 

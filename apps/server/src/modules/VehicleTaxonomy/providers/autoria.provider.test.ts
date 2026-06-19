@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { mapAutoriaMarks, mapAutoriaModels } from './autoria.provider.js';
+import { vehicleTaxonomyId } from '../vehicleTaxonomy.ids.js';
 
 describe('AUTO.RIA taxonomy provider mapping', () => {
   it('maps marks and models into canonical source records', () => {
@@ -8,5 +9,9 @@ describe('AUTO.RIA taxonomy provider mapping', () => {
 
     expect(marks[0]).toMatchObject({ slug: 'bmw', label: 'BMW', externalIds: { autoria: 9 } });
     expect(models[0]).toMatchObject({ makeExternalId: 9, slug: 'x5', label: 'X5', externalIds: { autoria: 123 } });
+  });
+
+  it('canonicalizes AUTO.RIA SUV body style ids for compatibility filters', () => {
+    expect(vehicleTaxonomyId('Позашляховик / Кросовер')).toBe('suv');
   });
 });

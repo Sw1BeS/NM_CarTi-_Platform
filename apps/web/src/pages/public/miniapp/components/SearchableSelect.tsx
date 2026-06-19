@@ -3,6 +3,7 @@ import { Check, Search, X } from 'lucide-react';
 import {
   canUseCustomSearchValue,
   resolveSearchableOptions,
+  searchableOptionDomId,
   type SearchableSelectOption
 } from './searchableOptions';
 
@@ -80,7 +81,7 @@ export const SearchableSelect = ({
           aria-autocomplete="list"
           aria-haspopup="listbox"
           aria-controls={listboxId}
-          aria-activedescendant={activeOption ? `${listboxId}-${activeOption.id}` : undefined}
+          aria-activedescendant={activeOption ? searchableOptionDomId(listboxId, activeOption) : undefined}
           aria-expanded={open && !disabled}
           role="combobox"
           disabled={disabled}
@@ -141,7 +142,7 @@ export const SearchableSelect = ({
             return (
               <button
                 key={option.id}
-                id={`${listboxId}-${option.id}`}
+                id={searchableOptionDomId(listboxId, option)}
                 type="button"
                 role="option"
                 aria-selected={selected}

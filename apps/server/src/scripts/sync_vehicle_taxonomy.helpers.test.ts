@@ -12,6 +12,7 @@ describe('sync vehicle taxonomy CLI helpers', () => {
       dryRun: true,
       sources: ['EMERGENCY_FALLBACK'],
       countryCode: 'UA',
+      includeSettlements: false,
       scanObserved: false
     });
     expect(validateVehicleTaxonomySyncOptions(options, {})).toEqual([]);
@@ -46,7 +47,36 @@ describe('sync vehicle taxonomy CLI helpers', () => {
       sources: ['NHTSA', 'KATOTTG'],
       countryCode: 'UA',
       modelMakeLimit: 5,
+      includeSettlements: false,
       vehicleType: 'car'
     });
+  });
+
+  it('parses explicit full source import flags', () => {
+    const options = parseVehicleTaxonomySyncArgs([
+      '--sources=AUTO_RIA,KATOTTG',
+      '--all-models',
+      '--include-settlements',
+      '--model-make-offset=25',
+      '--model-fetch-concurrency=4',
+      '--category-id=1'
+    ]);
+
+    expect(options).toMatchObject({
+      dryRun: true,
+      sources: ['AUTO_RIA', 'KATOTTG'],
+      countryCode: 'UA',
+      modelMakeLimit: null,
+      modelMakeOffset: 25,
+      modelFetchConcurrency: 4,
+      includeSettlements: true,
+      categoryId: 1
+    });
+  });
+
+  it('accepts model-make-limit=all as a non-ambiguous full fan-out alias', () => {
+    const options = parseVehicleTaxonomySyncArgs(['--source=NHTSA', '--model-make-limit=all']);
+
+    expect(options.modelMakeLimit).toBeNull();
   });
 });

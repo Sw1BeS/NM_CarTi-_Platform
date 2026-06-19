@@ -1,7 +1,9 @@
+import { NormalizationType } from '@prisma/client';
 import { prisma as defaultPrisma } from '../../services/prisma.js';
 import { normalizeTaxonomyLabel } from './vehicleTaxonomy.ids.js';
 
 export type VehicleTaxonomyCandidateKind = 'make' | 'model' | 'city' | 'specOption';
+export type VehicleTaxonomyCandidateStatus = 'NEW' | 'APPROVED' | 'REJECTED';
 
 export type VehicleTaxonomyCandidateInput = {
   kind: VehicleTaxonomyCandidateKind;
@@ -20,6 +22,19 @@ export type ObservedInventoryCandidateScanResult = {
   scanned: number;
   rejectedModels: number;
   recorded: number;
+};
+
+export type VehicleTaxonomyCandidateListInput = {
+  kind?: VehicleTaxonomyCandidateKind;
+  status?: VehicleTaxonomyCandidateStatus;
+  limit?: number;
+};
+
+export type VehicleTaxonomyCandidateReviewInput = {
+  id: string;
+  status: VehicleTaxonomyCandidateStatus;
+  canonicalLabel?: string | null;
+  companyId?: string | null;
 };
 
 export type VehicleTaxonomyCandidateServiceDeps = {
@@ -70,6 +85,15 @@ const mergeEvidence = (existing: unknown, evidence: Record<string, unknown> | un
   };
 };
 
+const candidateKindToAliasType = (kind: string): NormalizationType | null => {
+  if (kind === 'make') return NormalizationType.brand;
+  if (kind === 'model') return NormalizationType.model;
+  if (kind === 'city') return NormalizationType.city;
+  return null;
+};
+
+const readLimit = (value: unknown) => Math.min(Math.max(Number(value) || 50, 1), 200);
+
 export class VehicleTaxonomyCandidateService {
   private readonly db: any;
   private readonly now: () => Date;
@@ -116,6 +140,66 @@ export class VehicleTaxonomyCandidateService {
         status: 'NEW'
       }
     });
+  }
+
+  async listCandidates(input: VehicleTaxonomyCandidateListInput = {}) {
+    return this.db.vehicleTaxonomyCandidate.findMany({
+      where: {
+        ...(input.kind ? { kind: input.kind } : {}),
+        ...(input.status ? { status: input.status } : {})
+      },
+      orderBy: { createdAt: 'desc' },
+      take: readLimit(input.limit)
+    });
+  }
+
+  async reviewCandidate(input: VehicleTaxonomyCandidateReviewInput) {
+    const id = normalizeTaxonomyLabel(input.id);
+    if (!id) throw new Error('candidate id is required');
+    if (!['NEW', 'APPROVED', 'REJECTED'].includes(input.status)) throw new Error('invalid candidate status');
+
+    const existing = await this.db.vehicleTaxonomyCandidate.findUnique({ where: { id } });
+    if (!existing) throw new Error('candidate not found');
+
+    const canonical = normalizeTaxonomyLabel(input.canonicalLabel);
+    const aliasType = candidateKindToAliasType(existing.kind);
+    let alias = null;
+
+    if (input.status === 'APPROVED' && canonical && aliasType) {
+      const label = normalizeTaxonomyLabel(existing.label);
+      const companyId = normalizeTaxonomyLabel(input.companyId) || null;
+      const current = await this.db.normalizationAlias.findFirst({
+        where: {
+          type: aliasType,
+          alias: { equals: label, mode: 'insensitive' },
+          companyId
+        }
+      });
+
+      alias = current
+        ? await this.db.normalizationAlias.update({
+          where: { id: current.id },
+          data: { canonical }
+        })
+        : await this.db.normalizationAlias.create({
+          data: {
+            type: aliasType,
+            alias: label,
+            canonical,
+            companyId
+          }
+        });
+    }
+
+    const candidate = await this.db.vehicleTaxonomyCandidate.update({
+      where: { id },
+      data: {
+        status: input.status,
+        reviewedAt: this.now()
+      }
+    });
+
+    return { candidate, alias };
   }
 
   async collectObservedInventoryCandidates(input: ObservedInventoryCandidateScanInput = {}): Promise<ObservedInventoryCandidateScanResult> {
