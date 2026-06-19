@@ -12,6 +12,8 @@ describe('sync vehicle taxonomy CLI helpers', () => {
       dryRun: true,
       sources: ['EMERGENCY_FALLBACK'],
       countryCode: 'UA',
+      skipAutoriaSpecOptions: false,
+      skipAutoriaPlaces: false,
       includeSettlements: false,
       scanObserved: false
     });
@@ -59,6 +61,8 @@ describe('sync vehicle taxonomy CLI helpers', () => {
       '--include-settlements',
       '--model-make-offset=25',
       '--model-fetch-concurrency=4',
+      '--skip-autoria-specs',
+      '--skip-autoria-places',
       '--category-id=1'
     ]);
 
@@ -69,6 +73,8 @@ describe('sync vehicle taxonomy CLI helpers', () => {
       modelMakeLimit: null,
       modelMakeOffset: 25,
       modelFetchConcurrency: 4,
+      skipAutoriaSpecOptions: true,
+      skipAutoriaPlaces: true,
       includeSettlements: true,
       categoryId: 1
     });

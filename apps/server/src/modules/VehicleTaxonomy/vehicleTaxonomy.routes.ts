@@ -81,6 +81,8 @@ router.post('/sync', authenticateToken, requireRole(['ADMIN', 'SUPER_ADMIN']), a
       modelFetchConcurrency?: number;
       categoryId?: number;
       vehicleType?: string;
+      skipAutoriaSpecOptions?: boolean;
+      skipAutoriaPlaces?: boolean;
       includeSettlements?: boolean;
     };
     const modelMakeLimit = readModelMakeLimit(req.body?.modelMakeLimit, req.body?.allModels);
@@ -93,6 +95,8 @@ router.post('/sync', authenticateToken, requireRole(['ADMIN', 'SUPER_ADMIN']), a
     if (modelFetchConcurrency !== undefined) syncInput.modelFetchConcurrency = modelFetchConcurrency;
     if (categoryId !== undefined) syncInput.categoryId = categoryId;
     if (vehicleType !== undefined) syncInput.vehicleType = vehicleType;
+    if (readBoolean(req.body?.skipAutoriaSpecOptions) || readBoolean(req.body?.skipAutoriaSpecs)) syncInput.skipAutoriaSpecOptions = true;
+    if (readBoolean(req.body?.skipAutoriaPlaces)) syncInput.skipAutoriaPlaces = true;
     if (readBoolean(req.body?.includeSettlements)) syncInput.includeSettlements = true;
 
     const syncRun = await vehicleTaxonomySyncService.startSync(syncInput);

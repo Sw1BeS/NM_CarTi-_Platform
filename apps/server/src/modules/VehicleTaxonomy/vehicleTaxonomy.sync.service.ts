@@ -32,6 +32,8 @@ export type VehicleTaxonomySyncInput = {
   modelMakeLimit?: number | null;
   modelMakeOffset?: number;
   modelFetchConcurrency?: number;
+  skipAutoriaSpecOptions?: boolean;
+  skipAutoriaPlaces?: boolean;
   includeSettlements?: boolean;
 };
 
@@ -199,8 +201,8 @@ const defaultProviders: Record<VehicleTaxonomySyncSource, VehicleTaxonomyProvide
       (makeExternalId) => optionalAutoriaBatch(() => fetchAutoriaModels({ apiKey, categoryId, makeExternalId }))
     )).flat();
     const [specOptions, places] = await Promise.all([
-      optionalAutoriaBatch(() => fetchAutoriaSpecOptions({ apiKey, categoryId })),
-      optionalAutoriaBatch(() => fetchAutoriaPlaces({ apiKey }))
+      input.skipAutoriaSpecOptions ? [] : optionalAutoriaBatch(() => fetchAutoriaSpecOptions({ apiKey, categoryId })),
+      input.skipAutoriaPlaces ? [] : optionalAutoriaBatch(() => fetchAutoriaPlaces({ apiKey }))
     ]);
     return { makes, models, specOptions, places };
   },
@@ -250,6 +252,8 @@ export class VehicleTaxonomySyncService {
       modelMakeLimit: input.modelMakeLimit === null ? 'all' : input.modelMakeLimit,
       modelMakeOffset: input.modelMakeOffset,
       modelFetchConcurrency: input.modelFetchConcurrency,
+      skipAutoriaSpecOptions: input.skipAutoriaSpecOptions === true ? true : undefined,
+      skipAutoriaPlaces: input.skipAutoriaPlaces === true ? true : undefined,
       includeSettlements: input.includeSettlements === true ? true : undefined
     });
     const sourceMetaValue = {

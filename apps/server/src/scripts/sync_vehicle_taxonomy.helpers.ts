@@ -9,6 +9,8 @@ export type VehicleTaxonomySyncCliOptions = {
   modelFetchConcurrency?: number;
   categoryId?: number;
   vehicleType?: string;
+  skipAutoriaSpecOptions: boolean;
+  skipAutoriaPlaces: boolean;
   includeSettlements: boolean;
   scanObserved: boolean;
   companyId?: string;
@@ -66,6 +68,8 @@ export const parseVehicleTaxonomySyncArgs = (args: string[]): VehicleTaxonomySyn
     modelFetchConcurrency: readNumberArg(args, 'modelFetchConcurrency') ?? readNumberArg(args, 'model-fetch-concurrency'),
     categoryId: readNumberArg(args, 'categoryId') ?? readNumberArg(args, 'category-id'),
     vehicleType: readValueArg(args, 'vehicleType') || readValueArg(args, 'vehicle-type'),
+    skipAutoriaSpecOptions: args.includes('--skip-autoria-specs') || args.includes('--skip-autoria-spec-options'),
+    skipAutoriaPlaces: args.includes('--skip-autoria-places'),
     includeSettlements: args.includes('--include-settlements'),
     scanObserved: args.includes('--scan-observed'),
     companyId: readValueArg(args, 'companyId') || readValueArg(args, 'company-id'),
@@ -103,7 +107,7 @@ export const buildVehicleTaxonomySyncUsage = () => [
   'Usage:',
   '  npm run vehicle-taxonomy:sync -- --source=EMERGENCY_FALLBACK',
   '  npm run vehicle-taxonomy:sync -- --sources=NHTSA,KATOTTG --model-make-limit=0',
-  '  npm run vehicle-taxonomy:sync -- --sources=AUTO_RIA,KATOTTG --model-make-limit=25 --model-make-offset=0 --model-fetch-concurrency=2 --include-settlements',
+  '  npm run vehicle-taxonomy:sync -- --sources=AUTO_RIA,KATOTTG --model-make-limit=25 --model-make-offset=0 --model-fetch-concurrency=2 --skip-autoria-places',
   '  ALLOW_VEHICLE_TAXONOMY_SYNC_WRITE=1 npm run vehicle-taxonomy:sync -- --source=EMERGENCY_FALLBACK --apply',
   '  ALLOW_VEHICLE_TAXONOMY_SYNC_WRITE=1 npm run vehicle-taxonomy:sync -- --source=EMERGENCY_FALLBACK --apply --scan-observed --companyId=<workspaceId>',
   '',
@@ -111,6 +115,7 @@ export const buildVehicleTaxonomySyncUsage = () => [
   '--all-models is explicit full model fan-out; without it AUTO_RIA is bounded and NHTSA fetches makes only.',
   '--model-make-offset with --model-make-limit lets AUTO_RIA model fan-out run in quota-safe batches.',
   '--model-fetch-concurrency controls parallel model fan-out requests; default is 6.',
+  '--skip-autoria-specs and --skip-autoria-places prevent optional AUTO.RIA dictionary fan-out when quota is tight.',
   '--include-settlements adds Ukrainian towns/villages from KATOTTG to the city selector snapshot.',
   'Write mode requires both --apply and ALLOW_VEHICLE_TAXONOMY_SYNC_WRITE=1.',
   'Public MiniApp taxonomy never calls external providers live; this script only updates the local snapshot.'

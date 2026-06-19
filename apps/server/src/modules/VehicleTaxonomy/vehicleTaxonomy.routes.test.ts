@@ -123,6 +123,8 @@ describe('vehicle taxonomy routes', () => {
         allModels: true,
         modelMakeOffset: 25,
         modelFetchConcurrency: 4,
+        skipAutoriaSpecs: true,
+        skipAutoriaPlaces: true,
         includeSettlements: true,
         categoryId: 1,
         vehicleType: 'car'
@@ -136,6 +138,8 @@ describe('vehicle taxonomy routes', () => {
       modelMakeLimit: null,
       modelMakeOffset: 25,
       modelFetchConcurrency: 4,
+      skipAutoriaSpecOptions: true,
+      skipAutoriaPlaces: true,
       categoryId: 1,
       vehicleType: 'car',
       includeSettlements: true

@@ -181,6 +181,42 @@ describe('VehicleTaxonomySyncService', () => {
     expect(autoriaProviderMock.fetchAutoriaPlaces).toHaveBeenCalled();
   });
 
+  it('skips optional AUTO.RIA spec and place dictionaries when requested', async () => {
+    autoriaProviderMock.fetchAutoriaMarks.mockResolvedValue([
+      { slug: 'tesla', label: 'Tesla', externalIds: { autoria: 2233 } }
+    ]);
+    autoriaProviderMock.fetchAutoriaModels.mockResolvedValue([]);
+
+    const service = new VehicleTaxonomySyncService({
+      prisma: buildPrismaMock(),
+      now: () => new Date('2026-06-18T09:00:00.000Z')
+    });
+
+    const result = await service.startSync({
+      sources: ['AUTO_RIA'],
+      dryRun: true,
+      autoriaApiKey: 'test-key',
+      modelMakeLimit: 0,
+      skipAutoriaSpecOptions: true,
+      skipAutoriaPlaces: true
+    });
+
+    expect(result).toMatchObject({
+      status: 'DRY_RUN',
+      counts: { sources: 1, makes: 1, models: 0, specOptions: 0, places: 0 },
+      sourceMeta: {
+        options: {
+          modelMakeLimit: 0,
+          skipAutoriaSpecOptions: true,
+          skipAutoriaPlaces: true
+        }
+      }
+    });
+    expect(autoriaProviderMock.fetchAutoriaModels).not.toHaveBeenCalled();
+    expect(autoriaProviderMock.fetchAutoriaSpecOptions).not.toHaveBeenCalled();
+    expect(autoriaProviderMock.fetchAutoriaPlaces).not.toHaveBeenCalled();
+  });
+
   it('still fails AUTO.RIA sync when the required marks request is rate-limited', async () => {
     const rateLimited = Object.assign(new Error('marks rate limited'), { response: { status: 429 } });
     process.env.AUTORIA_ALLOW_PARTIAL_ON_RATE_LIMIT = '1';

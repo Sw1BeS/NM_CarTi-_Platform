@@ -34,6 +34,8 @@ async function main() {
       `modelMakeLimit=${options.modelMakeLimit === null ? 'all' : options.modelMakeLimit ?? 'default'}`,
       `modelMakeOffset=${options.modelMakeOffset || 0}`,
       `modelFetchConcurrency=${options.modelFetchConcurrency || 'default'}`,
+      `skipAutoriaSpecOptions=${options.skipAutoriaSpecOptions ? 'yes' : 'no'}`,
+      `skipAutoriaPlaces=${options.skipAutoriaPlaces ? 'yes' : 'no'}`,
       `includeSettlements=${options.includeSettlements ? 'yes' : 'no'}`
     ].join(' ')
   );
@@ -45,6 +47,8 @@ async function main() {
     modelMakeLimit: options.modelMakeLimit,
     modelMakeOffset: options.modelMakeOffset,
     modelFetchConcurrency: options.modelFetchConcurrency,
+    skipAutoriaSpecOptions: options.skipAutoriaSpecOptions,
+    skipAutoriaPlaces: options.skipAutoriaPlaces,
     categoryId: options.categoryId,
     vehicleType: options.vehicleType,
     includeSettlements: options.includeSettlements
