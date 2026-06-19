@@ -50,5 +50,13 @@ Date: 2026-06-18
   - `npm --prefix apps/server test` passed: 113 test files, 507 tests.
   - `npm --prefix apps/server run build -- --pretty false` passed.
   - `npm --prefix apps/web run build` passed; Vite reported existing Browserslist and large chunk warnings.
+- Search correctness continuation on 2026-06-19:
+  - Added shared `searchableOptions.ts` owner for MiniApp combobox matching.
+  - Added regression coverage for label/alias search, punctuation-free queries, Kyiv/Kiev/Киев matching, visible result caps, and custom city fallback behavior.
+  - RED: `npm --prefix apps/server test -- src/routes/miniappComboboxSearch.web.test.ts` failed before helper extraction because the helper module did not exist.
+  - GREEN: `npm --prefix apps/server test -- src/routes/miniappComboboxSearch.web.test.ts` passed: 1 file, 4 tests.
+  - Full regression: `npm --prefix apps/server test` passed: 114 test files, 511 tests.
+  - `npm --prefix apps/server run build -- --pretty false` passed.
+  - `npm --prefix apps/web run build` passed; Vite reported existing Browserslist and large chunk warnings.
 
 Further verification pending for any live provider sync against real credentials/data URLs.

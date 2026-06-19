@@ -1,12 +1,12 @@
 import React from 'react';
 import { Check, Search, X } from 'lucide-react';
+import {
+  canUseCustomSearchValue,
+  resolveSearchableOptions,
+  type SearchableSelectOption
+} from './searchableOptions';
 
-export type SearchableSelectOption = {
-  id: string;
-  label: string;
-  aliases?: string[];
-  disabled?: boolean;
-};
+export type { SearchableSelectOption } from './searchableOptions';
 
 type SearchableSelectProps = {
   label: string;
@@ -17,13 +17,6 @@ type SearchableSelectProps = {
   disabled?: boolean;
   allowCustom?: boolean;
   customOptionLabel?: (query: string) => string;
-};
-
-const matchesQuery = (option: SearchableSelectOption, query: string) => {
-  const needle = query.trim().toLowerCase();
-  if (!needle) return true;
-  return [option.label, ...(option.aliases || [])]
-    .some((value) => value.toLowerCase().includes(needle));
 };
 
 export const SearchableSelect = ({
@@ -41,23 +34,17 @@ export const SearchableSelect = ({
   const [query, setQuery] = React.useState(value || '');
   const [open, setOpen] = React.useState(false);
   const [activeIndex, setActiveIndex] = React.useState(0);
-  const matchingOptions = React.useMemo(
-    () => options.filter((option) => matchesQuery(option, query)),
+  const { matchingOptions, visibleOptions, hiddenOptionsCount } = React.useMemo(
+    () => resolveSearchableOptions(options, query),
     [options, query]
   );
-  const visibleOptions = matchingOptions.slice(0, 24);
   const activeOption = visibleOptions[activeIndex];
   const cleanQuery = query.trim();
-  const canUseCustom = Boolean(
-    allowCustom
-    && cleanQuery
-    && visibleOptions.length === 0
-    && !options.some((option) =>
-      option.label.toLowerCase() === cleanQuery.toLowerCase()
-      || (option.aliases || []).some((alias) => alias.toLowerCase() === cleanQuery.toLowerCase())
-    )
-  );
-  const hiddenOptionsCount = Math.max(0, matchingOptions.length - visibleOptions.length);
+  const canUseCustom = canUseCustomSearchValue({
+    allowCustom,
+    query,
+    matchingOptions
+  });
 
   React.useEffect(() => {
     if (!open) setQuery(value || '');

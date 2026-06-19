@@ -46,6 +46,9 @@ Status: implementation and UI/UX slice verified
   - Request form numeric fields use mobile numeric keyboard hints.
   - `prefers-reduced-motion` handling added globally.
   - MiniApp request flow design rules recorded in `apps/web/docs/DESIGN_SYSTEM.md`.
+  - Combobox search matching extracted to `searchableOptions.ts` and shared by single/multi select controls.
+  - Search now covers compact punctuation-free queries, aliases, and Kyiv/Kiev/Киев matching for Ukrainian city labels.
+  - Focused web-helper regression test added for combobox search behavior.
 - Evidence refs:
   - Worktree: `/root/.config/aegis/worktrees/cartie/vehicle-taxonomy-source`
   - Branch: `feature/vehicle-taxonomy-source`
@@ -64,6 +67,10 @@ Status: implementation and UI/UX slice verified
   - Final full server suite passed after UI/UX continuation: 113 files, 507 tests.
   - Final server TypeScript build passed.
   - Final web production build passed with existing Browserslist/chunk-size warnings only.
+  - Search-focused test passed: `npm --prefix apps/server test -- src/routes/miniappComboboxSearch.web.test.ts`, 4 tests.
+  - Final full server suite after search extraction passed: 114 files, 511 tests.
+  - Final server TypeScript build after search extraction passed.
+  - Final web production build after search extraction passed with existing Browserslist/chunk-size warnings only.
 - Blockers:
   - Normal `npm --prefix apps/web install` needs `--legacy-peer-deps` due existing React 19 / `@emoji-mart/react` peer conflict.
   - Live AUTO.RIA sync needs a valid `autoriaApiKey`/`AUTORIA_API_KEY`.

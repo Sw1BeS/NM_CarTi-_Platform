@@ -1,6 +1,9 @@
 import React from 'react';
 import { Check, Search, X } from 'lucide-react';
-import type { SearchableSelectOption } from './SearchableSelect';
+import {
+  resolveSearchableOptions,
+  type SearchableSelectOption
+} from './searchableOptions';
 
 type MultiSelectComboboxProps = {
   label: string;
@@ -9,13 +12,6 @@ type MultiSelectComboboxProps = {
   options: SearchableSelectOption[];
   onChange: (values: string[]) => void;
   disabled?: boolean;
-};
-
-const matchesQuery = (option: SearchableSelectOption, query: string) => {
-  const needle = query.trim().toLowerCase();
-  if (!needle) return true;
-  return [option.label, ...(option.aliases || [])]
-    .some((value) => value.toLowerCase().includes(needle));
 };
 
 export const MultiSelectCombobox = ({
@@ -30,13 +26,11 @@ export const MultiSelectCombobox = ({
   const [query, setQuery] = React.useState('');
   const [open, setOpen] = React.useState(false);
   const [activeIndex, setActiveIndex] = React.useState(0);
-  const matchingOptions = React.useMemo(
-    () => options.filter((option) => matchesQuery(option, query)),
+  const { visibleOptions, hiddenOptionsCount } = React.useMemo(
+    () => resolveSearchableOptions(options, query),
     [options, query]
   );
-  const visibleOptions = matchingOptions.slice(0, 24);
   const activeOption = visibleOptions[activeIndex];
-  const hiddenOptionsCount = Math.max(0, matchingOptions.length - visibleOptions.length);
 
   const toggle = (option: SearchableSelectOption) => {
     if (option.disabled) return;
