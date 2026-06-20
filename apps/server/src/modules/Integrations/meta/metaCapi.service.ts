@@ -17,6 +17,8 @@ export type MetaCapiTrackInput = {
   stage?: string | null;
   externalId?: string | null;
   external_id?: string | null;
+  externalIds?: string[] | null;
+  external_ids?: string[] | null;
   phone?: string | null;
   email?: string | null;
   name?: string | null;
@@ -56,7 +58,16 @@ export const sha256 = (value: string) =>
 export const META_B2C_BOT_INTEGRATION = 'META_B2C_BOT';
 export const META_B2C_BOT_CRM_MODE = 'CRM_CONVERSION_LEADS';
 export const META_B2C_BOT_CRM_LEAD_EVENT_SOURCE = 'CarTié SalesDrive';
-const APPROVED_B2C_BOT_CRM_EVENT_NAMES = new Set(['Lead', 'Contacted', 'QualifiedLead', 'Scheduled', 'Won', 'Purchase']);
+const APPROVED_B2C_BOT_CRM_EVENT_NAMES = new Set([
+  'Lead',
+  'Contact',
+  'Contacted',
+  'QualifiedLead',
+  'Schedule',
+  'Scheduled',
+  'Won',
+  'Purchase'
+]);
 
 export const maskMetaAccessToken = (value?: string | null) => {
   const token = toText(value);
@@ -112,6 +123,17 @@ const normalizeMetaArrayHash = (value?: string | null, normalizer?: (value?: str
   return normalized ? [sha256(normalized)] : undefined;
 };
 
+const normalizeMetaHashList = (
+  values: Array<string | null | undefined>,
+  normalizer?: (value?: string | null) => string | undefined
+) => {
+  const hashed = values
+    .map((value) => normalizer ? normalizer(value) : String(value || '').trim().toLowerCase())
+    .filter((value): value is string => Boolean(value))
+    .map(sha256);
+  return Array.from(new Set(hashed));
+};
+
 const resolveMetaNameParts = (input: MetaCapiTrackInput = {}) => {
   const explicitFirst = normalizeMetaText(input.firstName || input.first_name);
   const explicitLast = normalizeMetaText(input.lastName || input.last_name);
@@ -127,6 +149,11 @@ const resolveMetaNameParts = (input: MetaCapiTrackInput = {}) => {
 
 const buildMetaUserData = (input: MetaCapiTrackInput = {}, options: { includeName?: boolean } = {}) => {
   const nameParts: { firstName?: string; lastName?: string } = options.includeName ? resolveMetaNameParts(input) : {};
+  const externalIds = normalizeMetaHashList([
+    input.externalId || input.external_id,
+    ...(Array.isArray(input.externalIds) ? input.externalIds : []),
+    ...(Array.isArray(input.external_ids) ? input.external_ids : [])
+  ]);
   return {
     ...(normalizeMetaArrayHash(input.phone, normalizeMetaPhone) ? { ph: normalizeMetaArrayHash(input.phone, normalizeMetaPhone) } : {}),
     ...(normalizeMetaArrayHash(input.email, normalizeMetaEmail) ? { em: normalizeMetaArrayHash(input.email, normalizeMetaEmail) } : {}),
@@ -137,7 +164,7 @@ const buildMetaUserData = (input: MetaCapiTrackInput = {}, options: { includeNam
     ...(normalizeMetaArrayHash(input.state, normalizeMetaCountryOrState) ? { st: normalizeMetaArrayHash(input.state, normalizeMetaCountryOrState) } : {}),
     ...(normalizeMetaArrayHash(input.zip || input.postalCode || input.postal_code) ? { zp: normalizeMetaArrayHash(input.zip || input.postalCode || input.postal_code) } : {}),
     ...(normalizeMetaArrayHash(input.country, normalizeMetaCountryOrState) ? { country: normalizeMetaArrayHash(input.country, normalizeMetaCountryOrState) } : {}),
-    ...(normalizeMetaArrayHash(input.externalId || input.external_id) ? { external_id: normalizeMetaArrayHash(input.externalId || input.external_id) } : {}),
+    ...(externalIds.length ? { external_id: externalIds } : {}),
     ...(input.fbp ? { fbp: String(input.fbp) } : {}),
     ...(input.fbc ? { fbc: String(input.fbc) } : {}),
     ...(input.ip || input.clientIpAddress ? { client_ip_address: String(input.ip || input.clientIpAddress) } : {}),
@@ -170,6 +197,30 @@ const toJsonPreviewValue = (value: unknown): string | number | boolean | null =>
   return JSON.stringify(value);
 };
 
+const buildMatchQualitySummary = (userData: Record<string, unknown>) => {
+  const keys = new Set(Object.keys(userData));
+  const piiKeys = ['ph', 'em', 'fn', 'ln', 'db', 'ct', 'st', 'zp', 'country', 'external_id'].filter((key) => keys.has(key));
+  const browserKeys = ['fbp', 'fbc'].filter((key) => keys.has(key));
+  const transportKeys = ['client_ip_address', 'client_user_agent'].filter((key) => keys.has(key));
+  const hasPrimaryContact = keys.has('ph') || keys.has('em');
+  const hasBrowserPair = keys.has('fbp') && keys.has('fbc');
+  const hasTransportPair = keys.has('client_ip_address') && keys.has('client_user_agent');
+  const tier = hasPrimaryContact && hasBrowserPair && hasTransportPair
+    ? 'strong'
+    : (hasPrimaryContact && (browserKeys.length || transportKeys.length) ? 'partial_browser' : 'basic');
+
+  return {
+    tier,
+    piiKeys,
+    browserKeys,
+    transportKeys,
+    hasPrimaryContact,
+    hasExternalId: keys.has('external_id'),
+    hasBrowserPair,
+    hasTransportPair
+  };
+};
+
 const buildB2CBotCrmPayloadSummary = (payload: any) => {
   const event = Array.isArray(payload?.data) ? payload.data[0] : undefined;
   const customData = event?.custom_data && typeof event.custom_data === 'object' ? event.custom_data : {};
@@ -198,7 +249,13 @@ const buildB2CBotCrmPayloadSummary = (payload: any) => {
       'status_name',
       'status_time',
       'salesdrive_order_id',
-      'salesdrive_lead_id'
+      'salesdrive_lead_id',
+      'event_source_url',
+      'utm_source',
+      'utm_medium',
+      'utm_campaign',
+      'utm_content',
+      'utm_term'
     ].includes(key))
       .map(([key, value]) => [key, toJsonPreviewValue(value)])
   );
@@ -212,7 +269,8 @@ const buildB2CBotCrmPayloadSummary = (payload: any) => {
     actionSource: event?.action_source,
     customDataKeys: Object.keys(customData),
     customDataPreview,
-    userDataKeys: Object.keys(userData)
+    userDataKeys: Object.keys(userData),
+    matchQuality: buildMatchQualitySummary(userData)
   };
 };
 
@@ -438,7 +496,7 @@ export class MetaCapiService {
             tokenMasked: maskMetaAccessToken(config.accessToken),
             hasPhone: Boolean(input.phone),
             hasEmail: Boolean(input.email),
-            hasExternalId: Boolean(input.externalId || input.external_id),
+            hasExternalId: Boolean(input.externalId || input.external_id || input.externalIds?.length || input.external_ids?.length),
             hasName: Boolean(input.name || input.firstName || input.first_name || input.lastName || input.last_name),
             hasClientIp: Boolean(input.ip || input.clientIpAddress),
             hasClientUserAgent: Boolean(input.userAgent || input.clientUserAgent),
@@ -583,10 +641,11 @@ export class MetaCapiService {
     };
 
     try {
-      await axios.post(
+      const response = await axios.post(
         `https://graph.facebook.com/v19.0/${pixelId}/events?access_token=${accessToken}`,
         payload
       );
+      const responseData = sanitizeMetaResponse(response?.data, accessToken) as any;
 
       await prisma.integrationEventLog.create({
         data: {
@@ -602,12 +661,15 @@ export class MetaCapiService {
             eventId,
             hasPhone: Boolean(input.phone),
             hasEmail: Boolean(input.email),
-            hasExternalId: Boolean(input.externalId || input.external_id),
+            hasExternalId: Boolean(input.externalId || input.external_id || input.externalIds?.length || input.external_ids?.length),
             hasName: Boolean(input.name || input.firstName || input.first_name || input.lastName || input.last_name),
             hasClientIp: Boolean(input.ip || input.clientIpAddress),
             hasClientUserAgent: Boolean(input.userAgent || input.clientUserAgent),
             hasFbp: Boolean(input.fbp),
-            hasFbc: Boolean(input.fbc)
+            hasFbc: Boolean(input.fbc),
+            response: responseData,
+            fbtrace_id: responseData?.fbtrace_id,
+            tokenMasked: maskMetaAccessToken(accessToken)
           }
         }
       }).catch(() => null);

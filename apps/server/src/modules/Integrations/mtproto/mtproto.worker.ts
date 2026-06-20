@@ -176,7 +176,20 @@ export class MTProtoWorker {
     private async syncMessage(source: any, msg: any) {
         const client = await MTProtoService.getClient(source.connectorId);
         await client.connect();
-        const media = await MTProtoService.extractMediaItems(client, msg, {
+        let mediaMessages = [msg];
+        if (msg.groupedId) {
+            try {
+                const recentMessages = await MTProtoService.getHistory(source.connectorId, source.channelId, 20, 0, undefined, {
+                    username: source.username,
+                    sourceId: source.id
+                });
+                mediaMessages = MTProtoService.collectMediaGroupMessages(recentMessages, msg);
+            } catch (e) {
+                logger.warn(`[LiveSync] Failed to collect media group for ${source.title}: ${e instanceof Error ? e.message : e}`);
+            }
+        }
+
+        const media = await MTProtoService.extractMediaItemsFromMessages(client, mediaMessages, {
             companyId: source.connector?.companyId,
             sourceChatId: source.channelId,
             sourceMessageId: msg.id,

@@ -1,8 +1,12 @@
 import { PrismaClient, Showcase, CarListing } from '@prisma/client';
 import { prisma } from '../../../services/prisma.js';
 import { CarRepository } from '../../../repositories/car.repository.js';
+import { extractAutoRiaIdentityFromSourceUrl } from '../../../services/vehiclePresentation.js';
+import { detectMake } from '../../../services/taxonomy.js';
 
 const MINIAPP_PUBLIC_STATUSES = new Set(['AVAILABLE', 'PENDING', 'RESERVED', 'SOLD']);
+const MINIAPP_SEARCH_BATCH_SIZE = 200;
+const MINIAPP_SEARCH_CANDIDATE_LIMIT = 2000;
 const TRANSIT_AVAILABILITY_CONDITION = {
     availabilityState: { in: ['IN_TRANSIT', 'IMPORT_TO_ORDER'] }
 };
@@ -17,6 +21,62 @@ const TRANSIT_TEXT_CONDITION = {
         { description: { contains: 'in_transit', mode: 'insensitive' } },
         { description: { contains: 'прямує', mode: 'insensitive' } }
     ]
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+    !!value && typeof value === 'object' && !Array.isArray(value);
+
+const readString = (value: unknown) => {
+    if (value === null || value === undefined) return undefined;
+    const text = String(value).trim();
+    return text || undefined;
+};
+
+const tokenizeSearch = (value: string) =>
+    value.toLowerCase().match(/[\p{L}\p{N}]+/gu) || [];
+
+const matchesInventorySearch = (car: any, search?: string) => {
+    const needle = String(search || '').trim().toLowerCase();
+    if (!needle) return true;
+
+    const specs = isRecord(car?.specs) ? car.specs : {};
+    const originalRaw = isRecord(car?.originalRaw) ? car.originalRaw : {};
+    const sourceIdentity = extractAutoRiaIdentityFromSourceUrl(car?.sourceUrl, car?.year || undefined);
+    const structuredHaystack = [
+        car?.title,
+        car?.location,
+        car?.sourceUrl,
+        car?.brand,
+        car?.make,
+        car?.model,
+        car?.year,
+        specs.brand,
+        specs.make,
+        specs.model,
+        specs.fuel,
+        specs.engine,
+        sourceIdentity?.brand,
+        sourceIdentity?.model,
+        sourceIdentity?.title
+    ].map((value) => readString(value)).filter(Boolean).join(' ').toLowerCase();
+
+    const requestedMake = detectMake(needle);
+    if (requestedMake) {
+        if (!structuredHaystack.includes(requestedMake.toLowerCase())) return false;
+        const requestedMakeTokens = new Set(tokenizeSearch(requestedMake));
+        const remainingTokens = tokenizeSearch(needle).filter((token) => !requestedMakeTokens.has(token));
+        return remainingTokens.length === 0 || remainingTokens.every((token) => structuredHaystack.includes(token));
+    }
+
+    const haystack = [
+        structuredHaystack,
+        car?.description,
+        specs.rawText,
+        originalRaw.text,
+        originalRaw.rawText
+    ].map((value) => readString(value)).filter(Boolean).join(' ').toLowerCase();
+
+    return haystack.includes(needle);
 };
 
 const applyRuntimeStatusFilter = (where: any, runtimeStatus: string) => {
@@ -226,6 +286,15 @@ export class ShowcaseService {
             'SOLD',
             'UNKNOWN'
         ].includes(requestedAvailabilityState) ? requestedAvailabilityState : '';
+        const effectiveRuntimeStatus = runtimeStatus || (
+            runtimeAvailabilityState === 'IN_TRANSIT' || runtimeAvailabilityState === 'IMPORT_TO_ORDER'
+                ? 'PENDING'
+                : runtimeAvailabilityState === 'IN_STOCK'
+                    ? 'AVAILABLE'
+                    : ['RESERVED', 'SOLD'].includes(runtimeAvailabilityState)
+                        ? runtimeAvailabilityState
+                        : ''
+        );
 
         let items: CarListing[] = [];
         let total = 0;
@@ -241,13 +310,7 @@ export class ShowcaseService {
             where.partnerCompanyId = scopedPartnerCompanyId;
         }
 
-        // --- Apply Runtime Options (User Search/Filter) ---
-        if (options.search) {
-             where.OR = [
-                { title: { contains: options.search, mode: 'insensitive' } },
-                { description: { contains: options.search, mode: 'insensitive' } }
-            ];
-        }
+        const runtimeSearch = readString(options.search);
 
         // --- Apply Rules ---
         if (mode === 'MANUAL') {
@@ -266,7 +329,12 @@ export class ShowcaseService {
                 where.availabilityState = { in: filters.availabilityState };
             }
             if (filters.publicationStatus && filters.publicationStatus.length > 0) {
-                where.publicationStatus = { in: filters.publicationStatus };
+                const allowsPublished = filters.publicationStatus
+                    .some(status => String(status).trim().toUpperCase() === 'PUBLISHED');
+                if (!allowsPublished) {
+                    return { showcase, items: [], total: 0 };
+                }
+                where.publicationStatus = 'PUBLISHED';
             }
 
             // Exclusions
@@ -307,7 +375,7 @@ export class ShowcaseService {
         if (runtimeAvailabilityState) {
             where.availabilityState = runtimeAvailabilityState;
         }
-        applyRuntimeStatusFilter(where, runtimeStatus);
+        applyRuntimeStatusFilter(where, effectiveRuntimeStatus);
 
         // --- Execution ---
 
@@ -329,17 +397,12 @@ export class ShowcaseService {
             if (scopedPartnerCompanyId) {
                 explicitWhere.partnerCompanyId = scopedPartnerCompanyId;
             }
-            // Apply runtime filters to them too?
-            // If I search "BMW", I probably don't want to see the pinned Audi.
-            if (options.search) {
-                explicitWhere.OR = where.OR;
-            }
             // Apply ranges?
             if (where.price) explicitWhere.price = where.price;
             if (where.year) explicitWhere.year = where.year;
             if (where.publicationStatus) explicitWhere.publicationStatus = where.publicationStatus;
             if (where.availabilityState) explicitWhere.availabilityState = where.availabilityState;
-            applyRuntimeStatusFilter(explicitWhere, runtimeStatus);
+            applyRuntimeStatusFilter(explicitWhere, effectiveRuntimeStatus);
 
             explicitItems = await prisma.carListing.findMany({ where: explicitWhere });
         }
@@ -347,6 +410,40 @@ export class ShowcaseService {
         // Fetch Main List
         const skip = ((options.page || 1) - 1) * (options.limit || 50);
         const take = options.limit || 50;
+
+        if (runtimeSearch) {
+            // Prisma JSON string_contains is case-sensitive and has no insensitive mode.
+            const seen = new Set();
+            const matched: CarListing[] = [];
+            const appendMatches = (candidateItems: CarListing[]) => {
+                candidateItems.forEach(item => {
+                    if (seen.has(item.id)) return;
+                    seen.add(item.id);
+                    if (matchesInventorySearch(item, runtimeSearch)) {
+                        matched.push(item);
+                    }
+                });
+            };
+
+            appendMatches(explicitItems);
+            for (let candidateOffset = 0; candidateOffset < MINIAPP_SEARCH_CANDIDATE_LIMIT; candidateOffset += MINIAPP_SEARCH_BATCH_SIZE) {
+                const batchTake = Math.min(MINIAPP_SEARCH_BATCH_SIZE, MINIAPP_SEARCH_CANDIDATE_LIMIT - candidateOffset);
+                const candidateItems = await prisma.carListing.findMany({
+                    where,
+                    orderBy: { createdAt: 'desc' },
+                    skip: candidateOffset,
+                    take: batchTake
+                });
+                appendMatches(candidateItems);
+                if (candidateItems.length < batchTake) break;
+            }
+
+            return {
+                showcase,
+                items: matched.slice(skip, skip + take),
+                total: matched.length
+            };
+        }
 
         const [filteredTotal, filteredItems] = await Promise.all([
             prisma.carListing.count({ where }),

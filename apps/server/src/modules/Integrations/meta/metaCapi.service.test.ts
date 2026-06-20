@@ -113,7 +113,12 @@ describe('MetaCapiService', () => {
         status: 'SUCCESS',
         idempotencyKey: eventId,
         entityType: 'lead',
-        entityId: 'lead_1'
+        entityId: 'lead_1',
+        meta: expect.objectContaining({
+          response: expect.objectContaining({ events_received: 1, fbtrace_id: 'trace_1' }),
+          fbtrace_id: 'trace_1',
+          tokenMasked: 'se***oken'
+        })
       })
     }));
   });
@@ -291,6 +296,7 @@ describe('MetaCapiService', () => {
       entityId: '37193',
       eventId,
       externalId: 'salesdrive:37193',
+      externalIds: ['salesdrive:37193', 'telegram:1001'],
       phone: '+38 (063) 505-52-52',
       name: 'Ivan Petrenko',
       city: 'Kyiv',
@@ -347,7 +353,7 @@ describe('MetaCapiService', () => {
     });
     expect(payload.data[0].user_data).toMatchObject({
       ph: [hash('380635055252')],
-      external_id: [hash('salesdrive:37193')],
+      external_id: [hash('salesdrive:37193'), hash('telegram:1001')],
       fn: [hash('ivan')],
       ln: [hash('petrenko')],
       ct: [hash('kyiv')],
@@ -422,7 +428,7 @@ describe('MetaCapiService', () => {
     expect(logPayload).not.toContain('+38 (063) 505-52-52');
   });
 
-  it('does not send unsupported B2C CRM event names such as generic Contact', async () => {
+  it('sends standard B2C CRM Contact events when explicitly mapped from SalesDrive', async () => {
     vi.stubEnv('META_CAPI_ENABLED', 'true');
     vi.stubEnv('META_B2C_BOT_CAPI_ENABLED', 'true');
     vi.stubEnv('META_B2C_BOT_TEST_MODE', 'true');
@@ -439,11 +445,20 @@ describe('MetaCapiService', () => {
     });
 
     expect(result).toMatchObject({
-      success: false,
-      skipped: true,
-      reason: 'META_B2C_BOT_CRM_EVENT_NOT_APPROVED'
+      success: true,
+      eventId: 'salesdrive:37193:Contact:13:1760000000:b2c_bot_sandbox',
+      destinationKey: 'b2c_bot_sandbox'
     });
-    expect(axiosPostMock).not.toHaveBeenCalled();
+    expect(axiosPostMock).toHaveBeenCalledTimes(1);
+    expect(axiosPostMock.mock.calls[0][1].data[0]).toMatchObject({
+      event_name: 'Contact',
+      action_source: 'system_generated',
+      custom_data: expect.objectContaining({
+        event_source: 'crm',
+        lead_event_source: 'CarTié SalesDrive',
+        destination_key: 'b2c_bot_sandbox'
+      })
+    });
   });
 
   it('stores B2C bot dataset delivery logs without fake company id when company context is unavailable', async () => {

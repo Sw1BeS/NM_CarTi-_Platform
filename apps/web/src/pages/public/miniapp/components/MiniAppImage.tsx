@@ -6,6 +6,7 @@ type MiniAppImageProps = {
   alt: string;
   className?: string;
   fallbackClassName?: string;
+  fallbackLabel?: string;
   sources?: Array<string | null | undefined>;
   onClick?: React.MouseEventHandler<HTMLDivElement>;
 };
@@ -20,6 +21,7 @@ export const MiniAppImage = ({
   alt,
   className = 'w-full h-full object-cover',
   fallbackClassName = 'w-full h-full flex items-center justify-center bg-[#202226] text-white/22',
+  fallbackLabel,
   sources,
   onClick
 }: MiniAppImageProps) => {
@@ -41,6 +43,9 @@ export const MiniAppImage = ({
   ) : (
     <div className={fallbackClassName} aria-label={alt}>
       <ImageIcon size={34} />
+      {fallbackLabel && (
+        <span className="mt-1 text-[10px] font-bold text-white/35">{fallbackLabel}</span>
+      )}
     </div>
   );
 

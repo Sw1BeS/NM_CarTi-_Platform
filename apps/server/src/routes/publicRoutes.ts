@@ -7,7 +7,7 @@ import {
   mapLeadOutput,
   mapVariantInput,
   mapVariantOutput,
-  mapInventoryOutput
+  mapPublicInventoryOutput
 } from '../services/dto.js';
 import { parseTelegramUser, verifyTelegramInitData } from '../modules/Communication/telegram/core/telegramAuth.js';
 import { mapBotOutput } from '../modules/Communication/bots/botDto.js';
@@ -71,7 +71,7 @@ router.get('/:slug/inventory', async (req, res) => {
             return errorResponse(res, 404, 'Showcase not found');
         }
 
-        return res.json({ items: items.map(mapInventoryOutput), total });
+        return res.json({ items: items.map(mapPublicInventoryOutput), total });
     } catch (e: any) {
         // Fallback: Check if it's a legacy workspace slug?
         // Requirement: "One source of truth".
@@ -102,8 +102,13 @@ router.get('/:slug/inventory', async (req, res) => {
 
     const where: any = {
       companyId: resolved.companyId,
-      status: publicStatus
+      status: publicStatus,
+      publicationStatus: 'PUBLISHED'
     };
+    const requestedAvailabilityState = String(req.query.availabilityState || '').trim().toUpperCase();
+    if (['IN_STOCK', 'IN_TRANSIT', 'IMPORT_TO_ORDER', 'RESERVED', 'SOLD', 'UNKNOWN'].includes(requestedAvailabilityState)) {
+      where.availabilityState = requestedAvailabilityState;
+    }
 
     if (search) {
       where.title = { contains: search, mode: 'insensitive' };
@@ -127,7 +132,7 @@ router.get('/:slug/inventory', async (req, res) => {
       orderBy: { postedAt: 'desc' }
     });
 
-    const publicCars = cars.map(mapInventoryOutput);
+    const publicCars = cars.map(mapPublicInventoryOutput);
 
     res.json({ items: publicCars });
   } catch (e) {

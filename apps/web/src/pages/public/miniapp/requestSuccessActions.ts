@@ -22,7 +22,14 @@ export type RequestSuccessContent = {
   actions: RequestSuccessAction[];
 };
 
-export const resolveRequestSuccessContent = (surfaceMode: RequestSuccessSurfaceMode): RequestSuccessContent => {
+export type RequestSuccessOptions = {
+  canViewPrivateRequests?: boolean;
+};
+
+export const resolveRequestSuccessContent = (
+  surfaceMode: RequestSuccessSurfaceMode,
+  options: RequestSuccessOptions = {}
+): RequestSuccessContent => {
   if (surfaceMode === 'B2B') {
     return {
       title: 'Запит відправлено',
@@ -48,6 +55,31 @@ export const resolveRequestSuccessContent = (surfaceMode: RequestSuccessSurfaceM
           id: 'HOME',
           label: 'На головну',
           description: 'Повернутись до порталу'
+        }
+      ]
+    };
+  }
+
+  if (options.canViewPrivateRequests === false) {
+    return {
+      title: 'Запит відправлено',
+      message: 'Ми зберегли заявку. Далі можна повернутись до каталогу або написати менеджеру.',
+      actions: [
+        {
+          id: 'CATALOG',
+          label: 'Повернутись до каталогу',
+          description: 'Авто в наявності та в дорозі',
+          primary: true
+        },
+        {
+          id: 'MANAGER',
+          label: 'Написати менеджеру',
+          description: 'Контакти і прямий зв’язок'
+        },
+        {
+          id: 'HOME',
+          label: 'На головну',
+          description: 'Повернутись до головного меню'
         }
       ]
     };

@@ -21,7 +21,11 @@ router.get('/connectors', requireRole(mtprotoRoles), async (req: any, res) => {
         // Sanitize session strings
         const safeConnectors = connectors.map(c => ({
             ...c,
-            sessionString: c.sessionString ? '***' : null
+            workspaceApiHash: c.workspaceApiHash ? '***' : null,
+            sessionString: c.sessionString ? '***' : null,
+            authSessionString: c.authSessionString ? '***' : null,
+            authPhoneCodeHash: c.authPhoneCodeHash ? '***' : null,
+            authApiHash: c.authApiHash ? '***' : null
         }));
         res.json(safeConnectors);
     } catch (e: any) {
@@ -76,9 +80,9 @@ router.delete('/connectors/:id', requireRole(mtprotoRoles), async (req: any, res
 // POST /api/integrations/mtproto/auth/send-code
 router.post('/auth/send-code', requireRole(mtprotoRoles), async (req: any, res) => {
     try {
-        const { connectorId, phone } = req.body;
-        const { phoneCodeHash, isCodeViaApp } = await MTProtoService.sendCode(connectorId, phone);
-        res.json({ phoneCodeHash, isCodeViaApp });
+        const { connectorId, phone, forceSms } = req.body;
+        const result = await MTProtoService.sendCode(connectorId, phone, { forceSms: Boolean(forceSms) });
+        res.json(result);
     } catch (e: any) {
         return errorResponse(res, 400, e.message || 'MTProto validation error', 'MTPROTO_VALIDATION');
     }

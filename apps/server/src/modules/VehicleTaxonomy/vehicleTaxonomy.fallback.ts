@@ -19,18 +19,24 @@ const make = (label: string, models: string[]): VehicleTaxonomySnapshotMake => (
   }))
 });
 
-const option = (group: string, label: string): VehicleTaxonomySnapshotSpecOption => ({
+const option = (group: string, label: string, aliases: string[] = []): VehicleTaxonomySnapshotSpecOption => ({
   group,
   slug: label,
   label,
-  sourceMeta: { source: 'emergency_fallback' },
+  sourceMeta: {
+    source: 'emergency_fallback',
+    ...(aliases.length ? { aliases } : {})
+  },
   updatedAt: null
 });
 
-const place = (label: string): VehicleTaxonomySnapshotPlace => ({
+const place = (label: string, aliases: string[] = []): VehicleTaxonomySnapshotPlace => ({
   slug: label,
   label,
-  sourceMeta: { source: 'emergency_fallback' },
+  sourceMeta: {
+    source: 'emergency_fallback',
+    ...(aliases.length ? { aliases } : {})
+  },
   updatedAt: null
 });
 
@@ -53,19 +59,24 @@ export const EMERGENCY_VEHICLE_MAKES: VehicleTaxonomySnapshotMake[] = [
 
 export const EMERGENCY_SPEC_OPTIONS: VehicleTaxonomySnapshotSpecOption[] = [
   ...['SUV', 'Седан', 'Універсал', 'Купе', 'Хетчбек', 'Пікап', 'Мінівен', 'Кабріолет', 'Ліфтбек'].map((label) => option('bodyType', label)),
-  ...['Бензин', 'Дизель', 'Гібрид', 'Plug-in гібрид', 'Електро', 'Газ'].map((label) => option('fuel', label)),
+  option('fuel', 'Бензин', ['petrol', 'gasoline', 'benzin']),
+  option('fuel', 'Дизель', ['diesel']),
+  option('fuel', 'Гібрид', ['hybrid']),
+  option('fuel', 'Plug-in гібрид', ['plug-in hybrid', 'plug in hybrid', 'phev']),
+  option('fuel', 'Електро', ['electric', 'electro', 'ev']),
+  option('fuel', 'Газ', ['lpg', 'gas']),
   ...['Автомат', 'Механіка', 'Варіатор', 'Робот'].map((label) => option('transmission', label)),
   ...['Повний', 'Передній', 'Задній'].map((label) => option('drive', label))
 ];
 
 export const EMERGENCY_PLACES: VehicleTaxonomySnapshotPlace[] = [
-  'Київ',
-  'Львів',
-  'Одеса',
-  'Дніпро',
-  'Харків',
-  'Івано-Франківськ',
-  'Тернопіль',
-  'Вся Україна',
-  'Під замовлення'
-].map(place);
+  place('Київ', ['Kyiv', 'Kiev', 'Киев']),
+  place('Львів', ['Lviv', 'Львов']),
+  place('Одеса', ['Odesa', 'Odessa', 'Одесса']),
+  place('Дніпро', ['Dnipro', 'Dnipropetrovsk', 'Днепр']),
+  place('Харків', ['Kharkiv', 'Харьков']),
+  place('Івано-Франківськ', ['Ivano-Frankivsk']),
+  place('Тернопіль', ['Ternopil']),
+  place('Вся Україна', ['All Ukraine']),
+  place('Під замовлення', ['Import to order'])
+];

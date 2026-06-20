@@ -110,6 +110,49 @@ describe('AttributionSessionService', () => {
     });
   });
 
+  it('builds an allowlisted web redirect URL with attribution parameters', async () => {
+    const { AttributionSessionService } = await import('./attributionSession.service.js');
+    const service = new AttributionSessionService(prismaMock, 30);
+
+    const result = await service.createSession({
+      destination: 'adsquiz_usa',
+      redirectUrl: 'https://cartieua.adsquiz.io/1lCcazQtVN?existing=1',
+      query: {
+        fbclid: 'QuizClick',
+        utm_source: 'meta',
+        utm_campaign: 'cars',
+        email: 'client@example.com'
+      },
+      requestMeta: {
+        ip: '203.0.113.42',
+        userAgent: 'Mozilla/5.0 AdsQuiz'
+      },
+      cookies: {
+        fbp: 'fb.1.1779865200000.123456789'
+      },
+      now: fixedNow
+    });
+
+    const redirectUrl = new URL(result.redirectUrl);
+    expect(redirectUrl.origin + redirectUrl.pathname).toBe('https://cartieua.adsquiz.io/1lCcazQtVN');
+    expect(redirectUrl.searchParams.get('existing')).toBe('1');
+    expect(redirectUrl.searchParams.get('cartie_attribution_token')).toBe(result.token);
+    expect(redirectUrl.searchParams.get('attribution_token')).toBe(result.token);
+    expect(redirectUrl.searchParams.get('fbclid')).toBe('QuizClick');
+    expect(redirectUrl.searchParams.get('fbp')).toBe('fb.1.1779865200000.123456789');
+    expect(redirectUrl.searchParams.get('_fbp')).toBe('fb.1.1779865200000.123456789');
+    expect(redirectUrl.searchParams.get('fbc')).toBe(`fb.1.${fixedNow.getTime()}.QuizClick`);
+    expect(redirectUrl.searchParams.get('utm_cartie_token')).toBe(result.token);
+    expect(redirectUrl.searchParams.get('utm_cartie_attribution_token')).toBe(result.token);
+    expect(redirectUrl.searchParams.get('utm_fbclid')).toBe('QuizClick');
+    expect(redirectUrl.searchParams.get('utm_fbp')).toBe('fb.1.1779865200000.123456789');
+    expect(redirectUrl.searchParams.get('utm_fbc')).toBe(`fb.1.${fixedNow.getTime()}.QuizClick`);
+    expect(redirectUrl.searchParams.get('utm_source')).toBe('meta');
+    expect(redirectUrl.searchParams.get('utm_campaign')).toBe('cars');
+    expect(redirectUrl.searchParams.get('utm_term')).toBe(`cartie_token_${result.token}`);
+    expect(redirectUrl.toString()).not.toContain('client@example.com');
+  });
+
   it('rejects expired token lookup', async () => {
     const { AttributionSessionService } = await import('./attributionSession.service.js');
     prismaMock.attributionSession.findUnique.mockResolvedValue(buildRecord({

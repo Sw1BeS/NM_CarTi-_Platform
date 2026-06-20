@@ -55,4 +55,59 @@ describe('VehicleTaxonomyService', () => {
     expect(taxonomy.brands.find((brand) => brand.label === 'Zeekr')).toBeUndefined();
     expect(taxonomy.cities.find((city) => city.label === 'Львів')?.aliases).toContain('Львівська обл.');
   });
+
+  it('deduplicates English/Ukrainian city aliases and canonicalizes petrol to бензин', async () => {
+    prismaMock.vehicleMake.findMany.mockResolvedValue([
+      {
+        id: 'make_nissan',
+        slug: 'nissan',
+        label: 'Nissan',
+        sourceMeta: {},
+        updatedAt: null,
+        models: []
+      }
+    ]);
+    prismaMock.vehicleSpecOption.findMany.mockResolvedValue([
+      {
+        group: 'fuel',
+        slug: 'benzyn',
+        label: 'Бензин',
+        sourceMeta: { aliases: ['petrol'] },
+        updatedAt: null
+      }
+    ]);
+    prismaMock.geoPlace.findMany.mockResolvedValue([
+      {
+        slug: 'kyiv',
+        label: 'Київ',
+        sourceMeta: { aliases: ['Kyiv'] },
+        updatedAt: null
+      },
+      {
+        slug: 'ivano-frankivsk',
+        label: 'Івано-Франківськ',
+        sourceMeta: { aliases: ['Ivano-Frankivsk'] },
+        updatedAt: null
+      }
+    ]);
+
+    const { vehicleTaxonomyService } = await import('./vehicleTaxonomy.service.js');
+    const taxonomy = await vehicleTaxonomyService.getTaxonomy({ companyId: 'company_1' });
+
+    expect(taxonomy.fuels.filter((fuel) => fuel.label.toLowerCase() === 'petrol')).toHaveLength(0);
+    expect(taxonomy.fuels.filter((fuel) => fuel.label === 'Бензин')).toHaveLength(1);
+    expect(taxonomy.fuels.find((fuel) => fuel.label === 'Бензин')?.aliases).toEqual(
+      expect.arrayContaining(['petrol'])
+    );
+    expect(taxonomy.cities.filter((city) => city.id === 'kyiv')).toHaveLength(1);
+    expect(taxonomy.cities.find((city) => city.id === 'kyiv')).toMatchObject({
+      label: 'Київ',
+      aliases: expect.arrayContaining(['Kyiv'])
+    });
+    expect(taxonomy.cities.filter((city) => city.id === 'ivano-frankivsk')).toHaveLength(1);
+    expect(taxonomy.cities.find((city) => city.id === 'ivano-frankivsk')).toMatchObject({
+      label: 'Івано-Франківськ',
+      aliases: expect.arrayContaining(['Ivano-Frankivsk'])
+    });
+  });
 });

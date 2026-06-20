@@ -15,8 +15,170 @@ import type { MediaItem } from '../../../services/channel-ingestion.service.js';
 const logger = new Logger({ level: 'error' } as any);
 const channelSourceRepo = new ChannelSourceRepository(prisma);
 
+const clearAuthAttemptData = {
+    authSessionString: null,
+    authPhoneCodeHash: null,
+    authPhone: null,
+    authApiId: null,
+    authApiHash: null,
+    authSentCodeType: null,
+    authNextCodeType: null,
+    authCodeLength: null,
+    authTimeoutAt: null,
+    authRequestedAt: null
+};
+
+type LoginCodeRequestResult = {
+    sendResult: any;
+    forceSmsAttempted: boolean;
+    forceSmsSucceeded: boolean;
+    forceSmsError: string | null;
+    initialSentCodeType: string | null;
+};
+
+type MediaExtractionContext = {
+    companyId?: string | null;
+    sourceChatId: string;
+    sourceMessageId: number;
+    channelSourceId?: string | null;
+    mediaPolicy?: 'refs_only' | 'download' | 'first_only';
+};
+
 export class MTProtoService {
     private static clients: Map<string, TelegramClient> = new Map();
+
+    private static createClient(sessionString: string, apiId: number, apiHash: string) {
+        const stringSession = new StringSession(sessionString);
+        return new TelegramClient(stringSession, apiId, apiHash, {
+            connectionRetries: 5,
+            baseLogger: logger
+        });
+    }
+
+    private static resolveApiCredentials(connector: {
+        workspaceApiId?: number | null;
+        workspaceApiHash?: string | null;
+        authApiId?: number | null;
+        authApiHash?: string | null;
+    }, preferAuthAttempt = false) {
+        const apiId = preferAuthAttempt
+            ? connector.authApiId || connector.workspaceApiId || Number(process.env.TG_API_ID)
+            : connector.workspaceApiId || Number(process.env.TG_API_ID);
+        const apiHash = preferAuthAttempt
+            ? connector.authApiHash || connector.workspaceApiHash || process.env.TG_API_HASH
+            : connector.workspaceApiHash || process.env.TG_API_HASH;
+
+        if (!apiId || !apiHash) {
+            throw new Error('Missing API_ID or API_HASH');
+        }
+
+        return { apiId, apiHash };
+    }
+
+    private static telegramClassName(value: any): string | null {
+        return value?.className || value?.constructor?.name || null;
+    }
+
+    private static isSentCodeSuccess(value: any): boolean {
+        return this.telegramClassName(value) === 'auth.SentCodeSuccess';
+    }
+
+    private static sentCodeTimeoutAt(timeout: unknown): Date | null {
+        if (typeof timeout !== 'number' || !Number.isFinite(timeout) || timeout <= 0) {
+            return null;
+        }
+
+        return new Date(Date.now() + timeout * 1000);
+    }
+
+    private static sentCodeDetails(sendResult: any) {
+        if (this.isSentCodeSuccess(sendResult)) {
+            throw new Error('TELEGRAM_ALREADY_AUTHORIZED');
+        }
+
+        const phoneCodeHash = sendResult?.phoneCodeHash;
+        if (!phoneCodeHash) {
+            throw new Error('Telegram did not return phoneCodeHash');
+        }
+
+        const sentCodeType = this.telegramClassName(sendResult.type);
+        const nextCodeType = this.telegramClassName(sendResult.nextType);
+        const codeLength = typeof sendResult.type?.length === 'number' ? sendResult.type.length : null;
+
+        return {
+            phoneCodeHash,
+            isCodeViaApp: sentCodeType === 'auth.SentCodeTypeApp',
+            sentCodeType,
+            nextCodeType,
+            codeLength,
+            timeoutAt: this.sentCodeTimeoutAt(sendResult.timeout)
+        };
+    }
+
+    private static isSmsSentCodeType(sentCodeType: string | null): boolean {
+        return sentCodeType === 'auth.SentCodeTypeSms'
+            || sentCodeType === 'auth.SentCodeTypeSmsWord'
+            || sentCodeType === 'auth.SentCodeTypeSmsPhrase'
+            || sentCodeType === 'auth.SentCodeTypeFirebaseSms';
+    }
+
+    private static telegramErrorText(error: any): string {
+        return error?.errorMessage || error?.message || String(error);
+    }
+
+    private static async requestLoginCode(client: TelegramClient, apiId: number, apiHash: string, phone: string, options: { forceSms?: boolean } = {}, attempt = 0): Promise<LoginCodeRequestResult> {
+        try {
+            const sendResult = await client.invoke(
+                new Api.auth.SendCode({
+                    phoneNumber: phone,
+                    apiId,
+                    apiHash,
+                    settings: new Api.CodeSettings({})
+                })
+            );
+
+            const initialDetails = this.sentCodeDetails(sendResult);
+            if (!options.forceSms || this.isSmsSentCodeType(initialDetails.sentCodeType)) {
+                return {
+                    sendResult,
+                    forceSmsAttempted: Boolean(options.forceSms),
+                    forceSmsSucceeded: false,
+                    forceSmsError: null,
+                    initialSentCodeType: initialDetails.sentCodeType
+                };
+            }
+
+            try {
+                const resendResult = await client.invoke(
+                    new Api.auth.ResendCode({
+                        phoneNumber: phone,
+                        phoneCodeHash: initialDetails.phoneCodeHash
+                    })
+                );
+
+                return {
+                    sendResult: resendResult,
+                    forceSmsAttempted: true,
+                    forceSmsSucceeded: true,
+                    forceSmsError: null,
+                    initialSentCodeType: initialDetails.sentCodeType
+                };
+            } catch (resendError: any) {
+                return {
+                    sendResult,
+                    forceSmsAttempted: true,
+                    forceSmsSucceeded: false,
+                    forceSmsError: this.telegramErrorText(resendError),
+                    initialSentCodeType: initialDetails.sentCodeType
+                };
+            }
+        } catch (error: any) {
+            if (this.telegramErrorText(error).includes('AUTH_RESTART') && attempt < 1) {
+                return this.requestLoginCode(client, apiId, apiHash, phone, options, attempt + 1);
+            }
+            throw error;
+        }
+    }
 
     /**
      * Initialize a client for a connector.
@@ -33,18 +195,8 @@ export class MTProtoService {
 
         if (!connector) throw new Error('Connector not found');
 
-        const apiId = connector.workspaceApiId || Number(process.env.TG_API_ID);
-        const apiHash = connector.workspaceApiHash || process.env.TG_API_HASH;
-
-        if (!apiId || !apiHash) {
-            throw new Error('Missing API_ID or API_HASH');
-        }
-
-        const stringSession = new StringSession(connector.sessionString || '');
-        const client = new TelegramClient(stringSession, apiId, apiHash, {
-            connectionRetries: 5,
-            baseLogger: logger
-        });
+        const { apiId, apiHash } = this.resolveApiCredentials(connector);
+        const client = this.createClient(connector.sessionString || '', apiId, apiHash);
 
         // If we have a session, connect
         if (connector.sessionString) {
@@ -58,45 +210,98 @@ export class MTProtoService {
     /**
      * Step 1: Send Code
      */
-    static async sendCode(connectorId: string, phone: string) {
-        const client = await this.getClient(connectorId);
+    static async sendCode(connectorId: string, phone: string, options: { forceSms?: boolean } = {}) {
+        const connector = await prisma.mTProtoConnector.findUnique({
+            where: { id: connectorId }
+        });
 
-        // We must connect first (even without session) to send code
+        if (!connector) throw new Error('Connector not found');
+
+        const { apiId, apiHash } = this.resolveApiCredentials(connector);
+        await this.forgetClient(connectorId);
+
+        // Auth attempts must start from a clean StringSession. Reusing an old
+        // authorized/revoked session makes Telegram code delivery nondeterministic.
+        const client = this.createClient('', apiId, apiHash);
         await client.connect();
 
-        const { phoneCodeHash, isCodeViaApp } = await client.sendCode(
-            { apiId: client.apiId, apiHash: client.apiHash },
-            phone
-        );
+        const requestResult = await this.requestLoginCode(client, apiId, apiHash, phone, options);
+        const details = {
+            ...this.sentCodeDetails(requestResult.sendResult),
+            forceSmsAttempted: requestResult.forceSmsAttempted,
+            forceSmsSucceeded: requestResult.forceSmsSucceeded,
+            forceSmsError: requestResult.forceSmsError,
+            initialSentCodeType: requestResult.initialSentCodeType
+        };
+        const authSessionString = client.session.save() as unknown as string;
 
         await prisma.mTProtoConnector.update({
             where: { id: connectorId },
             data: {
                 phone,
                 status: 'CONNECTING',
-                lastError: null // Clear error
+                sessionString: null,
+                connectedAt: null,
+                authSessionString,
+                authPhoneCodeHash: details.phoneCodeHash,
+                authPhone: phone,
+                authApiId: apiId,
+                authApiHash: apiHash,
+                authSentCodeType: details.sentCodeType,
+                authNextCodeType: details.nextCodeType,
+                authCodeLength: details.codeLength,
+                authTimeoutAt: details.timeoutAt,
+                authRequestedAt: new Date(),
+                lastError: null
             }
         });
 
-        return { phoneCodeHash, isCodeViaApp };
+        this.clients.set(connectorId, client);
+        return details;
     }
 
     /**
      * Step 2: SignIn
      */
-    static async signIn(connectorId: string, phone: string, code: string, phoneCodeHash: string, password?: string) {
-        const client = await this.getClient(connectorId);
+    static async signIn(connectorId: string, phone: string | undefined, code: string, phoneCodeHash?: string, password?: string) {
+        const connector = await prisma.mTProtoConnector.findUnique({
+            where: { id: connectorId }
+        });
+
+        if (!connector) throw new Error('Connector not found');
+
+        const authPhone = connector.authPhone || connector.phone || phone;
+        const authPhoneCodeHash = phoneCodeHash || connector.authPhoneCodeHash;
+        const authSessionString = connector.authSessionString || connector.sessionString || '';
+        const normalizedCode = String(code || '').trim();
+
+        if (!authPhone) throw new Error('MTPROTO_AUTH_PHONE_MISSING');
+        if (!authPhoneCodeHash) throw new Error('MTPROTO_AUTH_CODE_HASH_MISSING');
+        if (!authSessionString) throw new Error('MTPROTO_AUTH_SESSION_MISSING');
+        if (phone && connector.authPhone && phone !== connector.authPhone) {
+            throw new Error(`MTPROTO_AUTH_PHONE_MISMATCH: expected ${connector.authPhone}`);
+        }
+        if (!normalizedCode) throw new Error('MTPROTO_AUTH_CODE_MISSING');
+        if (connector.authCodeLength && normalizedCode.length !== connector.authCodeLength) {
+            throw new Error(`CODE_LENGTH_MISMATCH: expected ${connector.authCodeLength}-character Telegram login code, got ${normalizedCode.length}. Do not use my.telegram.org app configuration codes here.`);
+        }
+
+        const { apiId, apiHash } = this.resolveApiCredentials(connector, true);
+        await this.forgetClient(connectorId);
+
+        const client = this.createClient(authSessionString, apiId, apiHash);
+        await client.connect();
 
         try {
             await client.invoke(
                 new Api.auth.SignIn({
-                    phoneNumber: phone,
-                    phoneCodeHash: phoneCodeHash,
-                    phoneCode: code,
+                    phoneNumber: authPhone,
+                    phoneCodeHash: authPhoneCodeHash,
+                    phoneCode: normalizedCode,
                 })
             );
         } catch (e: any) {
-            if (e.message.includes('SESSION_PASSWORD_NEEDED')) {
+            if (this.telegramErrorText(e).includes('SESSION_PASSWORD_NEEDED')) {
                 if (!password) throw new Error('PASSWORD_NEEDED');
 
                 await client.invoke(
@@ -116,10 +321,13 @@ export class MTProtoService {
             data: {
                 sessionString: session,
                 status: 'READY',
-                connectedAt: new Date()
+                connectedAt: new Date(),
+                lastError: null,
+                ...clearAuthAttemptData
             }
         });
 
+        this.clients.set(connectorId, client);
         return { success: true };
     }
 
@@ -131,7 +339,11 @@ export class MTProtoService {
         }
         await prisma.mTProtoConnector.update({
             where: { id: connectorId },
-            data: { status: 'DISCONNECTED', sessionString: null }
+            data: {
+                status: 'DISCONNECTED',
+                sessionString: null,
+                ...clearAuthAttemptData
+            }
         });
     }
 
@@ -267,6 +479,7 @@ export class MTProtoService {
 
         try {
             let entity: any | null = null;
+            let sourceStatus: string | null = null;
             const sanitizeUsername = (value?: string | null) => {
                 if (!value) return undefined;
                 let cleaned = String(value).trim();
@@ -276,12 +489,13 @@ export class MTProtoService {
                 return cleaned.trim() || undefined;
             };
             let username = sanitizeUsername(options?.username);
-            if (!username && options?.sourceId) {
+            if (options?.sourceId) {
                 const source = await prisma.channelSource.findUnique({
                     where: { id: options.sourceId },
-                    select: { username: true }
+                    select: { username: true, status: true }
                 });
-                username = sanitizeUsername(source?.username);
+                sourceStatus = source?.status || null;
+                if (!username) username = sanitizeUsername(source?.username);
             }
 
             if (username) {
@@ -305,24 +519,30 @@ export class MTProtoService {
             }
 
             const resolvedId = entity.id ? entity.id.toString() : channelId;
-            if (resolvedId && resolvedId !== channelId) {
-                const updateData: any = { channelId: resolvedId };
-                if (entity.username && !username) updateData.username = entity.username;
-                if (options?.sourceId) {
-                    await channelSourceRepo.update(options.sourceId, updateData).catch(() => null);
-                } else {
-                    await prisma.channelSource.update({
-                        where: { connectorId_channelId: { connectorId, channelId } },
-                        data: updateData
-                    }).catch(() => null);
-                }
-            }
+            const resolvedUpdateData: any = {};
+            if (resolvedId && resolvedId !== channelId) resolvedUpdateData.channelId = resolvedId;
+            if (entity.username && !username) resolvedUpdateData.username = entity.username;
 
             const messages = await client.getMessages(entity, {
                 limit,
                 offsetId,
                 ...(offsetDate ? { offsetDate } : {})
             });
+
+            if (options?.sourceId) {
+                const updateData: any = {
+                    ...resolvedUpdateData,
+                    lastError: null,
+                    lastSyncedAt: new Date()
+                };
+                if (sourceStatus === 'ERROR') updateData.status = 'ACTIVE';
+                await channelSourceRepo.update(options.sourceId, updateData).catch(() => null);
+            } else if (Object.keys(resolvedUpdateData).length > 0) {
+                await prisma.channelSource.update({
+                    where: { connectorId_channelId: { connectorId, channelId } },
+                    data: resolvedUpdateData
+                }).catch(() => null);
+            }
 
             return messages;
         } catch (e: any) {
@@ -340,13 +560,7 @@ export class MTProtoService {
     static async extractMediaItems(
         client: TelegramClient,
         msg: any,
-        context: {
-            companyId?: string | null;
-            sourceChatId: string;
-            sourceMessageId: number;
-            channelSourceId?: string | null;
-            mediaPolicy?: 'refs_only' | 'download' | 'first_only';
-        }
+        context: MediaExtractionContext
     ): Promise<{ mediaUrls: string[]; mediaItems: MediaItem[] }> {
         try {
             const isPhoto = !!(msg.photo || msg.media?.photo || msg.media?.className === 'MessageMediaPhoto');
@@ -432,6 +646,48 @@ export class MTProtoService {
             }
             return { mediaUrls: [], mediaItems: [] };
         }
+    }
+
+    static mediaGroupKey(msg: any): string | null {
+        return msg?.groupedId?.toString?.() || null;
+    }
+
+    static collectMediaGroupMessages(messages: any[], msg: any): any[] {
+        const key = MTProtoService.mediaGroupKey(msg);
+        if (!key) return [msg];
+        const group = messages.filter((item) =>
+            MTProtoService.mediaGroupKey(item) === key && !!(item.media || item.photo)
+        );
+        return group.length ? group : [msg];
+    }
+
+    static async extractMediaItemsFromMessages(
+        client: TelegramClient,
+        messages: any[],
+        context: MediaExtractionContext
+    ): Promise<{ mediaUrls: string[]; mediaItems: MediaItem[] }> {
+        const mediaUrls: string[] = [];
+        const mediaItems: MediaItem[] = [];
+        const items = context.mediaPolicy === 'first_only' ? messages.slice(0, 1) : messages;
+
+        for (const mediaMsg of items) {
+            const extracted = await MTProtoService.extractMediaItems(client, mediaMsg, {
+                ...context,
+                sourceMessageId: Number(mediaMsg?.id || context.sourceMessageId)
+            });
+            mediaUrls.push(...extracted.mediaUrls);
+            mediaItems.push(...extracted.mediaItems);
+        }
+
+        const uniqueUrls = Array.from(new Set(mediaUrls.filter(Boolean)));
+        const uniqueItems = Array.from(new Map(
+            mediaItems.map((item) => [
+                item.url || item.previewUrl || item.tgFileId || JSON.stringify(item.tgMeta || item),
+                item
+            ])
+        ).values());
+
+        return { mediaUrls: uniqueUrls, mediaItems: uniqueItems };
     }
 
     /**
@@ -590,7 +846,8 @@ export class MTProtoService {
             for (const msg of messages) {
                 if (!msg.message) continue;
 
-                const media = await MTProtoService.extractMediaItems(client, msg, {
+                const mediaMessages = MTProtoService.collectMediaGroupMessages(messages, msg);
+                const media = await MTProtoService.extractMediaItemsFromMessages(client, mediaMessages, {
                     companyId: source.connector?.companyId,
                     sourceChatId: source.channelId,
                     sourceMessageId: msg.id,

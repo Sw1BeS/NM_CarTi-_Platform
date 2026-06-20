@@ -19,7 +19,9 @@ export type AttributionCreateInput = {
   companyId?: string | null;
   botId?: string | null;
   destination: string;
-  botUsername: string;
+  botUsername?: string | null;
+  redirectUrl?: string | null;
+  appendAttributionParams?: boolean;
   source?: string | null;
   query: Record<string, unknown>;
   requestMeta: AttributionRequestMeta;

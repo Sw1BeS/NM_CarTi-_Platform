@@ -8,6 +8,19 @@ export interface MTProtoConnector {
     sessionString?: string | null;
 }
 
+export interface MTProtoSendCodeResult {
+    phoneCodeHash: string;
+    isCodeViaApp: boolean;
+    sentCodeType?: string | null;
+    nextCodeType?: string | null;
+    codeLength?: number | null;
+    timeoutAt?: string | null;
+    forceSmsAttempted?: boolean;
+    forceSmsSucceeded?: boolean;
+    forceSmsError?: string | null;
+    initialSentCodeType?: string | null;
+}
+
 export interface ChannelSource {
     id: string;
     title: string;
@@ -41,8 +54,8 @@ export const mtprotoService = {
     },
 
     // Auth
-    sendCode: async (connectorId: string, phone: string) => {
-        const res = await ApiClient.post<{ phoneCodeHash: string, isCodeViaApp: boolean }>('/integrations/mtproto/auth/send-code', { connectorId, phone });
+    sendCode: async (connectorId: string, phone: string, options: { forceSms?: boolean } = {}) => {
+        const res = await ApiClient.post<MTProtoSendCodeResult>('/integrations/mtproto/auth/send-code', { connectorId, phone, ...options });
         if (!res.ok) throw new Error(res.message);
         return res.data;
     },

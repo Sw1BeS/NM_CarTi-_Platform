@@ -64,6 +64,7 @@ type CatalogViewProps = {
   filters: InventoryFilters;
   sortBy: SortBy;
   filteredCars: CarListing[];
+  selectedCarsCount: number;
   onTabChange: (tab: InventoryTab) => void;
   onSearchChange: (value: string) => void;
   onToggleFilters: () => void;
@@ -153,6 +154,8 @@ const InventoryCard = React.memo(function InventoryCard({
             sources={images}
             alt={title}
             className="size-full object-cover"
+            fallbackClassName="flex size-full flex-col items-center justify-center bg-[#202226] text-white/22"
+            fallbackLabel="Фото готується"
           />
           <button
             type="button"
@@ -240,6 +243,7 @@ export const CatalogView = ({
   filters,
   sortBy,
   filteredCars,
+  selectedCarsCount,
   onTabChange,
   onSearchChange,
   onToggleFilters,
@@ -402,7 +406,7 @@ export const CatalogView = ({
         </div>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4 pb-6">
+      <div className={`flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4 ${selectedCarsCount > 0 ? 'pb-32' : 'pb-6'}`}>
         {filteredCars.map(car => {
           const carId = getCarId(car);
 

@@ -129,6 +129,13 @@ const readExternalIds = (sourceMeta: unknown): VehicleTaxonomyExternalIds | unde
   return Object.keys(output).length ? output : undefined;
 };
 
+const readSourceAliases = (sourceMeta: unknown) => {
+  if (!isJsonObject(sourceMeta)) return [];
+  const raw = sourceMeta.aliases || sourceMeta.searchAliases || sourceMeta.synonyms;
+  const values = Array.isArray(raw) ? raw : [raw];
+  return values.map(normalizeLabel).filter(Boolean);
+};
+
 const addAlias = (aliases: Map<string, Set<string>>, canonical: unknown, alias: unknown) => {
   const key = canonicalKey(canonical);
   const value = normalizeLabel(alias);
@@ -194,7 +201,11 @@ const option = (
     sourceMeta?: unknown;
   } = {}
 ): VehicleTaxonomyOption => {
-  const aliases = params.aliases ? aliasList(params.aliases, label) : [];
+  const aliases = Array.from(new Set([
+    ...(params.aliases ? aliasList(params.aliases, label) : []),
+    ...readSourceAliases(params.sourceMeta)
+  ].filter((alias) => canonicalKey(alias) !== canonicalKey(label))))
+    .sort((a, b) => a.localeCompare(b));
   const externalIds = readExternalIds(params.sourceMeta);
   return {
     id: params.id || vehicleTaxonomyId(label),

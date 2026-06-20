@@ -81,6 +81,8 @@ const hasTelegramUserAgent = () => {
     return /telegram/i.test(navigator.userAgent || '');
 };
 
+const isDefined = <T,>(value: T | null | undefined): value is T => value !== null && value !== undefined;
+
 class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean; error: Error | null; errorInfo: React.ErrorInfo | null }> {
     public state: { hasError: boolean; error: Error | null; errorInfo: React.ErrorInfo | null };
     constructor(props: { children: React.ReactNode }) {
@@ -1178,11 +1180,7 @@ const MiniAppContent = () => {
             const message = outcome.message || 'Запит збережено. Перейдіть у чат з ботом і передайте контакт.';
             setRequestContactHandoff({ message, openBotUrl: outcome.openBotUrl || resolveOpenBotUrl() });
             setConfigWarning(message);
-            if (outcome.shouldCloseMiniApp) {
-                closeMiniAppOrShowSuccess(message);
-            } else {
-                pushToast(message, 'success');
-            }
+            closeMiniAppOrShowSuccess(message);
             return false;
         }
         setRequestContactHandoff(null);
@@ -1190,7 +1188,7 @@ const MiniAppContent = () => {
 
         const message = outcome.message || 'Запит збережено. Відкрийте чат з ботом для продовження.';
         setConfigWarning(message);
-        pushToast(message, 'success');
+        closeMiniAppOrShowSuccess(message);
         if (outcome.openBotUrl) {
             const tg = (window as any).Telegram?.WebApp;
             if (tg?.openTelegramLink) {
@@ -1439,12 +1437,14 @@ const MiniAppContent = () => {
                 // Assuming Public API returns all 'AVAILABLE' for the company.
 
                 const apiFilters = {
+                    limit: 100,
                     search,
                     minYear: Number(filters.minYear) || undefined,
                     maxYear: Number(filters.maxYear) || undefined,
                     minPrice: Number(filters.minPrice) || undefined,
                     maxPrice: Number(filters.maxPrice) || undefined,
-                    status: tab === 'IN_TRANSIT' ? 'PENDING' as const : 'AVAILABLE' as const
+                    status: tab === 'IN_TRANSIT' ? 'PENDING' as const : 'AVAILABLE' as const,
+                    availabilityState: tab
                 };
 
                 const target = targetSlug || 'system';
@@ -2295,6 +2295,7 @@ const MiniAppContent = () => {
                 filters={filters}
                 sortBy={sortBy}
                 filteredCars={applyFiltersAndSort()}
+                selectedCarsCount={selectedRequestCarIds.length}
                 onTabChange={setTab}
                 onSearchChange={setSearch}
                 onToggleFilters={() => setShowFilters(!showFilters)}
@@ -2366,6 +2367,7 @@ const MiniAppContent = () => {
         const priceLabel = presentation?.priceLabel || formatPrice(selectedCar.price);
         const statusLabel = presentation?.statusLabel || getStatusLabel(selectedCar);
         const subtitle = presentation?.subtitle || formatBrandModel(selectedCar);
+        const publicDescription = pickText(presentation?.description, selectedCar.description);
         const primaryDetailRows = detailRows.filter(row => row.value && row.value !== '—').slice(0, 8);
         const onPrimaryListingAction = () => {
             if (readOnlyPreview) {
@@ -2391,6 +2393,8 @@ const MiniAppContent = () => {
                             sources={images}
                             alt={title}
                             className="h-full w-full object-cover"
+                            fallbackClassName="flex h-full w-full flex-col items-center justify-center bg-[#111418] text-white/24"
+                            fallbackLabel="Фото готується"
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-[#050608] via-[#050608]/70 to-black/10" />
                         <div className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-[#050608] to-transparent" />
@@ -2498,12 +2502,12 @@ const MiniAppContent = () => {
                                 </div>
                             ))}
                         </div>
-                        {(getCarSpecs(selectedCar).vin || getCarSpecs(selectedCar).condition || selectedCar.description) && (
+                        {(getCarSpecs(selectedCar).vin || getCarSpecs(selectedCar).condition || publicDescription) && (
                             <div className="mt-4 space-y-2 border-t border-white/10 pt-4 text-sm text-white/68">
                                 {getCarSpecs(selectedCar).condition && <div>Стан: {getCarSpecs(selectedCar).condition}</div>}
                                 {getCarSpecs(selectedCar).vin && <div className="font-mono text-xs text-white/55">VIN: {getCarSpecs(selectedCar).vin}</div>}
-                                {selectedCar.description && (
-                                    <div className="line-clamp-5 leading-relaxed text-white/58">{selectedCar.description}</div>
+                                {publicDescription && (
+                                    <div className="line-clamp-5 whitespace-pre-line leading-relaxed text-white/58">{publicDescription}</div>
                                 )}
                             </div>
                         )}
@@ -3247,7 +3251,7 @@ const MiniAppContent = () => {
                     url: link.url,
                     icon: iconForLink(link.label, link.url)
                 }))
-        ].filter((item): item is { label: string; caption?: string; url: string; icon: string } => Boolean(item?.url));
+        ].filter((item): item is { label: string; caption: string; url: string; icon: string } => Boolean(item?.url));
         return items;
     };
 
@@ -3348,16 +3352,16 @@ const MiniAppContent = () => {
     const renderContacts = () => {
         const links = getContactLinks();
         return (
-            <div className="animate-fade-in pb-24 p-5 h-full overflow-y-auto flex flex-col bg-black">
-                <div className="relative overflow-hidden rounded-[28px] border border-white/10 p-5" style={graphitePanelStyle}>
-                    <div className="absolute inset-x-0 top-0 h-32 bg-[radial-gradient(circle_at_30%_0%,rgba(255,255,255,0.18),transparent_55%)] pointer-events-none" />
+            <div className="animate-fade-in flex h-full min-h-0 flex-col overflow-y-auto overscroll-contain bg-black px-5 pb-32 pt-5">
+                <div className="relative rounded-[24px] border border-white/10 p-4" style={graphitePanelStyle}>
+                    <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-[radial-gradient(circle_at_30%_0%,rgba(255,255,255,0.16),transparent_55%)]" />
                     <div className="relative z-10">
-                        <div className="w-12 h-12 rounded-2xl bg-white/10 flex items-center justify-center mb-4 text-[#E4E7EC] border border-white/10">
-                            <Phone size={22} />
+                        <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/10 text-[#E4E7EC]">
+                            <Phone size={21} />
                         </div>
-                        <p className="text-[11px] uppercase tracking-[0.18em] text-white/45 font-bold">CarTié contacts</p>
-                        <h2 className="text-3xl font-bold text-white mt-1 mb-2">Звʼяжіться з нами</h2>
-                        <p className="text-white/60 text-sm mb-5 leading-relaxed">
+                        <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/45">CarTié contacts</p>
+                        <h2 className="mb-2 mt-1 text-[26px] font-bold leading-tight text-white">Звʼяжіться з нами</h2>
+                        <p className="mb-4 text-sm leading-relaxed text-white/58">
                             Офіційні канали, шоурум, менеджер і соцмережі CarTié в одному місці.
                         </p>
                     </div>
@@ -3366,10 +3370,10 @@ const MiniAppContent = () => {
                             <button
                                 key={`${link.label}_${link.url}`}
                                 onClick={() => openContactUrl(link.url)}
-                                className="w-full min-h-[66px] rounded-2xl border border-white/10 bg-white/[0.055] text-white flex items-center justify-between px-4 active:scale-[0.99] transition-transform"
+                                className="flex min-h-[58px] w-full items-center justify-between rounded-2xl border border-white/10 bg-white/[0.055] px-3.5 text-white transition-transform active:scale-[0.99]"
                             >
                                 <span className="flex min-w-0 items-center gap-3">
-                                    <span className="w-10 h-10 shrink-0 rounded-2xl bg-black/35 border border-white/10 flex items-center justify-center text-white/86">
+                                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-black/35 text-white/86">
                                         {link.icon === 'Instagram' ? <Instagram size={19} />
                                             : link.icon === 'Globe' ? <Globe size={19} />
                                                 : link.icon === 'Phone' ? <Phone size={19} />
@@ -3380,8 +3384,8 @@ const MiniAppContent = () => {
                                                                     : <MessageSquare size={19} />}
                                     </span>
                                     <span className="min-w-0 text-left">
-                                        <span className="block font-semibold leading-tight truncate">{link.label}</span>
-                                        {link.caption && <span className="block text-xs text-white/48 truncate mt-1">{link.caption}</span>}
+                                        <span className="block truncate font-semibold leading-tight">{link.label}</span>
+                                        {link.caption && <span className="mt-1 block truncate text-xs text-white/48">{link.caption}</span>}
                                     </span>
                                 </span>
                                 <ChevronRight size={18} className="text-white/40" />
@@ -3395,7 +3399,7 @@ const MiniAppContent = () => {
                     </div>
                     <button
                         onClick={() => startBotFlow('SUPPORT')}
-                        className="relative z-10 w-full mt-4 py-4 rounded-2xl font-bold"
+                        className="relative z-10 mt-4 w-full rounded-2xl py-3.5 font-bold"
                         style={premiumCtaStyle}
                     >
                         Написати менеджеру
@@ -3522,7 +3526,7 @@ const MiniAppContent = () => {
                     .filter((item): item is { id: string; label: string } => Boolean(item));
                 const normalizedModels = effectiveModels
                     .map(label => toModelTaxonomyOption(label, normalizedBrands))
-                    .filter((item): item is { brandId?: string; id: string; label: string } => Boolean(item));
+                    .filter(isDefined);
                 const normalizedBodyTypes = effectiveBodyTypes
                     .map(label => toTaxonomyOption(label, vehicleTaxonomy?.bodyTypes || []))
                     .filter((item): item is { id: string; label: string } => Boolean(item));
@@ -3731,6 +3735,7 @@ const MiniAppContent = () => {
                 selectedCarsPreview={selectedRequestCars.map(car => car.title).filter(Boolean).slice(0, 3)}
                 onClearSelectedCars={clearRequestSelection}
                 hasTelegramInit={hasTelegramInit || hasLeadKeyboardAuth || keyboardBridgeSubmitAvailable}
+                canViewPrivateRequests={hasTelegramInit}
                 telegramWriteUnavailableMessage={telegramWriteUnavailableMessage}
                 primaryColor={primaryColor}
                 surfaceMode={surfaceMode}
@@ -3768,22 +3773,22 @@ const MiniAppContent = () => {
         if (!selectedRequestCarIds.length) return null;
         if (view === 'REQUEST' || view === 'STATUS' || view === 'OFFER') return null;
         return (
-            <div className="absolute bottom-20 left-4 right-4 z-30">
-                <div className="bg-[#111214] border border-white/10 rounded-2xl p-3 shadow-2xl backdrop-blur">
-                    <div className="text-xs text-white/60 mb-2">
+            <div className="pointer-events-none absolute bottom-3 left-4 right-4 z-50">
+                <div className="pointer-events-auto rounded-2xl border border-white/10 bg-[#111214]/96 p-2.5 shadow-2xl backdrop-blur">
+                    <div className="mb-2 text-xs text-white/60">
                         Обрано авто: <span className="text-white font-bold">{selectedRequestCarIds.length}</span>
                     </div>
                     <div className="flex gap-2">
                         <button
                             onClick={surfaceMode === 'B2B' ? openRequestForSelectedCars : submitSelectedCarsInterest}
-                            className="flex-1 py-2.5 rounded-xl font-bold text-black text-sm"
+                            className="flex-1 rounded-xl py-2.5 text-sm font-bold text-black"
                             style={premiumCtaStyle}
                         >
                             {surfaceMode === 'B2B' ? 'Створити запит' : 'Дізнатись умови'}
                         </button>
                         <button
                             onClick={clearRequestSelection}
-                            className="px-3 py-2.5 rounded-xl font-bold text-xs border border-white/10 text-white/80"
+                            className="rounded-xl border border-white/10 px-3 py-2.5 text-xs font-bold text-white/80"
                         >
                             Очистити
                         </button>

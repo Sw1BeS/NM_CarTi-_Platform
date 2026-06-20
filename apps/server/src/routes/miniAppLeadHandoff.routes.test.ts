@@ -793,6 +793,40 @@ describe('MiniApp Lead handoff routes', () => {
     }));
   });
 
+  it('passes only safe Telegram user fields into bot-flow synthetic updates', async () => {
+    parseTelegramUserMock.mockReturnValueOnce({
+      id: 1001,
+      username: 'client_one',
+      first_name: 'Ivan',
+      last_name: 'Client',
+      language_code: 'uk',
+      is_premium: true,
+      hash: 'secret-hash',
+      initData: 'raw-init-data',
+      phone: '+380671234567'
+    });
+    const app = await buildApp();
+
+    const res = await request(app)
+      .post('/api/miniapp/bot-flows')
+      .send({
+        slug: 'cartie',
+        initData: 'signed-init-data',
+        flow: 'SELL'
+      });
+
+    expect(res.status).toBe(200);
+    const call = startLeadSellWizardMock.mock.calls[0]?.[0] as any;
+    expect(call.update.message.from).toEqual({
+      id: 1001,
+      username: 'client_one',
+      first_name: 'Ivan',
+      last_name: 'Client',
+      language_code: 'uk',
+      is_premium: true
+    });
+  });
+
   it('rejects Lead-only bot-flows for B2B MiniApp configs', async () => {
     miniAppServiceMock.getConfig.mockResolvedValueOnce({
       companyId: 'company_1',
@@ -1579,6 +1613,7 @@ describe('MiniApp Lead handoff routes', () => {
       thumbnail: 'https://example.com/x5.jpg',
       mediaUrls: [
         'https://example.com/x5.jpg',
+        '/media/company_1/1001/unknown/x5-telegram.jpg',
         'tg://resolve?domain=dealer_one',
         'https://wa.me/380501112233',
         'mailto:dealer@example.com',
@@ -1620,7 +1655,10 @@ describe('MiniApp Lead handoff routes', () => {
     expect(res.status).toBe(200);
     expect(res.body.items).toHaveLength(1);
     expect(res.body.items[0]).not.toHaveProperty('contact');
-    expect(res.body.items[0].mediaUrls).toEqual(['https://example.com/x5.jpg']);
+    expect(res.body.items[0].mediaUrls).toEqual([
+      'https://example.com/x5.jpg',
+      '/media/company_1/1001/unknown/x5-telegram.jpg'
+    ]);
     expect(res.body.items[0].specs).toEqual({
       brand: 'BMW',
       color: 'black',
@@ -2123,6 +2161,7 @@ describe('MiniApp Lead handoff routes', () => {
 
     const res = await request(app)
       .post('/api/miniapp/events')
+      .set('user-agent', 'Mozilla/5.0 Preview')
       .send({
         slug: 'cartie',
         eventType: 'ViewCar',
@@ -2145,7 +2184,7 @@ describe('MiniApp Lead handoff routes', () => {
 
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({
-      meta: { enabled: false, eventName: 'ViewContent' }
+      meta: { enabled: true, eventName: 'ViewContent', success: true }
     });
     expect(emitPlatformEventMock).toHaveBeenCalledWith(expect.objectContaining({
       eventType: 'miniapp.ViewCar',
@@ -2156,11 +2195,34 @@ describe('MiniApp Lead handoff routes', () => {
         carListingId: 'car_1'
       })
     }));
-    expect(metaPixelTrackEventMock).not.toHaveBeenCalled();
+    expect(metaPixelTrackEventMock).toHaveBeenCalledWith('company_1', 'ViewContent', expect.objectContaining({
+      eventId: 'view_car_preview_1',
+      externalId: 'miniapp_visitor:visitor_preview_1',
+      fbp: 'fb.1.123',
+      fbc: 'fb.1.456',
+      eventSourceUrl: 'https://cartie.test/p/app/cartie?entry=inventory&carId=car_1',
+      actionSource: 'website',
+      ip: expect.any(String),
+      userAgent: expect.any(String),
+      contentIds: ['car_1'],
+      entityType: 'miniapp_event',
+      entityId: 'view_car_preview_1',
+      stage: 'ViewCar',
+      customData: expect.objectContaining({
+        source: 'miniapp',
+        slug: 'cartie',
+        miniapp_event: 'ViewCar',
+        carListingId: 'car_1'
+      })
+    }));
     const platformPayload = emitPlatformEventMock.mock.calls[0][0].payload;
     expect(JSON.stringify(platformPayload)).not.toContain('spoofed_user');
     expect(JSON.stringify(platformPayload)).not.toContain('+380635055252');
     expect(JSON.stringify(platformPayload)).not.toContain('tgWebAppData');
+    const metaPayload = metaPixelTrackEventMock.mock.calls[0][2];
+    expect(JSON.stringify(metaPayload)).not.toContain('spoofed_user');
+    expect(JSON.stringify(metaPayload)).not.toContain('+380635055252');
+    expect(JSON.stringify(metaPayload)).not.toContain('tgWebAppData');
   });
 
   it('allows LeadFormStart telemetry without initData for read-only preview sessions', async () => {

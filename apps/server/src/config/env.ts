@@ -40,6 +40,11 @@ const envSchema = z.object({
     SALESDRIVE_SYNC_ENABLED: z.string().optional(),
     SALESDRIVE_WRITE_ENABLED: z.string().optional(),
     SALESDRIVE_TIMEOUT_MS: intWithDefault(8000, 1000),
+    SALESDRIVE_B2C_META_STATUS_MAP: z.string().optional(),
+    SALESDRIVE_B2C_WEBHOOK_ACCOUNT_ALLOWLIST: z.string().optional(),
+    SALESDRIVE_B2C_WEBHOOK_FORM_ALLOWLIST: z.string().optional(),
+    SALESDRIVE_DEFAULT_CURRENCY: z.string().optional(),
+    SALESDRIVE_WEBHOOK_TIMEZONE_OFFSET_MINUTES: intWithDefault(0),
     META_PIXEL_ID: z.string().optional(),
     META_ACCESS_TOKEN: z.string().optional(),
     META_CAPI_ACCESS_TOKEN: z.string().optional(),
@@ -55,6 +60,7 @@ const envSchema = z.object({
     ATTRIBUTION_REDIRECT_ENABLED: z.string().optional(),
     ATTRIBUTION_SESSION_TTL_DAYS: intWithDefault(30, 1),
     ATTRIBUTION_BOT_ALLOWLIST: z.string().optional(),
+    ATTRIBUTION_WEB_ALLOWLIST: z.string().optional(),
     ATTRIBUTION_DEFAULT_DESTINATION: z.string().optional(),
     ATTRIBUTION_REDIRECT_FAIL_MODE: z.enum(['closed', 'passthrough']).optional(),
     SALESDRIVE_WEBHOOK_SECRET: z.string().optional(),
@@ -90,6 +96,11 @@ export interface ValidatedEnv {
     SALESDRIVE_SYNC_ENABLED?: string;
     SALESDRIVE_WRITE_ENABLED?: string;
     SALESDRIVE_TIMEOUT_MS: number;
+    SALESDRIVE_B2C_META_STATUS_MAP?: string;
+    SALESDRIVE_B2C_WEBHOOK_ACCOUNT_ALLOWLIST?: string;
+    SALESDRIVE_B2C_WEBHOOK_FORM_ALLOWLIST?: string;
+    SALESDRIVE_DEFAULT_CURRENCY?: string;
+    SALESDRIVE_WEBHOOK_TIMEZONE_OFFSET_MINUTES: number;
     META_PIXEL_ID?: string;
     META_ACCESS_TOKEN?: string;
     META_CAPI_ACCESS_TOKEN?: string;
@@ -105,6 +116,7 @@ export interface ValidatedEnv {
     ATTRIBUTION_REDIRECT_ENABLED?: string;
     ATTRIBUTION_SESSION_TTL_DAYS: number;
     ATTRIBUTION_BOT_ALLOWLIST?: string;
+    ATTRIBUTION_WEB_ALLOWLIST?: string;
     ATTRIBUTION_DEFAULT_DESTINATION?: string;
     ATTRIBUTION_REDIRECT_FAIL_MODE?: 'closed' | 'passthrough';
     SALESDRIVE_WEBHOOK_SECRET?: string;
@@ -147,10 +159,17 @@ export type AttributionBotAllowlistEntry = {
     botUsername: string;
 };
 
+export type AttributionWebAllowlistEntry = {
+    destination: string;
+    url: string;
+    appendAttributionParams: boolean;
+};
+
 export type AttributionRedirectConfig = {
     enabled: boolean;
     ttlDays: number;
     botAllowlist: AttributionBotAllowlistEntry[];
+    webAllowlist: AttributionWebAllowlistEntry[];
     defaultDestination?: string;
     failMode: AttributionRedirectFailMode;
 };
@@ -186,11 +205,74 @@ export const parseAttributionBotAllowlist = (raw: string | undefined): Attributi
         .filter((entry): entry is AttributionBotAllowlistEntry => Boolean(entry));
 };
 
+const normalizeAllowlistedHttpUrl = (value: unknown): string | undefined => {
+    const text = normalizeEnvText(value);
+    if (!text) return undefined;
+    try {
+        const url = new URL(text);
+        if (!['http:', 'https:'].includes(url.protocol)) return undefined;
+        url.hash = '';
+        return url.toString();
+    } catch {
+        return undefined;
+    }
+};
+
+const parseWebAllowlistJson = (text: string): AttributionWebAllowlistEntry[] | null => {
+    try {
+        const parsed = JSON.parse(text);
+        const entries = Array.isArray(parsed) ? parsed : [];
+        return entries
+            .map((entry) => {
+                if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return null;
+                const source = entry as Record<string, unknown>;
+                const destination = normalizeEnvText(source.destination);
+                const url = normalizeAllowlistedHttpUrl(source.url || source.href);
+                if (!destination || !url) return null;
+                return {
+                    destination,
+                    url,
+                    appendAttributionParams: source.appendAttributionParams === false ? false : true
+                };
+            })
+            .filter((entry): entry is AttributionWebAllowlistEntry => Boolean(entry));
+    } catch {
+        return null;
+    }
+};
+
+export const parseAttributionWebAllowlist = (raw: string | undefined): AttributionWebAllowlistEntry[] => {
+    const text = normalizeEnvText(raw);
+    if (!text) return [];
+
+    const jsonEntries = parseWebAllowlistJson(text);
+    if (jsonEntries) return jsonEntries;
+
+    return text
+        .split(',')
+        .map(entry => {
+            const separatorIndex = entry.indexOf('=');
+            if (separatorIndex <= 0) return null;
+            const destination = normalizeEnvText(entry.slice(0, separatorIndex));
+            const url = normalizeAllowlistedHttpUrl(entry.slice(separatorIndex + 1));
+            if (!destination || !url) return null;
+            return {
+                destination,
+                url,
+                appendAttributionParams: true
+            };
+        })
+        .filter((entry): entry is AttributionWebAllowlistEntry => Boolean(entry));
+};
+
 export const getAttributionRedirectConfig = (
     env: Partial<ValidatedEnv> | NodeJS.ProcessEnv = process.env
 ): AttributionRedirectConfig => {
     const botAllowlist = parseAttributionBotAllowlist(env.ATTRIBUTION_BOT_ALLOWLIST);
-    const defaultDestination = normalizeEnvText(env.ATTRIBUTION_DEFAULT_DESTINATION) || botAllowlist[0]?.destination;
+    const webAllowlist = parseAttributionWebAllowlist(env.ATTRIBUTION_WEB_ALLOWLIST);
+    const defaultDestination = normalizeEnvText(env.ATTRIBUTION_DEFAULT_DESTINATION)
+        || botAllowlist[0]?.destination
+        || webAllowlist[0]?.destination;
     const ttlValue = Number(env.ATTRIBUTION_SESSION_TTL_DAYS || 30);
     const ttlDays = Number.isFinite(ttlValue) && ttlValue > 0 ? Math.floor(ttlValue) : 30;
     const failMode = env.ATTRIBUTION_REDIRECT_FAIL_MODE === 'passthrough' ? 'passthrough' : 'closed';
@@ -199,6 +281,7 @@ export const getAttributionRedirectConfig = (
         enabled: parseBooleanFlag(env.ATTRIBUTION_REDIRECT_ENABLED, false),
         ttlDays,
         botAllowlist,
+        webAllowlist,
         defaultDestination,
         failMode
     };

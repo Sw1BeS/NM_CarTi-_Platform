@@ -56,6 +56,7 @@ type RequestViewProps = {
   selectedCarsPreview: string[];
   onClearSelectedCars: () => void;
   hasTelegramInit: boolean;
+  canViewPrivateRequests?: boolean;
   telegramWriteUnavailableMessage?: string;
   primaryColor: string;
   surfaceMode: MiniAppSurfaceMode;
@@ -146,6 +147,7 @@ export const RequestView = ({
   selectedCarsPreview,
   onClearSelectedCars,
   hasTelegramInit,
+  canViewPrivateRequests = true,
   telegramWriteUnavailableMessage,
   primaryColor,
   surfaceMode,
@@ -172,14 +174,15 @@ export const RequestView = ({
     aliases: [],
     models: item.models.map(model => ({ id: model.toLowerCase(), label: model, aliases: [], brandId: item.brand.toLowerCase() }))
   })));
-  const brandOptions = brandSources
-    .map(item => ({
+  const brandOptions: SearchableSelectOption[] = [
+    ...brandSources.map(item => ({
       id: item.id,
       label: item.label === 'Other' ? OTHER_BRAND : item.label,
-      aliases: item.aliases,
+      aliases: item.aliases || [],
       externalIds: item.externalIds
-    }))
-    .concat(brandSources.some(item => item.label === OTHER_BRAND || item.label === 'Other') ? [] : [toSelectOption(OTHER_BRAND)]);
+    })),
+    ...(brandSources.some(item => item.label === OTHER_BRAND || item.label === 'Other') ? [] : [toSelectOption(OTHER_BRAND)])
+  ];
   const selectedBrands = (reqData.brands?.length ? reqData.brands : (reqData.brand ? [reqData.brand] : []))
     .filter(Boolean);
   const selectedModels = (reqData.models?.length ? reqData.models : (reqData.model ? [reqData.model] : []))
@@ -224,7 +227,7 @@ export const RequestView = ({
   const title = surfaceMode === 'B2B'
     ? 'Створити B2B запит'
     : (requestType === 'SELL' ? 'Продаж авто' : 'Підбір авто');
-  const successContent = resolveRequestSuccessContent(surfaceMode);
+  const successContent = resolveRequestSuccessContent(surfaceMode, { canViewPrivateRequests });
   React.useEffect(() => {
     if (!activeConstraints?.fuels?.length || isValueAllowedByOptions(reqFuel, fuelOptions)) return;
     setReqFuel('');
@@ -240,7 +243,6 @@ export const RequestView = ({
       bodyTypes: nextBodyTypes
     });
   }, [activeConstraints?.bodyTypes, bodyTypeOptionKey, selectedBodyTypes.join('|'), reqData, setReqData]);
-
   const handleSuccessAction = (actionId: RequestSuccessActionId) => {
     if (actionId === 'MY_REQUESTS' || actionId === 'B2B_ACTIVITY') {
       onViewRequests?.();
@@ -329,7 +331,11 @@ export const RequestView = ({
                 <button
                   key={action.id}
                   type="button"
-                  onClick={() => handleSuccessAction(action.id)}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    handleSuccessAction(action.id);
+                  }}
                   className={`w-full rounded-xl border p-4 text-left transition-transform active:scale-[0.99] ${
                     action.primary
                       ? 'border-white/20 text-black'

@@ -7,6 +7,10 @@ import {
   attributionSessionService,
   type AttributionCreateResult
 } from './attributionSession.service.js';
+import { prisma } from '../../services/prisma.js';
+import { isEnvFlagEnabled } from '../../services/featureFlags.js';
+import { logger } from '../../utils/logger.js';
+import { MetaCapiService } from '../Integrations/meta/metaCapi.service.js';
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -14,10 +18,20 @@ type TrackingRedirectService = {
   createSession(input: Parameters<typeof attributionSessionService.createSession>[0]): Promise<AttributionCreateResult>;
 };
 
+type TrackingRedirectKind = 'bot' | 'web';
+
+type TrackingRedirectMetaEventInput = {
+  kind: TrackingRedirectKind;
+  destination: string;
+  result: AttributionCreateResult;
+  req: Request;
+};
+
 type TrackingRedirectDeps = {
   service?: TrackingRedirectService;
   config?: AttributionRedirectConfig;
   getConfig?: () => AttributionRedirectConfig;
+  trackMetaEvents?: (input: TrackingRedirectMetaEventInput) => Promise<void>;
 };
 
 const firstQueryText = (value: unknown): string | undefined => {
@@ -74,10 +88,131 @@ const failDisabled = (config: AttributionRedirectConfig, res: Response, next: Ne
   res.status(404).json({ error: 'not_found' });
 };
 
+const attributionRequestInput = (req: Request) => {
+  const cookies = parseCookieHeader(req.get('cookie'));
+  return {
+    source: firstQueryText(req.query.utm_source) || firstQueryText(req.query.source) || null,
+    query: req.query as Record<string, unknown>,
+    requestMeta: {
+      ip: requestIp(req),
+      userAgent: req.get('user-agent') || null,
+      eventSourceUrl: requestUrl(req),
+      referrer: req.get('referer') || req.get('referrer') || null
+    },
+    cookies: {
+      fbp: cookies._fbp,
+      fbc: cookies._fbc
+    }
+  };
+};
+
+const applyAttributionCookies = (
+  res: Response,
+  result: AttributionCreateResult,
+  config: AttributionRedirectConfig
+): void => {
+  if (result.cookies.fbp) {
+    setAttributionCookie(res, '_fbp', result.cookies.fbp, config.ttlDays);
+  }
+  if (result.cookies.fbc) {
+    setAttributionCookie(res, '_fbc', result.cookies.fbc, config.ttlDays);
+  }
+};
+
+const readEnvText = (name: string) => String(process.env[name] || '').trim();
+
+const resolveTrackingMetaCompanyId = async () => {
+  const configured = readEnvText('ATTRIBUTION_META_COMPANY_ID') || readEnvText('META_B2C_BOT_COMPANY_ID');
+  if (configured) return configured;
+
+  const datasetId = readEnvText('META_B2C_BOT_DATASET_ID');
+  const integration = await prisma.integration.findFirst({
+    where: {
+      type: 'META_PIXEL' as any,
+      isActive: true,
+      ...(datasetId ? { config: { path: ['pixelId'], equals: datasetId } } : {})
+    },
+    select: { companyId: true },
+    orderBy: { createdAt: 'asc' }
+  }).catch(() => null);
+
+  return integration?.companyId || '';
+};
+
+const safeRedirectHostname = (value: string) => {
+  try {
+    return new URL(value).hostname;
+  } catch {
+    return '';
+  }
+};
+
+const buildRedirectCustomData = (input: TrackingRedirectMetaEventInput, eventRole: string) => {
+  const query = input.result.snapshot.query || {};
+  return {
+    source: 'attribution_redirect',
+    event_role: eventRole,
+    destination: input.destination,
+    redirect_kind: input.kind,
+    redirect_host: safeRedirectHostname(input.result.redirectUrl),
+    utm_source: query.utm_source,
+    utm_medium: query.utm_medium,
+    utm_campaign: query.utm_campaign,
+    utm_content: query.utm_content,
+    utm_term: query.utm_term,
+    utm_id: query.utm_id,
+    campaign_id: query.campaign_id,
+    adset_id: query.adset_id,
+    ad_id: query.ad_id,
+    placement: query.placement
+  };
+};
+
+export const trackAttributionRedirectMetaEvents = async (input: TrackingRedirectMetaEventInput) => {
+  if (!isEnvFlagEnabled('META_CAPI_ENABLED', false)) return;
+
+  const companyId = await resolveTrackingMetaCompanyId();
+  if (!companyId) return;
+
+  const identifiers = input.result.snapshot.identifiers || {};
+  const base = {
+    externalId: `attribution:${input.result.token}`,
+    fbp: identifiers.fbp || input.result.cookies.fbp,
+    fbc: identifiers.fbc || input.result.cookies.fbc,
+    ip: identifiers.client_ip_address || requestIp(input.req),
+    userAgent: identifiers.client_user_agent || input.req.get('user-agent') || undefined,
+    eventSourceUrl: input.result.snapshot.event_source_url || requestUrl(input.req),
+    actionSource: 'website',
+    entityType: 'attribution_redirect',
+    entityId: input.result.token
+  };
+  const meta = new MetaCapiService();
+  const events = [
+    meta.trackEvent(companyId, 'PageView', {
+      ...base,
+      eventId: `attribution:${input.result.token}:PageView:${input.destination}`,
+      stage: `${input.destination}:pageview`,
+      customData: buildRedirectCustomData(input, 'bridge_pageview')
+    })
+  ];
+
+  if (input.kind === 'web') {
+    events.push(meta.trackEvent(companyId, 'adsquiz_Start', {
+      ...base,
+      eventId: `attribution:${input.result.token}:adsquiz_Start:${input.destination}`,
+      stage: `${input.destination}:adsquiz_start`,
+      customData: buildRedirectCustomData(input, 'adsquiz_start')
+    }));
+  }
+
+  await Promise.all(events);
+};
+
 export const createTrackingRedirectRouter = (deps: TrackingRedirectDeps = {}) => {
   const router = express.Router();
   const service = deps.service || attributionSessionService;
   const resolveConfig = () => deps.config || deps.getConfig?.() || getAttributionRedirectConfig();
+  const trackMetaEvents = deps.trackMetaEvents || trackAttributionRedirectMetaEvents;
 
   router.get('/bot', async (req, res, next) => {
     const config = resolveConfig();
@@ -101,30 +236,63 @@ export const createTrackingRedirectRouter = (deps: TrackingRedirectDeps = {}) =>
     }
 
     try {
-      const cookies = parseCookieHeader(req.get('cookie'));
       const result = await service.createSession({
         destination,
         botUsername: allowedDestination.botUsername,
-        source: firstQueryText(req.query.utm_source) || firstQueryText(req.query.source) || null,
-        query: req.query as Record<string, unknown>,
-        requestMeta: {
-          ip: requestIp(req),
-          userAgent: req.get('user-agent') || null,
-          eventSourceUrl: requestUrl(req),
-          referrer: req.get('referer') || req.get('referrer') || null
-        },
-        cookies: {
-          fbp: cookies._fbp,
-          fbc: cookies._fbc
-        }
+        ...attributionRequestInput(req)
       });
 
-      if (result.cookies.fbp) {
-        setAttributionCookie(res, '_fbp', result.cookies.fbp, config.ttlDays);
-      }
-      if (result.cookies.fbc) {
-        setAttributionCookie(res, '_fbc', result.cookies.fbc, config.ttlDays);
-      }
+      applyAttributionCookies(res, result, config);
+      void trackMetaEvents({ kind: 'bot', destination, result, req }).catch((error) => {
+        logger.warn('[Attribution] Meta redirect event failed', {
+          destination,
+          kind: 'bot',
+          error: error instanceof Error ? error.message : String(error)
+        });
+      });
+      res.redirect(302, result.redirectUrl);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get(['/quiz', '/web'], async (req, res, next) => {
+    const config = resolveConfig();
+    if (!config.enabled) {
+      failDisabled(config, res, next);
+      return;
+    }
+
+    if (!config.webAllowlist.length) {
+      res.status(503).json({ error: 'attribution_redirect_not_configured' });
+      return;
+    }
+
+    const destination = firstQueryText(req.query.destination)
+      || firstQueryText(req.query.dest)
+      || config.defaultDestination;
+    const allowedDestination = config.webAllowlist.find(entry => entry.destination === destination);
+    if (!destination || !allowedDestination) {
+      res.status(400).json({ error: 'invalid_destination' });
+      return;
+    }
+
+    try {
+      const result = await service.createSession({
+        destination,
+        redirectUrl: allowedDestination.url,
+        appendAttributionParams: allowedDestination.appendAttributionParams,
+        ...attributionRequestInput(req)
+      });
+
+      applyAttributionCookies(res, result, config);
+      void trackMetaEvents({ kind: 'web', destination, result, req }).catch((error) => {
+        logger.warn('[Attribution] Meta redirect event failed', {
+          destination,
+          kind: 'web',
+          error: error instanceof Error ? error.message : String(error)
+        });
+      });
       res.redirect(302, result.redirectUrl);
     } catch (error) {
       next(error);

@@ -181,14 +181,17 @@ const startServer = async () => {
     // Start Stage 2 Scheduler (Telegram Sync)
     startScheduler();
 
-    // Restore persistent MTProto sessions
-    await MTProtoLifeCycle.initAll();
-
-    // Start MTProto Live Sync after restore validation so revoked sessions are skipped.
-    mtprotoWorker.startLiveSync();
-
     const server = app.listen(PORT, () => {
       logger.info(`Server running on http://localhost:${PORT}`);
+    });
+
+    // Restore Telegram sessions after HTTP is already accepting health checks.
+    // Telegram network/auth issues must not make the whole API look down.
+    void (async () => {
+      await MTProtoLifeCycle.initAll();
+      await mtprotoWorker.startLiveSync();
+    })().catch((error) => {
+      logger.error('MTProto background startup failed', error);
     });
 
     // Graceful Shutdown
