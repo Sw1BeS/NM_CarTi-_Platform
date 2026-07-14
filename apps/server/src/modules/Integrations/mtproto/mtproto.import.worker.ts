@@ -120,7 +120,8 @@ export class MTProtoImportWorker {
                     }
                     if (msgDate >= toDate) continue;
 
-                    const media = await MTProtoService.extractMediaItems(client, msg, {
+                    const mediaMessages = MTProtoService.collectMediaGroupMessages(batch, msg);
+                    const media = await MTProtoService.extractMediaItemsFromMessages(client, mediaMessages, {
                         companyId: source.connector?.companyId,
                         sourceChatId: source.channelId,
                         sourceMessageId: msg.id,

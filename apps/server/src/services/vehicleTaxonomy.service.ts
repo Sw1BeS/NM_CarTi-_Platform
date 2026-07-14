@@ -1,6 +1,6 @@
 import { NormalizationType, Prisma } from '@prisma/client';
 import { prisma } from './prisma.js';
-import { extractAutoRiaIdentityFromSourceUrl } from './vehiclePresentation.js';
+import { extractAutoRiaIdentityFromSourceUrl, normalizeVehicleSpecLabel } from './vehiclePresentation.js';
 import { detectMake } from './taxonomy.js';
 
 export type VehicleTaxonomyOption = {
@@ -44,10 +44,37 @@ const CURATED_BRANDS = [
 ];
 
 const STATIC_BODY_TYPES = ['SUV', 'Седан', 'Універсал', 'Купе', 'Хетчбек', 'Пікап', 'Мінівен', 'Кабріолет', 'Ліфтбек'];
-const STATIC_FUELS = ['Бензин', 'Дизель', 'Гібрид', 'Plug-in гібрид', 'Електро', 'Газ'];
+const FUEL_CANONICALS = [
+  { label: 'Бензин', aliases: ['petrol', 'gasoline', 'benzin', 'бенз'] },
+  { label: 'Дизель', aliases: ['diesel'] },
+  { label: 'Гібрид', aliases: ['hybrid', 'гібрид', 'гибрид'] },
+  { label: 'Plug-in гібрид', aliases: ['plug-in hybrid', 'plug in hybrid', 'plug-in', 'phev'] },
+  { label: 'Електро', aliases: ['electric', 'electro', 'ev'] },
+  { label: 'Газ', aliases: ['lpg', 'gas'] }
+];
+const STATIC_FUELS = FUEL_CANONICALS.map(entry => entry.label);
 const STATIC_TRANSMISSIONS = ['Автомат', 'Механіка', 'Варіатор', 'Робот'];
 const STATIC_DRIVES = ['Повний', 'Передній', 'Задній'];
-const STATIC_CITIES = ['Київ', 'Львів', 'Одеса', 'Дніпро', 'Харків', 'Івано-Франківськ', 'Тернопіль', 'Вся Україна', 'Під замовлення'];
+const CITY_CANONICALS = [
+  { id: 'kyiv', label: 'Київ', aliases: ['Kyiv', 'Kiev', 'Киев'] },
+  { id: 'lviv', label: 'Львів', aliases: ['Lviv', 'Львов'] },
+  { id: 'odesa', label: 'Одеса', aliases: ['Odesa', 'Odessa', 'Одесса'] },
+  { id: 'dnipro', label: 'Дніпро', aliases: ['Dnipro', 'Dnipropetrovsk', 'Днепр'] },
+  { id: 'kharkiv', label: 'Харків', aliases: ['Kharkiv', 'Харьков'] },
+  { id: 'ivano-frankivsk', label: 'Івано-Франківськ', aliases: ['Ivano-Frankivsk'] },
+  { id: 'ternopil', label: 'Тернопіль', aliases: ['Ternopil'] },
+  { id: 'cherkasy', label: 'Черкаси', aliases: ['Cherkasy'] },
+  { id: 'chernivtsi', label: 'Чернівці', aliases: ['Chernivtsi'] },
+  { id: 'lutsk', label: 'Луцьк', aliases: ['Lutsk'] },
+  { id: 'poltava', label: 'Полтава', aliases: ['Poltava'] },
+  { id: 'rivne', label: 'Рівне', aliases: ['Rivne'] },
+  { id: 'vinnytsia', label: 'Вінниця', aliases: ['Vinnytsia', 'Винница'] },
+  { id: 'zaporizhzhia', label: 'Запоріжжя', aliases: ['Zaporizhzhia', 'Запорожье'] },
+  { id: 'zhytomyr', label: 'Житомир', aliases: ['Zhytomyr'] },
+  { id: 'all-ukraine', label: 'Вся Україна', aliases: ['All Ukraine'] },
+  { id: 'import-to-order', label: 'Під замовлення', aliases: ['Import to order'] }
+];
+const STATIC_CITIES = CITY_CANONICALS.map(entry => entry.label);
 
 const normalizeLabel = (value: unknown) => String(value || '').trim().replace(/\s+/g, ' ');
 
@@ -61,7 +88,11 @@ const idOverrides: Record<string, string> = {
   'передній': 'fwd',
   'задній': 'rwd',
   'вся україна': 'all-ukraine',
-  'під замовлення': 'import-to-order'
+  'під замовлення': 'import-to-order',
+  ...Object.fromEntries(CITY_CANONICALS.flatMap(entry => [
+    [entry.label.toLowerCase(), entry.id],
+    ...entry.aliases.map(alias => [alias.toLowerCase(), entry.id] as const)
+  ]))
 };
 
 export const vehicleTaxonomyId = (label: unknown) => {
@@ -82,6 +113,43 @@ const addAlias = (aliases: Map<string, Set<string>>, canonical: unknown, alias: 
   const set = aliases.get(key) || new Set<string>();
   set.add(value);
   aliases.set(key, set);
+};
+
+const canonicalByAlias = (entries: Array<{ label: string; aliases: string[] }>) => {
+  const map = new Map<string, string>();
+  entries.forEach(entry => {
+    map.set(entry.label.toLowerCase(), entry.label);
+    entry.aliases.forEach(alias => map.set(alias.toLowerCase(), entry.label));
+  });
+  return map;
+};
+
+const fuelByAlias = canonicalByAlias(FUEL_CANONICALS);
+const cityByAlias = canonicalByAlias(CITY_CANONICALS);
+
+const canonicalizeFuelLabel = (value: unknown) => {
+  const raw = normalizeLabel(value);
+  if (!raw) return undefined;
+  const normalized = raw.toLowerCase().replace(/[_-]+/g, ' ').replace(/\s+/g, ' ');
+  if (/plug\s*in|phev/.test(normalized)) return 'Plug-in гібрид';
+  return fuelByAlias.get(normalized)
+    || normalizeVehicleSpecLabel('fuel', raw)
+    || raw;
+};
+
+const canonicalizeCityLabel = (value: unknown) => {
+  const raw = normalizeLabel(value);
+  if (!raw) return undefined;
+  return cityByAlias.get(raw.toLowerCase()) || raw;
+};
+
+const seedCanonicalAliases = (
+  aliases: Map<string, Set<string>>,
+  entries: Array<{ label: string; aliases: string[] }>
+) => {
+  entries.forEach(entry => {
+    entry.aliases.forEach(alias => addAlias(aliases, entry.label, alias));
+  });
 };
 
 const option = (label: string, aliases?: Map<string, Set<string>>): VehicleTaxonomyOption => ({
@@ -126,6 +194,7 @@ export class VehicleTaxonomyService {
     const brandAliases = new Map<string, Set<string>>();
     const modelAliases = new Map<string, Set<string>>();
     const cityAliases = new Map<string, Set<string>>();
+    const fuelAliases = new Map<string, Set<string>>();
     const bodyTypes = new Set(STATIC_BODY_TYPES);
     const fuels = new Set(STATIC_FUELS);
     const transmissions = new Set(STATIC_TRANSMISSIONS);
@@ -136,6 +205,8 @@ export class VehicleTaxonomyService {
       addBrandModel(brandModels, brand.label);
       brand.models.forEach((model) => addBrandModel(brandModels, brand.label, model));
     });
+    seedCanonicalAliases(fuelAliases, FUEL_CANONICALS);
+    seedCanonicalAliases(cityAliases, CITY_CANONICALS);
 
     const aliases = await prisma.normalizationAlias.findMany({
       where: {
@@ -155,8 +226,10 @@ export class VehicleTaxonomyService {
       } else if (entry.type === NormalizationType.model) {
         addAlias(modelAliases, entry.canonical, entry.alias);
       } else if (entry.type === NormalizationType.city) {
-        cities.add(entry.canonical);
-        addAlias(cityAliases, entry.canonical, entry.alias);
+        const canonicalCity = canonicalizeCityLabel(entry.canonical) || canonicalizeCityLabel(entry.alias) || entry.canonical;
+        cities.add(canonicalCity);
+        addAlias(cityAliases, canonicalCity, entry.canonical);
+        addAlias(cityAliases, canonicalCity, entry.alias);
       }
     });
 
@@ -188,12 +261,12 @@ export class VehicleTaxonomyService {
       addBrandModel(brandModels, detectedBrand, detectedModel);
 
       const bodyType = readSpec(specs, ['bodyType', 'body', 'кузов']);
-      const fuel = readSpec(specs, ['fuel', 'engineType', 'пальне']);
+      const fuel = canonicalizeFuelLabel(readSpec(specs, ['fuel', 'engineType', 'пальне']));
       const transmission = readSpec(specs, ['transmission', 'gearbox', 'кпп']);
       const drive = readSpec(specs, ['drive', 'drivetrain', 'привід']);
-      const city = normalizeLabel(car.location)
+      const city = canonicalizeCityLabel(normalizeLabel(car.location)
         || readSpec(specs, ['city', 'location', 'місто'])
-        || (isJsonObject(car.originalRaw) ? normalizeLabel(car.originalRaw.location) : undefined);
+        || (isJsonObject(car.originalRaw) ? normalizeLabel(car.originalRaw.location) : undefined));
 
       if (bodyType) bodyTypes.add(bodyType);
       if (fuel) fuels.add(fuel);
@@ -221,7 +294,7 @@ export class VehicleTaxonomyService {
     return {
       brands,
       bodyTypes: buildOptionList(bodyTypes),
-      fuels: buildOptionList(fuels),
+      fuels: buildOptionList(fuels, fuelAliases),
       transmissions: buildOptionList(transmissions),
       drives: buildOptionList(drives),
       cities: buildOptionList(cities, cityAliases)

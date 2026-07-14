@@ -44,6 +44,7 @@
 	handle @trackingRedirect {
 		header Cache-Control "no-store"
 		reverse_proxy api:3001 {
+			header_up X-Forwarded-Proto https
 			health_uri /health
 			health_interval 5s
 			health_timeout 2s

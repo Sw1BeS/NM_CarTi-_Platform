@@ -4,6 +4,7 @@ import { Check, Search, X } from 'lucide-react';
 export type SearchableSelectOption = {
   id: string;
   label: string;
+  description?: string;
   aliases?: string[];
   disabled?: boolean;
 };
@@ -34,6 +35,7 @@ export const SearchableSelect = ({
 }: SearchableSelectProps) => {
   const inputId = React.useId();
   const listboxId = React.useId();
+  const inputRef = React.useRef<HTMLInputElement | null>(null);
   const [query, setQuery] = React.useState(value || '');
   const [open, setOpen] = React.useState(false);
   const [activeIndex, setActiveIndex] = React.useState(0);
@@ -52,6 +54,7 @@ export const SearchableSelect = ({
     onChange(option.label);
     setQuery(option.label);
     setOpen(false);
+    window.setTimeout(() => inputRef.current?.blur(), 0);
   };
 
   const clear = () => {
@@ -60,11 +63,24 @@ export const SearchableSelect = ({
     setOpen(true);
   };
 
+  const closeKeyboard = () => {
+    setOpen(false);
+    window.setTimeout(() => inputRef.current?.blur(), 0);
+  };
+
+  const keepVisibleOnFocus = (event: React.FocusEvent<HTMLInputElement>) => {
+    const target = event.currentTarget;
+    window.setTimeout(() => {
+      target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }, 80);
+  };
+
   return (
     <div className="relative">
       <div className="relative">
         <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-white/35" size={18} />
         <input
+          ref={inputRef}
           id={inputId}
           aria-label={label}
           aria-autocomplete="list"
@@ -81,8 +97,12 @@ export const SearchableSelect = ({
             setOpen(true);
             setActiveIndex(0);
           }}
-          onFocus={() => setOpen(true)}
+          onFocus={(event) => {
+            setOpen(true);
+            keepVisibleOnFocus(event);
+          }}
           onBlur={() => window.setTimeout(() => setOpen(false), 120)}
+          enterKeyHint="done"
           onKeyDown={(event) => {
             if (disabled) return;
             if (event.key === 'ArrowDown') {
@@ -93,12 +113,14 @@ export const SearchableSelect = ({
               event.preventDefault();
               setActiveIndex((index) => Math.max(0, index - 1));
             } else if (event.key === 'Enter') {
-              if (open && activeOption) {
-                event.preventDefault();
+              event.preventDefault();
+              if (open && activeOption && (query.trim() || activeIndex > 0)) {
                 pick(activeOption);
+              } else {
+                closeKeyboard();
               }
             } else if (event.key === 'Escape') {
-              setOpen(false);
+              closeKeyboard();
             }
           }}
         />
@@ -137,8 +159,13 @@ export const SearchableSelect = ({
                 className={`flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm font-semibold transition-colors ${
                   selected || active ? 'bg-white/12 text-white' : 'text-white/78 hover:bg-white/8 hover:text-white'
                 }`}
-              >
-                <span className="min-w-0 truncate">{option.label}</span>
+                >
+                <span className="min-w-0">
+                  <span className="block truncate">{option.label}</span>
+                  {option.description && (
+                    <span className="mt-0.5 block truncate text-xs font-medium text-white/40">{option.description}</span>
+                  )}
+                </span>
                 {selected && <Check size={16} className="shrink-0 text-white/60" />}
               </button>
             );

@@ -98,6 +98,12 @@ export const startScheduler = () => {
 };
 
 async function syncAllChannels() {
+    const legacySyncEnabled = String(process.env.MTPROTO_LEGACY_SYNC_ENABLED || 'false').toLowerCase() === 'true';
+    if (!legacySyncEnabled) {
+        logger.info('⏰ Scheduler: Job [sync_telegram_channels] skipped; legacy MTProto sync is disabled.');
+        return;
+    }
+
     const sources = await prisma.channelSource.findMany({
         where: { status: 'ACTIVE' },
         include: { connector: true }

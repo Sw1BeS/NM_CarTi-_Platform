@@ -6,6 +6,7 @@ import {
   buildVehiclePresentation,
   extractAutoRiaIdentityFromSourceUrl,
   hasKnownVehicleBrand,
+  normalizeVehicleLocation,
   normalizeVehicleSpecLabel
 } from './vehiclePresentation.js';
 import { buildOperatorRequestPresentation } from './requestPresentation.js';
@@ -679,7 +680,7 @@ export const mapInventoryOutput = (car: Record<string, unknown>) => {
     const thumbnail = isPublicMediaUrl(normalizedThumbnail) ? normalizedThumbnail : mediaUrls[0] || '';
     const year = toNumber(car.year) ?? toNumber(parsed.year) ?? 0;
     const mileage = toNumber(car.mileage) || toNumber(parsed.mileage) || rawMileage || 0;
-    const location = toString(car.location) || toString(parsed.location) || rawLocation || '';
+    const location = normalizeVehicleLocation(car.location) || normalizeVehicleLocation(parsed.location) || normalizeVehicleLocation(rawLocation) || '';
     const sourceUrlIdentity = extractAutoRiaIdentityFromSourceUrl((car as any).sourceUrl, year || undefined);
     const sourceTitle = toString(car.title);
     const parsedTitle = toString(parsed.title);
@@ -740,5 +741,64 @@ export const mapInventoryOutput = (car: Record<string, unknown>) => {
   return {
     ...output,
     presentation: buildVehiclePresentation(output)
+  };
+};
+
+const PUBLIC_INVENTORY_SPEC_KEYS = [
+  'brand',
+  'make',
+  'model',
+  'engine',
+  'engineVolume',
+  'battery',
+  'batteryKwh',
+  'fuel',
+  'transmission',
+  'drive',
+  'bodyType',
+  'color',
+  'vin',
+  'condition',
+  'damage'
+] as const;
+
+const pickPublicSpecs = (specs: unknown) => {
+  const input = isRecord(specs) ? specs : {};
+  const output: Record<string, unknown> = {};
+  for (const key of PUBLIC_INVENTORY_SPEC_KEYS) {
+    const value = input[key];
+    if (value !== null && value !== undefined && String(value).trim()) {
+      output[key] = value;
+    }
+  }
+  return output;
+};
+
+export const mapPublicInventoryOutput = (car: Record<string, unknown>) => {
+  const mapped = mapInventoryOutput(car) as Record<string, any>;
+  const presentation = mapped.presentation || buildVehiclePresentation(mapped);
+  const specs = pickPublicSpecs(mapped.specs);
+
+  return {
+    id: mapped.id || mapped.canonicalId,
+    canonicalId: mapped.canonicalId || mapped.id,
+    title: mapped.title,
+    brand: mapped.brand,
+    model: mapped.model,
+    year: mapped.year,
+    mileage: mapped.mileage,
+    location: mapped.location,
+    thumbnail: mapped.thumbnail,
+    mediaUrls: Array.isArray(mapped.mediaUrls) ? mapped.mediaUrls : [],
+    specs,
+    description: presentation.description || '',
+    status: mapped.status,
+    availabilityState: mapped.availabilityState,
+    publicationStatus: mapped.publicationStatus,
+    price: mapped.price,
+    createdAt: mapped.createdAt,
+    updatedAt: mapped.updatedAt,
+    postedAt: mapped.postedAt,
+    presentation
   };
 };

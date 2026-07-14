@@ -72,6 +72,7 @@ describe('MetaCapiService', () => {
   it('sends hashed ph and external_id with stable event_id', async () => {
     const { MetaCapiService } = await import('./metaCapi.service.js');
     const service = new MetaCapiService();
+    const eventTime = Math.floor(Date.now() / 1000) - 60;
 
     const result = await service.trackEvent('company_1', 'Lead', {
       entityType: 'lead',
@@ -84,7 +85,7 @@ describe('MetaCapiService', () => {
       fbp: 'fb.1.123',
       fbc: 'fb.1.456',
       eventSourceUrl: 'https://cartie.test/p/app/cartie?utm_source=meta&tgWebAppData=secret#tgWebAppData=query_id%3D1%26user%3Dsecret%26hash%3Dsecret',
-      eventTime: '2026-05-26T10:00:00Z'
+      eventTime
     });
 
     const eventId = 'meta:company_1:Lead:lead:lead_1:created';
@@ -94,7 +95,7 @@ describe('MetaCapiService', () => {
     expect(payload.data[0]).toMatchObject({
       event_name: 'Lead',
       event_id: eventId,
-      event_time: Math.floor(new Date('2026-05-26T10:00:00Z').getTime() / 1000),
+      event_time: eventTime,
       action_source: 'chat',
       event_source_url: 'https://cartie.test/p/app/cartie?utm_source=meta'
     });
@@ -111,7 +112,12 @@ describe('MetaCapiService', () => {
         status: 'SUCCESS',
         idempotencyKey: eventId,
         entityType: 'lead',
-        entityId: 'lead_1'
+        entityId: 'lead_1',
+        meta: expect.objectContaining({
+          response: expect.objectContaining({ events_received: 1, fbtrace_id: 'trace_1' }),
+          fbtrace_id: 'trace_1',
+          tokenMasked: 'se***oken'
+        })
       })
     }));
   });
@@ -245,6 +251,124 @@ describe('MetaCapiService', () => {
       .toBe('EA***ZDZD');
   });
 
+  it('sends main quiz website events to the configured main quiz dataset', async () => {
+    vi.stubEnv('META_CAPI_ENABLED', 'true');
+    vi.stubEnv('META_MAIN_QUIZ_CAPI_ENABLED', 'true');
+    vi.stubEnv('META_MAIN_QUIZ_TEST_MODE', 'false');
+    vi.stubEnv('META_MAIN_QUIZ_DATASET_ID', '1813442132635673');
+    vi.stubEnv('META_MAIN_QUIZ_DESTINATION_KEY', 'main_quiz_adsquiz');
+    vi.stubEnv('META_MAIN_QUIZ_ACCESS_TOKEN', 'main-token');
+    const { MetaCapiService } = await import('./metaCapi.service.js');
+    const service = new MetaCapiService();
+    const eventTime = Math.floor(Date.now() / 1000) - 60;
+
+    const result = await service.trackDatasetWebsiteEvent('main_quiz', 'company_1', 'adsquiz_Start', {
+      entityType: 'attribution_redirect',
+      entityId: 'token_123',
+      eventId: 'attribution:token_123:adsquiz_Start:adsquiz_usa:main_quiz',
+      stage: 'adsquiz_usa:adsquiz_start:main_quiz',
+      externalId: 'attribution:token_123',
+      fbp: 'fb.1.1779865200000.223456789',
+      fbc: 'fb.1.1779865200000.QuizClick',
+      ip: '203.0.113.42',
+      userAgent: 'Mozilla/5.0 AdsQuiz',
+      eventSourceUrl: 'https://cartie2.umanoff-analytics.space/r/quiz?destination=adsquiz_usa&fbclid=QuizClick',
+      actionSource: 'website',
+      eventTime,
+      customData: {
+        source: 'attribution_redirect',
+        destination: 'adsquiz_usa',
+        redirect_kind: 'web',
+        event_role: 'adsquiz_start',
+        utm_source: 'meta',
+        utm_campaign: 'TOF|Quiz'
+      }
+    });
+
+    expect(result).toMatchObject({
+      success: true,
+      eventId: 'attribution:token_123:adsquiz_Start:adsquiz_usa:main_quiz',
+      targetKey: 'main_quiz',
+      destinationKey: 'main_quiz_adsquiz'
+    });
+    expect(axiosPostMock).toHaveBeenCalledTimes(1);
+    const [url, payload, init] = axiosPostMock.mock.calls[0];
+    expect(url).toBe('https://graph.facebook.com/v25.0/1813442132635673/events');
+    expect(url).not.toContain('main-token');
+    expect(init.headers.Authorization).toBe('Bearer main-token');
+    expect(payload.test_event_code).toBeUndefined();
+    expect(payload.data[0]).toMatchObject({
+      event_name: 'adsquiz_Start',
+      event_id: 'attribution:token_123:adsquiz_Start:adsquiz_usa:main_quiz',
+      event_time: eventTime,
+      action_source: 'website',
+      event_source_url: 'https://cartie2.umanoff-analytics.space/r/quiz?destination=adsquiz_usa&fbclid=QuizClick'
+    });
+    expect(payload.data[0].user_data).toMatchObject({
+      external_id: [hash('attribution:token_123')],
+      fbp: 'fb.1.1779865200000.223456789',
+      fbc: 'fb.1.1779865200000.QuizClick',
+      client_ip_address: '203.0.113.42',
+      client_user_agent: 'Mozilla/5.0 AdsQuiz'
+    });
+    expect(payload.data[0].custom_data).toMatchObject({
+      source: 'attribution_redirect',
+      destination: 'adsquiz_usa',
+      redirect_kind: 'web',
+      event_role: 'adsquiz_start',
+      utm_source: 'meta',
+      utm_campaign: 'TOF|Quiz',
+      target_key: 'main_quiz',
+      destination_key: 'main_quiz_adsquiz'
+    });
+    expect(prismaMock.integrationEventLog.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        integration: 'META_PIXEL',
+        action: 'adsquiz_Start',
+        status: 'SUCCESS',
+        idempotencyKey: 'attribution:token_123:adsquiz_Start:adsquiz_usa:main_quiz',
+        meta: expect.objectContaining({
+          targetKey: 'main_quiz',
+          destinationKey: 'main_quiz_adsquiz',
+          testEventCodeUsed: false,
+          tokenMasked: 'ma***oken',
+          fbtrace_id: 'trace_1',
+          payloadSummary: expect.objectContaining({
+            targetKey: 'main_quiz',
+            destinationKey: 'main_quiz_adsquiz',
+            eventName: 'adsquiz_Start',
+            actionSource: 'website',
+            eventSourceUrl: 'https://cartie2.umanoff-analytics.space/r/quiz?destination=adsquiz_usa&fbclid=QuizClick',
+            userDataKeys: expect.arrayContaining(['external_id', 'fbp', 'fbc', 'client_ip_address', 'client_user_agent'])
+          })
+        })
+      })
+    }));
+  });
+
+  it('skips main quiz website events when main quiz config is missing', async () => {
+    vi.stubEnv('META_CAPI_ENABLED', 'true');
+    vi.stubEnv('META_MAIN_QUIZ_CAPI_ENABLED', 'true');
+    vi.stubEnv('META_MAIN_QUIZ_DATASET_ID', '1813442132635673');
+    vi.stubEnv('META_MAIN_QUIZ_ACCESS_TOKEN', '');
+    const { MetaCapiService } = await import('./metaCapi.service.js');
+
+    const result = await new MetaCapiService().trackDatasetWebsiteEvent('main_quiz', 'company_1', 'PageView', {
+      entityType: 'attribution_redirect',
+      entityId: 'token_123'
+    });
+
+    expect(result).toMatchObject({
+      success: false,
+      skipped: true,
+      reason: 'META_MAIN_QUIZ_CONFIG_MISSING',
+      targetKey: 'main_quiz',
+      destinationKey: 'main_quiz_adsquiz',
+      missing: ['META_MAIN_QUIZ_ACCESS_TOKEN']
+    });
+    expect(axiosPostMock).not.toHaveBeenCalled();
+  });
+
   it('does not send B2C bot dataset production events when META_CAPI_ENABLED is disabled', async () => {
     vi.stubEnv('META_CAPI_ENABLED', 'false');
     vi.stubEnv('META_B2C_BOT_CAPI_ENABLED', 'true');
@@ -289,6 +413,7 @@ describe('MetaCapiService', () => {
       entityId: '37193',
       eventId,
       externalId: 'salesdrive:37193',
+      externalIds: ['salesdrive:37193', 'telegram:1001'],
       phone: '+38 (063) 505-52-52',
       name: 'Ivan Petrenko',
       city: 'Kyiv',
@@ -345,7 +470,7 @@ describe('MetaCapiService', () => {
     });
     expect(payload.data[0].user_data).toMatchObject({
       ph: [hash('380635055252')],
-      external_id: [hash('salesdrive:37193')],
+      external_id: [hash('salesdrive:37193'), hash('telegram:1001')],
       fn: [hash('ivan')],
       ln: [hash('petrenko')],
       ct: [hash('kyiv')],
@@ -420,7 +545,7 @@ describe('MetaCapiService', () => {
     expect(logPayload).not.toContain('+38 (063) 505-52-52');
   });
 
-  it('does not send unsupported B2C CRM event names such as generic Contact', async () => {
+  it('sends standard B2C CRM Contact events when explicitly mapped from SalesDrive', async () => {
     vi.stubEnv('META_CAPI_ENABLED', 'true');
     vi.stubEnv('META_B2C_BOT_CAPI_ENABLED', 'true');
     vi.stubEnv('META_B2C_BOT_TEST_MODE', 'true');
@@ -437,11 +562,20 @@ describe('MetaCapiService', () => {
     });
 
     expect(result).toMatchObject({
-      success: false,
-      skipped: true,
-      reason: 'META_B2C_BOT_CRM_EVENT_NOT_APPROVED'
+      success: true,
+      eventId: 'salesdrive:37193:Contact:13:1760000000:b2c_bot_sandbox',
+      destinationKey: 'b2c_bot_sandbox'
     });
-    expect(axiosPostMock).not.toHaveBeenCalled();
+    expect(axiosPostMock).toHaveBeenCalledTimes(1);
+    expect(axiosPostMock.mock.calls[0][1].data[0]).toMatchObject({
+      event_name: 'Contact',
+      action_source: 'system_generated',
+      custom_data: expect.objectContaining({
+        event_source: 'crm',
+        lead_event_source: 'CarTié SalesDrive',
+        destination_key: 'b2c_bot_sandbox'
+      })
+    });
   });
 
   it('stores B2C bot dataset delivery logs without fake company id when company context is unavailable', async () => {

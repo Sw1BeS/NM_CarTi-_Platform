@@ -163,6 +163,98 @@ const compactObject = <T extends Record<string, unknown>>(value: T) => Object.fr
   Object.entries(value).filter(([, item]) => item !== undefined && item !== null && item !== '')
 ) as Partial<T>;
 
+const withoutAttributionSnapshot = (payload: unknown): Record<string, unknown> => {
+  if (!isRecord(payload)) return {};
+  const { attribution: _attribution, ...rest } = payload;
+  return rest;
+};
+
+const readValidAttributionSnapshot = (payload: unknown) => {
+  const snapshot = readAttributionSnapshot(payload);
+  if (!snapshot) return null;
+  const expiresAt = Date.parse(snapshot.expires_at);
+  if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) return null;
+  return snapshot;
+};
+
+const resolveAttributionFromSessionVariables = async (
+  variables: unknown,
+  options: { consume?: boolean } = {}
+) => {
+  const vars = isRecord(variables) ? variables : {};
+  const sessionAttribution = isRecord(vars.attribution) ? vars.attribution : {};
+  const sessionToken = toOptionalString(vars.attributionToken)
+    || toOptionalString(sessionAttribution.token);
+
+  if (sessionToken) {
+    return resolveAttributionSnapshotForPayload({ attributionToken: sessionToken }, options);
+  }
+
+  if (options.consume) return null;
+  return readValidAttributionSnapshot({ attribution: sessionAttribution });
+};
+
+const resolveMiniAppAttributionSnapshot = async (params: {
+  payload: unknown;
+  tracking: unknown;
+  sessionVariables?: unknown;
+  consume?: boolean;
+}) => {
+  const payload = isRecord(params.payload) ? params.payload : {};
+  const existing = readValidAttributionSnapshot(payload);
+  if (existing) {
+    if (!params.consume) return existing;
+    return resolveAttributionSnapshotForPayload({ attributionToken: existing.token }, { consume: true })
+      .catch(() => null);
+  }
+
+  const lookupPayload = {
+    ...payload,
+    attribution: undefined,
+    tracking: isRecord(params.tracking) ? params.tracking : undefined
+  };
+  const explicit = await resolveAttributionSnapshotForPayload({
+    ...lookupPayload
+  }, { consume: Boolean(params.consume) });
+  if (explicit) return explicit;
+
+  return resolveAttributionFromSessionVariables(params.sessionVariables, { consume: Boolean(params.consume) });
+};
+
+const buildAttributionAwareMiniAppTracking = (
+  tracking: unknown,
+  attribution: ReturnType<typeof readAttributionSnapshot>
+): Record<string, unknown> => {
+  const base = isRecord(tracking) ? tracking : {};
+  if (!attribution) return base;
+
+  const identifiers = isRecord(attribution.identifiers) ? attribution.identifiers : {};
+  const query = isRecord(attribution.query) ? attribution.query : {};
+  const baseUtm = isRecord(base.utm) ? base.utm : {};
+  const fbc = toOptionalString(identifiers.fbc) || readTrackingText(base, ['fbc']);
+  const fbp = (fbc ? toOptionalString(identifiers.fbp) : undefined)
+    || readTrackingText(base, ['fbp'])
+    || toOptionalString(identifiers.fbp);
+
+  return compactObject({
+    ...base,
+    utm: compactObject({
+      ...baseUtm,
+      source: toOptionalString(baseUtm.source) || toOptionalString(query.utm_source),
+      medium: toOptionalString(baseUtm.medium) || toOptionalString(query.utm_medium),
+      campaign: toOptionalString(baseUtm.campaign) || toOptionalString(query.utm_campaign),
+      content: toOptionalString(baseUtm.content) || toOptionalString(query.utm_content),
+      term: toOptionalString(baseUtm.term) || toOptionalString(query.utm_term)
+    }),
+    fbp,
+    fbc,
+    fbclid: readTrackingText(base, ['fbclid']) || toOptionalString(identifiers.fbclid) || toOptionalString(query.fbclid),
+    client_ip_address: toOptionalString(identifiers.client_ip_address) || readTrackingText(base, ['client_ip_address', 'clientIpAddress']),
+    client_user_agent: toOptionalString(identifiers.client_user_agent) || readTrackingText(base, ['client_user_agent', 'clientUserAgent', 'userAgent']),
+    eventSourceUrl: attribution.event_source_url || readTrackingText(base, ['eventSourceUrl', 'event_source_url'])
+  });
+};
+
 const buildMiniAppTrackingBinding = (params: {
   tracking: unknown;
   request: any;
@@ -407,10 +499,21 @@ class RequestContractService {
       listingTitle: presentationTitles[0] || selection.listingTitle
     });
 
-    const pendingAttribution = await resolveAttributionSnapshotForPayload({
-      ...(isRecord(input.payload) ? input.payload : {}),
-      tracking: isRecord(input.tracking) ? input.tracking : undefined
-    }, { consume: false });
+    const existingSession = await prisma.botSession.findUnique({
+      where: {
+        botId_chatId: {
+          botId: context.botId,
+          chatId: tgUserId
+        }
+      }
+    });
+    const sessionVariables = isRecord(existingSession?.variables) ? existingSession.variables : {};
+    const pendingAttribution = await resolveMiniAppAttributionSnapshot({
+      payload: input.payload,
+      tracking: input.tracking,
+      sessionVariables,
+      consume: false
+    });
     const pendingIntentPayload = mergeAttributionSnapshot(
       isRecord(input.payload) ? input.payload : undefined,
       pendingAttribution
@@ -448,14 +551,6 @@ class RequestContractService {
       miniappInterestDraft: null
     })) as Prisma.InputJsonValue;
 
-    const existingSession = await prisma.botSession.findUnique({
-      where: {
-        botId_chatId: {
-          botId: context.botId,
-          chatId: tgUserId
-        }
-      }
-    });
     const submitId = readSubmitId(pendingIntent.tracking);
     const existingPending = isRecord((existingSession?.variables as Record<string, unknown> | undefined)?.miniappPendingIntent)
       ? ((existingSession?.variables as Record<string, unknown>).miniappPendingIntent as MiniAppPendingIntent)
@@ -658,16 +753,17 @@ class RequestContractService {
       ? pendingIntent.carIds.map((item) => toOptionalString(item)).filter((item): item is string => Boolean(item))
       : (pendingIntent.carId ? [pendingIntent.carId] : []);
 
-      const pendingPayload = isRecord(pendingIntent.payload) ? pendingIntent.payload as Record<string, unknown> : {};
-      const pendingPresentation = isRecord(pendingPayload.requestPresentation)
-        ? pendingPayload.requestPresentation as Record<string, any>
-        : null;
-      const pendingSelectedCarSnapshots = Array.isArray(pendingPresentation?.selectedCars)
-        ? pendingPresentation.selectedCars
-        : (Array.isArray(pendingPayload.selectedCars) ? pendingPayload.selectedCars : []);
-      const selectedCars = selectedCarIds.length && !pendingSelectedCarSnapshots.length
-        ? await prisma.carListing.findMany({
-          where: { id: { in: selectedCarIds }, companyId: params.companyId },
+    const rawPendingPayload = isRecord(pendingIntent.payload) ? pendingIntent.payload as Record<string, unknown> : {};
+    const pendingPayload = withoutAttributionSnapshot(rawPendingPayload);
+    const pendingPresentation = isRecord(pendingPayload.requestPresentation)
+      ? pendingPayload.requestPresentation as Record<string, any>
+      : null;
+    const pendingSelectedCarSnapshots = Array.isArray(pendingPresentation?.selectedCars)
+      ? pendingPresentation.selectedCars
+      : (Array.isArray(pendingPayload.selectedCars) ? pendingPayload.selectedCars : []);
+    const selectedCars = selectedCarIds.length && !pendingSelectedCarSnapshots.length
+      ? await prisma.carListing.findMany({
+        where: { id: { in: selectedCarIds }, companyId: params.companyId },
         select: {
           id: true,
           title: true,
@@ -683,13 +779,13 @@ class RequestContractService {
           status: true
         }
       })
-        : [];
-      const selectedCarsMap = new Map(selectedCars.map((car) => [car.id, car]));
-      const selectedCarsOrdered = pendingSelectedCarSnapshots.length
-        ? pendingSelectedCarSnapshots
-        : selectedCarIds
-          .map((id) => selectedCarsMap.get(id))
-          .filter((item): item is typeof selectedCars[number] => Boolean(item));
+      : [];
+    const selectedCarsMap = new Map(selectedCars.map((car) => [car.id, car]));
+    const selectedCarsOrdered = pendingSelectedCarSnapshots.length
+      ? pendingSelectedCarSnapshots
+      : selectedCarIds
+        .map((id) => selectedCarsMap.get(id))
+        .filter((item): item is typeof selectedCars[number] => Boolean(item));
 
     const selectedTitles = selectedCarsOrdered
       .map((car) => toOptionalString((car as any).title))
@@ -711,11 +807,17 @@ class RequestContractService {
         : null
     ].filter((item): item is string => Boolean(item));
     const description = descriptionParts.join('\n');
-      const pendingAttribution = await resolveAttributionSnapshotForPayload({
-        ...pendingPayload,
-        tracking: pendingIntent.tracking || undefined
-      }, { consume: true });
-      const payloadInput = mergeAttributionSnapshot(pendingPayload, pendingAttribution) || pendingPayload;
+    const pendingAttribution = await resolveMiniAppAttributionSnapshot({
+      payload: rawPendingPayload,
+      tracking: pendingIntent.tracking || undefined,
+      sessionVariables: vars,
+      consume: false
+    });
+    const payloadInput = mergeAttributionSnapshot(pendingPayload, pendingAttribution) || pendingPayload;
+    const tracking = buildAttributionAwareMiniAppTracking(
+      pendingIntent.tracking,
+      readAttributionSnapshot(payloadInput)
+    );
     const criteria = isRecord((payloadInput as Record<string, unknown>).criteria)
       ? (payloadInput as Record<string, unknown>).criteria as Record<string, unknown>
       : isRecord((payloadInput as Record<string, unknown>).request)
@@ -730,20 +832,20 @@ class RequestContractService {
             || toOptionalString((criteria.cities[0] as Record<string, unknown>).name)
           : undefined)
       : undefined;
-      const requestPresentation = pendingPresentation || buildRequestPresentationSnapshot({
-        cars: selectedCarsOrdered,
-        slug: pendingIntent.slug,
-        customerIntent: pendingIntent.intentType === 'REQUEST' ? 'PICKUP' : 'PRICE_TERMS',
-        sourceView,
-        criteria: isRecord(criteria) ? criteria : undefined,
-        comment: pendingIntent.comment
-      });
+    const requestPresentation = pendingPresentation || buildRequestPresentationSnapshot({
+      cars: selectedCarsOrdered,
+      slug: pendingIntent.slug,
+      customerIntent: pendingIntent.intentType === 'REQUEST' ? 'PICKUP' : 'PRICE_TERMS',
+      sourceView,
+      criteria: isRecord(criteria) ? criteria : undefined,
+      comment: pendingIntent.comment
+    });
 
     const requestPayload = {
       source: 'miniapp_intent',
       sourceContext: pendingIntent.intentType === 'REQUEST' ? 'miniapp_request' : 'miniapp_interest',
       phone: params.phone,
-      tracking: pendingIntent.tracking || undefined,
+      tracking,
       attribution: readAttributionSnapshot(payloadInput) || undefined,
       telegram: {
         userId: params.telegramUserId,
@@ -839,6 +941,15 @@ class RequestContractService {
         selectedCars: requestPresentation.selectedCars,
         requestPresentation
       };
+    }
+
+    if (pendingAttribution?.token) {
+      await resolveMiniAppAttributionSnapshot({
+        payload: { attribution: pendingAttribution },
+        tracking,
+        sessionVariables: vars,
+        consume: true
+      });
     }
 
     const leadResult = await createOrMergeLead({
@@ -941,7 +1052,6 @@ class RequestContractService {
       source: 'miniapp_lead_intent'
     }).catch((error) => logger.warn('[SalesDrive] request sync enqueue failed', error?.message || error));
 
-    const tracking = isRecord(pendingIntent.tracking) ? pendingIntent.tracking as Record<string, unknown> : {};
     const trackingBinding = buildMiniAppTrackingBinding({
       tracking,
       request,

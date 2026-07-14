@@ -12,6 +12,19 @@ const toText = (value: unknown) => String(value || '').trim();
 
 const TRANSIT_TEXT_RE = /#вдорозі|в\s+дорозі|in[_\s-]?transit|прямує|в\s+пути|on\s+the\s+way/i;
 const IMPORT_TO_ORDER_RE = /під\s+замовлення|под\s+заказ|to\s+order|import\s+to\s+order/i;
+const SOLD_TEXT_RE = /\b(sold|продано)\b|❌/i;
+const RESERVED_TEXT_RE = /\breserved\b|заброньовано|забронировано|бронь/i;
+const PARSED_STATE_MAP: Record<string, VehicleAvailabilityState> = {
+  in_stock: 'IN_STOCK',
+  available: 'IN_STOCK',
+  in_transit: 'IN_TRANSIT',
+  transit: 'IN_TRANSIT',
+  import_to_order: 'IMPORT_TO_ORDER',
+  to_order: 'IMPORT_TO_ORDER',
+  reserved: 'RESERVED',
+  sold: 'SOLD',
+  unknown: 'UNKNOWN'
+};
 
 export const hasTransitSignal = (...values: unknown[]) =>
   values.some((value) => TRANSIT_TEXT_RE.test(toText(value)));
@@ -35,6 +48,16 @@ export const deriveVehicleAvailabilityState = (input: {
   const specs = input.specs && typeof input.specs === 'object' && !Array.isArray(input.specs)
     ? input.specs as Record<string, unknown>
     : {};
+  const parsedState = [
+    specs.availabilityState,
+    specs.status,
+    specs.condition
+  ]
+    .map((value) => toText(value).toLowerCase())
+    .map((value) => PARSED_STATE_MAP[value])
+    .find(Boolean);
+  if (parsedState) return parsedState;
+
   const textValues = [
     input.title,
     input.description,
@@ -44,6 +67,8 @@ export const deriveVehicleAvailabilityState = (input: {
   ];
 
   if (hasImportToOrderSignal(...textValues)) return 'IMPORT_TO_ORDER';
+  if (textValues.some((value) => SOLD_TEXT_RE.test(toText(value)))) return 'SOLD';
+  if (textValues.some((value) => RESERVED_TEXT_RE.test(toText(value)))) return 'RESERVED';
   if (hasTransitSignal(...textValues)) return 'IN_TRANSIT';
   if (status === 'RESERVED') return 'RESERVED';
   if (status === 'SOLD') return 'SOLD';
@@ -65,6 +90,7 @@ export const deriveVehiclePublicationStatus = (input: {
   if (input.autoPublish === false) return 'REVIEW';
   const status = toText(input.status).toUpperCase();
   if (status === 'HIDDEN') return 'HIDDEN';
+  if (input.autoPublish === true) return 'PUBLISHED';
   if (status === 'PENDING') return 'REVIEW';
   return 'PUBLISHED';
 };

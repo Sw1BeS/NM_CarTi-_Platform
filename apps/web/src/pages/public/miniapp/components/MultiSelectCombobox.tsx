@@ -14,7 +14,8 @@ type MultiSelectComboboxProps = {
 const matchesQuery = (option: SearchableSelectOption, query: string) => {
   const needle = query.trim().toLowerCase();
   if (!needle) return true;
-  return [option.label, ...(option.aliases || [])]
+  return [option.label, option.description, ...(option.aliases || [])]
+    .filter((value): value is string => Boolean(value))
     .some((value) => value.toLowerCase().includes(needle));
 };
 
@@ -27,6 +28,7 @@ export const MultiSelectCombobox = ({
   disabled
 }: MultiSelectComboboxProps) => {
   const listboxId = React.useId();
+  const inputRef = React.useRef<HTMLInputElement | null>(null);
   const [query, setQuery] = React.useState('');
   const [open, setOpen] = React.useState(false);
   const [activeIndex, setActiveIndex] = React.useState(0);
@@ -48,6 +50,18 @@ export const MultiSelectCombobox = ({
 
   const remove = (value: string) => {
     onChange(values.filter((item) => item !== value));
+  };
+
+  const closeKeyboard = () => {
+    setOpen(false);
+    window.setTimeout(() => inputRef.current?.blur(), 0);
+  };
+
+  const keepVisibleOnFocus = (event: React.FocusEvent<HTMLInputElement>) => {
+    const target = event.currentTarget;
+    window.setTimeout(() => {
+      target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }, 80);
   };
 
   return (
@@ -77,6 +91,7 @@ export const MultiSelectCombobox = ({
         <div className="relative">
           <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-white/35" size={18} />
           <input
+            ref={inputRef}
             aria-label={label}
             aria-autocomplete="list"
             aria-controls={listboxId}
@@ -92,8 +107,12 @@ export const MultiSelectCombobox = ({
               setOpen(true);
               setActiveIndex(0);
             }}
-            onFocus={() => setOpen(true)}
+            onFocus={(event) => {
+              setOpen(true);
+              keepVisibleOnFocus(event);
+            }}
             onBlur={() => window.setTimeout(() => setOpen(false), 120)}
+            enterKeyHint="done"
             onKeyDown={(event) => {
               if (disabled) return;
               if (event.key === 'ArrowDown') {
@@ -104,12 +123,14 @@ export const MultiSelectCombobox = ({
                 event.preventDefault();
                 setActiveIndex((index) => Math.max(0, index - 1));
               } else if (event.key === 'Enter') {
-                if (open && activeOption) {
-                  event.preventDefault();
+                event.preventDefault();
+                if (open && activeOption && (query.trim() || activeIndex > 0)) {
                   toggle(activeOption);
+                } else {
+                  closeKeyboard();
                 }
               } else if (event.key === 'Escape') {
-                setOpen(false);
+                closeKeyboard();
               }
             }}
           />
@@ -139,13 +160,28 @@ export const MultiSelectCombobox = ({
                     selected || active ? 'bg-white/12 text-white' : 'text-white/78 hover:bg-white/8 hover:text-white'
                   }`}
                 >
-                  <span className="min-w-0 truncate">{option.label}</span>
+                  <span className="min-w-0">
+                    <span className="block truncate">{option.label}</span>
+                    {option.description && (
+                      <span className="mt-0.5 block truncate text-xs font-medium text-white/40">{option.description}</span>
+                    )}
+                  </span>
                   {selected && <Check size={16} className="shrink-0 text-white/60" />}
                 </button>
               );
             }) : (
               <div className="px-4 py-3 text-sm text-white/50">Нічого не знайдено</div>
             )}
+            <div className="border-t border-white/10 p-2">
+              <button
+                type="button"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={closeKeyboard}
+                className="w-full rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white/70"
+              >
+                Готово
+              </button>
+            </div>
           </div>
         )}
       </div>

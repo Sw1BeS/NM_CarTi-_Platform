@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mapInventoryOutput } from './dto.js';
+import { mapInventoryOutput, mapPublicInventoryOutput } from './dto.js';
 
 describe('mapInventoryOutput normalization', () => {
   it('normalizes common specs labels and keeps media unique', () => {
@@ -163,5 +163,72 @@ describe('mapInventoryOutput normalization', () => {
     expect(mapped.brand).toBe('Tesla');
     expect(mapped.model).toBe('Model X');
     expect(mapped.presentation.title).toBe('Tesla Model X 2017');
+  });
+
+  it('sanitizes public inventory output for MiniApp responses', () => {
+    const mapped = mapPublicInventoryOutput({
+      id: 'car_public_1',
+      title: 'VOLVO S90 2018',
+      price: 17000,
+      currency: 'USD',
+      year: 2018,
+      mileage: 128000,
+      status: 'AVAILABLE',
+      availabilityState: 'IN_STOCK',
+      publicationStatus: 'PUBLISHED',
+      description: 'VOLVO S90 2018\nВ НАЯВНОСТІ\nМенеджер +380 63 000 00 00',
+      source: 'MTPROTO',
+      sourceChatId: '2913209509',
+      sourceMessageId: 721,
+      mediaGroupKey: 'album_721',
+      mediaUrls: ['/media/company/chat/721/cover.jpg'],
+      mediaItems: [{ url: '/media/company/chat/721/cover.jpg', sourceMessageId: 721, tgFileId: 'AgAC_private' }],
+      originalRaw: { text: 'Менеджер +380 63 000 00 00', rawText: 'internal raw text' },
+      specs: {
+        brand: 'VOLVO',
+        model: 'S90',
+        fuel: 'petrol',
+        transmission: 'automatic',
+        rawText: 'Менеджер +380 63 000 00 00'
+      }
+    } as any) as any;
+
+    expect(mapped).not.toHaveProperty('originalRaw');
+    expect(mapped).not.toHaveProperty('source');
+    expect(mapped).not.toHaveProperty('sourceChatId');
+    expect(mapped).not.toHaveProperty('sourceMessageId');
+    expect(mapped).not.toHaveProperty('mediaGroupKey');
+    expect(mapped).not.toHaveProperty('mediaItems');
+    expect(mapped.specs).not.toHaveProperty('rawText');
+    expect(JSON.stringify(mapped)).not.toContain('+380');
+    expect(mapped.description).toBe(mapped.presentation.description);
+    expect(mapped.mediaUrls).toEqual(['/media/company/chat/721/cover.jpg']);
+  });
+
+  it('does not expose parser fragments as vehicle location', () => {
+    const mapped = mapPublicInventoryOutput({
+      id: 'car_public_location_1',
+      title: 'HYUNDAI IONIQ 5',
+      price: 16000,
+      currency: 'USD',
+      year: 2024,
+      mileage: 17000,
+      location: 'ний',
+      status: 'PENDING',
+      availabilityState: 'IN_TRANSIT',
+      publicationStatus: 'PUBLISHED',
+      mediaUrls: ['/media/company/chat/cover.jpg'],
+      description: [
+        'HYUNDAI IONIQ 5 2024',
+        '⏳#вдорозі (викуплена і прямує в Україну)',
+        '🚙 Задній привід',
+        '💵 Ціна за розмитнене авто у Львові: 16 000$'
+      ].join('\n')
+    } as any) as any;
+
+    expect(mapped.location).toBe('');
+    expect(mapped.presentation.subtitle).toBe('2024 • В дорозі');
+    expect(mapped.presentation.detailRows).not.toContainEqual({ label: 'Локація', value: 'ний' });
+    expect(JSON.stringify(mapped)).not.toContain('• ний •');
   });
 });

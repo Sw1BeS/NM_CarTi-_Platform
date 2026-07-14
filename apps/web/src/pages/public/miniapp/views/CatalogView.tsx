@@ -33,6 +33,62 @@ const METALLIC_STYLE: React.CSSProperties = {
   boxShadow: '0 10px 22px rgba(210,216,224,0.16), inset 0 1px 0 rgba(255,255,255,0.85)'
 };
 
+const EMPTY_FILTERS: InventoryFilters = {
+  brand: '',
+  minYear: '',
+  maxYear: '',
+  minPrice: '',
+  maxPrice: ''
+};
+
+const KEYBOARD_SCROLL_DELAYS_MS = [0, 120, 320, 560];
+
+const findScrollableParent = (target: HTMLElement) => {
+  let parent = target.parentElement;
+  while (parent && parent !== document.body) {
+    const style = window.getComputedStyle(parent);
+    if ((style.overflowY === 'auto' || style.overflowY === 'scroll') && parent.scrollHeight > parent.clientHeight + 1) {
+      return parent;
+    }
+    parent = parent.parentElement;
+  }
+  return null;
+};
+
+const scrollFieldIntoKeyboardSafeView = (target: HTMLElement, preferredContainer?: HTMLElement | null) => {
+  if (!target.isConnected) return;
+  const scrollContainer = preferredContainer ?? findScrollableParent(target);
+  if (scrollContainer?.isConnected) {
+    const containerRect = scrollContainer.getBoundingClientRect();
+    const targetRect = target.getBoundingClientRect();
+    const keyboardInset = Math.max(0, window.innerHeight - (window.visualViewport?.height ?? window.innerHeight));
+    const bottomPadding = Math.min(180, Math.max(24, keyboardInset + 16));
+    const availableHeight = Math.max(80, scrollContainer.clientHeight - bottomPadding);
+    const targetTop = scrollContainer.scrollTop
+      + targetRect.top
+      - containerRect.top
+      - Math.max(12, (availableHeight - targetRect.height) / 2);
+
+    scrollContainer.scrollTo({ top: Math.max(0, targetTop), behavior: 'smooth' });
+  }
+
+  const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
+  const targetRect = target.getBoundingClientRect();
+  const bottomGuard = Math.min(viewportHeight - 16, viewportHeight * 0.72);
+  if (targetRect.bottom > bottomGuard || targetRect.top < 12) {
+    target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }
+};
+
+const scheduleKeyboardSafeFieldScroll = (target: HTMLElement, preferredContainer?: HTMLElement | null) => {
+  KEYBOARD_SCROLL_DELAYS_MS.forEach(delay => {
+    window.setTimeout(() => {
+      if (document.activeElement !== target) return;
+      scrollFieldIntoKeyboardSafeView(target, preferredContainer);
+    }, delay);
+  });
+};
+
 const buildSpecTiles = (
   specs: CarSpecs,
   car: CarListing,
@@ -64,6 +120,7 @@ type CatalogViewProps = {
   filters: InventoryFilters;
   sortBy: SortBy;
   filteredCars: CarListing[];
+  selectedCarsCount: number;
   onTabChange: (tab: InventoryTab) => void;
   onSearchChange: (value: string) => void;
   onToggleFilters: () => void;
@@ -153,6 +210,8 @@ const InventoryCard = React.memo(function InventoryCard({
             sources={images}
             alt={title}
             className="size-full object-cover"
+            fallbackClassName="flex size-full flex-col items-center justify-center bg-[#202226] text-white/22"
+            fallbackLabel="Фото готується"
           />
           <button
             type="button"
@@ -240,6 +299,7 @@ export const CatalogView = ({
   filters,
   sortBy,
   filteredCars,
+  selectedCarsCount,
   onTabChange,
   onSearchChange,
   onToggleFilters,
@@ -267,6 +327,89 @@ export const CatalogView = ({
   const subtitle = surfaceMode === 'B2B'
     ? 'Inventory партнерської мережі без дублювання авто'
     : 'Авто в наявності, в дорозі та під швидкий запит';
+  const [draftFilters, setDraftFilters] = React.useState<InventoryFilters>(filters);
+  const [draftSortBy, setDraftSortBy] = React.useState<SortBy>(sortBy);
+  const filterPanelRef = React.useRef<HTMLFormElement | null>(null);
+  const filterControlsRef = React.useRef<Array<HTMLInputElement | HTMLSelectElement | null>>([]);
+
+  React.useEffect(() => {
+    setDraftFilters(filters);
+  }, [filters.brand, filters.minYear, filters.maxYear, filters.minPrice, filters.maxPrice]);
+
+  React.useEffect(() => {
+    setDraftSortBy(sortBy);
+  }, [sortBy]);
+
+  const registerFilterControl = (index: number) => (node: HTMLInputElement | HTMLSelectElement | null) => {
+    filterControlsRef.current[index] = node;
+  };
+
+  const focusControl = (index: number) => {
+    window.setTimeout(() => {
+      const control = filterControlsRef.current[index];
+      if (!control) return;
+      control.focus({ preventScroll: true });
+      scheduleKeyboardSafeFieldScroll(control, filterPanelRef.current);
+    }, 40);
+  };
+
+  const dismissKeyboard = () => {
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+  };
+
+  const handleSearchKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    dismissKeyboard();
+  };
+
+  const handleFilterKeyDown = (event: React.KeyboardEvent<HTMLInputElement>, nextIndex?: number) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    if (nextIndex !== undefined) {
+      focusControl(nextIndex);
+      return;
+    }
+    onFiltersChange(draftFilters);
+    onSortChange(draftSortBy);
+    dismissKeyboard();
+  };
+
+  const handleFieldFocus = (event: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const target = event.currentTarget;
+    scheduleKeyboardSafeFieldScroll(target, filterPanelRef.current);
+  };
+
+  const applyFilterDraft = () => {
+    onFiltersChange(draftFilters);
+    onSortChange(draftSortBy);
+    dismissKeyboard();
+  };
+
+  const resetFilterDraft = () => {
+    setDraftFilters(EMPTY_FILTERS);
+    setDraftSortBy('year_desc');
+    onResetFilters();
+    onSortChange('year_desc');
+    dismissKeyboard();
+  };
+
+  const draftActiveCount = [
+    draftFilters.brand,
+    draftFilters.minYear,
+    draftFilters.maxYear,
+    draftFilters.minPrice,
+    draftFilters.maxPrice,
+    draftSortBy !== 'year_desc' ? draftSortBy : ''
+  ].filter(Boolean).length;
+  const hasPendingFilterChanges = draftSortBy !== sortBy
+    || draftFilters.brand !== filters.brand
+    || draftFilters.minYear !== filters.minYear
+    || draftFilters.maxYear !== filters.maxYear
+    || draftFilters.minPrice !== filters.minPrice
+    || draftFilters.maxPrice !== filters.maxPrice;
 
   return (
     <div className="animate-fade-in flex h-full min-h-0 flex-col bg-[#050608]">
@@ -278,6 +421,7 @@ export const CatalogView = ({
 
         <div className="flex gap-2">
           <button
+            type="button"
             onClick={() => onTabChange('IN_STOCK')}
             className={`flex-1 rounded-[14px] px-3 py-2.5 text-sm font-black transition-all flex items-center justify-center gap-2 ${tab === 'IN_STOCK'
               ? 'text-black'
@@ -289,6 +433,7 @@ export const CatalogView = ({
             {surfaceMode === 'B2B' ? 'Склад' : 'В наявності'}
           </button>
           <button
+            type="button"
             onClick={() => onTabChange('IN_TRANSIT')}
             className={`flex-1 rounded-[14px] px-3 py-2.5 text-sm font-black transition-all flex items-center justify-center gap-2 ${tab === 'IN_TRANSIT'
               ? 'text-black'
@@ -309,48 +454,79 @@ export const CatalogView = ({
               placeholder={surfaceMode === 'B2B' ? 'Пошук по складу, бренду, моделі...' : 'Пошук авто, бренду, моделі...'}
               value={search}
               onChange={e => onSearchChange(e.target.value)}
+              onKeyDown={handleSearchKeyDown}
+              onFocus={handleFieldFocus}
+              enterKeyHint="search"
             />
           </div>
           <button
+            type="button"
             onClick={onToggleFilters}
-            className={`flex size-12 items-center justify-center rounded-[16px] transition-colors ${showFilters ? 'text-black' : 'border border-white/10 bg-white/[0.055] text-white'
+            className={`relative flex size-12 items-center justify-center rounded-[16px] transition-colors ${showFilters ? 'text-black' : 'border border-white/10 bg-white/[0.055] text-white'
               }`}
             style={showFilters ? METALLIC_STYLE : undefined}
+            aria-label="Фільтри"
           >
             <SlidersHorizontal size={20} />
+            {draftActiveCount > 0 && (
+              <span className="absolute -right-1 -top-1 flex size-5 items-center justify-center rounded-full bg-white text-[10px] font-black text-black">
+                {draftActiveCount}
+              </span>
+            )}
           </button>
         </div>
 
         {showFilters && (
-          <div className="animate-slide-down flex flex-col gap-3 rounded-[18px] border border-white/10 bg-[#111417] p-4">
+          <form
+            ref={filterPanelRef}
+            className="animate-slide-down flex max-h-[min(58vh,calc(var(--tg-viewport-height,100vh)-190px))] flex-col gap-3 overflow-y-auto overscroll-contain rounded-[18px] border border-white/10 bg-[#111417] p-4 pb-5"
+            onSubmit={(event) => {
+              event.preventDefault();
+              applyFilterDraft();
+            }}
+          >
             <div>
               <label className="text-[10px] text-white/50 uppercase font-bold block mb-1">Марка</label>
               <input
+                ref={registerFilterControl(0)}
                 className="w-full rounded-[12px] border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none"
                 placeholder="BMW, Mercedes..."
-                value={filters.brand}
-                onChange={e => onFiltersChange({ ...filters, brand: e.target.value })}
+                value={draftFilters.brand}
+                onChange={e => setDraftFilters({ ...draftFilters, brand: e.target.value })}
+                onFocus={handleFieldFocus}
+                onKeyDown={event => handleFilterKeyDown(event, 1)}
+                enterKeyHint="next"
               />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-[10px] text-white/50 uppercase font-bold block mb-1">Рік від</label>
                 <input
+                  ref={registerFilterControl(1)}
                   type="number"
+                  inputMode="numeric"
                   className="w-full rounded-[12px] border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none"
                   placeholder="2018"
-                  value={filters.minYear}
-                  onChange={e => onFiltersChange({ ...filters, minYear: e.target.value })}
+                  value={draftFilters.minYear}
+                  onChange={e => setDraftFilters({ ...draftFilters, minYear: e.target.value })}
+                  onFocus={handleFieldFocus}
+                  onKeyDown={event => handleFilterKeyDown(event, 2)}
+                  enterKeyHint="next"
                 />
               </div>
               <div>
                 <label className="text-[10px] text-white/50 uppercase font-bold block mb-1">Рік до</label>
                 <input
+                  ref={registerFilterControl(2)}
                   type="number"
+                  inputMode="numeric"
                   className="w-full rounded-[12px] border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none"
                   placeholder="2024"
-                  value={filters.maxYear}
-                  onChange={e => onFiltersChange({ ...filters, maxYear: e.target.value })}
+                  value={draftFilters.maxYear}
+                  onChange={e => setDraftFilters({ ...draftFilters, maxYear: e.target.value })}
+                  onFocus={handleFieldFocus}
+                  onKeyDown={event => handleFilterKeyDown(event, 3)}
+                  enterKeyHint="next"
                 />
               </div>
             </div>
@@ -358,43 +534,65 @@ export const CatalogView = ({
               <div>
                 <label className="text-[10px] text-white/50 uppercase font-bold block mb-1">Ціна від ($)</label>
                 <input
+                  ref={registerFilterControl(3)}
                   type="number"
+                  inputMode="numeric"
                   className="w-full rounded-[12px] border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none"
                   placeholder="10000"
-                  value={filters.minPrice}
-                  onChange={e => onFiltersChange({ ...filters, minPrice: e.target.value })}
+                  value={draftFilters.minPrice}
+                  onChange={e => setDraftFilters({ ...draftFilters, minPrice: e.target.value })}
+                  onFocus={handleFieldFocus}
+                  onKeyDown={event => handleFilterKeyDown(event, 4)}
+                  enterKeyHint="next"
                 />
               </div>
               <div>
                 <label className="text-[10px] text-white/50 uppercase font-bold block mb-1">Ціна до ($)</label>
                 <input
+                  ref={registerFilterControl(4)}
                   type="number"
+                  inputMode="numeric"
                   className="w-full rounded-[12px] border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none"
                   placeholder="100000"
-                  value={filters.maxPrice}
-                  onChange={e => onFiltersChange({ ...filters, maxPrice: e.target.value })}
+                  value={draftFilters.maxPrice}
+                  onChange={e => setDraftFilters({ ...draftFilters, maxPrice: e.target.value })}
+                  onFocus={handleFieldFocus}
+                  onKeyDown={event => handleFilterKeyDown(event)}
+                  enterKeyHint="done"
                 />
               </div>
             </div>
             <div>
               <label className="text-[10px] text-white/50 uppercase font-bold block mb-1">Сортування</label>
               <select
+                ref={registerFilterControl(5)}
                 className="w-full rounded-[12px] border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none"
-                value={sortBy}
-                onChange={e => onSortChange(e.target.value as SortBy)}
+                value={draftSortBy}
+                onChange={e => setDraftSortBy(e.target.value as SortBy)}
+                onFocus={handleFieldFocus}
               >
                 <option value="year_desc">Новіші спочатку</option>
                 <option value="price_asc">Ціна: від меншої</option>
                 <option value="price_desc">Ціна: від більшої</option>
               </select>
             </div>
-            <button
-              onClick={onResetFilters}
-              className="w-full rounded-[12px] border border-white/10 bg-white/[0.045] py-2 text-xs font-bold text-white/64"
-            >
-              Скинути фільтри
-            </button>
-          </div>
+            <div className="grid grid-cols-[1fr_auto] gap-2 pt-1">
+              <button
+                type="submit"
+                className="rounded-[12px] py-3 text-sm font-black active:scale-[0.98]"
+                style={METALLIC_STYLE}
+              >
+                {hasPendingFilterChanges ? 'Застосувати зміни' : 'Застосувати'}
+              </button>
+              <button
+                type="button"
+                onClick={resetFilterDraft}
+                className="rounded-[12px] border border-white/10 bg-white/[0.045] px-3 py-3 text-xs font-bold text-white/64"
+              >
+                Скинути
+              </button>
+            </div>
+          </form>
         )}
 
         <div className="w-fit rounded-full border border-white/10 bg-white/[0.045] px-3 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-white/44">
@@ -402,7 +600,7 @@ export const CatalogView = ({
         </div>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4 pb-6">
+      <div className={`flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4 ${selectedCarsCount > 0 ? 'pb-32' : 'pb-6'}`}>
         {filteredCars.map(car => {
           const carId = getCarId(car);
 

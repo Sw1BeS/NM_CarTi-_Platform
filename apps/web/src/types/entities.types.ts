@@ -63,6 +63,7 @@ export interface CarCard {
 export interface VehiclePresentation {
     title: string;
     subtitle: string;
+    description?: string;
     priceLabel: string;
     mileageLabel: string;
     statusLabel: string;

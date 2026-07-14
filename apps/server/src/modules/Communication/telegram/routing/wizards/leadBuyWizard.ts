@@ -29,6 +29,7 @@ import { createOrMergeLead } from '../../core/leadService.js';
 import { externalSearchService } from '../../../../Integrations/external-search/externalSearch.service.js';
 import { quotaService } from '../../../../../services/quota.service.js';
 import { getEnvInt } from '../../../../../services/featureFlags.js';
+import { mergeSessionAttributionPayload } from '../utils/sessionAttribution.js';
 
 type LeadBuyData = {
   brand: string;
@@ -676,12 +677,12 @@ const createLeadAndNotifyAdmin = async (
     phone: data.phone || undefined,
     request: title,
     source: 'TELEGRAM',
-    payload: {
+    payload: mergeSessionAttributionPayload(ctx, {
       wizard: 'lead_buy_v7',
       selectedCarIds: carIds,
       selectedCars: selectedCars.map((car) => ({ id: car.id, title: car.title, price: car.price, year: car.year })),
       filters: data
-    },
+    }),
     leadType: 'BUY',
     createRequest: true,
     requestData: {

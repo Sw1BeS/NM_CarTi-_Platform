@@ -31,6 +31,7 @@ import { startLeadBuyWizard, handleLeadBuyText } from './wizards/leadBuyWizard.j
 import { startLeadSellWizard, handleLeadSellText } from './wizards/leadSellWizard.js';
 import { startB2BSellWizard, handleB2BSellText } from './wizards/b2bSellWizard.js';
 import { attributionSessionService } from '../../../Attribution/attributionSession.service.js';
+import { mergeSessionAttributionPayload } from './utils/sessionAttribution.js';
 
 
 const shouldBypassScenarioEngine = (ctx: PipelineContext) => {
@@ -1941,13 +1942,13 @@ export const finalizeClientLead = async (ctx: PipelineContext) => {
     phone: flow.phone,
     request: flow.car || flow.intent || '',
     source: 'TELEGRAM',
-    payload: {
+    payload: mergeSessionAttributionPayload(ctx, {
       budget: flow.budget,
       city: flow.city,
       language: lang,
       interest: flow.interest,
       comment: flow.comment
-    },
+    }),
     leadType: 'BUY',
     createRequest: true,
     requestData: {

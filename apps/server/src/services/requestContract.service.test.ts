@@ -21,6 +21,10 @@ const {
     carListing: {
       findMany: vi.fn()
     },
+    attributionSession: {
+      findUnique: vi.fn(),
+      update: vi.fn()
+    },
     integrationEventLog: {
       create: vi.fn()
     },
@@ -77,6 +81,10 @@ vi.mock('../modules/Integrations/salesdrive/salesdriveSync.service.js', () => ({
 
 import { requestContractService } from './requestContract.service.js';
 
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const dateFromNow = (days: number) => new Date(Date.now() + days * MS_PER_DAY);
+const isoFromNow = (days: number) => dateFromNow(days).toISOString();
+
 describe('requestContract.service', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -89,6 +97,29 @@ describe('requestContract.service', () => {
     });
     mockPrisma.integrationEventLog.create.mockResolvedValue({ id: 'log_1' });
     mockPrisma.carListing.findMany.mockResolvedValue([]);
+    mockPrisma.attributionSession.findUnique.mockResolvedValue(null);
+    mockPrisma.attributionSession.update.mockImplementation(async ({ where, data }: any) => ({
+      id: 'attr_1',
+      token: where.token,
+      companyId: 'cmp_1',
+      botId: 'bot_1',
+      destination: 'b2c_bot_sandbox',
+      source: 'meta',
+      query: { utm_source: 'meta' },
+      identifiers: {
+        fbp: 'fb.1.1782210000000.browser',
+        fbc: 'fb.1.1782210000000.click',
+        client_ip_address: '203.0.113.10',
+        client_user_agent: 'Telegram iOS'
+      },
+      requestMeta: {
+        eventSourceUrl: 'https://cartie2.umanoff-analytics.space/r/bot?destination=b2c_bot_sandbox'
+      },
+      expiresAt: dateFromNow(30),
+      consumedAt: data.consumedAt,
+      createdAt: dateFromNow(-1),
+      updatedAt: dateFromNow(-1)
+    }));
     mockPrisma.botConfig.findUnique.mockResolvedValue({ id: 'bot_1', config: {} });
     createOrMergeLeadMock.mockResolvedValue({
       isDuplicate: false,
@@ -152,6 +183,396 @@ describe('requestContract.service', () => {
         })
       })
     }));
+  });
+
+  it('binds bot redirect attribution from session variables when MiniApp tracking lacks the token', async () => {
+    const attributionRecord = {
+      id: 'attr_1',
+      token: 'ATTRIBUTION_TOKEN_123456',
+      companyId: 'cmp_1',
+      botId: 'bot_1',
+      destination: 'b2c_bot_sandbox',
+      source: 'meta',
+      query: { utm_source: 'meta', utm_campaign: 'summer_test' },
+      identifiers: {
+        fbp: 'fb.1.1782210000000.browser',
+        fbc: 'fb.1.1782210000000.click',
+        client_ip_address: '203.0.113.10',
+        client_user_agent: 'Telegram iOS'
+      },
+      requestMeta: {
+        eventSourceUrl: 'https://cartie2.umanoff-analytics.space/r/bot?destination=b2c_bot_sandbox'
+      },
+      expiresAt: dateFromNow(30),
+      consumedAt: null,
+      createdAt: dateFromNow(-1),
+      updatedAt: dateFromNow(-1)
+    };
+    mockPrisma.attributionSession.findUnique.mockResolvedValue(attributionRecord);
+    mockPrisma.botSession.findUnique.mockResolvedValue({
+      id: 'sess_1',
+      state: 'CL_MENU',
+      variables: {
+        attributionToken: 'ATTRIBUTION_TOKEN_123456',
+        attribution: {
+          token: 'ATTRIBUTION_TOKEN_123456',
+          destination: 'b2c_bot_sandbox',
+          query: { utm_source: 'meta' },
+          identifiers: { fbc: 'fb.1.1782210000000.click' },
+          created_at: isoFromNow(-1),
+          expires_at: isoFromNow(30)
+        }
+      }
+    });
+
+    await requestContractService.createPendingLeadIntent({
+      slug: 'cartie',
+      intentType: 'INTEREST',
+      title: 'BMW X5',
+      tracking: { submitId: 'submit_without_token' },
+      telegram: { userId: '1001', username: 'client_one', name: 'Client One' }
+    });
+
+    expect(mockPrisma.botSession.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'sess_1' },
+      data: expect.objectContaining({
+        variables: expect.objectContaining({
+          attributionToken: 'ATTRIBUTION_TOKEN_123456',
+          miniappPendingIntent: expect.objectContaining({
+            payload: expect.objectContaining({
+              attribution: expect.objectContaining({
+                token: 'ATTRIBUTION_TOKEN_123456',
+                destination: 'b2c_bot_sandbox',
+                query: expect.objectContaining({ utm_campaign: 'summer_test' }),
+                identifiers: expect.objectContaining({
+                  fbp: 'fb.1.1782210000000.browser',
+                  fbc: 'fb.1.1782210000000.click'
+                }),
+                event_source_url: 'https://cartie2.umanoff-analytics.space/r/bot?destination=b2c_bot_sandbox'
+              })
+            })
+          })
+        })
+      })
+    }));
+  });
+
+  it('does not reuse expired cached bot attribution when token lookup fails', async () => {
+    mockPrisma.attributionSession.findUnique.mockResolvedValue(null);
+    mockPrisma.botSession.findUnique.mockResolvedValue({
+      id: 'sess_1',
+      state: 'CL_MENU',
+      variables: {
+        attributionToken: 'EXPIRED_TOKEN_123456',
+        attribution: {
+          token: 'EXPIRED_TOKEN_123456',
+          destination: 'b2c_bot_sandbox',
+          query: { utm_source: 'meta' },
+          identifiers: { fbc: 'fb.1.1782210000000.expired' },
+          created_at: isoFromNow(-60),
+          expires_at: isoFromNow(-30)
+        }
+      }
+    });
+
+    await requestContractService.createPendingLeadIntent({
+      slug: 'cartie',
+      intentType: 'INTEREST',
+      title: 'BMW X5',
+      tracking: { submitId: 'submit_expired_attr' },
+      telegram: { userId: '1001', username: 'client_one', name: 'Client One' }
+    });
+
+    const updateArg = mockPrisma.botSession.update.mock.calls[0][0];
+    expect(updateArg.data.variables.miniappPendingIntent.payload.attribution).toBeUndefined();
+  });
+
+  it('uses bot session attribution for finalized MiniApp Meta events and then consumes the token', async () => {
+    const attributionRecord = {
+      id: 'attr_1',
+      token: 'ATTRIBUTION_TOKEN_123456',
+      companyId: 'cmp_1',
+      botId: 'bot_1',
+      destination: 'b2c_bot_sandbox',
+      source: 'meta',
+      query: { utm_source: 'meta', utm_campaign: 'summer_test' },
+      identifiers: {
+        fbp: 'fb.1.1782210000000.browser',
+        fbc: 'fb.1.1782210000000.click',
+        client_ip_address: '203.0.113.10',
+        client_user_agent: 'Telegram iOS'
+      },
+      requestMeta: {
+        eventSourceUrl: 'https://cartie2.umanoff-analytics.space/r/bot?destination=b2c_bot_sandbox'
+      },
+      expiresAt: dateFromNow(30),
+      consumedAt: null,
+      createdAt: dateFromNow(-1),
+      updatedAt: dateFromNow(-1)
+    };
+    mockPrisma.attributionSession.findUnique.mockResolvedValue(attributionRecord);
+    mockPrisma.botSession.findUnique.mockResolvedValue({
+      id: 'sess_1',
+      variables: {
+        attributionToken: 'ATTRIBUTION_TOKEN_123456',
+        attribution: {
+          token: 'ATTRIBUTION_TOKEN_123456',
+          destination: 'b2c_bot_sandbox',
+          query: { utm_source: 'meta' },
+          identifiers: { fbc: 'fb.1.1782210000000.click' },
+          created_at: isoFromNow(-1),
+          expires_at: isoFromNow(30)
+        },
+        miniappPendingIntent: {
+          version: 1,
+          intentType: 'INTEREST',
+          slug: 'cartie',
+          title: 'BMW X5',
+          tracking: { submitId: 'submit_session_attr' },
+          payload: {},
+          createdAt: new Date().toISOString()
+        }
+      }
+    });
+
+    await requestContractService.finalizePendingLeadIntent({
+      botId: 'bot_1',
+      companyId: 'cmp_1',
+      telegramUserId: '1001',
+      phone: '+380671234567',
+      displayName: 'Client One',
+      telegramUsername: 'client_one',
+      telegramName: 'Client One'
+    });
+
+    expect(mockPrisma.attributionSession.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { token: 'ATTRIBUTION_TOKEN_123456' },
+      data: expect.objectContaining({ consumedAt: expect.any(Date) })
+    }));
+    expect(createOrMergeLeadMock).toHaveBeenCalledWith(expect.objectContaining({
+      payload: expect.objectContaining({
+        attribution: expect.objectContaining({
+          token: 'ATTRIBUTION_TOKEN_123456',
+          identifiers: expect.objectContaining({
+            fbp: 'fb.1.1782210000000.browser',
+            fbc: 'fb.1.1782210000000.click'
+          })
+        })
+      })
+    }), {});
+    expect(metaTrackEventMock).toHaveBeenCalledWith('cmp_1', 'SubmitApplication', expect.objectContaining({
+      fbp: 'fb.1.1782210000000.browser',
+      fbc: 'fb.1.1782210000000.click',
+      ip: '203.0.113.10',
+      userAgent: 'Telegram iOS',
+      eventSourceUrl: 'https://cartie2.umanoff-analytics.space/r/bot?destination=b2c_bot_sandbox',
+      customData: expect.objectContaining({
+        hasFbp: true,
+        hasFbc: true,
+        hasClientIp: true,
+        hasClientUserAgent: true,
+        utm_source: 'meta',
+        utm_campaign: 'summer_test'
+      })
+    }));
+    expect(metaTrackEventMock).toHaveBeenCalledWith('cmp_1', 'Contact', expect.objectContaining({
+      fbp: 'fb.1.1782210000000.browser',
+      fbc: 'fb.1.1782210000000.click',
+      ip: '203.0.113.10',
+      userAgent: 'Telegram iOS'
+    }));
+  });
+
+  it('keeps valid pending payload attribution for finalized MiniApp Meta events', async () => {
+    const attributionRecord = {
+      id: 'attr_payload_1',
+      token: 'PAYLOAD_ATTR_TOKEN_123456',
+      companyId: 'cmp_1',
+      botId: 'bot_1',
+      destination: 'b2c_bot_sandbox',
+      source: 'meta',
+      query: { utm_source: 'meta', utm_campaign: 'payload_campaign' },
+      identifiers: {
+        fbp: 'fb.1.1782210000000.payloadbrowser',
+        fbc: 'fb.1.1782210000000.payloadclick',
+        client_ip_address: '203.0.113.11',
+        client_user_agent: 'Telegram Android'
+      },
+      requestMeta: {
+        eventSourceUrl: 'https://cartie2.umanoff-analytics.space/r/bot?destination=b2c_bot_sandbox&utm_campaign=payload_campaign'
+      },
+      expiresAt: dateFromNow(30),
+      consumedAt: null,
+      createdAt: dateFromNow(-1),
+      updatedAt: dateFromNow(-1)
+    };
+    mockPrisma.attributionSession.findUnique.mockResolvedValue(attributionRecord);
+    mockPrisma.botSession.findUnique.mockResolvedValue({
+      id: 'sess_1',
+      variables: {
+        miniappPendingIntent: {
+          version: 1,
+          intentType: 'INTEREST',
+          slug: 'cartie',
+          title: 'BMW X5',
+          tracking: { submitId: 'submit_valid_payload_attr' },
+          payload: {
+            attribution: {
+              token: 'PAYLOAD_ATTR_TOKEN_123456',
+              destination: 'b2c_bot_sandbox',
+              query: { utm_source: 'meta', utm_campaign: 'payload_campaign' },
+              identifiers: {
+                fbp: 'fb.1.1782210000000.payloadbrowser',
+                fbc: 'fb.1.1782210000000.payloadclick',
+                client_ip_address: '203.0.113.11',
+                client_user_agent: 'Telegram Android'
+              },
+              event_source_url: 'https://cartie2.umanoff-analytics.space/r/bot?destination=b2c_bot_sandbox&utm_campaign=payload_campaign',
+              created_at: isoFromNow(-1),
+              expires_at: isoFromNow(30)
+            }
+          },
+          createdAt: new Date().toISOString()
+        }
+      }
+    });
+
+    await requestContractService.finalizePendingLeadIntent({
+      botId: 'bot_1',
+      companyId: 'cmp_1',
+      telegramUserId: '1001',
+      phone: '+380671234567',
+      displayName: 'Client One'
+    });
+
+    expect(mockPrisma.attributionSession.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { token: 'PAYLOAD_ATTR_TOKEN_123456' },
+      data: expect.objectContaining({ consumedAt: expect.any(Date) })
+    }));
+    const leadPayload = createOrMergeLeadMock.mock.calls[0][0].payload;
+    expect(leadPayload.attribution).toEqual(expect.objectContaining({
+      token: 'PAYLOAD_ATTR_TOKEN_123456',
+      query: expect.objectContaining({ utm_campaign: 'payload_campaign' }),
+      identifiers: expect.objectContaining({
+        fbp: 'fb.1.1782210000000.payloadbrowser',
+        fbc: 'fb.1.1782210000000.payloadclick'
+      })
+    }));
+    expect(metaTrackEventMock).toHaveBeenCalledWith('cmp_1', 'SubmitApplication', expect.objectContaining({
+      fbp: 'fb.1.1782210000000.payloadbrowser',
+      fbc: 'fb.1.1782210000000.payloadclick',
+      ip: '203.0.113.11',
+      userAgent: 'Telegram Android',
+      eventSourceUrl: 'https://cartie2.umanoff-analytics.space/r/bot?destination=b2c_bot_sandbox&utm_campaign=payload_campaign',
+      customData: expect.objectContaining({
+        utm_source: 'meta',
+        utm_campaign: 'payload_campaign'
+      })
+    }));
+  });
+
+  it('does not reuse expired pending payload attribution for finalized MiniApp Meta events', async () => {
+    mockPrisma.attributionSession.findUnique.mockResolvedValue(null);
+    mockPrisma.botSession.findUnique.mockResolvedValue({
+      id: 'sess_1',
+      variables: {
+        miniappPendingIntent: {
+          version: 1,
+          intentType: 'INTEREST',
+          slug: 'cartie',
+          title: 'BMW X5',
+          tracking: { submitId: 'submit_expired_payload_attr' },
+          payload: {
+            attribution: {
+              token: 'EXPIRED_PAYLOAD_TOKEN_123456',
+              destination: 'b2c_bot_sandbox',
+              query: { utm_source: 'meta' },
+              identifiers: {
+                fbp: 'fb.1.1782210000000.expired',
+                fbc: 'fb.1.1782210000000.expired',
+                client_ip_address: '203.0.113.10',
+                client_user_agent: 'Telegram iOS'
+              },
+              event_source_url: 'https://cartie2.umanoff-analytics.space/r/bot?destination=b2c_bot_sandbox',
+              created_at: isoFromNow(-60),
+              expires_at: isoFromNow(-30)
+            }
+          },
+          createdAt: new Date().toISOString()
+        }
+      }
+    });
+
+    await requestContractService.finalizePendingLeadIntent({
+      botId: 'bot_1',
+      companyId: 'cmp_1',
+      telegramUserId: '1001',
+      phone: '+380671234567',
+      displayName: 'Client One'
+    });
+
+    expect(mockPrisma.attributionSession.update).not.toHaveBeenCalled();
+    const leadPayload = createOrMergeLeadMock.mock.calls[0][0].payload;
+    expect(leadPayload.attribution).toBeUndefined();
+    expect(leadPayload.payload.attribution).toBeUndefined();
+    const submitCall = metaTrackEventMock.mock.calls.find(([, eventName]) => eventName === 'SubmitApplication');
+    expect(submitCall?.[2].fbp).toBeUndefined();
+    expect(submitCall?.[2].fbc).toBeUndefined();
+    expect(submitCall?.[2].ip).toBeUndefined();
+    expect(submitCall?.[2].userAgent).toBeUndefined();
+    expect(submitCall?.[2].eventSourceUrl).toBeUndefined();
+  });
+
+  it('does not consume bot attribution for duplicate MiniApp finalize attempts', async () => {
+    const attributionRecord = {
+      id: 'attr_1',
+      token: 'ATTRIBUTION_TOKEN_123456',
+      companyId: 'cmp_1',
+      botId: 'bot_1',
+      destination: 'b2c_bot_sandbox',
+      source: 'meta',
+      query: { utm_source: 'meta' },
+      identifiers: { fbc: 'fb.1.1782210000000.click' },
+      requestMeta: {},
+      expiresAt: dateFromNow(30),
+      consumedAt: null,
+      createdAt: dateFromNow(-1),
+      updatedAt: dateFromNow(-1)
+    };
+    mockPrisma.attributionSession.findUnique.mockResolvedValue(attributionRecord);
+    mockPrisma.botSession.findUnique.mockResolvedValue({
+      id: 'sess_1',
+      variables: {
+        attributionToken: 'ATTRIBUTION_TOKEN_123456',
+        miniappPendingIntent: {
+          version: 1,
+          intentType: 'INTEREST',
+          slug: 'cartie',
+          title: 'BMW X5',
+          tracking: { submitId: 'duplicate_submit_attr' },
+          payload: {},
+          createdAt: new Date().toISOString()
+        }
+      }
+    });
+    mockPrisma.b2bRequest.findFirst.mockResolvedValueOnce({
+      id: 'req_existing',
+      publicId: 'REQ-EXISTING',
+      payload: {},
+      status: 'COLLECTING_VARIANTS'
+    });
+
+    const result = await requestContractService.finalizePendingLeadIntent({
+      botId: 'bot_1',
+      companyId: 'cmp_1',
+      telegramUserId: '1001',
+      phone: '+380671234567',
+      displayName: 'Client One'
+    });
+
+    expect(result.isDuplicate).toBe(true);
+    expect(mockPrisma.attributionSession.update).not.toHaveBeenCalled();
+    expect(createOrMergeLeadMock).not.toHaveBeenCalled();
   });
 
   it('uses backend vehicle presentation instead of polluted MiniApp title for pending car intent', async () => {

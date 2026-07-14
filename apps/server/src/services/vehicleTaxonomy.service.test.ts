@@ -66,4 +66,53 @@ describe('VehicleTaxonomyService', () => {
     );
     expect(taxonomy.cities.find((city) => city.label === 'Львів')?.aliases).toContain('Львівська обл.');
   });
+
+  it('deduplicates English/Ukrainian city aliases and canonicalizes petrol to бензин', async () => {
+    prismaMock.normalizationAlias.findMany.mockResolvedValue([
+      { type: 'city', alias: 'Київ', canonical: 'Kyiv' },
+      { type: 'city', alias: 'Івано-Франківськ', canonical: 'Ivano-Frankivsk' }
+    ]);
+    prismaMock.carListing.findMany.mockResolvedValue([
+      {
+        title: 'Nissan Leaf 2020',
+        year: 2020,
+        location: 'Kyiv',
+        sourceUrl: '',
+        specs: {
+          fuel: 'petrol',
+          transmission: 'automatic'
+        },
+        originalRaw: {}
+      },
+      {
+        title: 'BMW X5 2022',
+        year: 2022,
+        location: 'Київ',
+        sourceUrl: '',
+        specs: {
+          fuel: 'Бензин'
+        },
+        originalRaw: {}
+      }
+    ]);
+
+    const { vehicleTaxonomyService } = await import('./vehicleTaxonomy.service.js');
+    const taxonomy = await vehicleTaxonomyService.getTaxonomy({ companyId: 'company_1' });
+
+    expect(taxonomy.fuels.filter((fuel) => fuel.label.toLowerCase() === 'petrol')).toHaveLength(0);
+    expect(taxonomy.fuels.filter((fuel) => fuel.label === 'Бензин')).toHaveLength(1);
+    expect(taxonomy.fuels.find((fuel) => fuel.label === 'Бензин')?.aliases).toEqual(
+      expect.arrayContaining(['petrol'])
+    );
+    expect(taxonomy.cities.filter((city) => city.id === 'kyiv')).toHaveLength(1);
+    expect(taxonomy.cities.find((city) => city.id === 'kyiv')).toMatchObject({
+      label: 'Київ',
+      aliases: expect.arrayContaining(['Kyiv'])
+    });
+    expect(taxonomy.cities.filter((city) => city.id === 'ivano-frankivsk')).toHaveLength(1);
+    expect(taxonomy.cities.find((city) => city.id === 'ivano-frankivsk')).toMatchObject({
+      label: 'Івано-Франківськ',
+      aliases: expect.arrayContaining(['Ivano-Frankivsk'])
+    });
+  });
 });

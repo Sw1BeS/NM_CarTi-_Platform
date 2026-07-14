@@ -816,6 +816,19 @@ model MTProtoConnector {
   sessionString String? // Store securely
   phone         String?
 
+  // In-progress Telegram login attempt. The auth session must survive
+  // API restarts between auth.SendCode and auth.SignIn.
+  authSessionString  String?
+  authPhoneCodeHash  String?
+  authPhone          String?
+  authApiId          Int?
+  authApiHash        String?
+  authSentCodeType   String?
+  authNextCodeType   String?
+  authCodeLength     Int?
+  authTimeoutAt      DateTime?
+  authRequestedAt    DateTime?
+
   // Ownership
   companyId String
   workspace Workspace @relation(fields: [companyId], references: [id], onDelete: Cascade)

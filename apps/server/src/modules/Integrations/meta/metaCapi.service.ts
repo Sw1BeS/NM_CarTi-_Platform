@@ -17,6 +17,8 @@ export type MetaCapiTrackInput = {
   stage?: string | null;
   externalId?: string | null;
   external_id?: string | null;
+  externalIds?: string[] | null;
+  external_ids?: string[] | null;
   phone?: string | null;
   email?: string | null;
   name?: string | null;
@@ -56,7 +58,17 @@ export const sha256 = (value: string) =>
 export const META_B2C_BOT_INTEGRATION = 'META_B2C_BOT';
 export const META_B2C_BOT_CRM_MODE = 'CRM_CONVERSION_LEADS';
 export const META_B2C_BOT_CRM_LEAD_EVENT_SOURCE = 'CarTié SalesDrive';
-const APPROVED_B2C_BOT_CRM_EVENT_NAMES = new Set(['Lead', 'Contacted', 'QualifiedLead', 'Scheduled', 'Won', 'Purchase']);
+export type MetaDatasetTargetKey = 'b2c_bot' | 'main_quiz';
+const APPROVED_B2C_BOT_CRM_EVENT_NAMES = new Set([
+  'Lead',
+  'Contact',
+  'Contacted',
+  'QualifiedLead',
+  'Schedule',
+  'Scheduled',
+  'Won',
+  'Purchase'
+]);
 
 export const maskMetaAccessToken = (value?: string | null) => {
   const token = toText(value);
@@ -112,6 +124,17 @@ const normalizeMetaArrayHash = (value?: string | null, normalizer?: (value?: str
   return normalized ? [sha256(normalized)] : undefined;
 };
 
+const normalizeMetaHashList = (
+  values: Array<string | null | undefined>,
+  normalizer?: (value?: string | null) => string | undefined
+) => {
+  const hashed = values
+    .map((value) => normalizer ? normalizer(value) : String(value || '').trim().toLowerCase())
+    .filter((value): value is string => Boolean(value))
+    .map(sha256);
+  return Array.from(new Set(hashed));
+};
+
 const resolveMetaNameParts = (input: MetaCapiTrackInput = {}) => {
   const explicitFirst = normalizeMetaText(input.firstName || input.first_name);
   const explicitLast = normalizeMetaText(input.lastName || input.last_name);
@@ -127,6 +150,11 @@ const resolveMetaNameParts = (input: MetaCapiTrackInput = {}) => {
 
 const buildMetaUserData = (input: MetaCapiTrackInput = {}, options: { includeName?: boolean } = {}) => {
   const nameParts: { firstName?: string; lastName?: string } = options.includeName ? resolveMetaNameParts(input) : {};
+  const externalIds = normalizeMetaHashList([
+    input.externalId || input.external_id,
+    ...(Array.isArray(input.externalIds) ? input.externalIds : []),
+    ...(Array.isArray(input.external_ids) ? input.external_ids : [])
+  ]);
   return {
     ...(normalizeMetaArrayHash(input.phone, normalizeMetaPhone) ? { ph: normalizeMetaArrayHash(input.phone, normalizeMetaPhone) } : {}),
     ...(normalizeMetaArrayHash(input.email, normalizeMetaEmail) ? { em: normalizeMetaArrayHash(input.email, normalizeMetaEmail) } : {}),
@@ -137,7 +165,7 @@ const buildMetaUserData = (input: MetaCapiTrackInput = {}, options: { includeNam
     ...(normalizeMetaArrayHash(input.state, normalizeMetaCountryOrState) ? { st: normalizeMetaArrayHash(input.state, normalizeMetaCountryOrState) } : {}),
     ...(normalizeMetaArrayHash(input.zip || input.postalCode || input.postal_code) ? { zp: normalizeMetaArrayHash(input.zip || input.postalCode || input.postal_code) } : {}),
     ...(normalizeMetaArrayHash(input.country, normalizeMetaCountryOrState) ? { country: normalizeMetaArrayHash(input.country, normalizeMetaCountryOrState) } : {}),
-    ...(normalizeMetaArrayHash(input.externalId || input.external_id) ? { external_id: normalizeMetaArrayHash(input.externalId || input.external_id) } : {}),
+    ...(externalIds.length ? { external_id: externalIds } : {}),
     ...(input.fbp ? { fbp: String(input.fbp) } : {}),
     ...(input.fbc ? { fbc: String(input.fbc) } : {}),
     ...(input.ip || input.clientIpAddress ? { client_ip_address: String(input.ip || input.clientIpAddress) } : {}),
@@ -170,6 +198,30 @@ const toJsonPreviewValue = (value: unknown): string | number | boolean | null =>
   return JSON.stringify(value);
 };
 
+const buildMatchQualitySummary = (userData: Record<string, unknown>) => {
+  const keys = new Set(Object.keys(userData));
+  const piiKeys = ['ph', 'em', 'fn', 'ln', 'db', 'ct', 'st', 'zp', 'country', 'external_id'].filter((key) => keys.has(key));
+  const browserKeys = ['fbp', 'fbc'].filter((key) => keys.has(key));
+  const transportKeys = ['client_ip_address', 'client_user_agent'].filter((key) => keys.has(key));
+  const hasPrimaryContact = keys.has('ph') || keys.has('em');
+  const hasBrowserPair = keys.has('fbp') && keys.has('fbc');
+  const hasTransportPair = keys.has('client_ip_address') && keys.has('client_user_agent');
+  const tier = hasPrimaryContact && hasBrowserPair && hasTransportPair
+    ? 'strong'
+    : (hasPrimaryContact && (browserKeys.length || transportKeys.length) ? 'partial_browser' : 'basic');
+
+  return {
+    tier,
+    piiKeys,
+    browserKeys,
+    transportKeys,
+    hasPrimaryContact,
+    hasExternalId: keys.has('external_id'),
+    hasBrowserPair,
+    hasTransportPair
+  };
+};
+
 const buildB2CBotCrmPayloadSummary = (payload: any) => {
   const event = Array.isArray(payload?.data) ? payload.data[0] : undefined;
   const customData = event?.custom_data && typeof event.custom_data === 'object' ? event.custom_data : {};
@@ -198,7 +250,13 @@ const buildB2CBotCrmPayloadSummary = (payload: any) => {
       'status_name',
       'status_time',
       'salesdrive_order_id',
-      'salesdrive_lead_id'
+      'salesdrive_lead_id',
+      'event_source_url',
+      'utm_source',
+      'utm_medium',
+      'utm_campaign',
+      'utm_content',
+      'utm_term'
     ].includes(key))
       .map(([key, value]) => [key, toJsonPreviewValue(value)])
   );
@@ -212,7 +270,8 @@ const buildB2CBotCrmPayloadSummary = (payload: any) => {
     actionSource: event?.action_source,
     customDataKeys: Object.keys(customData),
     customDataPreview,
-    userDataKeys: Object.keys(userData)
+    userDataKeys: Object.keys(userData),
+    matchQuality: buildMatchQualitySummary(userData)
   };
 };
 
@@ -234,6 +293,62 @@ const readB2CBotDatasetConfig = () => {
     testMode: isEnvFlagEnabled('META_B2C_BOT_TEST_MODE', false),
     capiEnabled: isEnvFlagEnabled('META_B2C_BOT_CAPI_ENABLED', false),
     missing
+  };
+};
+
+const readMainQuizDatasetConfig = () => {
+  const datasetId = toText(process.env.META_MAIN_QUIZ_DATASET_ID);
+  const destinationKey = toText(process.env.META_MAIN_QUIZ_DESTINATION_KEY) || 'main_quiz_adsquiz';
+  const accessToken = toText(process.env.META_MAIN_QUIZ_ACCESS_TOKEN);
+  const testEventCode = toText(process.env.META_MAIN_QUIZ_TEST_EVENT_CODE);
+  const missing = [
+    datasetId ? '' : 'META_MAIN_QUIZ_DATASET_ID',
+    accessToken ? '' : 'META_MAIN_QUIZ_ACCESS_TOKEN'
+  ].filter(Boolean);
+
+  return {
+    targetKey: 'main_quiz' as const,
+    datasetId,
+    destinationKey,
+    accessToken,
+    testEventCode,
+    testMode: isEnvFlagEnabled('META_MAIN_QUIZ_TEST_MODE', false),
+    capiEnabled: isEnvFlagEnabled('META_MAIN_QUIZ_CAPI_ENABLED', false),
+    missing,
+    disabledReason: 'META_MAIN_QUIZ_CAPI_DISABLED',
+    configMissingReason: 'META_MAIN_QUIZ_CONFIG_MISSING'
+  };
+};
+
+const readDatasetTargetConfig = (targetKey: MetaDatasetTargetKey) => {
+  if (targetKey === 'main_quiz') return readMainQuizDatasetConfig();
+
+  const config = readB2CBotDatasetConfig();
+  return {
+    targetKey: 'b2c_bot' as const,
+    ...config,
+    disabledReason: 'META_B2C_BOT_CAPI_DISABLED',
+    configMissingReason: 'META_B2C_BOT_CONFIG_MISSING'
+  };
+};
+
+const buildWebsitePayloadSummary = (payload: any, targetKey: MetaDatasetTargetKey, destinationKey: string) => {
+  const event = Array.isArray(payload?.data) ? payload.data[0] : undefined;
+  const customData = event?.custom_data && typeof event.custom_data === 'object' ? event.custom_data : {};
+  const userData = event?.user_data && typeof event.user_data === 'object' ? event.user_data : {};
+  return {
+    targetKey,
+    destinationKey,
+    topLevelHasTestEventCode: Boolean(payload?.test_event_code),
+    topLevelHasData: Array.isArray(payload?.data),
+    eventName: event?.event_name,
+    eventTime: event?.event_time,
+    eventId: event?.event_id,
+    actionSource: event?.action_source,
+    eventSourceUrl: event?.event_source_url,
+    customDataKeys: Object.keys(customData),
+    userDataKeys: Object.keys(userData),
+    matchQuality: buildMatchQualitySummary(userData)
   };
 };
 
@@ -285,6 +400,199 @@ const resolveMetaEventTime = (input: MetaCapiTrackInput = {}) => {
 export class MetaCapiService {
   async trackB2CBotDatasetEvent(companyId: string | null | undefined, eventName: string, input: MetaCapiTrackInput = {}) {
     return this.trackB2CBotCrmLifecycleEvent(companyId, eventName, input);
+  }
+
+  async trackDatasetWebsiteEvent(
+    targetKey: MetaDatasetTargetKey,
+    companyId: string | null | undefined,
+    eventName: string,
+    input: MetaCapiTrackInput = {}
+  ) {
+    if (!isEnvFlagEnabled('META_CAPI_ENABLED', false)) {
+      return { success: false, skipped: true, reason: 'META_CAPI_DISABLED', targetKey };
+    }
+
+    const config = readDatasetTargetConfig(targetKey);
+    if (!config.capiEnabled) {
+      return {
+        success: false,
+        skipped: true,
+        reason: config.disabledReason,
+        targetKey,
+        destinationKey: config.destinationKey
+      };
+    }
+    if (config.missing.length) {
+      return {
+        success: false,
+        skipped: true,
+        reason: config.configMissingReason,
+        missing: config.missing,
+        targetKey,
+        destinationKey: config.destinationKey
+      };
+    }
+
+    const eventId = toText(input.eventId || input.event_id)
+      || buildMetaEventId(companyId || targetKey, eventName, {
+        ...input,
+        stage: toText(input.stage) || config.destinationKey
+      });
+    const idempotencyKey = eventId;
+    const entityType = toText(input.entityType) || 'meta_dataset_website_event';
+    const entityId = toText(input.entityId) || eventId;
+    const resolvedEventTime = resolveMetaEventTime(input);
+    if (resolvedEventTime.tooOld) {
+      await prisma.integrationEventLog.create({
+        data: {
+          companyId,
+          integration: 'META_PIXEL',
+          action: eventName,
+          status: 'SKIPPED',
+          entityType,
+          entityId,
+          message: 'Meta dataset website event skipped because event_time is older than 7 days',
+          idempotencyKey: buildAttemptLogKey(eventId, 'old_event_time'),
+          meta: {
+            eventId,
+            targetKey,
+            destinationKey: config.destinationKey,
+            reason: 'META_EVENT_TIME_TOO_OLD',
+            eventTime: resolvedEventTime.eventTime
+          }
+        }
+      }).catch(() => null);
+      return { success: false, skipped: true, reason: 'META_EVENT_TIME_TOO_OLD', eventId, targetKey, destinationKey: config.destinationKey };
+    }
+
+    const existingLog = await prisma.integrationEventLog.findUnique({
+      where: { idempotencyKey }
+    }).catch(() => null);
+    if (existingLog?.status === 'SUCCESS') {
+      await prisma.integrationEventLog.create({
+        data: {
+          companyId,
+          integration: 'META_PIXEL',
+          action: eventName,
+          status: 'SKIPPED',
+          entityType,
+          entityId,
+          message: 'Meta dataset website duplicate success skipped',
+          idempotencyKey: buildAttemptLogKey(eventId, 'duplicate'),
+          meta: {
+            eventId,
+            targetKey,
+            destinationKey: config.destinationKey,
+            reason: 'duplicate_success'
+          }
+        }
+      }).catch(() => null);
+      return { success: true, eventId, duplicate: true, targetKey, destinationKey: config.destinationKey };
+    }
+
+    const userData = buildMetaUserData(input, { includeName: true });
+    const eventSourceUrl = sanitizeMetaEventSourceUrl(input.eventSourceUrl || input.event_source_url);
+    const customData = {
+      ...(input.customData && typeof input.customData === 'object' ? input.customData : {}),
+      ...(input.value !== undefined && input.value !== null ? { value: input.value, currency: input.currency || 'USD' } : {}),
+      ...(Array.isArray(input.contentIds) ? { content_ids: input.contentIds } : {}),
+      ...(input.contentName ? { content_name: input.contentName } : {}),
+      ...(input.contentCategory ? { content_category: input.contentCategory } : {}),
+      target_key: targetKey,
+      destination_key: config.destinationKey
+    };
+
+    const payload = {
+      data: [{
+        event_name: eventName,
+        event_id: eventId,
+        event_time: resolvedEventTime.eventTime,
+        user_data: userData,
+        action_source: input.actionSource || input.action_source || 'website',
+        ...(eventSourceUrl ? { event_source_url: eventSourceUrl } : {}),
+        ...(Object.keys(customData).length ? { custom_data: customData } : {})
+      }],
+      ...(config.testMode && config.testEventCode ? { test_event_code: config.testEventCode } : {})
+    };
+    const payloadSummary = buildWebsitePayloadSummary(payload, targetKey, config.destinationKey);
+
+    try {
+      const response = await axios.post(
+        `https://graph.facebook.com/v25.0/${config.datasetId}/events`,
+        payload,
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${config.accessToken}`
+          }
+        }
+      );
+      const responseData = sanitizeMetaResponse(response?.data, config.accessToken) as any;
+
+      await prisma.integrationEventLog.create({
+        data: {
+          companyId,
+          integration: 'META_PIXEL',
+          action: eventName,
+          status: 'SUCCESS',
+          entityType,
+          entityId,
+          message: `Meta dataset website event ${eventName} sent`,
+          idempotencyKey,
+          meta: {
+            eventId,
+            targetKey,
+            destinationKey: config.destinationKey,
+            testEventCodeUsed: Boolean(config.testMode && config.testEventCode),
+            payloadSummary,
+            response: responseData,
+            fbtrace_id: responseData?.fbtrace_id,
+            token: undefined,
+            tokenMasked: maskMetaAccessToken(config.accessToken),
+            hasPhone: Boolean(input.phone),
+            hasEmail: Boolean(input.email),
+            hasExternalId: Boolean(input.externalId || input.external_id || input.externalIds?.length || input.external_ids?.length),
+            hasName: Boolean(input.name || input.firstName || input.first_name || input.lastName || input.last_name),
+            hasClientIp: Boolean(input.ip || input.clientIpAddress),
+            hasClientUserAgent: Boolean(input.userAgent || input.clientUserAgent),
+            hasFbp: Boolean(input.fbp),
+            hasFbc: Boolean(input.fbc)
+          }
+        }
+      }).catch(() => null);
+
+      logger.info(`[Meta CAPI] Dataset website event sent: ${eventName} -> ${targetKey}`);
+      return { success: true, eventId, targetKey, destinationKey: config.destinationKey };
+    } catch (error: any) {
+      const rawError = error?.response?.data?.error?.message || error?.message || 'Meta dataset website CAPI request failed';
+      const message = redactSensitiveText(rawError, config.accessToken);
+      const responseData = sanitizeMetaResponse(error?.response?.data, config.accessToken) as any;
+      await prisma.integrationEventLog.create({
+        data: {
+          companyId,
+          integration: 'META_PIXEL',
+          action: eventName,
+          status: 'ERROR',
+          entityType,
+          entityId,
+          message,
+          idempotencyKey: buildAttemptLogKey(eventId, 'error'),
+          meta: {
+            eventId,
+            targetKey,
+            destinationKey: config.destinationKey,
+            testEventCodeUsed: Boolean(config.testMode && config.testEventCode),
+            payloadSummary,
+            response: responseData,
+            fbtrace_id: responseData?.fbtrace_id || responseData?.error?.fbtrace_id,
+            token: undefined,
+            tokenMasked: maskMetaAccessToken(config.accessToken)
+          }
+        }
+      }).catch(() => null);
+      logger.error('[Meta CAPI] Dataset website error:', message);
+      return { success: false, eventId, targetKey, destinationKey: config.destinationKey, error: message };
+    }
   }
 
   async trackB2CBotCrmLifecycleEvent(companyId: string | null | undefined, eventName: string, input: MetaCapiTrackInput = {}) {
@@ -438,7 +746,7 @@ export class MetaCapiService {
             tokenMasked: maskMetaAccessToken(config.accessToken),
             hasPhone: Boolean(input.phone),
             hasEmail: Boolean(input.email),
-            hasExternalId: Boolean(input.externalId || input.external_id),
+            hasExternalId: Boolean(input.externalId || input.external_id || input.externalIds?.length || input.external_ids?.length),
             hasName: Boolean(input.name || input.firstName || input.first_name || input.lastName || input.last_name),
             hasClientIp: Boolean(input.ip || input.clientIpAddress),
             hasClientUserAgent: Boolean(input.userAgent || input.clientUserAgent),
@@ -583,10 +891,11 @@ export class MetaCapiService {
     };
 
     try {
-      await axios.post(
+      const response = await axios.post(
         `https://graph.facebook.com/v19.0/${pixelId}/events?access_token=${accessToken}`,
         payload
       );
+      const responseData = sanitizeMetaResponse(response?.data, accessToken) as any;
 
       await prisma.integrationEventLog.create({
         data: {
@@ -602,12 +911,15 @@ export class MetaCapiService {
             eventId,
             hasPhone: Boolean(input.phone),
             hasEmail: Boolean(input.email),
-            hasExternalId: Boolean(input.externalId || input.external_id),
+            hasExternalId: Boolean(input.externalId || input.external_id || input.externalIds?.length || input.external_ids?.length),
             hasName: Boolean(input.name || input.firstName || input.first_name || input.lastName || input.last_name),
             hasClientIp: Boolean(input.ip || input.clientIpAddress),
             hasClientUserAgent: Boolean(input.userAgent || input.clientUserAgent),
             hasFbp: Boolean(input.fbp),
-            hasFbc: Boolean(input.fbc)
+            hasFbc: Boolean(input.fbc),
+            response: responseData,
+            fbtrace_id: responseData?.fbtrace_id,
+            tokenMasked: maskMetaAccessToken(accessToken)
           }
         }
       }).catch(() => null);

@@ -7,7 +7,7 @@ import { resolvePublicSlug } from '../services/publicSlug.service.js';
 import { prisma } from '../services/prisma.js';
 import { logger } from '../utils/logger.js';
 import { ShowcaseService } from '../modules/Marketing/showcase/showcase.service.js';
-import { mapInventoryOutput, mapVariantInput } from '../services/dto.js';
+import { mapPublicInventoryOutput, mapVariantInput } from '../services/dto.js';
 import { renderCarCardForBot } from '../services/carCardRenderer.v2.js';
 import { telegramOutbox } from '../modules/Communication/telegram/messaging/outbox/telegramOutbox.js';
 import { emitPlatformEvent } from '../modules/Communication/telegram/core/events/eventEmitter.js';
@@ -107,6 +107,21 @@ const parseMiniAppTelegramIdentity = (initData: string) => {
     name,
     raw: tgUser
   };
+};
+
+const toSafeTelegramUpdateUser = (identity: ReturnType<typeof parseMiniAppTelegramIdentity>) => {
+  const raw = identity.raw && typeof identity.raw === 'object' ? identity.raw as Record<string, unknown> : {};
+  const numericId = Number(identity.userId);
+  const safeUser = Object.fromEntries(Object.entries({
+    id: Number.isFinite(numericId) ? numericId : undefined,
+    username: identity.username,
+    first_name: readString(raw.first_name) || identity.name,
+    last_name: readString(raw.last_name),
+    language_code: readString(raw.language_code),
+    is_bot: typeof raw.is_bot === 'boolean' ? raw.is_bot : undefined,
+    is_premium: typeof raw.is_premium === 'boolean' ? raw.is_premium : undefined
+  }).filter(([, value]) => value !== undefined && value !== ''));
+  return safeUser;
 };
 
 const resolveB2BMiniAppPartner = async (config: Record<string, any>, initData: string) => {
@@ -258,6 +273,7 @@ const sanitizeB2BPublicSpecs = (value: unknown, depth = 0): unknown => {
 const sanitizeB2BMediaUrl = (value: unknown) => {
   const raw = readString(value);
   if (!raw) return undefined;
+  if (raw.startsWith('/media/')) return raw;
   let parsed: URL;
   try {
     parsed = new URL(raw);
@@ -688,7 +704,7 @@ router.get('/showcases/:slug/inventory', async (req, res) => {
     if (!slug) return errorResponse(res, 400, 'slug is required');
 
     const page = Math.max(1, Number(req.query.page) || 1);
-    const limit = Math.min(50, Number(req.query.limit) || 20);
+    const limit = Math.min(100, Number(req.query.limit) || 20);
     const search = readString(req.query.search);
     const minPrice = readNumber(req.query.minPrice);
     const maxPrice = readNumber(req.query.maxPrice);
@@ -719,7 +735,7 @@ router.get('/showcases/:slug/inventory', async (req, res) => {
         slug: showcase.slug,
         botId: showcase.botId
       },
-      items: items.map(mapInventoryOutput),
+      items: items.map(mapPublicInventoryOutput),
       total,
       page,
       limit
@@ -735,10 +751,15 @@ router.get('/cars/:carId', async (req, res) => {
     const carId = readString(req.params.carId);
     if (!carId) return errorResponse(res, 400, 'carId is required');
 
-    const car = await prisma.carListing.findUnique({ where: { id: carId } });
+    const car = await prisma.carListing.findFirst({
+      where: {
+        id: carId,
+        publicationStatus: 'PUBLISHED'
+      }
+    });
     if (!car) return errorResponse(res, 404, 'Car not found');
 
-    res.json({ ok: true, car: mapInventoryOutput(car) });
+    res.json({ ok: true, car: mapPublicInventoryOutput(car) });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : 'Failed to load car';
     errorResponse(res, 500, message);
@@ -1931,7 +1952,7 @@ router.post('/bot-flows', async (req, res) => {
           update: {
             message: {
               chat: { id: Number(telegram.userId), type: 'private' },
-              from: telegram.raw
+              from: toSafeTelegramUpdateUser(telegram)
             }
           }
         } as any);
@@ -2025,6 +2046,17 @@ router.post('/requests', async (req, res) => {
         : 0
     });
 
+    const requestTrackingInput = sanitizeMiniAppTrackingInput(body.tracking) || {};
+    const requestTracking = {
+      ...requestTrackingInput,
+      ...Object.fromEntries(
+        Object.entries({
+          client_ip_address: readClientIp(req),
+          client_user_agent: readString(req.get('user-agent'))
+        }).filter(([, value]) => Boolean(value))
+      )
+    };
+
     const request = await miniAppService.createRequest({
       slug,
       requestType: readString(body.requestType) || readString(body.type),
@@ -2039,7 +2071,7 @@ router.post('/requests', async (req, res) => {
       carListingIds: Array.isArray(body.carListingIds)
         ? body.carListingIds.map((item) => readString(item)).filter((item): item is string => Boolean(item))
         : undefined,
-      tracking: sanitizeMiniAppTrackingInput(body.tracking),
+      tracking: requestTracking,
       telegram: {
         userId: telegram.userId,
         username: telegram.username,
@@ -2109,7 +2141,12 @@ router.post('/events', async (req, res) => {
     const carListingId = readString(body.carListingId);
     const eventId = buildMiniAppTrackingEventId(eventType, tracking, readString(req.get('x-request-id')));
     const metaEventName = mapMiniAppEventToMeta(eventType);
-    const metaEnabled = Boolean(metaEventName && isEnvFlagEnabled('META_CAPI_ENABLED', false) && verifiedTelegram?.userId);
+    const metaExternalId = verifiedTelegram?.userId
+      ? `telegram:${verifiedTelegram.userId}`
+      : visitorId
+        ? `miniapp_visitor:${visitorId}`
+        : '';
+    const metaEnabled = Boolean(metaEventName && isEnvFlagEnabled('META_CAPI_ENABLED', false) && metaExternalId);
     const metaStatus: Record<string, unknown> = {
       enabled: metaEnabled,
       eventName: metaEventName
@@ -2135,7 +2172,6 @@ router.post('/events', async (req, res) => {
 
     if (metaEventName && metaEnabled) {
       const trackingMeta = readTrackingMeta(tracking);
-      const externalId = `telegram:${verifiedTelegram?.userId}`;
       const customData = toMetaCustomData({
         ...(payload || {}),
         source: 'miniapp',
@@ -2150,7 +2186,7 @@ router.post('/events', async (req, res) => {
       const { IntegrationService } = await import('../modules/Integrations/integration.service.js');
       const metaResult = await new IntegrationService().metaPixelTrackEvent(config.companyId, metaEventName, {
         eventId,
-        externalId,
+        externalId: metaExternalId,
         fbp: readString(trackingMeta.fbp),
         fbc: readString(trackingMeta.fbc),
         eventSourceUrl: readString(trackingMeta.eventSourceUrl) || readString(trackingMeta.event_source_url),

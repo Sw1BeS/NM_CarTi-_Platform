@@ -5,18 +5,31 @@ const BRAND_LIST = [
     'Jeep', 'Kia', 'Lamborghini', 'Land Rover', 'Lexus', 'Lincoln', 'Maserati', 'Mazda', 'McLaren',
     'Mercedes', 'Mercedes-Benz', 'Mini', 'Mitsubishi', 'Nissan', 'Opel', 'Peugeot', 'Porsche', 'Renault',
     'Rolls-Royce', 'Saab', 'Seat', 'Skoda', 'Smart', 'Subaru', 'Suzuki', 'Tesla', 'Toyota', 'Volkswagen',
-    'Volvo', 'ZAZ'
-];
+    'Volvo', 'VW', 'ZAZ'
+].sort((a, b) => b.length - a.length);
 
 const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const BRAND_RE = new RegExp(`\\b(${BRAND_LIST.map(escapeRegex).join('|')})\\b`, 'i');
 
 const trimText = (value?: string | null) => String(value || '').trim();
-const cleanModel = (value: string) =>
+const stripDecorativePrefix = (value: string) =>
     value
+        .replace(/^[^\p{L}\p{N}$€£₴]+/u, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+const stripLineNoise = (value: string) =>
+    value
+        .replace(/[#@][\p{L}\p{N}_-]+/gu, ' ')
+        .replace(/[✅✔️☑️❌⏳🔥💵🚙🛠⚙️⚡️📍☎️📲🔶🔷🔴⬇️🇺🇸🇪🇺]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+const cleanModel = (value: string) =>
+    stripLineNoise(value)
         .replace(/\b(19|20)\d{2}\b/g, '')
         .replace(/\b(usd|eur|uah|грн|дол|у\.?е\.?|уе)\b/gi, '')
-        .replace(/(?:color|colour|колір|цвет|condition|стан|price|ціна|цена|budget|бюджет|пробіг|пробег)\b.*$/i, '')
+        .replace(/(?:color|colour|колір|цвет|condition|стан|status|статус|price|ціна|цена|budget|бюджет|пробіг|пробег|пальне|топливо|двигун|двигатель|привід|привод|кпп|коробка|автомат|механік|механик|в\s+наявності|в\s+наличии|продано|sold|reserved|заброньовано|бронь|пошкодження|повреждения|damage).*$/i, '')
         .replace(/[|•]/g, ' ')
         .replace(/[;,].*$/, '')
         .replace(/\s+/g, ' ')
@@ -49,10 +62,19 @@ const normalizeDrive = (raw: string) => {
 
 const normalizeCondition = (raw: string) => {
     const lower = raw.toLowerCase();
-    if (/(в дорозі|в пути|transit|en route)/.test(lower)) return 'in_transit';
+    if (/(продано|sold|❌)/.test(lower)) return 'sold';
+    if (/(заброньовано|забронировано|reserved|бронь)/.test(lower)) return 'reserved';
+    if (/(в дорозі|в пути|transit|en route|прямує|викуплена|пливе|плывет)/.test(lower)) return 'in_transit';
+    if (/(в наявності|в наличии|in stock|available)/.test(lower)) return 'in_stock';
     if (/(після дтп|после дтп|after crash|бит|пошкодж)/.test(lower)) return 'damaged';
     if (/(на ходу|заводиться|їде|едет|ready|готов)/.test(lower)) return 'running';
     return '';
+};
+
+const extractLineValue = (line: string, labels: string[]) => {
+    const pattern = new RegExp(`(?:${labels.join('|')})\\s*[:\\-]?\\s*(.+)$`, 'i');
+    const match = line.match(pattern);
+    return match ? stripLineNoise(match[1]).trim() : '';
 };
 
 export const PATTERNS = {
@@ -64,7 +86,10 @@ export const PATTERNS = {
     VIN: /\b[A-HJ-NPR-Z0-9]{17}\b/i,
     ENGINE: /(\d(?:\.|,)\d)\s*(?:l|л)?\s*(?:d|i|t|tdi|tfsi|cdi|дизель|бензин|газ|hybrid|gbo|гбо|electro|електро|электро)/i,
     LOCATION: /(?:city|місто|город|location|локац(?:ія|ия))\s*[:\-]?\s*([a-zа-яіїєґ' -]{2,40})/i,
-    COLOR: /(?:color|colour|колір|цвет)\s*[:\-]?\s*([a-zа-яіїєґ' -]{2,30})/i
+    COLOR: /(?:color|colour|колір|цвет)\s*[:\-]?\s*([a-zа-яіїєґ' -]{2,30})/i,
+    DAMAGE: /(?:пошкодження|повреждения|damage)\s*[:\-]?\s*(.+)$/i,
+    SAFETY: /(ціла\s+безпека|целая\s+безопасность|airbags?\s+ok|safety\s+ok)/i,
+    TRIM: /(?:комплектац(?:ія|ия)|комплектация|trim)\s*[:\-]?\s*(.+)$/i
 };
 
 export const CURRENCY_MAP: Record<string, string> = {
@@ -117,21 +142,22 @@ export const normalizeNumber = (raw: string): number => {
 export const parseCarData = (text: string) => {
     const lines = String(text || '').split('\n').map(line => line.trim()).filter(Boolean);
     const parsed: Record<string, any> = {};
-    const firstLine = lines[0] || '';
+    const firstLine = stripDecorativePrefix(lines[0] || '');
 
     if (firstLine) {
         const brandMatch = firstLine.match(BRAND_RE);
         if (brandMatch) {
-            parsed.brand = trimText(brandMatch[0]);
+            parsed.brand = trimText(brandMatch[0]).toUpperCase() === 'VW' ? 'Volkswagen' : trimText(brandMatch[0]);
             const modelRaw = firstLine.slice(brandMatch.index! + brandMatch[0].length);
             const model = cleanModel(modelRaw);
             if (model) parsed.model = model;
         }
-        const titleFromLine = cleanModel(firstLine);
+        const titleFromLine = stripDecorativePrefix(cleanModel(firstLine));
         if (titleFromLine) parsed.title = titleFromLine;
     }
 
-    for (const line of lines) {
+    for (const originalLine of lines) {
+        const line = stripDecorativePrefix(originalLine);
         if (!parsed.price) {
             const priceMatch = line.match(PATTERNS.PRICE);
             if (priceMatch) {
@@ -196,6 +222,33 @@ export const parseCarData = (text: string) => {
         if (!parsed.condition) {
             const condition = normalizeCondition(line);
             if (condition) parsed.condition = condition;
+        }
+
+        if (!parsed.status) {
+            const status = normalizeCondition(line);
+            if (status === 'sold' || status === 'reserved' || status === 'in_stock' || status === 'in_transit') {
+                parsed.status = status;
+            }
+        }
+
+        if (!parsed.damage) {
+            const damageMatch = line.match(PATTERNS.DAMAGE);
+            if (damageMatch) parsed.damage = trimText(stripLineNoise(damageMatch[1]));
+        }
+
+        if (!parsed.safety && PATTERNS.SAFETY.test(line)) {
+            parsed.safety = 'intact';
+        }
+
+        if (!parsed.trim) {
+            const trimMatch = line.match(PATTERNS.TRIM);
+            const trimBeforeLabelMatch = line.match(/^(.{1,40}?)\s+(?:комплектац(?:ія|ия)|комплектация)(?:\s|$)/i);
+            const trim = trimMatch
+                ? stripLineNoise(trimMatch[1])
+                : trimBeforeLabelMatch
+                    ? stripLineNoise(trimBeforeLabelMatch[1])
+                    : extractLineValue(line, ['комплектац(?:ія|ия)', 'комплектация', 'trim']);
+            if (trim) parsed.trim = trim;
         }
     }
 

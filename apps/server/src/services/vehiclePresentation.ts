@@ -5,6 +5,7 @@ import { vehicleAvailabilityLabel } from './vehicleState.service.js';
 export type VehiclePresentation = {
   title: string;
   subtitle: string;
+  description: string;
   priceLabel: string;
   mileageLabel: string;
   statusLabel: string;
@@ -145,6 +146,16 @@ const extractAutoRiaLocationFromRaw = (rawText: string) => {
   return toString(match?.[2]);
 };
 
+export const normalizeVehicleLocation = (value: unknown) => {
+  const raw = toString(value);
+  if (!raw) return undefined;
+  const normalized = raw.replace(/\s+/g, ' ').trim();
+  const lower = normalized.toLowerCase();
+  if (normalized.length < 4) return undefined;
+  if (/^(ний|ній|ный)$/.test(lower)) return undefined;
+  return normalized;
+};
+
 export const formatVehiclePrice = (amount: any, currency = DEFAULT_CURRENCY) => {
   const value = toNumber(amount);
   if (!value) return 'Ціна за запитом';
@@ -250,7 +261,7 @@ export const buildVehiclePresentation = (car: any): VehiclePresentation => {
   const damage = normalizeVehicleSpecLabel('damage', specs.damage || specs.damageLine);
   const bodyType = normalizeVehicleSpecLabel('bodyType', specs.bodyType || specs.body);
   const engine = toString(specs.engine || specs.engineVolume || specs.battery || specs.batteryKwh || parsed.engine);
-  const location = toString(car?.location) || toString(parsed.location) || rawLocation;
+  const location = normalizeVehicleLocation(car?.location) || normalizeVehicleLocation(parsed.location) || normalizeVehicleLocation(rawLocation);
   const year = toNumber(car?.year) || toNumber(parsed.year);
   const sourceUrlIdentity = extractAutoRiaIdentityFromSourceUrl(car?.sourceUrl, year);
   const sourceTitle = toString(car?.title);
@@ -297,10 +308,17 @@ export const buildVehiclePresentation = (car: any): VehiclePresentation => {
     condition && condition !== statusLabel ? condition : undefined,
     damage === 'Без пошкоджень' ? damage : undefined
   ]);
+  const description = unique([
+    [year ? String(year) : undefined, title, statusLabel].filter(Boolean).join(' • '),
+    [fuel, engine, transmission, drive].filter(Boolean).join(' • '),
+    damage ? `Пошкодження: ${damage}` : undefined,
+    location ? `Локація: ${location}` : undefined
+  ]).join('\n');
 
   return {
     title,
     subtitle,
+    description,
     priceLabel: formatVehiclePrice(priceAmount, price.currency || DEFAULT_CURRENCY),
     mileageLabel: formatVehicleMileage(mileageAmount),
     statusLabel,

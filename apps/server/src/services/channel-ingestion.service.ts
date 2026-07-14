@@ -217,6 +217,24 @@ export class ChannelIngestionService {
         };
     }
 
+    private async appendMediaToExistingGroup(message: NormalizedChannelMessage): Promise<IngestionResult | null> {
+        if (!message.mediaGroupKey) return null;
+        const media = this.attachMediaRefs(message);
+        if (!media.mediaItems.length && !media.mediaUrls.length) return null;
+
+        const existingGroup = await prisma.carListing.findFirst({
+            where: {
+                sourceChatId: message.chatId,
+                mediaGroupKey: message.mediaGroupKey
+            }
+        });
+        if (!existingGroup) return null;
+
+        const mergedMedia = mergeMedia(existingGroup, media);
+        await carRepo.updateCar(existingGroup.id, mergedMedia);
+        return { created: false, entity: 'CAR', reason: 'MEDIA_GROUP_APPEND' };
+    }
+
     async upsertCarListingOrDraft(params: {
         message: NormalizedChannelMessage;
         mode: IngestionMode;
@@ -231,7 +249,18 @@ export class ChannelIngestionService {
 
         const { shouldImport, transformedData, reason } = this.applyRules(message.text, rules, { requireSignals: params.requireSignals });
         if (!shouldImport || !transformedData) {
+            if (mode === 'INVENTORY') {
+                const appended = await this.appendMediaToExistingGroup(message);
+                if (appended) return appended;
+            }
             return { created: false, entity: null, reason: reason || 'SKIPPED' };
+        }
+
+        if ((rules as any)?.requireMedia) {
+            const hasMedia = !!((message.mediaItems && message.mediaItems.length) || (message.mediaUrls && message.mediaUrls.length));
+            if (!hasMedia) {
+                return { created: false, entity: null, reason: 'NO_MEDIA' };
+            }
         }
 
         if (mode === 'DRAFT_ONLY') {
@@ -267,18 +296,8 @@ export class ChannelIngestionService {
         }
 
         if (message.mediaGroupKey) {
-            const existingGroup = await prisma.carListing.findFirst({
-                where: {
-                    sourceChatId: message.chatId,
-                    mediaGroupKey: message.mediaGroupKey
-                }
-            });
-            if (existingGroup) {
-                const media = this.attachMediaRefs(message);
-                const mergedMedia = mergeMedia(existingGroup, media);
-                await carRepo.updateCar(existingGroup.id, mergedMedia);
-                return { created: false, entity: 'CAR', reason: 'MEDIA_GROUP_APPEND' };
-            }
+            const appended = await this.appendMediaToExistingGroup(message);
+            if (appended) return appended;
         }
 
         const existing = await prisma.carListing.findFirst({
@@ -328,13 +347,20 @@ export class ChannelIngestionService {
         const media = this.attachMediaRefs(message);
         const normalizedMediaItems = media.mediaItems.map(normalizeMediaItem) as Prisma.InputJsonValue;
         const autoPublish = (channelSource?.importRules as any)?.autoPublish;
-        const status = autoPublish ? 'AVAILABLE' : 'PENDING';
         const availabilityState = deriveVehicleAvailabilityState({
-            status: autoPublish ? 'AVAILABLE' : undefined,
             title: transformedData.title,
             description: transformedData.description || message.text,
             specs: transformedData.specs
         });
+        const status = autoPublish
+            ? (
+                availabilityState === 'IN_STOCK'
+                    ? 'AVAILABLE'
+                    : availabilityState === 'IN_TRANSIT' || availabilityState === 'IMPORT_TO_ORDER' || availabilityState === 'UNKNOWN'
+                        ? 'PENDING'
+                        : availabilityState
+            )
+            : 'PENDING';
         const publicationStatus = deriveVehiclePublicationStatus({ status, autoPublish });
 
         const sourceMeta = buildSourceMeta(message, sourceLabel, botId, channelSource);
@@ -445,6 +471,22 @@ export class ChannelIngestionService {
 
         if (rules?.maxPrice && carData.price && carData.price > rules.maxPrice) {
             return { shouldImport: false, transformedData: carData };
+        }
+
+        if (rules?.requirePrice && !isMeaningfulNumber(carData.price)) {
+            return { shouldImport: false, transformedData: carData };
+        }
+
+        if (rules?.requireYear && !isMeaningfulYear(carData.year)) {
+            return { shouldImport: false, transformedData: carData };
+        }
+
+        const parsedStatus = String((carData.specs as Record<string, unknown> | undefined)?.status || '').toLowerCase();
+        if (parsedStatus && Array.isArray(rules?.skipStatuses)) {
+            const skipStatuses = rules.skipStatuses.map((status: unknown) => String(status).toLowerCase());
+            if (skipStatuses.includes(parsedStatus)) {
+                return { shouldImport: false, transformedData: carData };
+            }
         }
 
         if (rules?.filterKeywords && rules.filterKeywords.length) {

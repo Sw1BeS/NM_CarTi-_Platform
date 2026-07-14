@@ -10,3 +10,7 @@
 | 2026-05-28 | plan | `docs/aegis/plans/2026-05-28-miniapp-scenario-audit-remediation-and-meta-dataset-plan.md` | MiniApp Scenario Audit Remediation And Meta Dataset Plan | implemented in remediation branch |
 | 2026-06-01 | work | `docs/aegis/work/2026-06-01-miniapp-audit-remediation/` | MiniApp Audit Remediation Work Trail | handoff ready |
 | 2026-06-01 | adr | `docs/aegis/adr/2026-06-01-miniapp-signed-read-and-meta-gate-owners.md` | MiniApp Signed Read And Meta Gate Owners | accepted for implementation branch |
+| 2026-06-10 | plan | `docs/aegis/plans/2026-06-10-meta-marketing-analytics-dataset-qa-plan.md` | Meta Marketing Analytics Dataset QA And Optimization Plan | execution started |
+| 2026-06-12 | plan | `docs/aegis/plans/2026-06-12-mtproto-real-car-import-and-tracking-review.md` | MTProto Real Car Import And Tracking Review | ready for TG authentication |
+| 2026-06-18 | spec | `docs/aegis/specs/2026-06-18-vehicle-taxonomy-source-design.md` | Vehicle Taxonomy Source Design | approved for implementation planning |
+| 2026-06-18 | plan | `docs/aegis/plans/2026-06-18-vehicle-taxonomy-source-implementation-plan.md` | Vehicle Taxonomy Source Implementation Plan | ready for user review |

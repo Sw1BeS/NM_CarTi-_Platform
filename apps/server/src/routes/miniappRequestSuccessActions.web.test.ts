@@ -15,6 +15,18 @@ describe('MiniApp request success actions', () => {
         expect(content.actions[0]).toMatchObject({ id: 'MY_REQUESTS', primary: true });
     });
 
+    it('does not offer private request history when a lead submit used keyboard-only auth', () => {
+        const content = resolveRequestSuccessContent('LEAD', { canViewPrivateRequests: false });
+
+        expect(content.actions.map(action => action.label)).toEqual([
+            'Повернутись до каталогу',
+            'Написати менеджеру',
+            'На головну'
+        ]);
+        expect(content.actions[0]).toMatchObject({ id: 'CATALOG', primary: true });
+        expect(content.actions.map(action => action.id)).not.toContain('MY_REQUESTS');
+    });
+
     it('uses B2B-specific post-submit actions for partners', () => {
         const content = resolveRequestSuccessContent('B2B');
 

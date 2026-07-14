@@ -22,6 +22,12 @@ const ALLOWED_QUERY_KEYS = new Set([
   'utm_campaign',
   'utm_content',
   'utm_term',
+  'utm_id',
+  'utm_cartie_token',
+  'utm_cartie_attribution_token',
+  'utm_fbclid',
+  'utm_fbp',
+  'utm_fbc',
   'fbclid',
   'fbc',
   'fbp',
@@ -171,6 +177,47 @@ const buildSnapshot = (record: AttributionSessionRecord): AttributionSnapshot =>
   };
 };
 
+const appendIfMissing = (url: URL, key: string, value: string | undefined): void => {
+  if (!value || url.searchParams.has(key)) return;
+  url.searchParams.set(key, value);
+};
+
+const buildRedirectUrl = (input: AttributionCreateInput, tokenValue: string, sanitizedQuery: AttributionQuery, identifiers: AttributionIdentifiers): string => {
+  if (!input.redirectUrl) {
+    const botUsername = toSafeText(input.botUsername, 128);
+    if (!botUsername) {
+      throw new Error('Attribution redirect requires botUsername or redirectUrl');
+    }
+    return `https://t.me/${botUsername}?start=${tokenValue}`;
+  }
+
+  const url = new URL(input.redirectUrl);
+  if (!['http:', 'https:'].includes(url.protocol)) {
+    throw new Error('Attribution redirect URL must be http or https');
+  }
+
+  if (input.appendAttributionParams !== false) {
+    appendIfMissing(url, 'cartie_attribution_token', tokenValue);
+    appendIfMissing(url, 'attribution_token', tokenValue);
+    appendIfMissing(url, 'fbclid', identifiers.fbclid || sanitizedQuery.fbclid);
+    appendIfMissing(url, 'fbp', identifiers.fbp);
+    appendIfMissing(url, '_fbp', identifiers.fbp);
+    appendIfMissing(url, 'fbc', identifiers.fbc);
+    appendIfMissing(url, '_fbc', identifiers.fbc);
+    appendIfMissing(url, 'utm_cartie_token', tokenValue);
+    appendIfMissing(url, 'utm_cartie_attribution_token', tokenValue);
+    appendIfMissing(url, 'utm_fbclid', identifiers.fbclid || sanitizedQuery.fbclid);
+    appendIfMissing(url, 'utm_fbp', identifiers.fbp);
+    appendIfMissing(url, 'utm_fbc', identifiers.fbc);
+    for (const key of ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'utm_id', 'campaign_token', 'ad_id', 'adset_id', 'campaign_id', 'placement'] as const) {
+      appendIfMissing(url, key, sanitizedQuery[key]);
+    }
+    appendIfMissing(url, 'utm_term', `cartie_token_${tokenValue}`);
+  }
+
+  return url.toString();
+};
+
 export class AttributionSessionService {
   constructor(
     private readonly db: PrismaLike = prisma as unknown as PrismaLike,
@@ -220,7 +267,7 @@ export class AttributionSessionService {
 
     return {
       token: record.token,
-      redirectUrl: `https://t.me/${input.botUsername}?start=${record.token}`,
+      redirectUrl: buildRedirectUrl(input, record.token, sanitizedQuery, identifiers),
       snapshot: buildSnapshot(record),
       cookies: {
         ...(fbp ? { fbp } : {}),

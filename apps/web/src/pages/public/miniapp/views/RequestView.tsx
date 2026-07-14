@@ -51,6 +51,7 @@ type RequestViewProps = {
   selectedCarsPreview: string[];
   onClearSelectedCars: () => void;
   hasTelegramInit: boolean;
+  canViewPrivateRequests?: boolean;
   telegramWriteUnavailableMessage?: string;
   primaryColor: string;
   surfaceMode: MiniAppSurfaceMode;
@@ -122,6 +123,31 @@ const successActionIcons: Record<RequestSuccessActionId, React.ComponentType<{ s
   HOME: Home
 };
 
+const REQUEST_FORM_VISUAL_REFRESH_ENABLED = true;
+
+const REQUEST_STEP_META: Record<number, { label: string; title: string; description: string }> = {
+  1: {
+    label: 'Марка і модель',
+    title: 'Яке авто шукаємо?',
+    description: 'Оберіть одну або кілька марок. Моделі групуються за всіма вибраними марками.'
+  },
+  2: {
+    label: 'Рік і бюджет',
+    title: 'Бюджет і роки',
+    description: 'Вкажіть бажаний діапазон. Якщо точної межі немає, поле можна залишити порожнім.'
+  },
+  3: {
+    label: 'Параметри',
+    title: 'Параметри авто',
+    description: 'Додайте важливі технічні побажання, щоб менеджер швидше відсіяв зайві варіанти.'
+  },
+  4: {
+    label: 'Підтвердження',
+    title: 'Перевірте заявку',
+    description: 'Контакт не вводиться вручну. Після заявки бот попросить нативний контакт Telegram.'
+  }
+};
+
 export const RequestView = ({
   reqStep,
   reqData,
@@ -138,6 +164,7 @@ export const RequestView = ({
   selectedCarsPreview,
   onClearSelectedCars,
   hasTelegramInit,
+  canViewPrivateRequests = true,
   telegramWriteUnavailableMessage,
   primaryColor,
   surfaceMode,
@@ -164,31 +191,42 @@ export const RequestView = ({
     aliases: [],
     models: item.models.map(model => ({ id: model.toLowerCase(), label: model, aliases: [], brandId: item.brand.toLowerCase() }))
   })));
-  const brandOptions = brandSources
-    .map(item => ({ id: item.id, label: item.label === 'Other' ? OTHER_BRAND : item.label, aliases: item.aliases }))
-    .concat(brandSources.some(item => item.label === OTHER_BRAND || item.label === 'Other') ? [] : [toSelectOption(OTHER_BRAND)]);
+  const brandOptions: SearchableSelectOption[] = [
+    ...brandSources.map(item => ({
+      id: item.id,
+      label: item.label === 'Other' ? OTHER_BRAND : item.label,
+      aliases: item.aliases || []
+    })),
+    ...(brandSources.some(item => item.label === OTHER_BRAND || item.label === 'Other') ? [] : [toSelectOption(OTHER_BRAND)])
+  ];
   const selectedBrands = (reqData.brands?.length ? reqData.brands : (reqData.brand ? [reqData.brand] : []))
     .filter(Boolean);
   const selectedModels = (reqData.models?.length ? reqData.models : (reqData.model ? [reqData.model] : []))
     .filter(Boolean);
   const selectedBodyTypes = (reqData.bodyTypes?.length ? reqData.bodyTypes : (reqData.bodyType ? [reqData.bodyType] : []))
     .filter(Boolean);
-  const modelOptions = Array.from(new Set(
-    selectedBrands.flatMap(brand => {
-      if (brand === OTHER_BRAND || brand === 'Other') return [OTHER_MODEL];
-      const source = brandSources.find(item => item.label === brand || item.id === brand);
-      return source?.models?.map(model => model.label === 'Other' ? OTHER_MODEL : model.label) || [];
-    })
-  ))
-    .filter(Boolean)
-    .concat(selectedBrands.length && !selectedBrands.includes(OTHER_BRAND) && !selectedBrands.includes('Other') ? [OTHER_MODEL] : [])
-    .sort((a, b) => a.localeCompare(b));
-  const modelSelectOptions = modelOptions.map(label => {
-    const sourceModel = brandSources
-      .flatMap(brand => brand.models || [])
-      .find(model => model.label === label || (model.label === 'Other' && label === OTHER_MODEL));
-    return { id: sourceModel?.id || toSelectOption(label).id, label, aliases: sourceModel?.aliases };
-  });
+  const matchesOptionValue = (option: { id: string; label: string; aliases?: string[] }, value: string) => {
+    const needle = value.trim().toLowerCase();
+    if (!needle) return false;
+    return [option.id, option.label, ...(option.aliases || [])]
+      .some(item => item.toLowerCase() === needle);
+  };
+  const selectedBrandSources = selectedBrands
+    .filter(brand => brand !== OTHER_BRAND && brand !== 'Other')
+    .map(brand => brandSources.find(item => matchesOptionValue(item, brand)))
+    .filter((item): item is typeof brandSources[number] => Boolean(item));
+  const modelSelectOptions: SearchableSelectOption[] = selectedBrandSources
+    .flatMap(brand => (brand.models || []).map(model => ({
+      id: `${brand.id}:${model.id || toSelectOption(model.label).id}`,
+      label: model.label === 'Other' ? OTHER_MODEL : model.label,
+      description: brand.label,
+      aliases: [brand.label, ...(model.aliases || [])]
+    })))
+    .filter(option => Boolean(option.label))
+    .sort((a, b) => `${a.description || ''} ${a.label}`.localeCompare(`${b.description || ''} ${b.label}`));
+  if (selectedBrands.length && !selectedBrands.includes(OTHER_BRAND) && !selectedBrands.includes('Other')) {
+    modelSelectOptions.push({ ...toSelectOption(OTHER_MODEL), description: 'Своя модель' });
+  }
   const bodyTypeOptions = (taxonomy?.bodyTypes?.length ? taxonomy.bodyTypes : BODY_TYPES.map(type => toSelectOption(type)));
   const fuelOptions = (taxonomy?.fuels?.length ? taxonomy.fuels : FUEL_TYPES.map(type => toSelectOption(type)));
   const cityOptions = (taxonomy?.cities?.length ? taxonomy.cities : CITY_OPTIONS.map(city => toSelectOption(city)));
@@ -201,7 +239,7 @@ export const RequestView = ({
   const title = surfaceMode === 'B2B'
     ? 'Створити B2B запит'
     : (requestType === 'SELL' ? 'Продаж авто' : 'Підбір авто');
-  const successContent = resolveRequestSuccessContent(surfaceMode);
+  const successContent = resolveRequestSuccessContent(surfaceMode, { canViewPrivateRequests });
   const handleSuccessAction = (actionId: RequestSuccessActionId) => {
     if (actionId === 'MY_REQUESTS' || actionId === 'B2B_ACTIVITY') {
       onViewRequests?.();
@@ -256,11 +294,55 @@ export const RequestView = ({
       bodyTypes: nextBodyTypes
     });
   };
+  const inputRefs = React.useRef<Array<HTMLInputElement | HTMLTextAreaElement | null>>([]);
+  const registerInput = (index: number) => (node: HTMLInputElement | HTMLTextAreaElement | null) => {
+    inputRefs.current[index] = node;
+  };
+  const focusInput = (index: number) => {
+    window.setTimeout(() => {
+      const input = inputRefs.current[index];
+      input?.focus();
+      input?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }, 40);
+  };
+  const keepInputVisible = (event: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const target = event.currentTarget;
+    window.setTimeout(() => {
+      target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }, 80);
+  };
+  const blurActiveInput = () => {
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+  };
+  const handleInputEnter = (
+    event: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>,
+    nextIndex?: number
+  ) => {
+    if (event.key !== 'Enter') return;
+    if (event.currentTarget instanceof HTMLTextAreaElement && event.shiftKey) return;
+    event.preventDefault();
+    if (nextIndex !== undefined) {
+      focusInput(nextIndex);
+      return;
+    }
+    blurActiveInput();
+  };
+  const stepMeta = REQUEST_STEP_META[reqStep] || REQUEST_STEP_META[1];
+  const stepItems = [1, 2, 3, 4].map(step => ({
+    step,
+    ...REQUEST_STEP_META[step]
+  }));
+  const selectedCarsLabel = selectedCarsCount > 1
+    ? `Запит по ${selectedCarsCount} авто`
+    : 'Запит по конкретному авто';
+  const refreshedForm = REQUEST_FORM_VISUAL_REFRESH_ENABLED;
 
   return (
-    <div className="animate-fade-in h-full overflow-y-auto bg-black px-5 pb-24 pt-16 flex flex-col justify-start">
+    <div className={refreshedForm ? 'animate-fade-in relative flex h-full min-h-0 flex-col bg-[#050608] text-white' : 'animate-fade-in h-full overflow-y-auto bg-black px-5 pb-24 pt-16 flex flex-col justify-start'}>
       {reqStep === 5 ? (
-        <div className="animate-slide-up">
+        <div className={refreshedForm ? 'animate-slide-up overflow-y-auto px-5 pb-24 pt-16' : 'animate-slide-up'}>
           <div className="w-20 h-20 rounded-full bg-white/10 text-white flex items-center justify-center mx-auto mb-6 border border-white/15">
             <CheckCircle size={42} />
           </div>
@@ -290,7 +372,11 @@ export const RequestView = ({
                 <button
                   key={action.id}
                   type="button"
-                  onClick={() => handleSuccessAction(action.id)}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    handleSuccessAction(action.id);
+                  }}
                   className={`w-full rounded-xl border p-4 text-left transition-transform active:scale-[0.99] ${
                     action.primary
                       ? 'border-white/20 text-black'
@@ -318,26 +404,40 @@ export const RequestView = ({
         </div>
       ) : (
         <>
-          <div className="mb-5">
+          <div className={refreshedForm ? 'min-h-0 flex-1 overflow-y-auto px-5 pb-36 pt-16' : ''}>
+          <div className={refreshedForm ? '-mx-5 mb-5 border-b border-white/10 bg-[#050608]/94 px-5 pb-4 backdrop-blur-xl' : 'mb-5'}>
             <div className="flex justify-between items-start gap-3 mb-3">
-              <div>
-                <h2 className="text-2xl font-bold text-white">{title}</h2>
-                <p className="text-xs text-white/45 mt-1">
-                  Контакт не вводиться вручну. Після заявки бот попросить нативний контакт Telegram.
+              <div className="min-w-0">
+                <h2 className={refreshedForm ? 'text-[26px] font-black leading-tight tracking-tight text-white' : 'text-2xl font-bold text-white'}>{title}</h2>
+                <p className={refreshedForm ? 'mt-1 text-xs leading-relaxed text-white/45' : 'text-xs text-white/45 mt-1'}>
+                  {stepMeta.description}
                 </p>
               </div>
-              <span className="text-sm font-bold" style={{ color: primaryColor }}>{reqStep}/4</span>
+              <span className={refreshedForm ? 'shrink-0 rounded-full border border-white/10 bg-white/[0.055] px-3 py-1 text-xs font-black text-white/80' : 'text-sm font-bold'} style={refreshedForm ? undefined : { color: primaryColor }}>{reqStep}/4</span>
             </div>
-            <div className="flex gap-2">
-              {[1, 2, 3, 4].map(step => (
-                <div
-                  key={step}
-                  className="h-1.5 flex-1 rounded-full transition-all duration-300"
-                  style={step <= reqStep ? metallicStyle : { background: '#2b2d31', opacity: 0.65 }}
-                />
+            <div className={refreshedForm ? 'grid grid-cols-4 gap-2' : 'flex gap-2'}>
+              {stepItems.map(({ step, label }) => (
+                <div key={step} className={refreshedForm ? 'min-w-0' : 'flex-1'}>
+                  <div
+                    className="h-1.5 rounded-full transition-all duration-300"
+                    style={step <= reqStep ? metallicStyle : { background: '#2b2d31', opacity: 0.65 }}
+                  />
+                  {refreshedForm && (
+                    <div className={`mt-1 truncate text-[9px] font-black leading-tight ${step <= reqStep ? 'text-white/78' : 'text-white/30'}`}>
+                      {label}
+                    </div>
+                  )}
+                </div>
               ))}
             </div>
           </div>
+
+          {refreshedForm && (
+            <div className="mb-5">
+              <h3 className="text-[22px] font-black leading-tight text-white">{stepMeta.title}</h3>
+              <p className="mt-2 text-sm leading-relaxed text-white/56">{stepMeta.description}</p>
+            </div>
+          )}
 
           {!hasTelegramInit && (
             <div className="mb-4 text-xs text-yellow-200 bg-yellow-500/10 border border-yellow-500/25 rounded-xl p-3 text-center">
@@ -355,13 +455,24 @@ export const RequestView = ({
           )}
 
           {selectedCarsCount > 0 && (
-            <div className="mb-4 bg-[#15171a] border border-white/10 rounded-xl p-3 text-xs text-white/80 space-y-2">
+            <div className={refreshedForm ? 'mb-5 rounded-[18px] border border-white/10 bg-white/[0.055] p-3 text-xs text-white/80 shadow-[0_14px_36px_rgba(0,0,0,0.28)]' : 'mb-4 bg-[#15171a] border border-white/10 rounded-xl p-3 text-xs text-white/80 space-y-2'}>
               <div className="flex items-center justify-between gap-2">
-                <span>{selectedCarsCount > 1 ? `Запит по ${selectedCarsCount} авто` : 'Запит по конкретному авто'}</span>
-                <button onClick={onClearSelectedCars} className="text-white/60 underline">Очистити</button>
+                <span className={refreshedForm ? 'font-black text-white' : undefined}>{selectedCarsLabel}</span>
+                <button onClick={onClearSelectedCars} className={refreshedForm ? 'rounded-full border border-white/10 px-2 py-1 text-[10px] font-bold text-white/58' : 'text-white/60 underline'}>Очистити</button>
               </div>
               {selectedCarsPreview.length > 0 && (
-                <div className="text-white/50 truncate">{selectedCarsPreview.join(', ')}</div>
+                <div className={refreshedForm ? 'mt-3 grid gap-2' : 'text-white/50 truncate'}>
+                  {refreshedForm
+                    ? selectedCarsPreview.map((carTitle, index) => (
+                      <div key={`${carTitle}_${index}`} className="flex items-center gap-3 rounded-[14px] border border-white/10 bg-black/22 p-2">
+                        <span className="flex size-8 shrink-0 items-center justify-center rounded-[10px] bg-white/10 text-[11px] font-black text-white/74">
+                          {index + 1}
+                        </span>
+                        <span className="min-w-0 truncate text-[11px] font-semibold text-white/62">{carTitle}</span>
+                      </div>
+                    ))
+                    : selectedCarsPreview.join(', ')}
+                </div>
               )}
             </div>
           )}
@@ -402,6 +513,9 @@ export const RequestView = ({
                     placeholder="Введіть марку"
                     value={reqData.brandCustom}
                     onChange={e => setReqData({ ...reqData, brandCustom: e.target.value })}
+                    onFocus={keepInputVisible}
+                    onKeyDown={event => handleInputEnter(event)}
+                    enterKeyHint="done"
                   />
                 )}
               </Field>
@@ -437,6 +551,9 @@ export const RequestView = ({
                     placeholder="Введіть модель"
                     value={reqData.modelCustom}
                     onChange={e => setReqData({ ...reqData, modelCustom: e.target.value })}
+                    onFocus={keepInputVisible}
+                    onKeyDown={event => handleInputEnter(event)}
+                    enterKeyHint="done"
                   />
                 )}
               </Field>
@@ -447,18 +564,62 @@ export const RequestView = ({
             <div className="space-y-4 animate-slide-up">
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Рік від">
-                  <input className="w-full bg-[#15171a] text-white p-3 rounded-xl outline-none border border-white/10" placeholder="2018" value={reqData.yearMin} onChange={e => setReqData({ ...reqData, yearMin: e.target.value })} />
+                  <input
+                    ref={registerInput(0)}
+                    type="number"
+                    inputMode="numeric"
+                    className="w-full bg-[#15171a] text-white p-3 rounded-xl outline-none border border-white/10"
+                    placeholder="2018"
+                    value={reqData.yearMin}
+                    onChange={e => setReqData({ ...reqData, yearMin: e.target.value })}
+                    onFocus={keepInputVisible}
+                    onKeyDown={event => handleInputEnter(event, 1)}
+                    enterKeyHint="next"
+                  />
                 </Field>
                 <Field label="Рік до">
-                  <input className="w-full bg-[#15171a] text-white p-3 rounded-xl outline-none border border-white/10" placeholder="2024" value={reqData.yearMax} onChange={e => setReqData({ ...reqData, yearMax: e.target.value })} />
+                  <input
+                    ref={registerInput(1)}
+                    type="number"
+                    inputMode="numeric"
+                    className="w-full bg-[#15171a] text-white p-3 rounded-xl outline-none border border-white/10"
+                    placeholder="2024"
+                    value={reqData.yearMax}
+                    onChange={e => setReqData({ ...reqData, yearMax: e.target.value })}
+                    onFocus={keepInputVisible}
+                    onKeyDown={event => handleInputEnter(event, 2)}
+                    enterKeyHint="next"
+                  />
                 </Field>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Бюджет від, $">
-                  <input className="w-full bg-[#15171a] text-white p-3 rounded-xl outline-none border border-white/10" placeholder="20000" value={reqData.budgetMin} onChange={e => setReqData({ ...reqData, budgetMin: e.target.value })} />
+                  <input
+                    ref={registerInput(2)}
+                    type="number"
+                    inputMode="numeric"
+                    className="w-full bg-[#15171a] text-white p-3 rounded-xl outline-none border border-white/10"
+                    placeholder="20000"
+                    value={reqData.budgetMin}
+                    onChange={e => setReqData({ ...reqData, budgetMin: e.target.value })}
+                    onFocus={keepInputVisible}
+                    onKeyDown={event => handleInputEnter(event, 3)}
+                    enterKeyHint="next"
+                  />
                 </Field>
                 <Field label="Бюджет до, $">
-                  <input className="w-full bg-[#15171a] text-white p-3 rounded-xl outline-none border border-white/10" placeholder="60000" value={reqData.budgetMax} onChange={e => setReqData({ ...reqData, budgetMax: e.target.value })} />
+                  <input
+                    ref={registerInput(3)}
+                    type="number"
+                    inputMode="numeric"
+                    className="w-full bg-[#15171a] text-white p-3 rounded-xl outline-none border border-white/10"
+                    placeholder="60000"
+                    value={reqData.budgetMax}
+                    onChange={e => setReqData({ ...reqData, budgetMax: e.target.value })}
+                    onFocus={keepInputVisible}
+                    onKeyDown={event => handleInputEnter(event)}
+                    enterKeyHint="done"
+                  />
                 </Field>
               </div>
               <Field label="Тип кузова">
@@ -502,19 +663,27 @@ export const RequestView = ({
               {surfaceMode === 'B2B' && (
                 <Field label="Компанія">
                   <input
+                    ref={registerInput(4)}
                     className="w-full bg-[#15171a] text-white p-4 rounded-xl outline-none border border-white/10 placeholder-white/30"
                     placeholder="Назва компанії"
                     value={reqCompany}
                     onChange={e => setReqCompany(e.target.value)}
+                    onFocus={keepInputVisible}
+                    onKeyDown={event => handleInputEnter(event, 5)}
+                    enterKeyHint="next"
                   />
                 </Field>
               )}
               <Field label="Коментар">
                 <textarea
+                  ref={registerInput(5)}
                   className="w-full min-h-[112px] bg-[#15171a] text-white p-4 rounded-xl outline-none border border-white/10 placeholder-white/30 resize-none"
                   placeholder="Побажання щодо комплектації, кольору, строків або умов"
                   value={reqComment}
                   onChange={e => setReqComment(e.target.value)}
+                  onFocus={keepInputVisible}
+                  onKeyDown={event => handleInputEnter(event)}
+                  enterKeyHint="done"
                 />
               </Field>
 
@@ -567,12 +736,14 @@ export const RequestView = ({
             </div>
           )}
 
+          </div>
+
           {showInlineAction && (
-            <div className="pt-6 flex gap-3">
+            <div className={refreshedForm ? 'absolute bottom-0 left-0 right-0 z-30 grid grid-cols-[1fr_1.25fr] gap-3 border-t border-white/10 bg-[#050608]/94 px-5 pb-5 pt-3 backdrop-blur-xl' : 'pt-6 flex gap-3'}>
               {reqStep > 1 && (
                 <button
                   onClick={onBackStep}
-                  className="flex-1 py-4 rounded-xl font-bold text-white flex items-center justify-center gap-2 active:scale-95 transition-transform bg-[#15171a] border border-white/10"
+                  className={refreshedForm ? 'flex min-h-[52px] items-center justify-center gap-2 rounded-[16px] border border-white/10 bg-white/[0.055] px-3 text-sm font-black text-white active:scale-[0.98]' : 'flex-1 py-4 rounded-xl font-bold text-white flex items-center justify-center gap-2 active:scale-95 transition-transform bg-[#15171a] border border-white/10'}
                 >
                   <ChevronLeft size={18} />
                   Назад
@@ -581,7 +752,7 @@ export const RequestView = ({
               <button
                 onClick={onNextStep}
                 disabled={Boolean(actionDisabled)}
-                className="flex-1 py-4 rounded-xl font-bold flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-50 disabled:scale-100"
+                className={refreshedForm ? `${reqStep > 1 ? '' : 'col-span-2'} flex min-h-[52px] items-center justify-center gap-2 rounded-[16px] px-4 text-sm font-black active:scale-[0.98] disabled:opacity-50 disabled:scale-100` : 'flex-1 py-4 rounded-xl font-bold flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-50 disabled:scale-100'}
                 style={metallicStyle}
               >
                 {actionLabel} <ArrowRight size={18} />
