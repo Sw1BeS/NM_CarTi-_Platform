@@ -73,7 +73,11 @@ const envSchema = z.object({
     SALESDRIVE_WEBHOOK_SECRET: z.string().optional(),
     SALESDRIVE_WEBHOOK_TOKEN: z.string().optional(),
     SALESDRIVE_SECRET: z.string().optional(),
-    INTEGRATION_WEBHOOK_SECRET: z.string().optional()
+    INTEGRATION_WEBHOOK_SECRET: z.string().optional(),
+    WEBSITE_LEAD_API_ENABLED: z.string().optional(),
+    WEBSITE_LEAD_API_KEY: z.string().optional(),
+    WEBSITE_LEAD_BOT_ID: z.string().optional(),
+    WEBSITE_LEAD_COMPANY_ID: z.string().optional()
 });
 
 export interface ValidatedEnv {
@@ -137,6 +141,10 @@ export interface ValidatedEnv {
     SALESDRIVE_WEBHOOK_TOKEN?: string;
     SALESDRIVE_SECRET?: string;
     INTEGRATION_WEBHOOK_SECRET?: string;
+    WEBSITE_LEAD_API_ENABLED?: string;
+    WEBSITE_LEAD_API_KEY?: string;
+    WEBSITE_LEAD_BOT_ID?: string;
+    WEBSITE_LEAD_COMPANY_ID?: string;
 }
 
 export const validateEnv = (): ValidatedEnv => {
