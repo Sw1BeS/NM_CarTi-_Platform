@@ -31,15 +31,15 @@ describe('website lead adapter', () => {
   });
 
   it('routes website events to the existing main quiz dataset service', async () => {
-    const response = await request(app).post('/api/website/events').set('x-cartie-website-key', 'website-secret').send({ eventName: 'PageView', eventId: 'evt-1', sourceUrl: 'https://cartie-web.example/?utm_source=meta' });
+    const response = await request(app).post('/api/website/events').set('x-cartie-website-key', 'website-secret').send({ eventName: 'PageView', eventId: 'evt-1', sourceUrl: 'https://cartie-web.example/?utm_source=meta', customData: { campaign_variant: 'b' } });
     expect(response.status).toBe(200);
-    expect(trackDatasetWebsiteEventMock).toHaveBeenCalledWith('main_quiz', 'company_1', 'PageView', expect.objectContaining({ eventId: 'website:evt-1:PageView:main_quiz', actionSource: 'website' }));
+    expect(trackDatasetWebsiteEventMock).toHaveBeenCalledWith('main_quiz', 'company_1', 'PageView', expect.objectContaining({ eventId: 'website:evt-1:PageView:main_quiz', actionSource: 'website', customData: expect.objectContaining({ campaign_variant: 'b' }) }));
   });
 
   it('creates a CRM lead/request through the canonical LeadService', async () => {
-    const response = await request(app).post('/api/website/leads').set('x-cartie-website-key', 'website-secret').send({ source: 'quiz', name: 'QA Client', phone: '+380930044544', consent: true, eventId: 'evt-2', quizAnswers: { 'Тип автомобіля': 'Кросовер / SUV' } });
+    const response = await request(app).post('/api/website/leads').set('x-cartie-website-key', 'website-secret').send({ source: 'quiz', name: 'QA Client', phone: '+380930044544', consent: true, eventId: 'evt-2', campaignVariant: 'b', quizAnswers: { 'Тип автомобіля': 'Кросовер / SUV' } });
     expect(response.status).toBe(202);
-    expect(createOrMergeLeadMock).toHaveBeenCalledWith(expect.objectContaining({ botId: 'bot_1', companyId: 'company_1', source: 'WEBSITE', createRequest: true }));
+    expect(createOrMergeLeadMock).toHaveBeenCalledWith(expect.objectContaining({ botId: 'bot_1', companyId: 'company_1', source: 'WEBSITE', createRequest: true, payload: expect.objectContaining({ campaignVariant: 'b' }) }));
     expect(response.body).toMatchObject({ ok: true, leadId: 'lead_1', requestId: 'REQ-1' });
   });
 });

@@ -45,6 +45,9 @@ router.post('/events', async (request, response) => {
   const companyId = text(process.env.WEBSITE_LEAD_COMPANY_ID, 120);
   if (!companyId) return response.status(503).json({ error: 'website_company_not_configured' });
   const eventId = text(body.eventId, 120) || crypto.randomUUID();
+  const customData = body.customData && typeof body.customData === 'object' ? body.customData as Record<string, unknown> : {};
+  const campaignVariantValue = text(body.campaignVariant || customData.campaign_variant, 1);
+  const campaignVariant = campaignVariantValue === 'b' ? 'b' : campaignVariantValue === 'a' ? 'a' : undefined;
   const attribution = attributionSnapshot(request, body);
   const result = await new MetaCapiService().trackDatasetWebsiteEvent('main_quiz', companyId, eventName, {
     eventId: `website:${eventId}:${eventName}:main_quiz`,
@@ -54,14 +57,14 @@ router.post('/events', async (request, response) => {
     phone: text(body.phone, 40) || undefined,
     email: text(body.email, 180) || undefined,
     name: text(body.name, 120) || undefined,
-    fbc: text(attribution.identifiers.fbc, 255) || undefined,
-    fbp: text(attribution.identifiers.fbp, 255) || undefined,
-    clientIpAddress: text(attribution.identifiers.client_ip_address, 120) || undefined,
-    clientUserAgent: text(attribution.identifiers.client_user_agent, 500) || undefined,
+    fbc: text((attribution.identifiers as Record<string, unknown>).fbc, 255) || undefined,
+    fbp: text((attribution.identifiers as Record<string, unknown>).fbp, 255) || undefined,
+    clientIpAddress: text((attribution.identifiers as Record<string, unknown>).client_ip_address, 120) || undefined,
+    clientUserAgent: text((attribution.identifiers as Record<string, unknown>).client_user_agent, 500) || undefined,
     eventSourceUrl: attribution.event_source_url,
     actionSource: 'website',
     stage: `website:${eventName.toLowerCase()}:main_quiz`,
-    customData: { source: 'cartie_web', surface: 'website', destination: 'adsquiz_usa' }
+    customData: { source: 'cartie_web', surface: 'website', destination: 'adsquiz_usa', campaign_variant: campaignVariant }
   });
   return response.status(result.success || result.skipped ? 200 : 502).json({ ok: Boolean(result.success), delivered: Boolean(result.success), eventId, reason: result.reason });
 });
@@ -72,13 +75,14 @@ router.post('/leads', async (request, response) => {
   const companyId = text(process.env.WEBSITE_LEAD_COMPANY_ID, 120);
   const botId = text(process.env.WEBSITE_LEAD_BOT_ID, 120);
   const name = text(body.name, 120);
-  const phone = normalizePhone(text(body.phone, 40));
+  const phone = normalizePhone(text(body.phone, 40)) || '';
   const consent = body.consent === true;
   if (!companyId || !botId) return response.status(503).json({ error: 'website_lead_not_configured' });
   if (name.length < 2 || phone.replace(/\D/g, '').length < 10 || !consent) return response.status(400).json({ error: 'invalid_lead' });
   const answers = body.quizAnswers && typeof body.quizAnswers === 'object' ? body.quizAnswers as Record<string, unknown> : {};
   const attribution = attributionSnapshot(request, body);
   const eventId = text(body.eventId, 120) || crypto.randomUUID();
+  const campaignVariant = text(body.campaignVariant, 1) === 'b' ? 'b' : text(body.campaignVariant, 1) === 'a' ? 'a' : undefined;
   const requestTitle = text(answers['Тип автомобіля'] || answers.type || 'Підбір автомобіля', 120);
   const lead = await createOrMergeLead({
     botId,
@@ -97,6 +101,7 @@ router.post('/leads', async (request, response) => {
       destination_key: 'main_quiz_adsquiz',
       request_type: 'client_auto_selection',
       eventId,
+      campaignVariant,
       consent: true,
       quizAnswers: Object.fromEntries(Object.entries(answers).map(([key, value]) => [text(key, 80), text(value, 180)])),
       attribution
