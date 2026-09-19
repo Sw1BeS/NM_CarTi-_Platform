@@ -1,0 +1,64 @@
+name: Sisters shared-host read-only probe
+
+on:
+  push:
+    branches:
+      - sisters-runtime-readonly-probe
+    paths:
+      - ".github/workflows/sisters-shared-host-readonly.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    env:
+      TARGET: ${{ secrets.SERVER_HOST }}
+      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+    steps:
+      - name: Read-only host identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          [ -n "${TARGET:-}" ] || { echo "SERVER_HOST unavailable"; exit 2; }
+          [ -n "${SSH_PRIVATE_KEY:-}" ] || { echo "SSH_PRIVATE_KEY unavailable"; exit 2; }
+
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -T 5 -H "$TARGET" >> ~/.ssh/known_hosts 2>/dev/null
+
+          chosen=""
+          for user in root ubuntu user; do
+            echo "auth-probe user=$user"
+            if ssh -i ~/.ssh/id_ed25519               -o BatchMode=yes -o ConnectTimeout=8 -o StrictHostKeyChecking=yes               "$user@$TARGET" 'hostname; whoami' 2>/dev/null; then
+              chosen="$user"
+              break
+            fi
+          done
+
+          [ -n "$chosen" ] || { echo "No tested user accepted repo credential"; exit 3; }
+          echo "authenticated-user=$chosen"
+
+          ssh -i ~/.ssh/id_ed25519             -o BatchMode=yes -o ConnectTimeout=8 -o StrictHostKeyChecking=yes             "$chosen@$TARGET" 'bash -s' <<'REMOTE'
+          set -u
+          echo "===== IDENTITY ====="
+          hostname || true
+          whoami || true
+          date -u +%FT%TZ || true
+
+          echo "===== SISTERS SYSTEMD/TIMERS ====="
+          systemctl list-units --all --no-pager --plain 2>/dev/null             | grep -Ei 'sister|aroma|analytics|meta|ga4|bitrix|crm|airtable'             | head -n 200 || true
+          systemctl list-timers --all --no-pager --plain 2>/dev/null             | grep -Ei 'sister|aroma|analytics|meta|ga4|bitrix|crm|airtable'             | head -n 200 || true
+
+          echo "===== SISTERS SIGNATURE PATHS ONLY ====="
+          patterns='highest_allocated_spend_v2|1705420460556907|appvrKdRRUt5isUVj|Sisters Aroma|sisters_aroma|sisters-aroma'
+          for root in /opt /root /srv; do
+            [ -d "$root" ] || continue
+            if command -v rg >/dev/null 2>&1; then
+              rg -Il --hidden                 --glob '!**/.git/**' --glob '!**/node_modules/**'                 --glob '!/srv/cartie/**' --glob '!/srv/cartie_storage/**'                 --glob '!**/.cache/**' --glob '!**/backups/**'                 -e "$patterns" "$root" 2>/dev/null | head -n 500 || true
+            fi
+          done
+          REMOTE
